@@ -1,9 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import type { Database } from "@/integrations/supabase/types";
-
-type AppRole = Database["public"]["Enums"]["app_role"];
+import type { AppRole } from "@/types/custom-tables";
 
 interface Profile {
   id: string;
@@ -36,11 +34,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const fetchUserData = async (userId: string) => {
     const [profileRes, roleRes] = await Promise.all([
       supabase.from("profiles").select("*").eq("id", userId).single(),
-      supabase.rpc("get_user_role", { _user_id: userId }),
+      supabase.rpc("get_user_role" as any, { _user_id: userId }),
     ]);
 
-    if (profileRes.data) setProfile(profileRes.data);
-    if (roleRes.data) setRole(roleRes.data);
+    if (profileRes.data) {
+      const p = profileRes.data as any;
+      setProfile({
+        id: p.id,
+        email: p.email,
+        full_name: p.full_name || p.display_name || [p.first_name, p.last_name].filter(Boolean).join(" ") || p.email,
+      });
+    }
+    if (roleRes.data) setRole(roleRes.data as AppRole);
   };
 
   useEffect(() => {

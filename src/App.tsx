@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ProtectedRoute, getDefaultRoute } from "@/components/ProtectedRoute";
+import type { AppRole } from "@/types/custom-tables";
 import Index from "./pages/Index";
 import Projects from "./pages/Projects";
 import ProjectDetail from "./pages/ProjectDetail";
@@ -20,6 +21,8 @@ import NotFound from "./pages/NotFound";
 const queryClient = new QueryClient();
 
 const basename = import.meta.env.BASE_URL.replace(/\/+$/, "") || "/";
+
+const R = (...roles: AppRole[]) => roles;
 
 function AppRoutes() {
   const { user, role, loading } = useAuth();
@@ -37,19 +40,19 @@ function AppRoutes() {
       <Route path="/login" element={user ? <Navigate to={getDefaultRoute(role)} replace /> : <Login />} />
       
       {/* Admin routes */}
-      <Route path="/" element={<ProtectedRoute allowedRoles={["ADMIN"]}><Index /></ProtectedRoute>} />
-      <Route path="/ceo-dashboard" element={<ProtectedRoute allowedRoles={["ADMIN"]}><CeoDashboard /></ProtectedRoute>} />
-      <Route path="/inventory" element={<ProtectedRoute allowedRoles={["ADMIN"]}><Inventory /></ProtectedRoute>} />
-      <Route path="/supplier-orders" element={<ProtectedRoute allowedRoles={["ADMIN"]}><SupplierOrders /></ProtectedRoute>} />
-      <Route path="/reports" element={<ProtectedRoute allowedRoles={["ADMIN"]}><Reports /></ProtectedRoute>} />
-      <Route path="/settings" element={<ProtectedRoute allowedRoles={["ADMIN"]}><Settings /></ProtectedRoute>} />
+      <Route path="/" element={<ProtectedRoute allowedRoles={R("ADMIN")}><Index /></ProtectedRoute>} />
+      <Route path="/ceo-dashboard" element={<ProtectedRoute allowedRoles={R("ADMIN")}><CeoDashboard /></ProtectedRoute>} />
+      <Route path="/inventory" element={<ProtectedRoute allowedRoles={R("ADMIN")}><Inventory /></ProtectedRoute>} />
+      <Route path="/supplier-orders" element={<ProtectedRoute allowedRoles={R("ADMIN")}><SupplierOrders /></ProtectedRoute>} />
+      <Route path="/reports" element={<ProtectedRoute allowedRoles={R("ADMIN")}><Reports /></ProtectedRoute>} />
+      <Route path="/settings" element={<ProtectedRoute allowedRoles={R("ADMIN")}><Settings /></ProtectedRoute>} />
       
       {/* Shared: Admin + PM */}
-      <Route path="/projects" element={<ProtectedRoute allowedRoles={["ADMIN", "PM"]}><Projects /></ProtectedRoute>} />
-      <Route path="/projects/:projectId" element={<ProtectedRoute allowedRoles={["ADMIN", "PM"]}><ProjectDetail /></ProtectedRoute>} />
+      <Route path="/projects" element={<ProtectedRoute allowedRoles={R("ADMIN", "PM")}><Projects /></ProtectedRoute>} />
+      <Route path="/projects/:projectId" element={<ProtectedRoute allowedRoles={R("ADMIN", "PM")}><ProjectDetail /></ProtectedRoute>} />
       
-      {/* Operative inbox: all roles can see their tasks */}
-      <Route path="/my-tasks" element={<ProtectedRoute allowedRoles={["ADMIN", "PM", "document_manager", "specialist", "energy_modeler", "cxa"]}><MyTasks /></ProtectedRoute>} />
+      {/* Operative inbox */}
+      <Route path="/my-tasks" element={<ProtectedRoute allowedRoles={R("ADMIN", "PM", "document_manager", "specialist", "energy_modeler", "cxa")}><MyTasks /></ProtectedRoute>} />
       
       <Route path="*" element={<NotFound />} />
     </Routes>

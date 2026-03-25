@@ -21,7 +21,7 @@ export function AuditTrail() {
 
   useEffect(() => {
     const fetchLogs = async () => {
-      const { data } = await supabase
+      const { data } = await (supabase as any)
         .from("audit_logs")
         .select("*, projects(name), profiles:user_id(full_name)")
         .order("created_at", { ascending: false })
@@ -45,7 +45,6 @@ export function AuditTrail() {
 
     fetchLogs();
 
-    // Realtime subscription
     const channel = supabase
       .channel("audit_logs_realtime")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "audit_logs" }, () => {
