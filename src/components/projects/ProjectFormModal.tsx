@@ -47,7 +47,7 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   project?: Project | null;
-  existingAllocations?: Allocation[];
+  existingAllocations?: ProjectAllocation[];
   onSaved: () => void;
 }
 

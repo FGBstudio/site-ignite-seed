@@ -15,10 +15,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { ProcurementForecasting } from "@/components/dashboard/ProcurementForecasting";
 import { DataImporter } from "@/components/admin/DataImporter";
-import type { Tables } from "@/integrations/supabase/types";
-
-type Project = Tables<"projects">;
-type Allocation = Tables<"project_allocations">;
+import type { Project, ProjectAllocation } from "@/types/custom-tables";
 
 const statusColors: Record<string, string> = {
   Design: "bg-primary/10 text-primary border-primary/20",
@@ -40,11 +37,11 @@ export default function Projects() {
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);
   const [editProject, setEditProject] = useState<Project | null>(null);
-  const [editAllocations, setEditAllocations] = useState<Allocation[]>([]);
+  const [editAllocations, setEditAllocations] = useState<ProjectAllocation[]>([]);
 
   const fetchProjects = async () => {
     setLoading(true);
-    const { data } = await supabase
+    const { data } = await (supabase as any)
       .from("projects")
       .select("*, profiles!projects_pm_id_fkey(full_name), project_allocations(quantity, products(name, certification))")
       .order("handover_date", { ascending: true });
@@ -65,17 +62,17 @@ export default function Projects() {
   useEffect(() => {
     fetchProjects();
     if (isAdmin) {
-      supabase.from("profiles").select("id, full_name").then(({ data }) => setPmList(data || []));
+      supabase.from("profiles").select("id, full_name").then(({ data }) => setPmList((data || []) as any));
     }
   }, [isAdmin]);
 
   const openEdit = async (project: Project) => {
     const { data } = await supabase
-      .from("project_allocations")
+      .from("project_allocations" as any)
       .select("*")
       .eq("project_id", project.id);
     setEditProject(project);
-    setEditAllocations(data || []);
+    setEditAllocations((data || []) as any);
     setModalOpen(true);
   };
 

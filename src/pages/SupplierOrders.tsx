@@ -5,10 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
-import type { Tables } from "@/integrations/supabase/types";
-
-type SupplierOrder = Tables<"supplier_orders">;
-type Product = Tables<"products">;
+import type { Product, SupplierOrder } from "@/types/custom-tables";
 
 const statusColors: Record<string, string> = {
   Draft: "bg-muted text-muted-foreground border-border",
@@ -30,8 +27,8 @@ export default function SupplierOrders() {
       ]);
       if (ordRes.error) console.error("Supabase fetch error:", ordRes.error);
       if (prodRes.error) console.error("Supabase fetch error:", prodRes.error);
-      setOrders(ordRes.data || []);
-      setProducts(prodRes.data || []);
+      setOrders((ordRes.data || []) as any);
+      setProducts((prodRes.data || []) as any);
       setLoading(false);
     };
     fetchData();
