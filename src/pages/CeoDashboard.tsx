@@ -28,7 +28,7 @@ export default function CeoDashboard() {
   const { data: activeProjects = [], isLoading: loadingProjects, isError: errorProjects } = useQuery({
     queryKey: ["ceo-active-projects"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("projects")
         .select("*, profiles!projects_pm_id_fkey(full_name)")
         .in("status", ["Design", "Construction"])

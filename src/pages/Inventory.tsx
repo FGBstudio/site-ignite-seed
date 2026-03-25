@@ -20,9 +20,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Package, Layers, BoxSelect, ArrowRight } from "lucide-react";
-import type { Tables } from "@/integrations/supabase/types";
-
-type Product = Tables<"products">;
+import type { Product } from "@/types/custom-tables";
 
 interface AllocationDetail {
   project_name: string;
@@ -51,13 +49,13 @@ export default function Inventory() {
   useEffect(() => {
     const fetchProducts = async () => {
       const { data, error } = await supabase
-        .from("products")
+        .from("products" as any)
         .select("*")
         .order("name");
       if (error) {
         console.error("Supabase fetch error:", error);
       }
-      setProducts(data || []);
+      setProducts((data || []) as any);
       setLoading(false);
     };
     fetchProducts();
@@ -68,7 +66,7 @@ export default function Inventory() {
     setLoadingBreakdown(true);
 
     const { data, error } = await supabase
-      .from("project_allocations")
+      .from("project_allocations" as any)
       .select(`
         quantity,
         status,

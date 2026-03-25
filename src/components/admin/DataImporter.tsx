@@ -176,9 +176,9 @@ export function DataImporter() {
 
       // Phase A: Resolve SKUs → product ids
       const uniqueSkus = [...new Set(validatedRows.map((r) => r.productSku))];
-      const { data: products } = await supabase.from("products").select("id, sku");
+      const { data: products } = await supabase.from("products" as any).select("id, sku");
       const skuToId: Record<string, string> = {};
-      (products || []).forEach((p) => { skuToId[p.sku.toLowerCase()] = p.id; });
+      (products || []).forEach((p: any) => { skuToId[p.sku.toLowerCase()] = p.id; });
 
       // Group rows by unique project
       const projectMap = new Map<string, ValidatedRow[]>();
@@ -204,7 +204,7 @@ export function DataImporter() {
 
             // Phase B: Upsert project
             const { data: projectData, error: projectError } = await supabase
-              .from("projects")
+              .from("projects" as any)
               .upsert(
                 {
                   name: projectName,
@@ -238,8 +238,8 @@ export function DataImporter() {
                 continue;
               }
 
-              const { error: allocError } = await supabase.from("project_allocations").insert({
-                project_id: projectData.id,
+              const { error: allocError } = await supabase.from("project_allocations" as any).insert({
+                project_id: (projectData as any).id,
                 product_id: productId,
                 quantity: row.quantity,
                 status: "Requested" as const,

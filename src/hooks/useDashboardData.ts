@@ -1,10 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import type { Tables } from "@/integrations/supabase/types";
-
-type Product = Tables<"products">;
-type Project = Tables<"projects">;
-type Allocation = Tables<"project_allocations">;
+import type { Product, Project, ProjectAllocation } from "@/types/custom-tables";
 
 export interface KPIData {
   installed: number;
@@ -19,7 +15,7 @@ export interface RunwayRow {
   product: Product;
   stock: number;
   totalDemand: number;
-  runwayDate: string | null; // date when stock runs out
+  runwayDate: string | null;
   orderQty: number;
   orderByDate: string | null;
   regions: RegionBreakdown[];
@@ -40,20 +36,20 @@ export interface RegionBreakdown {
 export function useDashboardData(productFilter: string) {
   const [products, setProducts] = useState<Product[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
-  const [allocations, setAllocations] = useState<Allocation[]>([]);
+  const [allocations, setAllocations] = useState<ProjectAllocation[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetch = async () => {
       setLoading(true);
       const [prodRes, projRes, allocRes] = await Promise.all([
-        supabase.from("products").select("*"),
-        supabase.from("projects").select("*"),
-        supabase.from("project_allocations").select("*"),
+        supabase.from("products" as any).select("*"),
+        supabase.from("projects" as any).select("*"),
+        supabase.from("project_allocations" as any).select("*"),
       ]);
-      setProducts(prodRes.data || []);
-      setProjects(projRes.data || []);
-      setAllocations(allocRes.data || []);
+      setProducts((prodRes.data || []) as any);
+      setProjects((projRes.data || []) as any);
+      setAllocations((allocRes.data || []) as any);
       setLoading(false);
     };
     fetch();
@@ -85,7 +81,6 @@ export function useDashboardData(productFilter: string) {
     const totalDemand = confirmed + pipeline;
     const toOrder = Math.max(0, totalDemand - inStock);
 
-    // Calculate drop-dead date: earliest handover minus lead time
     let dropDeadDate: string | null = null;
     if (toOrder > 0) {
       const activeAllocs = relevantAllocs.filter((a) =>
@@ -117,7 +112,6 @@ export function useDashboardData(productFilter: string) {
       );
       const totalDemand = prodAllocs.reduce((s, a) => s + a.quantity, 0);
 
-      // Sort allocations by project handover to compute runway
       const allocsWithDate = prodAllocs
         .map((a) => {
           const proj = projects.find((p) => p.id === a.project_id);
@@ -142,7 +136,6 @@ export function useDashboardData(productFilter: string) {
         orderByDate = d.toISOString().split("T")[0];
       }
 
-      // Regional breakdown
       const regionMap = new Map<string, RegionBreakdown["projects"]>();
       for (const a of allocsWithDate) {
         if (!a.project) continue;

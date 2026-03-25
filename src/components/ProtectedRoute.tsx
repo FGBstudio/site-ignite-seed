@@ -1,15 +1,12 @@
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import type { Database } from "@/integrations/supabase/types";
-
-type AppRole = Database["public"]["Enums"]["app_role"];
+import type { AppRole } from "@/types/custom-tables";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
   allowedRoles?: AppRole[];
 }
 
-// Default landing per ruolo
 function getDefaultRoute(role: AppRole | null): string {
   switch (role) {
     case "ADMIN":
