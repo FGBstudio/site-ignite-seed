@@ -16,12 +16,11 @@ import { CalendarIcon, Plus, Trash2, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
-import type { Tables } from "@/integrations/supabase/types";
-import { Constants } from "@/integrations/supabase/types";
+import type { Product, Project, ProjectAllocation } from "@/types/custom-tables";
 
-type Project = Tables<"projects">;
-type Product = Tables<"products">;
-type Allocation = Tables<"project_allocations">;
+const REGIONS = ["Europe", "America", "APAC", "ME"] as const;
+const PROJECT_STATUSES = ["Design", "Construction", "Completed", "Cancelled"] as const;
+const ALLOCATION_STATUSES = ["Draft", "Allocated", "Requested", "Shipped", "Installed_Online"] as const;
 
 const PROJECT_TYPES = ["LEED", "WELL", "Monitoring", "Consulting"] as const;
 
@@ -81,9 +80,9 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
 
   useEffect(() => {
     if (!open) return;
-    supabase.from("products").select("*").then(({ data }) => setProducts(data || []));
+    supabase.from("products" as any).select("*").then(({ data }) => setProducts((data || []) as any));
     if (isAdmin) {
-      supabase.from("profiles").select("id, full_name").then(({ data }) => setPmList(data || []));
+      supabase.from("profiles").select("id, full_name").then(({ data }) => setPmList((data || []) as any));
     }
   }, [open, isAdmin]);
 
@@ -94,7 +93,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
         name: project.name, client: project.client, region: project.region,
         handover_date: new Date(project.handover_date), status: project.status,
         pm_id: project.pm_id || "", site_id: project.site_id || "",
-        project_type: project.project_type || "",
+        project_type: (project as any).project_type || "",
         allocations: existingAllocations.map((a) => ({
           id: a.id, product_id: a.product_id, quantity: a.quantity, status: a.status,
         })),
@@ -386,7 +385,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
                   <Select value={field.value} onValueChange={field.onChange}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {Constants.public.Enums.region.map((r) => (
+                      {REGIONS.map((r) => (
                         <SelectItem key={r} value={r}>{r}</SelectItem>
                       ))}
                     </SelectContent>
@@ -415,7 +414,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
                   <Select value={field.value} onValueChange={field.onChange}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {Constants.public.Enums.project_status.map((s) => (
+                      {PROJECT_STATUSES.map((s) => (
                         <SelectItem key={s} value={s}>{s}</SelectItem>
                       ))}
                     </SelectContent>
@@ -491,7 +490,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
                           <Select value={f.value} onValueChange={f.onChange}>
                             <SelectTrigger><SelectValue /></SelectTrigger>
                             <SelectContent>
-                              {Constants.public.Enums.allocation_status.map((s) => (
+                              {ALLOCATION_STATUSES.map((s) => (
                                 <SelectItem key={s} value={s}>{s}</SelectItem>
                               ))}
                             </SelectContent>
