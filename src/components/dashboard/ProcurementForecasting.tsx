@@ -7,11 +7,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertTriangle, CheckCircle, ChevronDown, Package, ShoppingCart } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import type { Tables } from "@/integrations/supabase/types";
-
-type Product = Tables<"products">;
-type Project = Tables<"projects">;
-type Allocation = Tables<"project_allocations">;
+import type { Product, Project, ProjectAllocation } from "@/types/custom-tables";
 
 interface ProjectDemand {
   projectId: string;
@@ -33,11 +29,10 @@ interface ForecastItem {
 export function ProcurementForecasting() {
   const [products, setProducts] = useState<Product[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
-  const [allocations, setAllocations] = useState<Allocation[]>([]);
+  const [allocations, setAllocations] = useState<ProjectAllocation[]>([]);
   const [pmList, setPmList] = useState<{ id: string; full_name: string }[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Filters
   const [horizon, setHorizon] = useState("90");
   const [region, setRegion] = useState("all");
   const [pmFilter, setPmFilter] = useState("all");
@@ -46,22 +41,21 @@ export function ProcurementForecasting() {
     const fetchAll = async () => {
       setLoading(true);
       const [prodRes, projRes, allocRes, pmRes] = await Promise.all([
-        supabase.from("products").select("*"),
-        supabase.from("projects").select("*").in("status", ["Design", "Construction"]),
-        supabase.from("project_allocations").select("*").in("status", ["Draft", "Requested"]),
+        supabase.from("products" as any).select("*"),
+        supabase.from("projects" as any).select("*").in("status", ["Design", "Construction"]),
+        supabase.from("project_allocations" as any).select("*").in("status", ["Draft", "Requested"]),
         supabase.from("profiles").select("id, full_name"),
       ]);
-      setProducts(prodRes.data || []);
-      setProjects(projRes.data || []);
-      setAllocations(allocRes.data || []);
-      setPmList(pmRes.data || []);
+      setProducts((prodRes.data || []) as any);
+      setProjects((projRes.data || []) as any);
+      setAllocations((allocRes.data || []) as any);
+      setPmList((pmRes.data || []) as any);
       setLoading(false);
     };
     fetchAll();
   }, []);
 
   const forecast = useMemo<ForecastItem[]>(() => {
-    // Filter projects by horizon + region + pm
     const now = new Date();
     const cutoff = horizon === "all"
       ? null
@@ -75,11 +69,8 @@ export function ProcurementForecasting() {
     });
 
     const projectIds = new Set(filteredProjects.map((p) => p.id));
-
-    // Filter allocations to matching projects
     const filteredAllocations = allocations.filter((a) => projectIds.has(a.project_id));
 
-    // Aggregate per product with project breakdown
     const demandMap = new Map<string, number>();
     const breakdownMap = new Map<string, Map<string, number>>();
     for (const a of filteredAllocations) {
@@ -89,7 +80,6 @@ export function ProcurementForecasting() {
       pMap.set(a.project_id, (pMap.get(a.project_id) || 0) + a.quantity);
     }
 
-    // Build forecast items (only products with demand > 0)
     const items: ForecastItem[] = [];
     for (const product of products) {
       const totalDemand = demandMap.get(product.id) || 0;
@@ -115,23 +105,21 @@ export function ProcurementForecasting() {
         }
       }
       projectBreakdown.sort((a, b) => b.quantity - a.quantity);
-
       items.push({ product, totalDemand, currentStock, coveredByStock, shortfallToOrder, projectBreakdown });
     }
 
-    // Sort: shortfall descending
     items.sort((a, b) => b.shortfallToOrder - a.shortfallToOrder);
     return items;
   }, [products, projects, allocations, horizon, region, pmFilter]);
 
   const handleGenerateOrder = async (item: ForecastItem) => {
-    const { error } = await supabase.from("supplier_orders").insert({
+    const { error } = await supabase.from("supplier_orders" as any).insert({
       product_id: item.product.id,
       quantity_requested: item.shortfallToOrder,
       supplier_name: "Da assegnare",
       expected_delivery_date: new Date(Date.now() + item.product.supplier_lead_time_days * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
       status: "Draft",
-    });
+    } as any);
     if (error) {
       toast({ title: "Errore", description: error.message, variant: "destructive" });
     } else {
@@ -149,13 +137,10 @@ export function ProcurementForecasting() {
 
   return (
     <div className="space-y-6">
-      {/* Filter Bar */}
       <div className="flex flex-wrap gap-3 items-center p-4 rounded-xl bg-card border border-border/50">
         <span className="text-sm font-medium text-muted-foreground mr-1">Filtri:</span>
         <Select value={horizon} onValueChange={setHorizon}>
-          <SelectTrigger className="w-40">
-            <SelectValue />
-          </SelectTrigger>
+          <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="30">30 Giorni</SelectItem>
             <SelectItem value="90">90 Giorni</SelectItem>
@@ -164,9 +149,7 @@ export function ProcurementForecasting() {
           </SelectContent>
         </Select>
         <Select value={region} onValueChange={setRegion}>
-          <SelectTrigger className="w-40">
-            <SelectValue />
-          </SelectTrigger>
+          <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tutte le Region</SelectItem>
             <SelectItem value="Europe">Europe</SelectItem>
@@ -176,9 +159,7 @@ export function ProcurementForecasting() {
           </SelectContent>
         </Select>
         <Select value={pmFilter} onValueChange={setPmFilter}>
-          <SelectTrigger className="w-48">
-            <SelectValue />
-          </SelectTrigger>
+          <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tutti i PM</SelectItem>
             {pmList.map((pm) => (
@@ -188,7 +169,6 @@ export function ProcurementForecasting() {
         </Select>
       </div>
 
-      {/* Summary */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="stat-card flex items-center gap-3">
           <Package className="h-5 w-5 text-primary" />
@@ -213,7 +193,6 @@ export function ProcurementForecasting() {
         </div>
       </div>
 
-      {/* Forecast Cards */}
       {forecast.length === 0 ? (
         <div className="table-container p-12 text-center text-muted-foreground">
           Nessun fabbisogno nel periodo selezionato.
@@ -235,7 +214,6 @@ export function ProcurementForecasting() {
                         <span className="text-xs text-muted-foreground font-mono">{item.product.sku}</span>
                         <Badge variant="outline" className="text-xs">{item.product.certification}</Badge>
                       </div>
-                      {/* Collapsible project list */}
                       <Collapsible>
                         <CollapsibleTrigger asChild>
                           <button className="flex items-center gap-1 mt-2 text-xs text-primary hover:text-primary/80 transition-colors">
@@ -263,7 +241,6 @@ export function ProcurementForecasting() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {/* Metrics */}
                   <div className="flex gap-4 text-sm">
                     <div>
                       <span className="text-muted-foreground">Domanda: </span>
@@ -281,19 +258,16 @@ export function ProcurementForecasting() {
                     </div>
                   </div>
 
-                  {/* Visual Bar */}
                   <div className="space-y-1">
                     <div className="flex justify-between text-xs text-muted-foreground">
                       <span>Copertura stock</span>
                       <span>{Math.round(coveredPct)}%</span>
                     </div>
                     <div className="relative h-4 w-full rounded-full overflow-hidden bg-muted">
-                      {/* Covered portion */}
                       <div
                         className="absolute inset-y-0 left-0 rounded-l-full bg-success transition-all duration-500"
                         style={{ width: `${coveredPct}%` }}
                       />
-                      {/* Shortfall portion */}
                       {hasShortfall && (
                         <div
                           className="absolute inset-y-0 rounded-r-full bg-destructive transition-all duration-500"
@@ -307,7 +281,6 @@ export function ProcurementForecasting() {
                     </div>
                   </div>
 
-                  {/* Action */}
                   {hasShortfall && (
                     <Button
                       size="sm"

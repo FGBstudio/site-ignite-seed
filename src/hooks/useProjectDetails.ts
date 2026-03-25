@@ -6,7 +6,7 @@ export function useProjectDetails(projectId: string | undefined) {
     queryKey: ["project", projectId],
     queryFn: async () => {
       if (!projectId) throw new Error("No project ID");
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("projects")
         .select("*, profiles!projects_pm_id_fkey(full_name), sites(name, city, country)")
         .eq("id", projectId)
@@ -23,7 +23,7 @@ export function useCertification(projectId: string | undefined) {
     queryKey: ["certification", projectId],
     queryFn: async () => {
       if (!projectId) throw new Error("No project ID");
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("certifications")
         .select("*")
         .eq("project_id", projectId)
@@ -58,7 +58,7 @@ export function useProjectAllocations(projectId: string | undefined) {
     queryKey: ["project-allocations", projectId],
     queryFn: async () => {
       if (!projectId) throw new Error("No project ID");
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("project_allocations")
         .select("*, products(name, sku, certification)")
         .eq("project_id", projectId);

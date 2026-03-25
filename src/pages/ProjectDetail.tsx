@@ -48,7 +48,7 @@ export default function ProjectDetail() {
     );
   }
 
-  const hasCert = project.project_type === "LEED" || project.project_type === "WELL";
+  const hasCert = (project as any).project_type === "LEED" || (project as any).project_type === "WELL";
   const pmName = (project as any).profiles?.full_name || "—";
   const siteName = (project as any).sites?.name;
   const siteCity = (project as any).sites?.city;
@@ -100,7 +100,7 @@ export default function ProjectDetail() {
               <p className="text-xs text-muted-foreground">Stato / Tipo</p>
               <div className="flex items-center gap-2 mt-0.5">
                 <Badge variant="outline" className={cn("border text-xs", statusColors[project.status])}>{project.status}</Badge>
-                {project.project_type && <Badge variant="secondary" className="text-xs">{project.project_type}</Badge>}
+                {(project as any).project_type && <Badge variant="secondary" className="text-xs">{(project as any).project_type}</Badge>}
               </div>
             </div>
           </CardContent>
@@ -111,7 +111,7 @@ export default function ProjectDetail() {
       <Tabs defaultValue={hasCert ? "scorecard" : "wbs"} className="space-y-4">
         <TabsList>
           <TabsTrigger value="hardware">Hardware</TabsTrigger>
-          {hasCert && <TabsTrigger value="scorecard">Scorecard {project.project_type}</TabsTrigger>}
+          {hasCert && <TabsTrigger value="scorecard">Scorecard {(project as any).project_type}</TabsTrigger>}
           <TabsTrigger value="wbs">Cronoprogramma</TabsTrigger>
           <TabsTrigger value="payments">Pagamenti</TabsTrigger>
         </TabsList>
