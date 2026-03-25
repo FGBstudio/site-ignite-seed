@@ -62,6 +62,44 @@ export type Database = {
         }
         Relationships: []
       }
+      audit_logs: {
+        Row: {
+          changed_field: string
+          created_at: string
+          id: string
+          new_value: string | null
+          old_value: string | null
+          project_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          changed_field: string
+          created_at?: string
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+          project_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          changed_field?: string
+          created_at?: string
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+          project_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_logs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bill_data: {
         Row: {
           additional_data: Json | null
@@ -1164,6 +1202,74 @@ export type Database = {
           },
         ]
       }
+      payment_milestones: {
+        Row: {
+          amount: number
+          created_at: string
+          due_date: string | null
+          id: string
+          milestone_name: string
+          project_id: string
+          status: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          milestone_name?: string
+          project_id: string
+          status?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          milestone_name?: string
+          project_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_milestones_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      products: {
+        Row: {
+          certification: string
+          created_at: string
+          id: string
+          name: string
+          quantity_in_stock: number
+          sku: string
+          supplier_lead_time_days: number
+        }
+        Insert: {
+          certification?: string
+          created_at?: string
+          id?: string
+          name: string
+          quantity_in_stock?: number
+          sku: string
+          supplier_lead_time_days?: number
+        }
+        Update: {
+          certification?: string
+          created_at?: string
+          id?: string
+          name?: string
+          quantity_in_stock?: number
+          sku?: string
+          supplier_lead_time_days?: number
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -1172,6 +1278,7 @@ export type Database = {
           display_name: string | null
           email: string
           first_name: string | null
+          full_name: string | null
           id: string
           job_title: string | null
           last_name: string | null
@@ -1185,6 +1292,7 @@ export type Database = {
           display_name?: string | null
           email: string
           first_name?: string | null
+          full_name?: string | null
           id: string
           job_title?: string | null
           last_name?: string | null
@@ -1198,6 +1306,7 @@ export type Database = {
           display_name?: string | null
           email?: string
           first_name?: string | null
+          full_name?: string | null
           id?: string
           job_title?: string | null
           last_name?: string | null
@@ -1205,6 +1314,159 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      project_allocations: {
+        Row: {
+          created_at: string
+          id: string
+          product_id: string
+          project_id: string
+          quantity: number
+          status: string
+          target_date: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          product_id: string
+          project_id: string
+          quantity?: number
+          status?: string
+          target_date?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          product_id?: string
+          project_id?: string
+          quantity?: number
+          status?: string
+          target_date?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_allocations_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_allocations_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_tasks: {
+        Row: {
+          assigned_to: string | null
+          blocking_payment_id: string | null
+          created_at: string
+          dependency_id: string | null
+          end_date: string | null
+          id: string
+          project_id: string
+          start_date: string | null
+          status: string
+          task_name: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          blocking_payment_id?: string | null
+          created_at?: string
+          dependency_id?: string | null
+          end_date?: string | null
+          id?: string
+          project_id: string
+          start_date?: string | null
+          status?: string
+          task_name?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          blocking_payment_id?: string | null
+          created_at?: string
+          dependency_id?: string | null
+          end_date?: string | null
+          id?: string
+          project_id?: string
+          start_date?: string | null
+          status?: string
+          task_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_tasks_blocking_payment_id_fkey"
+            columns: ["blocking_payment_id"]
+            isOneToOne: false
+            referencedRelation: "payment_milestones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_tasks_dependency_id_fkey"
+            columns: ["dependency_id"]
+            isOneToOne: false
+            referencedRelation: "project_tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_tasks_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      projects: {
+        Row: {
+          client: string
+          created_at: string
+          handover_date: string
+          id: string
+          name: string
+          pm_id: string | null
+          region: string
+          site_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          client?: string
+          created_at?: string
+          handover_date?: string
+          id?: string
+          name: string
+          pm_id?: string | null
+          region?: string
+          site_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          client?: string
+          created_at?: string
+          handover_date?: string
+          id?: string
+          name?: string
+          pm_id?: string | null
+          region?: string
+          site_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "projects_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       site_config: {
         Row: {
@@ -1516,6 +1778,44 @@ export type Database = {
             columns: ["brand_id"]
             isOneToOne: false
             referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      supplier_orders: {
+        Row: {
+          created_at: string
+          expected_delivery_date: string | null
+          id: string
+          product_id: string
+          quantity_requested: number
+          status: string
+          supplier_name: string
+        }
+        Insert: {
+          created_at?: string
+          expected_delivery_date?: string | null
+          id?: string
+          product_id: string
+          quantity_requested?: number
+          status?: string
+          supplier_name?: string
+        }
+        Update: {
+          created_at?: string
+          expected_delivery_date?: string | null
+          id?: string
+          product_id?: string
+          quantity_requested?: number
+          status?: string
+          supplier_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supplier_orders_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
             referencedColumns: ["id"]
           },
         ]
@@ -2079,6 +2379,14 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      view_resource_saturation: {
+        Row: {
+          next_deadline: string | null
+          total_active_tasks: number | null
+          user_id: string | null
+        }
+        Relationships: []
       }
     }
     Functions: {
