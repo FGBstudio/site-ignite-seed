@@ -46,3 +46,50 @@ export interface SupplierOrder {
 }
 
 export type AppRole = "admin" | "editor" | "superuser" | "viewer" | "ADMIN" | "PM" | "document_manager" | "specialist" | "energy_modeler" | "cxa";
+
+// --- Certification WBS & Gantt ---
+
+export type CertTaskStatus = "Not_Started" | "In_Progress" | "Blocked" | "Completed";
+export type CertPaymentStatus = "Pending" | "Invoiced" | "Paid" | "Overdue";
+
+export interface CertWbsPhase {
+  id: string;
+  project_id: string;
+  name: string;
+  order_index: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CertTask {
+  id: string;
+  project_id: string;
+  phase_id: string | null;
+  title: string;
+  description: string | null;
+  status: CertTaskStatus;
+  start_date: string | null;
+  end_date: string | null;
+  assignee_id: string | null;
+  dependencies: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CertTaskChecklist {
+  id: string;
+  task_id: string;
+  requirement_text: string;
+  is_completed: boolean;
+}
+
+export interface CertPaymentMilestone {
+  id: string;
+  project_id: string;
+  name: string;
+  amount: number;
+  due_date: string | null;
+  status: CertPaymentStatus;
+  trigger_task_id: string | null;
+  created_at: string;
+}

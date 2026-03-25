@@ -250,6 +250,185 @@ export type Database = {
           },
         ]
       }
+      cert_payment_milestones: {
+        Row: {
+          amount: number
+          created_at: string
+          due_date: string | null
+          id: string
+          name: string
+          project_id: string
+          status: string
+          trigger_task_id: string | null
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          name: string
+          project_id: string
+          status?: string
+          trigger_task_id?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          name?: string
+          project_id?: string
+          status?: string
+          trigger_task_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cert_payment_milestones_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cert_payment_milestones_trigger_task_id_fkey"
+            columns: ["trigger_task_id"]
+            isOneToOne: false
+            referencedRelation: "cert_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cert_task_checklists: {
+        Row: {
+          id: string
+          is_completed: boolean
+          requirement_text: string
+          task_id: string
+        }
+        Insert: {
+          id?: string
+          is_completed?: boolean
+          requirement_text: string
+          task_id: string
+        }
+        Update: {
+          id?: string
+          is_completed?: boolean
+          requirement_text?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cert_task_checklists_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "cert_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cert_tasks: {
+        Row: {
+          assignee_id: string | null
+          created_at: string
+          dependencies: string[] | null
+          description: string | null
+          end_date: string | null
+          id: string
+          phase_id: string | null
+          project_id: string
+          start_date: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assignee_id?: string | null
+          created_at?: string
+          dependencies?: string[] | null
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          phase_id?: string | null
+          project_id: string
+          start_date?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assignee_id?: string | null
+          created_at?: string
+          dependencies?: string[] | null
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          phase_id?: string | null
+          project_id?: string
+          start_date?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cert_tasks_assignee_id_fkey"
+            columns: ["assignee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cert_tasks_phase_id_fkey"
+            columns: ["phase_id"]
+            isOneToOne: false
+            referencedRelation: "cert_wbs_phases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cert_tasks_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cert_wbs_phases: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          order_index: number
+          project_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          order_index?: number
+          project_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          order_index?: number
+          project_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cert_wbs_phases_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       certification_milestones: {
         Row: {
           category: string
@@ -2581,6 +2760,10 @@ export type Database = {
         Returns: Database["public"]["Enums"]["device_type"]
       }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
+      is_project_pm: {
+        Args: { _project_id: string; _user_id: string }
+        Returns: boolean
+      }
       is_valid_measurement: { Args: { val: number }; Returns: boolean }
       mark_stale_devices_offline: {
         Args: { p_threshold_minutes?: number }
