@@ -45,7 +45,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         full_name: p.full_name || p.display_name || [p.first_name, p.last_name].filter(Boolean).join(" ") || p.email,
       });
     }
-    if (roleRes.data) setRole(roleRes.data as AppRole);
+    if (roleRes.data) {
+      const raw = roleRes.data as string;
+      const normalized = raw === "admin" ? "ADMIN" : raw === "pm" ? "PM" : raw;
+      setRole(normalized as AppRole);
+    }
   };
 
   useEffect(() => {
