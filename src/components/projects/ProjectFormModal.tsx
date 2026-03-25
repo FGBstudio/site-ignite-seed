@@ -210,7 +210,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
       const toDelete = existingIds.filter((id) => !currentIds.includes(id));
 
       if (toDelete.length > 0) {
-        await supabase.from("project_allocations").delete().in("id", toDelete);
+        await supabase.from("project_allocations" as any).delete().in("id", toDelete);
       }
 
       for (const alloc of data.allocations) {
@@ -219,11 +219,11 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
           "yyyy-MM-dd"
         );
         if (alloc.id) {
-          await supabase.from("project_allocations")
-            .update({ product_id: alloc.product_id, quantity: alloc.quantity, status: alloc.status as any })
+          await supabase.from("project_allocations" as any)
+            .update({ product_id: alloc.product_id, quantity: alloc.quantity, status: alloc.status } as any)
             .eq("id", alloc.id);
         } else {
-          await supabase.from("project_allocations").insert({
+          await supabase.from("project_allocations" as any).insert({
             project_id: projectId, product_id: alloc.product_id,
             quantity: alloc.quantity, status: (alloc.status || "Draft") as any, target_date: targetDate,
           });
