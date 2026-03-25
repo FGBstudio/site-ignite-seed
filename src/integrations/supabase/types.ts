@@ -2337,7 +2337,17 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "viewer" | "editor" | "admin" | "superuser"
+      app_role:
+        | "viewer"
+        | "editor"
+        | "admin"
+        | "superuser"
+        | "ADMIN"
+        | "PM"
+        | "document_manager"
+        | "specialist"
+        | "energy_modeler"
+        | "cxa"
       device_status: "online" | "offline" | "warning" | "error" | "maintenance"
       device_type:
         | "air_quality"
@@ -2480,7 +2490,18 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["viewer", "editor", "admin", "superuser"],
+      app_role: [
+        "viewer",
+        "editor",
+        "admin",
+        "superuser",
+        "ADMIN",
+        "PM",
+        "document_manager",
+        "specialist",
+        "energy_modeler",
+        "cxa",
+      ],
       device_status: ["online", "offline", "warning", "error", "maintenance"],
       device_type: [
         "air_quality",
