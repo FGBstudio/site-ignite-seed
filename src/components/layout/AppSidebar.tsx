@@ -53,6 +53,7 @@ export function AppSidebar() {
     ];
   } else if (isPM) {
     mainNavItems = [
+      { title: "Dashboard", url: "/ceo-dashboard", icon: Crown },
       { title: "I Miei Cantieri", url: "/projects", icon: FolderKanban },
       { title: "I Miei Task", url: "/my-tasks", icon: Inbox },
     ];
