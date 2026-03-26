@@ -251,11 +251,11 @@ function TimelineTab({ project }: { project: PMProject }) {
     queryKey: ["timeline-milestones", certId],
     enabled: !!certId,
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("certification_milestones")
         .select("*")
         .eq("certification_id", certId!)
-        .eq("milestone_type" as any, "timeline")
+        .eq("milestone_type", "timeline")
         .order("order_index");
       if (error) throw error;
       return data || [];
