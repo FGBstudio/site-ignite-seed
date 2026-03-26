@@ -379,10 +379,10 @@ function ScorecardTab({ project }: { project: PMProject }) {
 
   const { template, isGeneric } = getTemplateOrFallback(cert?.cert_type || project.cert_type, project.cert_rating);
 
-  const { data: milestones = [], refetch } = useQuery({
+  const { data: milestones = [] as any[], refetch } = useQuery({
     queryKey: ["scorecard-milestones", certId],
     enabled: !!certId,
-    queryFn: async () => {
+    queryFn: async (): Promise<any[]> => {
       const { data, error } = await (supabase as any)
         .from("certification_milestones")
         .select("*")
@@ -391,7 +391,7 @@ function ScorecardTab({ project }: { project: PMProject }) {
         .order("category")
         .order("requirement");
       if (error) throw error;
-      return data || [];
+      return (data || []) as any[];
     },
   });
 
