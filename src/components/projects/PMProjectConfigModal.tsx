@@ -482,7 +482,7 @@ function ScorecardTab({ project }: { project: PMProject }) {
 
   return (
     <div className="space-y-4 max-h-[400px] overflow-y-auto">
-      {Object.entries(grouped).map(([category, items]) => {
+      {Object.entries(grouped).map(([category, items]: [string, any[]]) => {
         const catScore = items.reduce((s: number, m: any) => s + Number(m.score || 0), 0);
         const catMax = items.reduce((s: number, m: any) => s + Number(m.max_score || 0), 0);
         return (
