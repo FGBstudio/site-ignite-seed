@@ -19,7 +19,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Package, Layers, BoxSelect, ArrowRight } from "lucide-react";
+import { Package, Layers, BoxSelect, ArrowRight, Clock, Truck, ShoppingCart } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
 import type { Product } from "@/types/custom-tables";
 
 interface AllocationDetail {
@@ -36,6 +37,9 @@ interface ProductBreakdown {
   total_stock: number;
   total_allocated: number;
   free_stock: number;
+  requested: number;
+  allocated: number;
+  shipped: number;
   allocations: AllocationDetail[];
 }
 
@@ -53,7 +57,7 @@ export default function Inventory() {
         .select("*")
         .order("name");
       if (error) {
-        console.error("Supabase fetch error:", error);
+        toast({ title: "Errore", description: error.message, variant: "destructive" });
       }
       setProducts((data || []) as any);
       setLoading(false);
@@ -81,11 +85,14 @@ export default function Inventory() {
       .eq("product_id", product.id);
 
     if (error) {
-      console.error("Supabase allocation fetch error:", error);
+      toast({ title: "Errore", description: error.message, variant: "destructive" });
       setBreakdown({
         total_stock: product.quantity_in_stock,
         total_allocated: 0,
         free_stock: product.quantity_in_stock,
+        requested: 0,
+        allocated: 0,
+        shipped: 0,
         allocations: [],
       });
     } else {
@@ -99,14 +106,19 @@ export default function Inventory() {
         target_date: row.target_date,
       }));
 
-      const totalAllocated = allocations
-        .filter((a) => a.allocation_status !== "Installed_Online")
-        .reduce((sum, a) => sum + a.quantity, 0);
+      const activeAllocations = allocations.filter((a) => a.allocation_status !== "Installed_Online");
+      const totalAllocated = activeAllocations.reduce((sum, a) => sum + a.quantity, 0);
+      const requested = activeAllocations.filter(a => a.allocation_status === "Requested").reduce((s, a) => s + a.quantity, 0);
+      const allocated = activeAllocations.filter(a => a.allocation_status === "Allocated").reduce((s, a) => s + a.quantity, 0);
+      const shipped = activeAllocations.filter(a => a.allocation_status === "Shipped").reduce((s, a) => s + a.quantity, 0);
 
       setBreakdown({
         total_stock: product.quantity_in_stock,
         total_allocated: totalAllocated,
         free_stock: Math.max(0, product.quantity_in_stock - totalAllocated),
+        requested,
+        allocated,
+        shipped,
         allocations,
       });
     }
@@ -116,35 +128,23 @@ export default function Inventory() {
 
   const statusColor = (status: string) => {
     switch (status) {
-      case "Draft":
-        return "bg-muted text-muted-foreground";
-      case "Allocated":
-        return "bg-primary/15 text-primary";
-      case "Requested":
-        return "bg-warning/15 text-warning";
-      case "Shipped":
-        return "bg-accent text-accent-foreground";
-      case "Installed_Online":
-        return "bg-success/15 text-success";
-      default:
-        return "bg-muted text-muted-foreground";
+      case "Draft": return "bg-muted text-muted-foreground";
+      case "Allocated": return "bg-primary/15 text-primary";
+      case "Requested": return "bg-warning/15 text-warning";
+      case "Shipped": return "bg-accent text-accent-foreground";
+      case "Installed_Online": return "bg-success/15 text-success";
+      default: return "bg-muted text-muted-foreground";
     }
   };
 
   const certColor = (cert: string) => {
     switch (cert) {
-      case "WELL":
-        return "border-primary text-primary";
-      case "LEED":
-        return "border-success text-success";
-      case "CO2":
-        return "border-warning text-warning";
-      case "CO2-CO":
-        return "border-destructive text-destructive";
-      case "Energy":
-        return "border-purple-500 text-purple-600";
-      default:
-        return "border-muted-foreground text-muted-foreground";
+      case "WELL": return "border-primary text-primary";
+      case "LEED": return "border-success text-success";
+      case "CO2": return "border-warning text-warning";
+      case "CO2-CO": return "border-destructive text-destructive";
+      case "Energy": return "border-purple-500 text-purple-600";
+      default: return "border-muted-foreground text-muted-foreground";
     }
   };
 
@@ -164,15 +164,10 @@ export default function Inventory() {
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
-                  <Badge
-                    variant="outline"
-                    className={certColor(product.certification)}
-                  >
+                  <Badge variant="outline" className={certColor(product.certification)}>
                     {product.certification}
                   </Badge>
-                  <span className="text-xs text-muted-foreground font-mono">
-                    {product.sku}
-                  </span>
+                  <span className="text-xs text-muted-foreground font-mono">{product.sku}</span>
                 </div>
                 <CardTitle className="text-base mt-2 group-hover:text-primary transition-colors">
                   {product.name}
@@ -180,9 +175,7 @@ export default function Inventory() {
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="flex items-baseline gap-2">
-                  <span className="text-3xl font-bold text-foreground">
-                    {product.quantity_in_stock}
-                  </span>
+                  <span className="text-3xl font-bold text-foreground">{product.quantity_in_stock}</span>
                   <span className="text-sm text-muted-foreground">in stock</span>
                 </div>
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -212,17 +205,12 @@ export default function Inventory() {
             <>
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-3">
-                  <Badge
-                    variant="outline"
-                    className={certColor(selectedProduct.certification)}
-                  >
+                  <Badge variant="outline" className={certColor(selectedProduct.certification)}>
                     {selectedProduct.certification}
                   </Badge>
                   {selectedProduct.name}
                 </DialogTitle>
-                <p className="text-sm text-muted-foreground font-mono">
-                  {selectedProduct.sku}
-                </p>
+                <p className="text-sm text-muted-foreground font-mono">{selectedProduct.sku}</p>
               </DialogHeader>
 
               {loadingBreakdown ? (
@@ -235,26 +223,50 @@ export default function Inventory() {
                   <div className="grid grid-cols-3 gap-3">
                     <div className="rounded-lg border bg-card p-4 text-center">
                       <Layers className="h-5 w-5 mx-auto text-muted-foreground mb-1" />
-                      <p className="text-2xl font-bold text-foreground">
-                        {breakdown.total_stock}
-                      </p>
+                      <p className="text-2xl font-bold text-foreground">{breakdown.total_stock}</p>
                       <p className="text-xs text-muted-foreground">Stock Totale</p>
                     </div>
                     <div className="rounded-lg border bg-warning/5 border-warning/20 p-4 text-center">
                       <BoxSelect className="h-5 w-5 mx-auto text-warning mb-1" />
-                      <p className="text-2xl font-bold text-warning">
-                        {breakdown.total_allocated}
-                      </p>
-                      <p className="text-xs text-muted-foreground">Assegnati</p>
+                      <p className="text-2xl font-bold text-warning">{breakdown.total_allocated}</p>
+                      <p className="text-xs text-muted-foreground">Impegnati</p>
                     </div>
                     <div className="rounded-lg border bg-success/5 border-success/20 p-4 text-center">
                       <Package className="h-5 w-5 mx-auto text-success mb-1" />
-                      <p className="text-2xl font-bold text-success">
-                        {breakdown.free_stock}
-                      </p>
+                      <p className="text-2xl font-bold text-success">{breakdown.free_stock}</p>
                       <p className="text-xs text-muted-foreground">Disponibili</p>
                     </div>
                   </div>
+
+                  {/* Allocation Status Breakdown */}
+                  {breakdown.total_allocated > 0 && (
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="rounded-lg border p-3 text-center">
+                        <div className="flex items-center justify-center gap-1.5 mb-1">
+                          <ShoppingCart className="h-4 w-4 text-warning" />
+                          <span className="text-xs font-medium text-muted-foreground">In Attesa</span>
+                        </div>
+                        <p className="text-xl font-bold text-warning">{breakdown.requested}</p>
+                        <p className="text-[10px] text-muted-foreground">Requested</p>
+                      </div>
+                      <div className="rounded-lg border p-3 text-center">
+                        <div className="flex items-center justify-center gap-1.5 mb-1">
+                          <Clock className="h-4 w-4 text-primary" />
+                          <span className="text-xs font-medium text-muted-foreground">Riservato</span>
+                        </div>
+                        <p className="text-xl font-bold text-primary">{breakdown.allocated}</p>
+                        <p className="text-[10px] text-muted-foreground">Allocated</p>
+                      </div>
+                      <div className="rounded-lg border p-3 text-center">
+                        <div className="flex items-center justify-center gap-1.5 mb-1">
+                          <Truck className="h-4 w-4 text-accent-foreground" />
+                          <span className="text-xs font-medium text-muted-foreground">In Viaggio</span>
+                        </div>
+                        <p className="text-xl font-bold text-accent-foreground">{breakdown.shipped}</p>
+                        <p className="text-[10px] text-muted-foreground">Shipped</p>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Progress bar */}
                   <div className="space-y-1.5">
@@ -262,12 +274,8 @@ export default function Inventory() {
                       <span>Utilizzo stock</span>
                       <span>
                         {breakdown.total_stock > 0
-                          ? Math.round(
-                              (breakdown.total_allocated / breakdown.total_stock) *
-                                100
-                            )
-                          : 0}
-                        %
+                          ? Math.round((breakdown.total_allocated / breakdown.total_stock) * 100)
+                          : 0}%
                       </span>
                     </div>
                     <Progress
@@ -306,24 +314,14 @@ export default function Inventory() {
                             .sort((a, b) => b.quantity - a.quantity)
                             .map((alloc, i) => (
                               <TableRow key={i}>
-                                <TableCell className="font-medium text-foreground">
-                                  {alloc.project_name}
-                                </TableCell>
-                                <TableCell className="text-muted-foreground">
-                                  {alloc.client}
-                                </TableCell>
+                                <TableCell className="font-medium text-foreground">{alloc.project_name}</TableCell>
+                                <TableCell className="text-muted-foreground">{alloc.client}</TableCell>
                                 <TableCell>
-                                  <Badge variant="outline" className="text-xs">
-                                    {alloc.region}
-                                  </Badge>
+                                  <Badge variant="outline" className="text-xs">{alloc.region}</Badge>
                                 </TableCell>
-                                <TableCell className="text-right font-semibold">
-                                  {alloc.quantity}
-                                </TableCell>
+                                <TableCell className="text-right font-semibold">{alloc.quantity}</TableCell>
                                 <TableCell>
-                                  <span
-                                    className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${statusColor(alloc.allocation_status)}`}
-                                  >
+                                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${statusColor(alloc.allocation_status)}`}>
                                     {alloc.allocation_status.replace("_", " ")}
                                   </span>
                                 </TableCell>

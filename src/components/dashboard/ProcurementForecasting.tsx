@@ -5,8 +5,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AlertTriangle, CheckCircle, ChevronDown, Package, ShoppingCart } from "lucide-react";
+import { AlertTriangle, CheckCircle, ChevronDown, Package, ShoppingCart, Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { addDays, format } from "date-fns";
 import type { Product, Project, ProjectAllocation } from "@/types/custom-tables";
 
 interface ProjectDemand {
@@ -24,6 +25,7 @@ interface ForecastItem {
   coveredByStock: number;
   shortfallToOrder: number;
   projectBreakdown: ProjectDemand[];
+  allocationIds: string[];
 }
 
 export function ProcurementForecasting() {
@@ -32,28 +34,31 @@ export function ProcurementForecasting() {
   const [allocations, setAllocations] = useState<ProjectAllocation[]>([]);
   const [pmList, setPmList] = useState<{ id: string; full_name: string }[]>([]);
   const [loading, setLoading] = useState(true);
+  const [generatingOrder, setGeneratingOrder] = useState<string | null>(null);
 
   const [horizon, setHorizon] = useState("90");
   const [region, setRegion] = useState("all");
   const [pmFilter, setPmFilter] = useState("all");
 
-  useEffect(() => {
-    const fetchAll = async () => {
-      setLoading(true);
-      const [prodRes, projRes, allocRes, pmRes] = await Promise.all([
-        supabase.from("products" as any).select("*"),
-        supabase.from("projects" as any).select("*").in("status", ["Design", "Construction"]),
-        supabase.from("project_allocations" as any).select("*").in("status", ["Draft", "Requested"]),
-        supabase.from("profiles").select("id, full_name"),
-      ]);
-      setProducts((prodRes.data || []) as any);
-      setProjects((projRes.data || []) as any);
-      setAllocations((allocRes.data || []) as any);
-      setPmList((pmRes.data || []) as any);
-      setLoading(false);
-    };
-    fetchAll();
-  }, []);
+  const fetchAll = async () => {
+    setLoading(true);
+    const [prodRes, projRes, allocRes, pmRes] = await Promise.all([
+      supabase.from("products" as any).select("*"),
+      supabase.from("projects" as any).select("*").in("status", ["Design", "Construction"]),
+      supabase.from("project_allocations" as any).select("*").eq("status", "Requested"),
+      supabase.from("profiles").select("id, full_name"),
+    ]);
+    if (prodRes.error) toast({ title: "Errore", description: prodRes.error.message, variant: "destructive" });
+    if (projRes.error) toast({ title: "Errore", description: projRes.error.message, variant: "destructive" });
+    if (allocRes.error) toast({ title: "Errore", description: allocRes.error.message, variant: "destructive" });
+    setProducts((prodRes.data || []) as any);
+    setProjects((projRes.data || []) as any);
+    setAllocations((allocRes.data || []) as any);
+    setPmList((pmRes.data || []) as any);
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchAll(); }, []);
 
   const forecast = useMemo<ForecastItem[]>(() => {
     const now = new Date();
@@ -73,11 +78,14 @@ export function ProcurementForecasting() {
 
     const demandMap = new Map<string, number>();
     const breakdownMap = new Map<string, Map<string, number>>();
+    const allocIdMap = new Map<string, string[]>();
     for (const a of filteredAllocations) {
       demandMap.set(a.product_id, (demandMap.get(a.product_id) || 0) + a.quantity);
       if (!breakdownMap.has(a.product_id)) breakdownMap.set(a.product_id, new Map());
       const pMap = breakdownMap.get(a.product_id)!;
       pMap.set(a.project_id, (pMap.get(a.project_id) || 0) + a.quantity);
+      if (!allocIdMap.has(a.product_id)) allocIdMap.set(a.product_id, []);
+      allocIdMap.get(a.product_id)!.push(a.id);
     }
 
     const items: ForecastItem[] = [];
@@ -105,7 +113,10 @@ export function ProcurementForecasting() {
         }
       }
       projectBreakdown.sort((a, b) => b.quantity - a.quantity);
-      items.push({ product, totalDemand, currentStock, coveredByStock, shortfallToOrder, projectBreakdown });
+      items.push({
+        product, totalDemand, currentStock, coveredByStock, shortfallToOrder, projectBreakdown,
+        allocationIds: allocIdMap.get(product.id) || [],
+      });
     }
 
     items.sort((a, b) => b.shortfallToOrder - a.shortfallToOrder);
@@ -113,17 +124,45 @@ export function ProcurementForecasting() {
   }, [products, projects, allocations, horizon, region, pmFilter]);
 
   const handleGenerateOrder = async (item: ForecastItem) => {
-    const { error } = await supabase.from("supplier_orders" as any).insert({
-      product_id: item.product.id,
-      quantity_requested: item.shortfallToOrder,
-      supplier_name: "Da assegnare",
-      expected_delivery_date: new Date(Date.now() + item.product.supplier_lead_time_days * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-      status: "Draft",
-    } as any);
-    if (error) {
-      toast({ title: "Errore", description: error.message, variant: "destructive" });
-    } else {
-      toast({ title: "Ordine creato", description: `Bozza ordine per ${item.shortfallToOrder}× ${item.product.name}` });
+    setGeneratingOrder(item.product.id);
+    try {
+      const expectedDate = format(addDays(new Date(), item.product.supplier_lead_time_days), "yyyy-MM-dd");
+
+      // 1. Insert supplier order
+      const { error: orderError } = await supabase.from("supplier_orders" as any).insert({
+        product_id: item.product.id,
+        quantity_requested: item.shortfallToOrder,
+        supplier_name: "Da assegnare",
+        expected_delivery_date: expectedDate,
+        status: "Draft",
+      } as any);
+
+      if (orderError) {
+        toast({ title: "Errore creazione ordine", description: orderError.message, variant: "destructive" });
+        return;
+      }
+
+      // 2. Update all related allocations from Requested -> Allocated
+      if (item.allocationIds.length > 0) {
+        const { error: allocError } = await supabase
+          .from("project_allocations" as any)
+          .update({ status: "Allocated" } as any)
+          .in("id", item.allocationIds);
+
+        if (allocError) {
+          toast({ title: "Errore aggiornamento allocazioni", description: allocError.message, variant: "destructive" });
+          return;
+        }
+      }
+
+      toast({ title: "Ordine creato", description: `Ordine per ${item.shortfallToOrder}× ${item.product.name}. Allocazioni aggiornate a "Allocated".` });
+      
+      // Refetch to update the view
+      await fetchAll();
+    } catch (err: any) {
+      toast({ title: "Errore", description: err.message, variant: "destructive" });
+    } finally {
+      setGeneratingOrder(null);
     }
   };
 
@@ -203,6 +242,7 @@ export function ProcurementForecasting() {
             const coveredPct = (item.coveredByStock / item.totalDemand) * 100;
             const shortfallPct = (item.shortfallToOrder / item.totalDemand) * 100;
             const hasShortfall = item.shortfallToOrder > 0;
+            const isGenerating = generatingOrder === item.product.id;
 
             return (
               <Card key={item.product.id} className={hasShortfall ? "border-destructive/30" : "border-success/30"}>
@@ -287,8 +327,9 @@ export function ProcurementForecasting() {
                       variant="destructive"
                       className="gap-2 w-full"
                       onClick={() => handleGenerateOrder(item)}
+                      disabled={isGenerating}
                     >
-                      <ShoppingCart className="h-4 w-4" />
+                      {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingCart className="h-4 w-4" />}
                       Genera Ordine Fornitore ({item.shortfallToOrder} unità)
                     </Button>
                   )}

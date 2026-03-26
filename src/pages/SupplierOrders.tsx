@@ -1,11 +1,16 @@
 import { useEffect, useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
+import { toast } from "@/hooks/use-toast";
 import type { Product, SupplierOrder } from "@/types/custom-tables";
+
+const STATUS_FLOW = ["Draft", "Sent", "In_Transit", "Received"] as const;
 
 const statusColors: Record<string, string> = {
   Draft: "bg-muted text-muted-foreground border-border",
@@ -15,24 +20,52 @@ const statusColors: Record<string, string> = {
 };
 
 export default function SupplierOrders() {
+  const { isAdmin } = useAuth();
   const [orders, setOrders] = useState<SupplierOrder[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      const [ordRes, prodRes] = await Promise.all([
-        supabase.from("supplier_orders" as any).select("*").order("expected_delivery_date"),
-        supabase.from("products" as any).select("*"),
-      ]);
-      if (ordRes.error) console.error("Supabase fetch error:", ordRes.error);
-      if (prodRes.error) console.error("Supabase fetch error:", prodRes.error);
-      setOrders((ordRes.data || []) as any);
-      setProducts((prodRes.data || []) as any);
-      setLoading(false);
-    };
-    fetchData();
-  }, []);
+  const fetchData = async () => {
+    const [ordRes, prodRes] = await Promise.all([
+      supabase.from("supplier_orders" as any).select("*").order("expected_delivery_date"),
+      supabase.from("products" as any).select("*"),
+    ]);
+    if (ordRes.error) toast({ title: "Errore", description: ordRes.error.message, variant: "destructive" });
+    if (prodRes.error) toast({ title: "Errore", description: prodRes.error.message, variant: "destructive" });
+    setOrders((ordRes.data || []) as any);
+    setProducts((prodRes.data || []) as any);
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchData(); }, []);
+
+  const handleStatusChange = async (orderId: string, newStatus: string) => {
+    const { error } = await supabase
+      .from("supplier_orders" as any)
+      .update({ status: newStatus } as any)
+      .eq("id", orderId);
+
+    if (error) {
+      toast({ title: "Errore aggiornamento", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    toast({ title: "Stato aggiornato", description: `Ordine aggiornato a "${newStatus.replace("_", " ")}"` });
+
+    // If status changed to Shipped, update related allocations
+    if (newStatus === "In_Transit") {
+      const order = orders.find(o => o.id === orderId);
+      if (order) {
+        await supabase
+          .from("project_allocations" as any)
+          .update({ status: "Shipped" } as any)
+          .eq("product_id", order.product_id)
+          .eq("status", "Allocated");
+      }
+    }
+
+    await fetchData();
+  };
 
   return (
     <MainLayout title="Supplier Orders" subtitle="Track procurement and incoming stock">
@@ -64,9 +97,27 @@ export default function SupplierOrders() {
                       {format(new Date(order.expected_delivery_date), "dd MMM yyyy", { locale: it })}
                     </td>
                     <td className="p-4">
-                      <Badge variant="outline" className={cn("border", statusColors[order.status])}>
-                        {order.status.replace("_", " ")}
-                      </Badge>
+                      {isAdmin ? (
+                        <Select
+                          value={order.status}
+                          onValueChange={(val) => handleStatusChange(order.id, val)}
+                        >
+                          <SelectTrigger className="w-36">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {STATUS_FLOW.map((s) => (
+                              <SelectItem key={s} value={s}>
+                                {s.replace("_", " ")}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Badge variant="outline" className={cn("border", statusColors[order.status])}>
+                          {order.status.replace("_", " ")}
+                        </Badge>
+                      )}
                     </td>
                   </tr>
                 );
