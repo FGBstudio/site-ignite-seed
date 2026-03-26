@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { SiteProjectOnboardingForm } from "@/components/projects/SiteProjectOnboardingForm";
 import { useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { supabase } from "@/integrations/supabase/client";
@@ -177,9 +178,12 @@ function renderFiltersAndTableContent(
             </Select>
           )}
         </div>
-        <Button onClick={openNew} className="gap-2 shrink-0">
-          <Plus className="h-4 w-4" /> Nuovo Progetto
-        </Button>
+        <div className="flex gap-2 shrink-0">
+          {isAdmin && <SiteProjectOnboardingForm />}
+          <Button onClick={openNew} className="gap-2" variant="outline">
+            <Plus className="h-4 w-4" /> Nuovo Progetto
+          </Button>
+        </div>
       </div>
 
       {/* Table */}
