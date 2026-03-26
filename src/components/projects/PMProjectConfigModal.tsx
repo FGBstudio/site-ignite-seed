@@ -383,11 +383,11 @@ function ScorecardTab({ project }: { project: PMProject }) {
     queryKey: ["scorecard-milestones", certId],
     enabled: !!certId,
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("certification_milestones")
         .select("*")
         .eq("certification_id", certId!)
-        .eq("milestone_type" as any, "scorecard")
+        .eq("milestone_type", "scorecard")
         .order("category")
         .order("requirement");
       if (error) throw error;
