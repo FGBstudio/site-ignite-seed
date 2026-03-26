@@ -1,521 +1,512 @@
-import { useEffect, useState } from "react";
-import { useForm, useFieldArray, Controller } from "react-hook-form";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/hooks/use-toast";
-import { useHoldings, useBrands, useSites } from "@/hooks/useProjectDetails";
-import { LEED_TEMPLATE } from "@/data/leedTemplate";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Plus, Trash2, Loader2 } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { format } from "date-fns";
-import { it } from "date-fns/locale";
-import type { Product, Project, ProjectAllocation } from "@/types/custom-tables";
+import { useState, useEffect } from 'react';
+import { Award, Loader2, Calendar, Plus } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { supabase } from '@/integrations/supabase/client';
+import { useQueryClient } from '@tanstack/react-query';
 
-const REGIONS = ["Europe", "America", "APAC", "ME"] as const;
-const PROJECT_STATUSES = ["Design", "Construction", "Completed", "Cancelled"] as const;
-const ALLOCATION_STATUSES = ["Draft", "Allocated", "Requested", "Shipped", "Installed_Online"] as const;
-
-const PROJECT_TYPES = ["LEED", "WELL", "Monitoring", "Consulting"] as const;
-
-interface AllocationLine {
-  id?: string;
-  product_id: string;
-  quantity: number;
-  status: string;
-}
-
-interface ProjectFormData {
-  name: string;
-  client: string;
-  region: string;
-  handover_date: Date;
-  status: string;
-  pm_id: string;
-  site_id: string;
-  project_type: string;
-  allocations: AllocationLine[];
-}
-
-interface Props {
+interface LEEDCertificationsDialogProps {
+  siteId: string;
+  siteName: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  project?: Project | null;
-  existingAllocations?: ProjectAllocation[];
-  onSaved: () => void;
 }
 
-export function ProjectFormModal({ open, onOpenChange, project, existingAllocations = [], onSaved }: Props) {
-  const { user, isAdmin } = useAuth();
-  const { toast } = useToast();
-  const [products, setProducts] = useState<Product[]>([]);
-  const [pmList, setPmList] = useState<{ id: string; full_name: string }[]>([]);
-  const [saving, setSaving] = useState(false);
+interface LEEDFormData {
+  certType: string;
+  level: string;
+  status: string;
+  targetScore: number;
+  issuedDate: string;
+  expiryDate: string;
+  milestones: {
+    category: string;
+    score: number;
+    maxScore: number;
+  }[];
+}
 
-  // Cascading state
-  const [selectedHoldingId, setSelectedHoldingId] = useState<string>("");
-  const [selectedBrandId, setSelectedBrandId] = useState<string>("");
-  const [showNewSite, setShowNewSite] = useState(false);
-  const [newSiteName, setNewSiteName] = useState("");
+interface TimelineMilestone {
+  id: string;
+  category: string;
+  status: string;
+  start_date: string | null;
+  due_date: string | null;
+  completed_date: string | null;
+  order_index: number;
+}
 
-  // Cascading queries
-  const { data: holdings = [], isLoading: loadingHoldings } = useHoldings();
-  const { data: brands = [], isLoading: loadingBrands } = useBrands(selectedHoldingId || undefined);
-  const { data: sites = [], isLoading: loadingSites } = useSites(selectedBrandId || undefined);
+const DEFAULT_LEED_MILESTONES = [
+  { category: 'EA', score: 0, maxScore: 33 },
+  { category: 'WE', score: 0, maxScore: 12 },
+  { category: 'MR', score: 0, maxScore: 13 },
+  { category: 'EQ', score: 0, maxScore: 16 },
+  { category: 'SS', score: 0, maxScore: 26 },
+  { category: 'IN', score: 0, maxScore: 6 },
+  { category: 'RP', score: 0, maxScore: 4 },
+];
 
-  const { register, control, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<ProjectFormData>({
-    defaultValues: {
-      name: "", client: "", region: "Europe", handover_date: new Date(),
-      status: "Design", pm_id: "", site_id: "", project_type: "", allocations: [],
-    },
+const CATEGORY_LABELS: Record<string, string> = {
+  EA: 'Energia e Atmosfera',
+  WE: 'Efficienza Idrica',
+  MR: 'Materiali e Risorse',
+  EQ: 'Qualità Ambientale Interna',
+  SS: 'Siti Sostenibili',
+  IN: 'Innovazione',
+  RP: 'Priorità Regionale',
+};
+
+export const LEEDCertificationsDialog = ({ siteId, siteName, open, onOpenChange }: LEEDCertificationsDialogProps) => {
+  const queryClient = useQueryClient();
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isGeneratingTimeline, setIsGeneratingTimeline] = useState(false);
+  
+  const [certId, setCertId] = useState<string | null>(null);
+  const [hasTimeline, setHasTimeline] = useState(false);
+  const [timelineMilestones, setTimelineMilestones] = useState<TimelineMilestone[]>([]);
+
+  const [formData, setFormData] = useState<LEEDFormData>({
+    certType: 'LEED v4',
+    level: 'Gold',
+    status: 'in_progress',
+    targetScore: 110,
+    issuedDate: '',
+    expiryDate: '',
+    milestones: JSON.parse(JSON.stringify(DEFAULT_LEED_MILESTONES)),
   });
 
-  const { fields, append, remove } = useFieldArray({ control, name: "allocations" });
-
   useEffect(() => {
-    if (!open) return;
-    supabase.from("products" as any).select("*").then(({ data }) => setProducts((data || []) as any));
-    if (isAdmin) {
-      supabase.from("profiles").select("id, full_name").then(({ data }) => setPmList((data || []) as any));
-    }
-  }, [open, isAdmin]);
+    if (!open || !supabase) return;
 
-  useEffect(() => {
-    if (!open) return;
-    if (project) {
-      reset({
-        name: project.name, client: project.client, region: project.region,
-        handover_date: new Date(project.handover_date), status: project.status,
-        pm_id: project.pm_id || "", site_id: project.site_id || "",
-        project_type: (project as any).project_type || "",
-        allocations: existingAllocations.map((a) => ({
-          id: a.id, product_id: a.product_id, quantity: a.quantity, status: a.status,
-        })),
-      });
-      // TODO: could reverse-lookup holding/brand from site for edit mode
-    } else {
-      reset({
-        name: "", client: "", region: "Europe", handover_date: new Date(),
-        status: "Design", pm_id: isAdmin ? "" : user?.id || "",
-        site_id: "", project_type: "", allocations: [],
-      });
-      setSelectedHoldingId("");
-      setSelectedBrandId("");
-      setShowNewSite(false);
-      setNewSiteName("");
-    }
-  }, [open, project, existingAllocations, reset, isAdmin, user]);
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        const { data: certs } = await supabase
+          .from('certifications')
+          .select('*')
+          .eq('site_id', siteId)
+          .ilike('cert_type', '%LEED%')
+          .limit(1);
 
-  // Reset brand when holding changes
-  const handleHoldingChange = (val: string) => {
-    setSelectedHoldingId(val);
-    setSelectedBrandId("");
-    setValue("site_id", "");
-    setShowNewSite(false);
-    setNewSiteName("");
-  };
+        if (certs && certs.length > 0) {
+          const cert = certs[0];
+          setCertId(cert.id);
 
-  // Reset site when brand changes
-  const handleBrandChange = (val: string) => {
-    setSelectedBrandId(val);
-    setValue("site_id", "");
-    setShowNewSite(false);
-    setNewSiteName("");
-  };
+          // 1. Carica i crediti della Scorecard
+          const { data: scorecard } = await supabase
+            .from('certification_milestones')
+            .select('*')
+            .eq('certification_id', cert.id)
+            .eq('milestone_type', 'scorecard');
 
-  const onSubmit = async (data: ProjectFormData) => {
-    setSaving(true);
-    try {
-      const pmId = isAdmin ? data.pm_id : user?.id;
-      const handoverStr = format(data.handover_date, "yyyy-MM-dd");
+          const mappedMilestones = DEFAULT_LEED_MILESTONES.map(dm => {
+            const existing = scorecard?.find(m => m.category === dm.category);
+            return existing
+              ? { category: existing.category, score: existing.score || 0, maxScore: existing.max_score || dm.maxScore }
+              : { ...dm };
+          });
 
-      // Create site if needed
-      let siteId = data.site_id || null;
-      if (showNewSite && newSiteName.trim()) {
-        if (!selectedBrandId) {
-          throw new Error("Seleziona un Brand prima di creare un nuovo Sito.");
-        }
-        const { data: newSite, error: siteErr } = await supabase
-          .from("sites")
-          .insert({ name: newSiteName.trim(), brand_id: selectedBrandId } as any)
-          .select("id")
-          .single();
-        if (siteErr) throw siteErr;
-        siteId = newSite.id;
-      }
-
-      let projectId = project?.id;
-
-      const projectPayload = {
-        name: data.name, client: data.client,
-        region: data.region as any, handover_date: handoverStr,
-        status: data.status as any, pm_id: pmId || null,
-        site_id: siteId,
-        project_type: data.project_type || null,
-      };
-
-      if (project) {
-        const { error } = await supabase.from("projects").update(projectPayload as any).eq("id", project.id);
-        if (error) throw error;
-      } else {
-        const { data: newProject, error } = await supabase
-          .from("projects").insert(projectPayload as any).select("id").single();
-        if (error) throw error;
-        projectId = newProject.id;
-
-        // TRIGGER: Auto-generate certification + milestones for LEED/WELL
-        if (data.project_type === "LEED" || data.project_type === "WELL") {
-          const { data: cert, error: certErr } = await supabase
-            .from("certifications")
-            .insert({
-              site_id: siteId,
-              project_id: projectId,
-              cert_type: data.project_type as any,
-              score: 0,
-              target_score: data.project_type === "LEED" ? 110 : 100,
-            })
-            .select("id")
-            .single();
-          if (certErr) throw certErr;
-
-          const template = data.project_type === "LEED" ? LEED_TEMPLATE : LEED_TEMPLATE; // TODO: WELL template
-          const milestoneRows = template.map((t) => ({
-            certification_id: cert.id,
-            category: t.category,
-            requirement: t.requirement,
-            score: 0,
-            max_score: t.max_score,
-            status: "pending" as const,
-          }));
-
-          for (let i = 0; i < milestoneRows.length; i += 50) {
-            const batch = milestoneRows.slice(i, i + 50);
-            const { error: mErr } = await supabase.from("certification_milestones").insert(batch as any);
-            if (mErr) throw mErr;
+          // 2. Carica la Timeline Operativa
+          const { data: timelineData } = await supabase
+            .from('certification_milestones')
+            .select('*')
+            .eq('certification_id', cert.id)
+            .eq('milestone_type', 'timeline')
+            .order('order_index', { ascending: true });
+            
+          if (timelineData && timelineData.length > 0) {
+            setHasTimeline(true);
+            setTimelineMilestones(timelineData);
+          } else {
+            setHasTimeline(false);
+            setTimelineMilestones([]);
           }
-        }
-      }
 
-      if (!projectId) throw new Error("Missing project ID");
-
-      // Handle allocations
-      const existingIds = existingAllocations.map((a) => a.id);
-      const currentIds = data.allocations.filter((a) => a.id).map((a) => a.id!);
-      const toDelete = existingIds.filter((id) => !currentIds.includes(id));
-
-      if (toDelete.length > 0) {
-        await supabase.from("project_allocations" as any).delete().in("id", toDelete);
-      }
-
-      for (const alloc of data.allocations) {
-        const targetDate = format(
-          new Date(data.handover_date.getTime() - 15 * 24 * 60 * 60 * 1000),
-          "yyyy-MM-dd"
-        );
-        if (alloc.id) {
-          await supabase.from("project_allocations" as any)
-            .update({ product_id: alloc.product_id, quantity: alloc.quantity, status: alloc.status } as any)
-            .eq("id", alloc.id);
+          setFormData({
+            certType: cert.cert_type || 'LEED v4',
+            level: cert.level || 'Gold',
+            status: cert.status || 'in_progress',
+            targetScore: cert.target_score || 110,
+            issuedDate: cert.issued_date || '',
+            expiryDate: cert.expiry_date || '',
+            milestones: mappedMilestones,
+          });
         } else {
-          await supabase.from("project_allocations" as any).insert({
-            project_id: projectId, product_id: alloc.product_id,
-            quantity: alloc.quantity, status: (alloc.status || "Draft") as any, target_date: targetDate,
+          setCertId(null);
+          setHasTimeline(false);
+          setTimelineMilestones([]);
+          setFormData({
+            certType: 'LEED v4',
+            level: 'Gold',
+            status: 'in_progress',
+            targetScore: 110,
+            issuedDate: '',
+            expiryDate: '',
+            milestones: JSON.parse(JSON.stringify(DEFAULT_LEED_MILESTONES)),
           });
         }
+      } catch (err) {
+        console.error('Error loading LEED certification data:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadData();
+  }, [open, siteId]);
+
+  const handleSave = async () => {
+    if (!supabase) return;
+    setIsSaving(true);
+    try {
+      let currentCertId = certId;
+      const totalScore = formData.milestones.reduce((sum, m) => sum + m.score, 0);
+
+      // 1. Salva i dati base della certificazione
+      const certPayload = {
+        cert_type: formData.certType,
+        level: formData.level,
+        score: totalScore,
+        target_score: formData.targetScore,
+        status: formData.status,
+        issued_date: formData.issuedDate || null,
+        expiry_date: formData.expiryDate || null,
+      };
+
+      if (currentCertId) {
+        await supabase.from('certifications').update(certPayload).eq('id', currentCertId);
+      } else {
+        const { data: newCert } = await supabase.from('certifications').insert({ site_id: siteId, ...certPayload }).select('id').single();
+        if (!newCert) throw new Error('Failed to create LEED certification');
+        currentCertId = newCert.id;
+        setCertId(currentCertId);
       }
 
-      toast({ title: project ? "Progetto aggiornato" : "Progetto creato" });
+      // 2. Aggiorna i crediti della Scorecard (cancella e reinserisce)
+      await supabase.from('certification_milestones').delete().eq('certification_id', currentCertId).eq('milestone_type', 'scorecard');
+
+      const scorecardToInsert = formData.milestones.map(m => ({
+        certification_id: currentCertId,
+        category: m.category,
+        requirement: CATEGORY_LABELS[m.category] || m.category,
+        score: m.score,
+        max_score: m.maxScore,
+        milestone_type: 'scorecard',
+        status: m.score >= m.maxScore && m.maxScore > 0 ? 'achieved' : m.score > 0 ? 'in_progress' : 'pending',
+      }));
+      await supabase.from('certification_milestones').insert(scorecardToInsert);
+
+      // 3. Aggiorna (UPSERT) la Timeline modificata dal PM
+      if (timelineMilestones.length > 0) {
+        const timelineUpdates = timelineMilestones.map(tm => {
+          let compDate = tm.completed_date;
+          if (tm.status === 'achieved' && !compDate) compDate = new Date().toISOString().split('T')[0];
+          if (tm.status !== 'achieved') compDate = null;
+
+          return {
+            id: tm.id,
+            certification_id: currentCertId,
+            category: tm.category,
+            requirement: tm.category,
+            status: tm.status,
+            start_date: tm.start_date || null,
+            due_date: tm.due_date || null,
+            completed_date: compDate,
+            milestone_type: 'timeline',
+            order_index: tm.order_index
+          };
+        });
+        await supabase.from('certification_milestones').upsert(timelineUpdates);
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['certifications'] });
+      queryClient.invalidateQueries({ queryKey: ['leed_scorecard'] });
+      queryClient.invalidateQueries({ queryKey: ['leed_timeline'] });
+      
       onOpenChange(false);
-      onSaved();
-    } catch (err: any) {
-      toast({ title: "Errore", description: err.message, variant: "destructive" });
+    } catch (err) {
+      console.error('Error saving LEED certification:', err);
+      alert('Errore durante il salvataggio della certificazione LEED');
     } finally {
-      setSaving(false);
+      setIsSaving(false);
     }
   };
+
+  const handleGenerateTimeline = async () => {
+    if (!certId || !supabase) return;
+    setIsGeneratingTimeline(true);
+    try {
+      const { error } = await supabase.rpc('generate_standard_leed_timeline', { p_certification_id: certId });
+      if (error) throw error;
+      
+      const { data: newTimeline } = await supabase
+        .from('certification_milestones')
+        .select('*')
+        .eq('certification_id', certId)
+        .eq('milestone_type', 'timeline')
+        .order('order_index', { ascending: true });
+
+      if (newTimeline) {
+        setTimelineMilestones(newTimeline);
+        setHasTimeline(true);
+      }
+      queryClient.invalidateQueries({ queryKey: ['leed_timeline'] });
+    } catch (err) {
+      console.error('Error generating timeline:', err);
+      alert('Errore durante la generazione della timeline');
+    } finally {
+      setIsGeneratingTimeline(false);
+    }
+  };
+
+  const updateScorecard = (index: number, field: 'score' | 'maxScore', value: number) => {
+    setFormData(prev => {
+      const milestones = [...prev.milestones];
+      milestones[index] = { ...milestones[index], [field]: value };
+      return { ...prev, milestones };
+    });
+  };
+
+  const updateTimelineField = (index: number, field: keyof TimelineMilestone, value: string) => {
+    setTimelineMilestones(prev => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], [field]: value as any };
+      return updated;
+    });
+  };
+
+  const addCustomMilestone = () => {
+    setTimelineMilestones(prev => [
+      ...prev,
+      {
+        id: crypto.randomUUID(), 
+        category: 'Nuova Fase Custom',
+        status: 'not_started',
+        start_date: null,
+        due_date: null,
+        completed_date: null,
+        order_index: prev.length + 1
+      }
+    ]);
+  };
+
+  const totalFromMilestones = formData.milestones.reduce((sum, m) => sum + m.score, 0);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>{project ? "Modifica Progetto" : "Nuovo Progetto"}</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            <Award className="w-5 h-5 text-emerald-500" />
+            Gestione Progetto LEED - {siteName}
+          </DialogTitle>
+          <DialogDescription>
+            Gestisci i dati, i punteggi e la timeline di avanzamento del progetto.
+          </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-          {/* Section A: Localizzazione (Gerarchia) */}
-          <div className="space-y-4">
-            <h3 className="font-semibold text-foreground border-b pb-2">Localizzazione</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {/* Holding */}
-              <div className="space-y-2">
-                <Label>Holding *</Label>
-                <Select value={selectedHoldingId} onValueChange={handleHoldingChange}>
-                  <SelectTrigger>
-                    {loadingHoldings ? (
-                      <span className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Caricamento...</span>
-                    ) : (
-                      <SelectValue placeholder="Seleziona holding" />
-                    )}
-                  </SelectTrigger>
-                  <SelectContent>
-                    {holdings.map((h: any) => (
-                      <SelectItem key={h.id} value={h.id}>{h.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+          </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto pr-2 space-y-8 my-4 custom-scrollbar">
+            
+            {/* General Info */}
+            <div className="space-y-4">
+              <h4 className="text-sm font-semibold text-slate-700 border-b pb-2">Informazioni Generali</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Versione</Label>
+                  <Select value={formData.certType} onValueChange={v => setFormData(p => ({ ...p, certType: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="LEED v4">LEED v4</SelectItem>
+                      <SelectItem value="LEED v4.1">LEED v4.1</SelectItem>
+                      <SelectItem value="LEED v4.1 O+M">LEED v4.1 O+M</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Livello Target</Label>
+                  <Select value={formData.level} onValueChange={v => setFormData(p => ({ ...p, level: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Certified">Certified</SelectItem>
+                      <SelectItem value="Silver">Silver</SelectItem>
+                      <SelectItem value="Gold">Gold</SelectItem>
+                      <SelectItem value="Platinum">Platinum</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
-              {/* Brand */}
-              <div className="space-y-2">
-                <Label>Brand *</Label>
-                <Select
-                  value={selectedBrandId}
-                  onValueChange={handleBrandChange}
-                  disabled={!selectedHoldingId}
-                >
-                  <SelectTrigger>
-                    {loadingBrands && selectedHoldingId ? (
-                      <span className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Caricamento...</span>
-                    ) : (
-                      <SelectValue placeholder={selectedHoldingId ? "Seleziona brand" : "Prima seleziona holding"} />
-                    )}
-                  </SelectTrigger>
-                  <SelectContent>
-                    {brands.map((b: any) => (
-                      <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Stato Globale</Label>
+                  <Select value={formData.status} onValueChange={v => setFormData(p => ({ ...p, status: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="in_progress">In corso</SelectItem>
+                      <SelectItem value="active">Attiva / Certificata</SelectItem>
+                      <SelectItem value="expired">Scaduta</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Data di Certificazione (Se completata)</Label>
+                  <Input type="date" value={formData.issuedDate} onChange={e => setFormData(p => ({ ...p, issuedDate: e.target.value }))} />
+                </div>
               </div>
 
-              {/* Site */}
-              <div className="space-y-2">
-                <Label>Sito *</Label>
-                {showNewSite ? (
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="Nome nuovo sito..."
-                      value={newSiteName}
-                      onChange={(e) => setNewSiteName(e.target.value)}
-                      className="flex-1"
-                    />
-                    <Button type="button" variant="outline" size="sm" onClick={() => setShowNewSite(false)}>
-                      Annulla
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="flex gap-2">
-                    <Select
-                      value={watch("site_id")}
-                      onValueChange={(val) => setValue("site_id", val)}
-                      disabled={!selectedBrandId}
-                    >
-                      <SelectTrigger className="flex-1">
-                        {loadingSites && selectedBrandId ? (
-                          <span className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Caricamento...</span>
-                        ) : (
-                          <SelectValue placeholder={selectedBrandId ? "Seleziona sito" : "Prima seleziona brand"} />
-                        )}
-                      </SelectTrigger>
-                      <SelectContent>
-                        {sites.map((s: any) => (
-                          <SelectItem key={s.id} value={s.id}>{s.name}{s.city ? ` — ${s.city}` : ""}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowNewSite(true)}
-                      disabled={!selectedBrandId}
-                      className="gap-1 shrink-0"
-                    >
-                      <Plus className="h-3 w-3" /> Nuovo
-                    </Button>
-                  </div>
-                )}
+              <div className="space-y-1.5">
+                <Label className="text-xs">Data Scadenza / Prossimo Audit</Label>
+                <Input type="date" value={formData.expiryDate} onChange={e => setFormData(p => ({ ...p, expiryDate: e.target.value }))} />
               </div>
             </div>
-          </div>
 
-          {/* Section B: Dettagli Progetto */}
-          <div className="space-y-4">
-            <h3 className="font-semibold text-foreground border-b pb-2">Dettagli Progetto</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Nome Progetto *</Label>
-                <Input {...register("name", { required: true })} placeholder="es. Prada Milano" />
-                {errors.name && <p className="text-xs text-destructive">Campo obbligatorio</p>}
+            {/* SEZIONE TIMELINE DEL PROGETTO (PM EDITOR) */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between border-b pb-2">
+                <h4 className="text-sm font-semibold text-slate-700">Project Management (Timeline Fasi)</h4>
+                {hasTimeline && (
+                  <Button onClick={addCustomMilestone} variant="outline" size="sm" className="h-7 text-xs border-emerald-200 text-emerald-700 hover:bg-emerald-50">
+                    <Plus className="w-3 h-3 mr-1" /> Aggiungi Fase
+                  </Button>
+                )}
               </div>
-              <div className="space-y-2">
-                <Label>Cliente *</Label>
-                <Input {...register("client", { required: true })} placeholder="es. Prada" />
-                {errors.client && <p className="text-xs text-destructive">Campo obbligatorio</p>}
-              </div>
-
-              {/* Project Type */}
-              <div className="space-y-2">
-                <Label>Tipo Progetto</Label>
-                <Controller
-                  control={control}
-                  name="project_type"
-                  render={({ field }) => (
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <SelectTrigger><SelectValue placeholder="Seleziona tipo" /></SelectTrigger>
-                      <SelectContent>
-                        {PROJECT_TYPES.map((t) => (
-                          <SelectItem key={t} value={t}>{t}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Region</Label>
-                <Controller control={control} name="region" render={({ field }) => (
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {REGIONS.map((r) => (
-                        <SelectItem key={r} value={r}>{r}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )} />
-              </div>
-              <div className="space-y-2">
-                <Label>Handover Date *</Label>
-                <Controller control={control} name="handover_date" rules={{ required: true }} render={({ field }) => (
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !field.value && "text-muted-foreground")}>
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {field.value ? format(field.value, "dd MMM yyyy", { locale: it }) : "Seleziona data"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus className="p-3 pointer-events-auto" />
-                    </PopoverContent>
-                  </Popover>
-                )} />
-              </div>
-              <div className="space-y-2">
-                <Label>Stato</Label>
-                <Controller control={control} name="status" render={({ field }) => (
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {PROJECT_STATUSES.map((s) => (
-                        <SelectItem key={s} value={s}>{s}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )} />
-              </div>
-              {isAdmin && (
-                <div className="space-y-2">
-                  <Label>Assegna PM</Label>
-                  <Controller control={control} name="pm_id" render={({ field }) => (
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <SelectTrigger><SelectValue placeholder="Seleziona PM" /></SelectTrigger>
-                      <SelectContent>
-                        {pmList.map((pm) => (
-                          <SelectItem key={pm.id} value={pm.id}>{pm.full_name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )} />
+              
+              {!certId ? (
+                <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                  <p className="text-xs text-amber-700">
+                    Devi <strong>salvare</strong> la certificazione per la prima volta prima di poter gestire la Timeline Operativa.
+                  </p>
+                </div>
+              ) : !hasTimeline ? (
+                <div className="p-4 bg-slate-50 rounded-lg flex flex-col gap-3 border border-slate-200">
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    Nessuna timeline trovata. Genera automaticamente i 17 step standard previsti dal framework FGB per il monitoraggio LEED.
+                  </p>
+                  <Button onClick={handleGenerateTimeline} disabled={isGeneratingTimeline} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">
+                    {isGeneratingTimeline ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Calendar className="w-4 h-4 mr-2" />}
+                    Genera Template Timeline Standard
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {timelineMilestones.map((tm, idx) => (
+                    <div key={tm.id} className="p-4 bg-slate-900 border border-slate-700 rounded-lg shadow-sm transition-shadow flex flex-col gap-3">
+                      <div className="flex flex-col">
+                        <Label className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Nome Fase (Visibile al Cliente)</Label>
+                        <Input 
+                          className="text-sm font-semibold text-white bg-transparent border-none px-0 h-auto focus-visible:ring-0 focus-visible:border-b focus-visible:border-slate-500" 
+                          value={tm.category} 
+                          onChange={(e) => updateTimelineField(idx, 'category', e.target.value)} 
+                        />
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-[10px] text-slate-400">Stato</Label>
+                          <Select value={tm.status} onValueChange={(v) => updateTimelineField(idx, 'status', v)}>
+                            <SelectTrigger className="h-8 text-xs bg-slate-800 border-slate-700 text-white">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="not_started">Non Iniziato</SelectItem>
+                              <SelectItem value="pending">In Attesa / Pending</SelectItem>
+                              <SelectItem value="in_progress">In Lavorazione</SelectItem>
+                              <SelectItem value="achieved">Completato (Achieved)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] text-slate-400">Data di Inizio</Label>
+                          <Input 
+                            type="date" 
+                            className="h-8 text-xs bg-slate-800 border-slate-700 text-white placeholder-slate-400 [color-scheme:dark]" 
+                            value={tm.start_date || ''} 
+                            onChange={(e) => updateTimelineField(idx, 'start_date', e.target.value)} 
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] text-slate-400">Data Scadenza (Target)</Label>
+                          <Input 
+                            type="date" 
+                            className="h-8 text-xs bg-slate-800 border-slate-700 text-white placeholder-slate-400 [color-scheme:dark]" 
+                            value={tm.due_date || ''} 
+                            onChange={(e) => updateTimelineField(idx, 'due_date', e.target.value)} 
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
-          </div>
 
-          {/* Section 3: Allocations */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between border-b pb-2">
-              <h3 className="font-semibold text-foreground">Articoli (Allocazioni Hardware)</h3>
-              <Button type="button" variant="outline" size="sm" onClick={() => append({ product_id: "", quantity: 1, status: "Draft" })} className="gap-1">
-                <Plus className="h-4 w-4" /> Aggiungi Articolo
-              </Button>
-            </div>
+            {/* SEZIONE SCORECARD (Crediti Punteggio) */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between border-b pb-2 mt-8">
+                <h4 className="text-sm font-semibold text-slate-700">Scorecard Crediti (Valutazione LEED)</h4>
+                <span className="text-sm font-bold text-emerald-600">{totalFromMilestones} / 110 pt</span>
+              </div>
 
-            {fields.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">Nessun articolo aggiunto.</p>
-            ) : (
-              <div className="space-y-3">
-                {fields.map((field, index) => (
-                  <div key={field.id} className="flex items-end gap-3 rounded-lg border p-3">
-                    <div className="flex-1 space-y-1">
-                      <Label className="text-xs text-muted-foreground">Prodotto</Label>
-                      <Controller control={control} name={`allocations.${index}.product_id`} rules={{ required: true }} render={({ field: f }) => (
-                        <Select value={f.value} onValueChange={f.onChange}>
-                          <SelectTrigger><SelectValue placeholder="Seleziona prodotto" /></SelectTrigger>
-                          <SelectContent>
-                            {Object.entries(
-                              products.reduce((acc, p) => {
-                                const cert = p.certification;
-                                if (!acc[cert]) acc[cert] = [];
-                                acc[cert].push(p);
-                                return acc;
-                              }, {} as Record<string, Product[]>)
-                            ).map(([cert, prods]) => (
-                              <div key={cert}>
-                                <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">{cert}</div>
-                                {prods.map((p) => (
-                                  <SelectItem key={p.id} value={p.id}>{p.name} ({p.sku}) — Stock: {p.quantity_in_stock}</SelectItem>
-                                ))}
-                              </div>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )} />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {formData.milestones.map((m, i) => (
+                  <div key={m.category} className="p-3 bg-slate-50 rounded-lg space-y-2 border border-slate-200">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-700">
+                        {m.category} — {CATEGORY_LABELS[m.category] || m.category}
+                      </span>
                     </div>
-                    <div className="w-24 space-y-1">
-                      <Label className="text-xs text-muted-foreground">Qtà</Label>
-                      <Input type="number" min="1" {...register(`allocations.${index}.quantity`, { required: true, valueAsNumber: true, min: 1 })} />
-                    </div>
-                    {isAdmin && (
-                      <div className="w-36 space-y-1">
-                        <Label className="text-xs text-muted-foreground">Stato</Label>
-                        <Controller control={control} name={`allocations.${index}.status`} render={({ field: f }) => (
-                          <Select value={f.value} onValueChange={f.onChange}>
-                            <SelectTrigger><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              {ALLOCATION_STATUSES.map((s) => (
-                                <SelectItem key={s} value={s}>{s}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        )} />
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-[10px] uppercase text-slate-500">Punti Ottenuti</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={m.maxScore}
+                          className="h-8 text-sm"
+                          value={m.score}
+                          onChange={e => updateScorecard(i, 'score', Math.min(parseInt(e.target.value) || 0, m.maxScore))}
+                        />
                       </div>
-                    )}
-                    <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="text-destructive hover:text-destructive">
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] uppercase text-slate-500">Max Punti</Label>
+                        <Input
+                          type="number"
+                          className="h-8 text-sm"
+                          value={m.maxScore}
+                          onChange={e => updateScorecard(i, 'maxScore', parseInt(e.target.value) || 0)}
+                        />
+                      </div>
+                    </div>
+                    <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden mt-1">
+                      <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${m.maxScore > 0 ? (m.score / m.maxScore) * 100 : 0}%` }} />
+                    </div>
                   </div>
                 ))}
               </div>
-            )}
-          </div>
+            </div>
 
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>
-            <Button type="submit" disabled={saving}>
-              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {project ? "Salva Modifiche" : "Crea Progetto"}
-            </Button>
-          </DialogFooter>
-        </form>
+          </div>
+        )}
+
+        <DialogFooter className="border-t pt-4">
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
+            Annulla
+          </Button>
+          <Button onClick={handleSave} className="bg-emerald-600 hover:bg-emerald-700 text-white" disabled={isSaving || isLoading}>
+            {isSaving ? (
+              <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Salvataggio...</>
+            ) : 'Salva Modifiche (Timeline e Scorecard)'}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
-}
+};
