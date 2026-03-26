@@ -14,7 +14,7 @@ export function useProjectManagers() {
       // Flatten the join result
       return (data as any[])?.map((r: any) => ({
         id: r.profiles?.id ?? r.user_id,
-        full_name: r.profiles?.full_name || r.profiles?.email || "PM",
+        full_name: r.profiles?.full_name || r.profiles?.display_name || [r.profiles?.first_name, r.profiles?.last_name].filter(Boolean).join(" ") || r.profiles?.email || "PM",
       })) ?? [];
     },
   });

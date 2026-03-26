@@ -108,12 +108,15 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
         // Step 2: Usa gli ID per estrarre i nomi dalla tabella profiles
         const { data: profilesData, error: profilesError } = await supabase
           .from("profiles")
-          .select("id, full_name")
+          .select("id, full_name, display_name, first_name, last_name, email")
           .in("id", pmIds);
 
         if (profilesError) throw profilesError;
 
-        setPmList((profilesData || []) as { id: string; full_name: string }[]);
+        setPmList((profilesData || []).map((p: any) => ({
+          id: p.id,
+          full_name: p.full_name || p.display_name || [p.first_name, p.last_name].filter(Boolean).join(" ") || p.email || "PM",
+        })));
       } catch (err) {
         console.error("Errore nel fetch dei PM:", err);
       } finally {
