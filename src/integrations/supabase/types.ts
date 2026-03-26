@@ -1602,10 +1602,13 @@ export type Database = {
       }
       projects: {
         Row: {
+          cert_rating: string | null
+          cert_type: string | null
           client: string
           created_at: string
           handover_date: string
           id: string
+          is_commissioning: boolean | null
           name: string
           pm_id: string | null
           region: string
@@ -1614,10 +1617,13 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          cert_rating?: string | null
+          cert_type?: string | null
           client?: string
           created_at?: string
           handover_date?: string
           id?: string
+          is_commissioning?: boolean | null
           name: string
           pm_id?: string | null
           region?: string
@@ -1626,10 +1632,13 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          cert_rating?: string | null
+          cert_type?: string | null
           client?: string
           created_at?: string
           handover_date?: string
           id?: string
+          is_commissioning?: boolean | null
           name?: string
           pm_id?: string | null
           region?: string

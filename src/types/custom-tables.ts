@@ -21,6 +21,9 @@ export interface Project {
   status: string;
   site_id: string | null;
   project_type?: string | null;
+  cert_type?: string | null;
+  cert_rating?: string | null;
+  is_commissioning?: boolean | null;
   created_at: string;
   updated_at: string;
 }
