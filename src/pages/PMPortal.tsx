@@ -1,171 +1,321 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { MainLayout } from "@/components/layout/MainLayout";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Settings, CheckCircle2, Clock, AlertTriangle } from "lucide-react";
-import { format } from "date-fns";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Package, LogOut, CalendarIcon, HardDrive, Clock } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { format, subDays } from "date-fns";
 import { it } from "date-fns/locale";
-import { usePMDashboard, type PMProject, type SetupStatus } from "@/hooks/usePMDashboard";
-import { PMProjectConfigModal } from "@/components/projects/PMProjectConfigModal";
+import { useToast } from "@/hooks/use-toast";
+import type { Tables } from "@/integrations/supabase/types";
 
-function ProjectCard({ project, onConfigure }: { project: PMProject; onConfigure: () => void }) {
-  const statusConfig: Record<SetupStatus, { icon: React.ReactNode; badgeClass: string; label: string }> = {
-    da_configurare: {
-      icon: <AlertTriangle className="h-4 w-4" />,
-      badgeClass: "bg-destructive/10 text-destructive border-destructive/30",
-      label: "Da Configurare",
-    },
-    in_corso: {
-      icon: <Clock className="h-4 w-4" />,
-      badgeClass: "bg-warning/10 text-warning border-warning/30",
-      label: "In Corso",
-    },
-    certificato: {
-      icon: <CheckCircle2 className="h-4 w-4" />,
-      badgeClass: "bg-success/10 text-success border-success/30",
-      label: "Certificato",
-    },
-  };
-
-  const config = statusConfig[project.setup_status];
-
-  return (
-    <Card className="hover:shadow-md transition-shadow">
-      <CardHeader className="pb-3">
-        <div className="flex items-start justify-between">
-          <div className="space-y-1">
-            <CardTitle className="text-base">{project.name}</CardTitle>
-            <p className="text-sm text-muted-foreground">{project.client}</p>
-          </div>
-          <Badge variant="outline" className={config.badgeClass}>
-            {config.icon}
-            <span className="ml-1">{config.label}</span>
-          </Badge>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="grid grid-cols-2 gap-2 text-sm">
-          <div>
-            <span className="text-muted-foreground">Sito: </span>
-            <span className="font-medium text-foreground">
-              {project.sites?.name || "Non assegnato"}
-              {project.sites?.city && `, ${project.sites.city}`}
-            </span>
-          </div>
-          <div>
-            <span className="text-muted-foreground">Handover: </span>
-            <span className="font-medium text-foreground">
-              {format(new Date(project.handover_date), "dd MMM yyyy", { locale: it })}
-            </span>
-          </div>
-        </div>
-
-        {project.setup_status === "da_configurare" && project.missing.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {project.missing.map((m) => (
-              <Badge key={m} variant="outline" className="text-xs bg-destructive/5 text-destructive border-destructive/20">
-                Manca {m}
-              </Badge>
-            ))}
-          </div>
-        )}
-
-        {project.setup_status === "da_configurare" && (
-          <Button onClick={onConfigure} className="w-full gap-2">
-            <Settings className="h-4 w-4" />
-            Configura Progetto
-          </Button>
-        )}
-        {project.setup_status === "in_corso" && (
-          <Button onClick={onConfigure} variant="outline" className="w-full gap-2">
-            <Settings className="h-4 w-4" />
-            Modifica Configurazione
-          </Button>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
+type Project = Tables<"projects">;
+type Allocation = Tables<"project_allocations">;
+type Product = Tables<"products">;
 
 export default function PMPortal() {
-  const { profile } = useAuth();
-  const { data: projects = [], isLoading } = usePMDashboard();
-  const [configProject, setConfigProject] = useState<PMProject | null>(null);
+  const { user, profile, signOut } = useAuth();
+  const { toast } = useToast();
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [allocations, setAllocations] = useState<Allocation[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [newHandoverDate, setNewHandoverDate] = useState<Date | undefined>();
+  const [selectedProductId, setSelectedProductId] = useState("");
+  const [requestQty, setRequestQty] = useState("");
+  const [loading, setLoading] = useState(true);
 
-  const daConfigurare = projects.filter((p) => p.setup_status === "da_configurare");
-  const inCorso = projects.filter((p) => p.setup_status === "in_corso");
-  const certificati = projects.filter((p) => p.setup_status === "certificato");
+  const fetchProjects = async () => {
+    const { data, error } = await supabase
+      .from("projects")
+      .select("*")
+      .order("handover_date", { ascending: true });
+    if (error) {
+      toast({ title: "Errore", description: error.message, variant: "destructive" });
+    }
+    setProjects(data || []);
+    setLoading(false);
+  };
 
-  const renderGrid = (items: PMProject[], emptyMsg: string) => {
-    if (isLoading) {
-      return (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[1, 2, 3].map((i) => <Skeleton key={i} className="h-48 w-full rounded-lg" />)}
-        </div>
-      );
+  const fetchAllocations = async (projectId: string) => {
+    const [allocRes, prodRes] = await Promise.all([
+      supabase.from("project_allocations").select("*").eq("project_id", projectId),
+      supabase.from("products").select("*"),
+    ]);
+    if (allocRes.error) toast({ title: "Errore", description: allocRes.error.message, variant: "destructive" });
+    if (prodRes.error) toast({ title: "Errore", description: prodRes.error.message, variant: "destructive" });
+    setAllocations(allocRes.data || []);
+    setProducts(prodRes.data || []);
+  };
+
+  useEffect(() => { fetchProjects(); }, []);
+
+  const openProject = (project: Project) => {
+    setSelectedProject(project);
+    setNewHandoverDate(new Date(project.handover_date));
+    fetchAllocations(project.id);
+  };
+
+  const handleUpdateHandover = async () => {
+    if (!selectedProject || !newHandoverDate || !user) return;
+    const oldDate = selectedProject.handover_date;
+    const newDate = format(newHandoverDate, "yyyy-MM-dd");
+    if (oldDate === newDate) return;
+
+    const { error } = await supabase
+      .from("projects")
+      .update({ handover_date: newDate })
+      .eq("id", selectedProject.id);
+
+    if (error) {
+      toast({ title: "Errore", description: error.message, variant: "destructive" });
+      return;
     }
-    if (items.length === 0) {
-      return <p className="text-center text-muted-foreground py-12">{emptyMsg}</p>;
+
+    await supabase.from("audit_logs").insert({
+      project_id: selectedProject.id,
+      user_id: user.id,
+      changed_field: "handover_date",
+      old_value: oldDate,
+      new_value: newDate,
+    });
+
+    toast({ title: "Handover aggiornata", description: `${oldDate} → ${newDate}` });
+    setSelectedProject({ ...selectedProject, handover_date: newDate });
+    fetchProjects();
+  };
+
+  const handleRequestAllocation = async () => {
+    if (!selectedProject || !selectedProductId || !requestQty || !user) return;
+
+    const targetDate = format(subDays(new Date(selectedProject.handover_date), 15), "yyyy-MM-dd");
+
+    const { error } = await supabase.from("project_allocations").insert({
+      project_id: selectedProject.id,
+      product_id: selectedProductId,
+      quantity: parseInt(requestQty),
+      status: "Requested",
+      target_date: targetDate,
+    });
+
+    if (error) {
+      toast({ title: "Errore", description: error.message, variant: "destructive" });
+      return;
     }
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {items.map((p) => (
-          <ProjectCard key={p.id} project={p} onConfigure={() => setConfigProject(p)} />
-        ))}
-      </div>
-    );
+
+    await supabase.from("audit_logs").insert({
+      project_id: selectedProject.id,
+      user_id: user.id,
+      changed_field: "allocation_requested",
+      old_value: null,
+      new_value: `${requestQty}x ${products.find(p => p.id === selectedProductId)?.name}`,
+    });
+
+    toast({ title: "Allocazione richiesta", description: "L'admin la verificherà." });
+    setSelectedProductId("");
+    setRequestQty("");
+    fetchAllocations(selectedProject.id);
+  };
+
+  const daysUntil = (date: string) => Math.ceil((new Date(date).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+
+  const statusColors: Record<string, string> = {
+    Design: "bg-primary/10 text-primary",
+    Construction: "bg-warning/10 text-warning",
+    Completed: "bg-success/10 text-success",
+    Cancelled: "bg-destructive/10 text-destructive",
+  };
+
+  const allocStatusColors: Record<string, string> = {
+    Draft: "bg-muted text-muted-foreground",
+    Allocated: "bg-primary/10 text-primary",
+    Requested: "bg-warning/10 text-warning",
+    Shipped: "bg-accent text-accent-foreground",
+    Installed_Online: "bg-success/10 text-success",
   };
 
   return (
-    <MainLayout title="PM Dashboard" subtitle={`${profile?.full_name || ""} — Panoramica Progetti`}>
-      <Tabs defaultValue="da_configurare" className="space-y-6">
-        <TabsList>
-          <TabsTrigger value="da_configurare" className="gap-1.5">
-            <AlertTriangle className="h-3.5 w-3.5" />
-            Da Configurare
-            {daConfigurare.length > 0 && (
-              <Badge variant="destructive" className="ml-1 h-5 min-w-5 text-[10px] px-1.5">
-                {daConfigurare.length}
-              </Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="in_corso" className="gap-1.5">
-            <Clock className="h-3.5 w-3.5" />
-            In Corso
-            {inCorso.length > 0 && (
-              <Badge className="ml-1 h-5 min-w-5 text-[10px] px-1.5 bg-warning text-warning-foreground">
-                {inCorso.length}
-              </Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="certificati" className="gap-1.5">
-            <CheckCircle2 className="h-3.5 w-3.5" />
-            Certificati
-          </TabsTrigger>
-        </TabsList>
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b bg-card/80 backdrop-blur-sm px-6">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary">
+            <Package className="h-4 w-4 text-primary-foreground" />
+          </div>
+          <div>
+            <h1 className="text-lg font-semibold text-foreground">I Miei Cantieri</h1>
+            <p className="text-xs text-muted-foreground">{profile?.full_name} — PM Portal</p>
+          </div>
+        </div>
+        <Button variant="ghost" size="sm" onClick={signOut} className="gap-2">
+          <LogOut className="h-4 w-4" /> Esci
+        </Button>
+      </header>
 
-        <TabsContent value="da_configurare">
-          {renderGrid(daConfigurare, "Nessun progetto da configurare. 🎉")}
-        </TabsContent>
-        <TabsContent value="in_corso">
-          {renderGrid(inCorso, "Nessun progetto in corso.")}
-        </TabsContent>
-        <TabsContent value="certificati">
-          {renderGrid(certificati, "Nessun progetto certificato.")}
-        </TabsContent>
-      </Tabs>
+      {/* Project List */}
+      <main className="max-w-5xl mx-auto p-6">
+        {loading ? (
+          <div className="flex justify-center py-20">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+          </div>
+        ) : projects.length === 0 ? (
+          <div className="text-center py-20 text-muted-foreground">Nessun cantiere assegnato.</div>
+        ) : (
+          <div className="table-container overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left p-4 font-medium text-muted-foreground">Progetto</th>
+                  <th className="text-left p-4 font-medium text-muted-foreground">Cliente</th>
+                  <th className="text-left p-4 font-medium text-muted-foreground">Region</th>
+                  <th className="text-left p-4 font-medium text-muted-foreground">Handover</th>
+                  <th className="text-left p-4 font-medium text-muted-foreground">Stato</th>
+                  <th className="p-4"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {projects.map((p) => {
+                  const days = daysUntil(p.handover_date);
+                  return (
+                    <tr key={p.id} className="border-b last:border-b-0 hover:bg-muted/50 transition-colors">
+                      <td className="p-4 font-medium text-foreground">{p.name}</td>
+                      <td className="p-4 text-foreground">{p.client}</td>
+                      <td className="p-4"><Badge variant="outline">{p.region}</Badge></td>
+                      <td className="p-4">
+                        <span className={cn("font-medium", days <= 30 ? "text-destructive" : "text-foreground")}>
+                          {format(new Date(p.handover_date), "dd MMM yyyy", { locale: it })}
+                        </span>
+                        <span className="text-xs text-muted-foreground ml-1">({days}gg)</span>
+                      </td>
+                      <td className="p-4">
+                        <Badge variant="outline" className={cn("border-0", statusColors[p.status])}>{p.status}</Badge>
+                      </td>
+                      <td className="p-4">
+                        <Button size="sm" variant="outline" onClick={() => openProject(p)}>Gestisci</Button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </main>
 
-      {configProject && (
-        <PMProjectConfigModal
-          project={configProject}
-          open={!!configProject}
-          onOpenChange={(open) => { if (!open) setConfigProject(null); }}
-        />
-      )}
-    </MainLayout>
+      {/* Project Detail Dialog */}
+      <Dialog open={!!selectedProject} onOpenChange={(open) => !open && setSelectedProject(null)}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <HardDrive className="h-5 w-5 text-primary" />
+              {selectedProject?.name}
+            </DialogTitle>
+          </DialogHeader>
+
+          {selectedProject && (
+            <div className="space-y-6">
+              {/* Handover Date Update */}
+              <div className="rounded-lg border p-4 space-y-3">
+                <h3 className="font-semibold flex items-center gap-2 text-foreground">
+                  <CalendarIcon className="h-4 w-4" /> Modifica Handover Date
+                </h3>
+                <div className="flex items-end gap-3">
+                  <div className="flex-1">
+                    <Label className="text-xs text-muted-foreground">Nuova Data</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className="w-full justify-start text-left font-normal">
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {newHandoverDate ? format(newHandoverDate, "dd MMM yyyy", { locale: it }) : "Seleziona"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0">
+                        <Calendar mode="single" selected={newHandoverDate} onSelect={setNewHandoverDate} initialFocus />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <Button onClick={handleUpdateHandover} size="sm">Salva</Button>
+                </div>
+                <p className="text-xs text-muted-foreground">La modifica verrà registrata nell'Audit Trail.</p>
+              </div>
+
+              {/* Current Allocations */}
+              <div className="rounded-lg border p-4 space-y-3">
+                <h3 className="font-semibold flex items-center gap-2 text-foreground">
+                  <Clock className="h-4 w-4" /> Allocazioni Correnti
+                </h3>
+                {allocations.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Nessuna allocazione per questo cantiere.</p>
+                ) : (
+                  <div className="divide-y">
+                    {allocations.map((a) => {
+                      const prod = products.find((p) => p.id === a.product_id);
+                      return (
+                        <div key={a.id} className="py-2 flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-medium text-foreground">{prod?.name || "Prodotto"}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Qty: {a.quantity}
+                              {a.target_date && ` — Target: ${format(new Date(a.target_date), "dd MMM yyyy", { locale: it })}`}
+                            </p>
+                          </div>
+                          <Badge variant="outline" className={cn("border-0", allocStatusColors[a.status])}>{a.status}</Badge>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Request Allocation */}
+              <div className="rounded-lg border p-4 space-y-3">
+                <h3 className="font-semibold text-foreground">Richiedi Allocazione Hardware</h3>
+                <div className="flex items-end gap-3">
+                  <div className="flex-1">
+                    <Label className="text-xs text-muted-foreground">Prodotto</Label>
+                    <Select value={selectedProductId} onValueChange={setSelectedProductId}>
+                      <SelectTrigger><SelectValue placeholder="Seleziona prodotto" /></SelectTrigger>
+                      <SelectContent>
+                        {products.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>{p.name} ({p.sku})</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="w-24">
+                    <Label className="text-xs text-muted-foreground">Quantità</Label>
+                    <Input type="number" min="1" value={requestQty} onChange={(e) => setRequestQty(e.target.value)} />
+                  </div>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span>
+                        <Button
+                          size="sm"
+                          onClick={handleRequestAllocation}
+                          disabled={!selectedProductId || !requestQty}
+                        >
+                          Richiedi
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    {(!selectedProductId || !requestQty) && (
+                      <TooltipContent>Seleziona un prodotto e una quantità</TooltipContent>
+                    )}
+                  </Tooltip>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }

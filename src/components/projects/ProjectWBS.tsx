@@ -1,19 +1,20 @@
 import { useState } from "react";
 import { useProjectTasks, useCreateTask, useUpdateTask, useDeleteTask, ProjectTask } from "@/hooks/useProjectTasks";
 import { usePaymentMilestones, PaymentMilestone } from "@/hooks/usePaymentMilestones";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Plus, Trash2, Lock, AlertTriangle, Loader2 } from "lucide-react";
+import { Plus, Trash2, Lock, AlertTriangle, Loader2, Package } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
+import type { ProjectAllocation, Product } from "@/types/custom-tables";
 
 const TASK_STATUS_LABELS: Record<string, string> = {
   todo: "Da fare",
@@ -48,6 +49,7 @@ export function ProjectWBS({ projectId }: Props) {
     end_date: "",
     blocking_payment_id: "",
     dependency_id: "",
+    allocation_id: "",
   });
 
   // Fetch staff list
@@ -59,19 +61,64 @@ export function ProjectWBS({ projectId }: Props) {
     },
   });
 
-  // Build payment map for blocking checks
+  // Fetch project allocations with product info
+  const { data: allocations = [] } = useQuery({
+    queryKey: ["project-allocations", projectId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("project_allocations" as any)
+        .select("*")
+        .eq("project_id", projectId);
+      if (error) throw error;
+      return (data || []) as unknown as ProjectAllocation[];
+    },
+    enabled: !!projectId,
+  });
+
+  const { data: products = [] } = useQuery({
+    queryKey: ["products-list"],
+    queryFn: async () => {
+      const { data } = await supabase.from("products" as any).select("*");
+      return (data || []) as unknown as Product[];
+    },
+  });
+
+  // Build maps for O(1) lookups
   const paymentMap = new Map<string, PaymentMilestone>(payments.map((p) => [p.id, p]));
+  const allocationMap = new Map<string, ProjectAllocation>(allocations.map((a) => [a.id, a]));
+  const productMap = new Map<string, Product>(products.map((p) => [p.id, p]));
 
   const isBlocked = (task: ProjectTask): boolean => {
-    if (!task.blocking_payment_id) return false;
-    const payment = paymentMap.get(task.blocking_payment_id);
-    return !!payment && payment.status !== "paid";
+    // 1. Financial block
+    if (task.blocking_payment_id) {
+      const payment = paymentMap.get(task.blocking_payment_id);
+      if (payment && payment.status !== "paid") return true;
+    }
+    // 2. Logistics block
+    if (task.allocation_id) {
+      const allocation = allocationMap.get(task.allocation_id);
+      if (allocation && !["Shipped", "Installed_Online"].includes(allocation.status)) {
+        return true;
+      }
+    }
+    return false;
   };
 
   const getBlockingPaymentName = (task: ProjectTask): string | null => {
     if (!task.blocking_payment_id) return null;
     const payment = paymentMap.get(task.blocking_payment_id);
     return payment ? payment.milestone_name : null;
+  };
+
+  const getBlockingAllocationInfo = (task: ProjectTask): { productName: string; status: string } | null => {
+    if (!task.allocation_id) return null;
+    const allocation = allocationMap.get(task.allocation_id);
+    if (!allocation || ["Shipped", "Installed_Online"].includes(allocation.status)) return null;
+    const product = productMap.get(allocation.product_id);
+    return {
+      productName: product?.name || "Hardware",
+      status: allocation.status,
+    };
   };
 
   const handleCreateTask = async () => {
@@ -83,14 +130,15 @@ export function ProjectWBS({ projectId }: Props) {
       end_date: newTask.end_date || null,
       blocking_payment_id: newTask.blocking_payment_id || null,
       dependency_id: newTask.dependency_id || null,
+      allocation_id: newTask.allocation_id || null,
       status: "todo",
     } as any);
-    setNewTask({ task_name: "", assigned_to: "", start_date: "", end_date: "", blocking_payment_id: "", dependency_id: "" });
+    setNewTask({ task_name: "", assigned_to: "", start_date: "", end_date: "", blocking_payment_id: "", dependency_id: "", allocation_id: "" });
     setShowNewTask(false);
   };
 
   const handleStatusChange = (task: ProjectTask, newStatus: string) => {
-    if (isBlocked(task) && (newStatus === "done" || newStatus === "review")) return;
+    if (isBlocked(task) && (newStatus === "done" || newStatus === "review" || newStatus === "in_progress")) return;
     updateTask.mutate({ id: task.id, status: newStatus } as any);
   };
 
@@ -124,11 +172,12 @@ export function ProjectWBS({ projectId }: Props) {
           {tasks.map((task) => {
             const blocked = isBlocked(task);
             const blockingName = getBlockingPaymentName(task);
+            const blockingAlloc = getBlockingAllocationInfo(task);
             return (
               <Card key={task.id} className={cn(blocked && "border-destructive/40 bg-destructive/5")}>
                 <CardContent className="py-3 px-4">
                   <div className="flex items-center gap-4">
-                    {/* Task name + blocking indicator */}
+                    {/* Task name + blocking indicators */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         {blocked && <Lock className="h-4 w-4 text-destructive shrink-0" />}
@@ -137,13 +186,24 @@ export function ProjectWBS({ projectId }: Props) {
                       {blocked && blockingName && (
                         <p className="text-xs text-destructive flex items-center gap-1 mt-0.5">
                           <AlertTriangle className="h-3 w-3" />
-                          Bloccato da pagamento: "{blockingName}"
+                          Bloccato da pagamento: &quot;{blockingName}&quot;
+                        </p>
+                      )}
+                      {blocked && blockingAlloc && (
+                        <p className="text-xs text-destructive flex items-center gap-1 mt-0.5">
+                          <Package className="h-3 w-3" />
+                          Bloccato da logistica (Stato attuale: {blockingAlloc.status})
                         </p>
                       )}
                       <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
                         {task.assigned_to && <span>👤 {staffMap.get(task.assigned_to) || "—"}</span>}
                         {task.start_date && <span>📅 {format(new Date(task.start_date), "dd MMM", { locale: it })}</span>}
                         {task.end_date && <span>→ {format(new Date(task.end_date), "dd MMM", { locale: it })}</span>}
+                        {task.allocation_id && (() => {
+                          const alloc = allocationMap.get(task.allocation_id);
+                          const prod = alloc ? productMap.get(alloc.product_id) : null;
+                          return prod ? <span>📦 {prod.name}</span> : null;
+                        })()}
                       </div>
                     </div>
 
@@ -151,7 +211,7 @@ export function ProjectWBS({ projectId }: Props) {
                     <Select
                       value={task.status}
                       onValueChange={(val) => handleStatusChange(task, val)}
-                      disabled={blocked && task.status !== "todo"}
+                      disabled={blocked && task.status === "todo"}
                     >
                       <SelectTrigger className="w-36">
                         <SelectValue />
@@ -161,7 +221,7 @@ export function ProjectWBS({ projectId }: Props) {
                           <SelectItem
                             key={val}
                             value={val}
-                            disabled={blocked && (val === "done" || val === "review")}
+                            disabled={blocked && (val === "done" || val === "review" || val === "in_progress")}
                           >
                             {label}
                           </SelectItem>
@@ -213,6 +273,23 @@ export function ProjectWBS({ projectId }: Props) {
                   {staff.map((s: any) => (
                     <SelectItem key={s.id} value={s.id}>{s.full_name}</SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Collega Hardware (Opzionale)</Label>
+              <Select value={newTask.allocation_id} onValueChange={(val) => setNewTask({ ...newTask, allocation_id: val })}>
+                <SelectTrigger><SelectValue placeholder="Nessun hardware collegato" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Nessun hardware collegato</SelectItem>
+                  {allocations.map((a) => {
+                    const prod = productMap.get(a.product_id);
+                    return (
+                      <SelectItem key={a.id} value={a.id}>
+                        {prod?.name || "Prodotto"} — Qty: {a.quantity} ({a.status})
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>
