@@ -16,6 +16,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { ProcurementForecasting } from "@/components/dashboard/ProcurementForecasting";
 import { DataImporter } from "@/components/admin/DataImporter";
+import { PMProjectsBoard } from "@/components/projects/PMProjectsBoard";
 import type { Project, ProjectAllocation } from "@/types/custom-tables";
 
 const statusColors: Record<string, string> = {
@@ -72,10 +73,10 @@ export default function Projects() {
   };
 
   useEffect(() => {
+    if (!isAdmin) return;
+
     fetchProjects();
-    if (isAdmin) {
-      supabase.from("profiles").select("id, full_name").then(({ data }) => setPmList((data || []) as any));
-    }
+    supabase.from("profiles").select("id, full_name").then(({ data }) => setPmList((data || []) as any));
   }, [isAdmin]);
 
   const openEdit = async (project: Project) => {
@@ -94,6 +95,14 @@ export default function Projects() {
     setModalOpen(true);
   };
 
+  if (!isAdmin) {
+    return (
+      <MainLayout title="I Miei Cantieri" subtitle="Dashboard operativa dei progetti assegnati">
+        <PMProjectsBoard />
+      </MainLayout>
+    );
+  }
+
   const filtered = projects.filter((p) => {
     const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) || p.client.toLowerCase().includes(search.toLowerCase());
     const matchesRegion = regionFilter === "all" || p.region === regionFilter;
@@ -107,36 +116,30 @@ export default function Projects() {
   );
 
   return (
-    <MainLayout title={isAdmin ? "Tutti i Cantieri" : "I Miei Cantieri"} subtitle="Gestione progetti e allocazioni hardware">
-      {isAdmin ? (
-        <Tabs defaultValue="projects" className="space-y-6">
-          <TabsList>
-            <TabsTrigger value="projects">Cantieri</TabsTrigger>
-            <TabsTrigger value="forecast" className="gap-2">
-              <BarChart3 className="h-4 w-4" /> Analisi Fabbisogno
-            </TabsTrigger>
-            <TabsTrigger value="import" className="gap-2">
-              <FileUp className="h-4 w-4" /> Import CSV
-            </TabsTrigger>
-          </TabsList>
+    <MainLayout title="Tutti i Cantieri" subtitle="Gestione progetti e allocazioni hardware">
+      <Tabs defaultValue="projects" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="projects">Cantieri</TabsTrigger>
+          <TabsTrigger value="forecast" className="gap-2">
+            <BarChart3 className="h-4 w-4" /> Analisi Fabbisogno
+          </TabsTrigger>
+          <TabsTrigger value="import" className="gap-2">
+            <FileUp className="h-4 w-4" /> Import CSV
+          </TabsTrigger>
+        </TabsList>
 
-          <TabsContent value="projects" className="space-y-6">
-            {filtersAndTable}
-          </TabsContent>
-
-          <TabsContent value="forecast">
-            <ProcurementForecasting />
-          </TabsContent>
-
-          <TabsContent value="import">
-            <DataImporter />
-          </TabsContent>
-        </Tabs>
-      ) : (
-        <div className="space-y-6">
+        <TabsContent value="projects" className="space-y-6">
           {filtersAndTable}
-        </div>
-      )}
+        </TabsContent>
+
+        <TabsContent value="forecast">
+          <ProcurementForecasting />
+        </TabsContent>
+
+        <TabsContent value="import">
+          <DataImporter />
+        </TabsContent>
+      </Tabs>
 
       <ProjectFormModal
         open={modalOpen}
