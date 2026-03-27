@@ -86,26 +86,26 @@ export function usePMDashboard() {
           p.status === "Completed";
 
         const hasHardware = allocations.length > 0;
-        const hasTargetLevel = projectCerts.some(
-          (c: any) => c.level && c.level.trim() !== ""
-        );
         const hasTimeline = projectMilestones.some(
           (m: any) =>
             m.milestone_type === "timeline" &&
             (m.start_date || m.due_date)
         );
+        const hasScorecard = projectMilestones.some(
+          (m: any) => m.milestone_type === "scorecard"
+        );
 
         const missing: string[] = [];
         if (!isCertified) {
           if (!hasHardware) missing.push("Hardware");
-          if (!hasTargetLevel) missing.push("Target");
           if (!hasTimeline) missing.push("Timeline");
+          if (!hasScorecard) missing.push("Scorecard");
         }
 
         let setup_status: SetupStatus;
         if (isCertified) {
           setup_status = "certificato";
-        } else if (hasHardware && hasTargetLevel && hasTimeline) {
+        } else if (hasHardware && hasTimeline && hasScorecard) {
           setup_status = "in_corso";
         } else {
           setup_status = "da_configurare";

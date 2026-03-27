@@ -13,8 +13,8 @@ import { Settings2, CheckCircle2, Clock, AlertTriangle, MapPin, CalendarIcon, Bu
 
 const MISSING_LABELS: Record<string, { label: string; color: string }> = {
   Hardware: { label: "Manca Hardware", color: "bg-destructive/10 text-destructive border-destructive/30" },
-  Target: { label: "Manca Target", color: "bg-warning/10 text-warning border-warning/30" },
   Timeline: { label: "Manca Timeline", color: "bg-warning/10 text-warning border-warning/30" },
+  Scorecard: { label: "Manca Scorecard", color: "bg-warning/10 text-warning border-warning/30" },
 };
 
 function ProjectCard({ project, onConfigure }: { project: PMProject; onConfigure: (p: PMProject) => void }) {
