@@ -277,9 +277,9 @@ export function SiteProjectOnboardingForm({
           // Milestone Trigger (Solo creazione LEED/WELL)
           if (values.project_type === "LEED" || values.project_type === "WELL") {
             const { data: cert, error: certErr } = await supabase.from("certifications").insert({
-                site_id: siteId, project_id: projectId, cert_type: values.project_type as any,
+                site_id: siteId, cert_type: values.project_type as any,
                 score: 0, target_score: values.project_type === "LEED" ? 110 : 100,
-              }).select("id").single();
+              } as any).select("id").single();
             if (certErr) throw certErr;
 
             const template = values.project_type === "LEED" ? LEED_TEMPLATE : LEED_TEMPLATE; 
@@ -607,10 +607,10 @@ export function SiteProjectOnboardingForm({
                                           acc[cert].push(p);
                                           return acc;
                                         }, {} as Record<string, any[]>)
-                                      ).map(([cert, prods]) => (
+                                      ).map(([cert, prods]: [string, any[]]) => (
                                         <div key={cert}>
                                           <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50">{cert}</div>
-                                          {prods.map((p) => (
+                                          {prods.map((p: any) => (
                                             <SelectItem key={p.id} value={p.id}>{p.name} ({p.sku})</SelectItem>
                                           ))}
                                         </div>
@@ -633,7 +633,7 @@ export function SiteProjectOnboardingForm({
                                 <FormField control={form.control} name={`allocations.${index}.status`} render={({ field: f }) => (
                                   <FormItem className="w-36 space-y-1">
                                     <FormLabel className="text-xs">Stato Operativo</FormLabel>
-                                    <Select onValueChange={f.onChange} value={field.value}>
+                                    <Select onValueChange={f.onChange} value={f.value}>
                                       <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
                                       <SelectContent>
                                         {ALLOCATION_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
