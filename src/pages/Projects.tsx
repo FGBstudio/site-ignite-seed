@@ -162,7 +162,7 @@ function renderFiltersAndTableContent(
   pmList: { id: string; full_name: string }[],
   isAdmin: boolean, openNew: () => void,
   loading: boolean, filtered: any[], openEdit: (p: any) => void,
-  navigate: (path: string) => void,
+  navigate: (path: string) => void, openOnboarding: () => void,
 ) {
   return (
     <>
