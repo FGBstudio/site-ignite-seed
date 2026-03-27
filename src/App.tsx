@@ -52,6 +52,9 @@ function AppRoutes() {
       <Route path="/projects" element={<ProtectedRoute allowedRoles={R("ADMIN", "PM")}><Projects /></ProtectedRoute>} />
       <Route path="/projects/:projectId" element={<ProtectedRoute allowedRoles={R("ADMIN", "PM")}><ProjectDetail /></ProtectedRoute>} />
       
+      {/* PM Dashboard */}
+      <Route path="/pm-portal" element={<ProtectedRoute allowedRoles={R("PM")}><PMPortal /></ProtectedRoute>} />
+      
       {/* Operative inbox */}
       <Route path="/my-tasks" element={<ProtectedRoute allowedRoles={R("ADMIN", "PM", "document_manager", "specialist", "energy_modeler", "cxa")}><MyTasks /></ProtectedRoute>} />
       

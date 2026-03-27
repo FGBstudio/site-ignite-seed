@@ -12,7 +12,7 @@ function getDefaultRoute(role: AppRole | null): string {
     case "ADMIN":
       return "/ceo-dashboard";
     case "PM":
-      return "/projects";
+      return "/pm-portal";
     case "document_manager":
     case "specialist":
     case "energy_modeler":
