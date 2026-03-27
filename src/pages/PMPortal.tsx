@@ -47,6 +47,21 @@ function ProjectCard({ project, onConfigure }: { project: PMProject; onConfigure
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
+        {/* Certification info */}
+        {(project.cert_type || project.cert_rating || (project as any).project_subtype) && (
+          <div className="flex flex-wrap gap-1.5">
+            {project.cert_type && (
+              <Badge variant="secondary" className="text-xs">{project.cert_type}</Badge>
+            )}
+            {project.cert_rating && (
+              <Badge variant="outline" className="text-xs">{project.cert_rating}</Badge>
+            )}
+            {(project as any).project_subtype && (
+              <Badge variant="outline" className="text-xs bg-accent/50">{(project as any).project_subtype}</Badge>
+            )}
+          </div>
+        )}
+
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
           <span className="flex items-center gap-1">
             <MapPin className="h-3.5 w-3.5" />
