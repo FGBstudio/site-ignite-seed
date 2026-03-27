@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePMDashboard } from "@/hooks/usePMDashboard";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CheckCircle, Clock, AlertTriangle, CalendarDays, FolderKanban, Upload, Lock } from "lucide-react";
+import { ArrowRight, CheckCircle, Clock, AlertTriangle, CalendarDays, FolderKanban, Upload, Lock } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -31,13 +33,16 @@ interface TaskRow {
   project_client?: string;
   blocking_payment_status?: string;
   blocking_payment_name?: string;
+  isSynthetic?: boolean;
 }
 
 export default function MyTasks() {
-  const { user } = useAuth();
+  const navigate = useNavigate();
+  const { user, isPM } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [selectedTask, setSelectedTask] = useState<TaskRow | null>(null);
+  const { data: pmProjects = [], isLoading: isPMProjectsLoading } = usePMDashboard();
 
   const { data: tasks = [], isLoading, isError } = useQuery({
     queryKey: ["my-tasks", user?.id],
@@ -115,9 +120,37 @@ export default function MyTasks() {
     done: "bg-success/10 text-success border-success/20",
   };
 
-  const todoTasks = tasks.filter((t) => t.status === "todo");
-  const inProgressTasks = tasks.filter((t) => t.status === "in_progress");
-  const reviewTasks = tasks.filter((t) => t.status === "review");
+  const syntheticTasks = useMemo<TaskRow[]>(() => {
+    if (!isPM || tasks.length > 0) return [];
+
+    return pmProjects
+      .filter((project) => project.setup_status !== "certificato")
+      .map((project) => ({
+        id: `setup-${project.id}`,
+        project_id: project.id,
+        task_name:
+          project.setup_status === "da_configurare"
+            ? `Configura il progetto ${project.name}`
+            : `Completa il setup del progetto ${project.name}`,
+        assigned_to: user?.id ?? null,
+        start_date: null,
+        end_date: project.handover_date,
+        status: project.setup_status === "in_corso" ? "in_progress" : "todo",
+        blocking_payment_id: null,
+        dependency_id: null,
+        created_at: project.updated_at,
+        project_name: project.name,
+        project_client: project.client,
+        isSynthetic: true,
+      }));
+  }, [isPM, pmProjects, tasks.length, user?.id]);
+
+  const visibleTasks = tasks.length > 0 ? tasks : syntheticTasks;
+  const pageIsLoading = isLoading || (isPM && tasks.length === 0 && isPMProjectsLoading);
+
+  const todoTasks = visibleTasks.filter((t) => t.status === "todo");
+  const inProgressTasks = visibleTasks.filter((t) => t.status === "in_progress");
+  const reviewTasks = visibleTasks.filter((t) => t.status === "review");
 
   const renderTaskCard = (task: TaskRow) => {
     const blocked = isBlocked(task);
@@ -175,7 +208,7 @@ export default function MyTasks() {
 
   return (
     <MainLayout title="I Miei Task" subtitle="La tua inbox operativa">
-      {isLoading ? (
+      {pageIsLoading ? (
         <div className="space-y-3">
           {[...Array(5)].map((_, i) => (
             <Skeleton key={i} className="h-20 w-full rounded-lg" />
@@ -282,8 +315,17 @@ export default function MyTasks() {
                   </div>
                 )}
 
+                {selectedTask.isSynthetic && (
+                  <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
+                    <p className="text-sm font-medium text-foreground">Task generato automaticamente</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Questo progetto non ha ancora milestone operative assegnate: completa il setup da “I Miei Cantieri”.
+                    </p>
+                  </div>
+                )}
+
                 {/* Change status */}
-                {!isBlocked(selectedTask) && (
+                {!isBlocked(selectedTask) && !selectedTask.isSynthetic && (
                   <div className="space-y-2">
                     <p className="text-xs font-medium text-muted-foreground">Cambia Stato</p>
                     <Select
@@ -303,16 +345,28 @@ export default function MyTasks() {
               </div>
 
               <SheetFooter className="flex-col gap-2 sm:flex-col">
-                {/* Fake upload + complete button */}
-                <Button
-                  className="w-full gap-2"
-                  disabled={isBlocked(selectedTask) || updateStatus.isPending}
-                  onClick={() => updateStatus.mutate({ taskId: selectedTask.id, newStatus: "review" })}
-                >
-                  <Upload className="h-4 w-4" />
-                  Carica Documento ed Esegui
-                </Button>
-                {isBlocked(selectedTask) && (
+                {selectedTask.isSynthetic ? (
+                  <Button
+                    className="w-full gap-2"
+                    onClick={() => {
+                      setSelectedTask(null);
+                      navigate("/projects");
+                    }}
+                  >
+                    Apri I Miei Cantieri
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                ) : (
+                  <Button
+                    className="w-full gap-2"
+                    disabled={isBlocked(selectedTask) || updateStatus.isPending}
+                    onClick={() => updateStatus.mutate({ taskId: selectedTask.id, newStatus: "review" })}
+                  >
+                    <Upload className="h-4 w-4" />
+                    Carica Documento ed Esegui
+                  </Button>
+                )}
+                {isBlocked(selectedTask) && !selectedTask.isSynthetic && (
                   <p className="text-xs text-center text-destructive">
                     Non puoi completare questo task finché il pagamento non è stato saldato.
                   </p>

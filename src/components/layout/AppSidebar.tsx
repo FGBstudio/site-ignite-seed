@@ -53,9 +53,8 @@ export function AppSidebar() {
     ];
   } else if (isPM) {
     mainNavItems = [
-      { title: "Dashboard PM", url: "/pm-portal", icon: LayoutDashboard },
-      { title: "Dashboard", url: "/ceo-dashboard", icon: Crown },
       { title: "I Miei Cantieri", url: "/projects", icon: FolderKanban },
+      { title: "Dashboard PM", url: "/pm-portal", icon: LayoutDashboard },
       { title: "I Miei Task", url: "/my-tasks", icon: Inbox },
     ];
   } else if (isOperative) {

@@ -1,136 +1,70 @@
+import { useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { usePMDashboard, type PMProject } from "@/hooks/usePMDashboard";
 import { MainLayout } from "@/components/layout/MainLayout";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { PMProjectConfigModal } from "@/components/projects/PMProjectConfigModal";
-import { useState } from "react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
-import { Settings2, CheckCircle2, Clock, AlertTriangle, MapPin, CalendarIcon, Building2 } from "lucide-react";
+import { AlertTriangle, ArrowRight, Building2, CalendarIcon, CheckCircle2, Clock3, FolderKanban } from "lucide-react";
 
-const MISSING_LABELS: Record<string, { label: string; color: string }> = {
-  Hardware: { label: "Manca Hardware", color: "bg-destructive/10 text-destructive border-destructive/30" },
-  Timeline: { label: "Manca Timeline", color: "bg-warning/10 text-warning border-warning/30" },
-  Scorecard: { label: "Manca Scorecard", color: "bg-warning/10 text-warning border-warning/30" },
-};
+type PMProjectView = PMProject & { project_subtype?: string | null };
 
-function ProjectCard({ project, onConfigure }: { project: PMProject; onConfigure: (p: PMProject) => void }) {
-  const daysLeft = Math.ceil((new Date(project.handover_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-  const siteName = project.sites?.name || "Sito non assegnato";
-  const siteLocation = [project.sites?.city, project.sites?.country].filter(Boolean).join(", ");
-
-  return (
-    <Card className="hover:shadow-md transition-shadow">
-      <CardHeader className="pb-3">
-        <div className="flex items-start justify-between">
-          <div className="space-y-1">
-            <CardTitle className="text-base">{project.name}</CardTitle>
-            <CardDescription className="flex items-center gap-1.5">
-              <Building2 className="h-3.5 w-3.5" />
-              {project.client}
-            </CardDescription>
-          </div>
-          <Badge
-            variant="outline"
-            className={cn(
-              "shrink-0",
-              project.setup_status === "certificato" && "bg-success/10 text-success border-success/30",
-              project.setup_status === "in_corso" && "bg-primary/10 text-primary border-primary/30",
-              project.setup_status === "da_configurare" && "bg-muted text-muted-foreground",
-            )}
-          >
-            {project.status}
-          </Badge>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {/* Certification info */}
-        {(project.cert_type || project.cert_rating || (project as any).project_subtype) && (
-          <div className="flex flex-wrap gap-1.5">
-            {project.cert_type && (
-              <Badge variant="secondary" className="text-xs">{project.cert_type}</Badge>
-            )}
-            {project.cert_rating && (
-              <Badge variant="outline" className="text-xs">{project.cert_rating}</Badge>
-            )}
-            {(project as any).project_subtype && (
-              <Badge variant="outline" className="text-xs bg-accent/50">{(project as any).project_subtype}</Badge>
-            )}
-          </div>
-        )}
-
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
-          <span className="flex items-center gap-1">
-            <MapPin className="h-3.5 w-3.5" />
-            {siteName}{siteLocation ? ` — ${siteLocation}` : ""}
-          </span>
-          <span className={cn("flex items-center gap-1 font-medium", daysLeft <= 30 ? "text-destructive" : "text-foreground")}>
-            <CalendarIcon className="h-3.5 w-3.5" />
-            {format(new Date(project.handover_date), "dd MMM yyyy", { locale: it })}
-            <span className="text-xs text-muted-foreground font-normal">({daysLeft}gg)</span>
-          </span>
-        </div>
-
-        {project.setup_status === "da_configurare" && project.missing.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {project.missing.map((m) => {
-              const conf = MISSING_LABELS[m];
-              return (
-                <Badge key={m} variant="outline" className={cn("text-xs", conf?.color)}>
-                  <AlertTriangle className="h-3 w-3 mr-1" />
-                  {conf?.label || m}
-                </Badge>
-              );
-            })}
-          </div>
-        )}
-
-        {project.setup_status !== "certificato" && (
-          <Button size="sm" className="w-full gap-1.5 mt-1" onClick={() => onConfigure(project)}>
-            <Settings2 className="h-4 w-4" />
-            Configura Progetto
-          </Button>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
+const STATUS_META = {
+  da_configurare: {
+    label: "Da Configurare",
+    icon: AlertTriangle,
+    className: "border-warning/30 bg-warning/10 text-warning",
+  },
+  in_corso: {
+    label: "In Corso",
+    icon: Clock3,
+    className: "border-primary/30 bg-primary/10 text-primary",
+  },
+  certificato: {
+    label: "Certificati",
+    icon: CheckCircle2,
+    className: "border-success/30 bg-success/10 text-success",
+  },
+} as const;
 
 export default function PMPortal() {
+  const navigate = useNavigate();
   const { data: projects = [], isLoading } = usePMDashboard();
-  const [configProject, setConfigProject] = useState<PMProject | null>(null);
 
   const daConfigurare = projects.filter((p) => p.setup_status === "da_configurare");
   const inCorso = projects.filter((p) => p.setup_status === "in_corso");
   const certificati = projects.filter((p) => p.setup_status === "certificato");
-
-  const renderGrid = (items: PMProject[], emptyMsg: string) =>
-    items.length === 0 ? (
-      <div className="text-center py-12 text-muted-foreground">{emptyMsg}</div>
-    ) : (
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {items.map((p) => (
-          <ProjectCard key={p.id} project={p} onConfigure={setConfigProject} />
-        ))}
-      </div>
-    );
+  const recentProjects = useMemo(
+    () =>
+      [...projects]
+        .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+        .slice(0, 5) as PMProjectView[],
+    [projects],
+  );
 
   return (
-    <MainLayout title="Dashboard PM" subtitle="Gestione setup e avanzamento progetti">
+    <MainLayout title="Dashboard PM" subtitle="Recap operativo dei progetti assegnati">
       {isLoading ? (
         <div className="flex justify-center py-20">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
         </div>
       ) : projects.length === 0 ? (
-        <div className="text-center py-20 text-muted-foreground">Nessun cantiere assegnato.</div>
+        <Card>
+          <CardContent className="py-16 text-center">
+            <FolderKanban className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
+            <p className="text-lg font-medium text-foreground">Nessun cantiere assegnato</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Quando un admin ti assegna un progetto, vedrai qui il recap e in “I Miei Cantieri” la dashboard operativa.
+            </p>
+          </CardContent>
+        </Card>
       ) : (
-        <>
-          {/* Summary KPIs */}
-          <div className="grid grid-cols-3 gap-4 mb-6">
-            <Card className="border-warning/30">
+        <div className="space-y-6">
+          <div className="grid gap-4 md:grid-cols-3">
+            <Card className="border-warning/30 bg-card">
               <CardContent className="flex items-center gap-3 p-4">
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-warning/10">
                   <AlertTriangle className="h-5 w-5 text-warning" />
@@ -141,10 +75,10 @@ export default function PMPortal() {
                 </div>
               </CardContent>
             </Card>
-            <Card className="border-primary/30">
+            <Card className="border-primary/30 bg-card">
               <CardContent className="flex items-center gap-3 p-4">
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                  <Clock className="h-5 w-5 text-primary" />
+                  <Clock3 className="h-5 w-5 text-primary" />
                 </div>
                 <div>
                   <p className="text-2xl font-bold text-foreground">{inCorso.length}</p>
@@ -152,7 +86,7 @@ export default function PMPortal() {
                 </div>
               </CardContent>
             </Card>
-            <Card className="border-success/30">
+            <Card className="border-success/30 bg-card">
               <CardContent className="flex items-center gap-3 p-4">
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-success/10">
                   <CheckCircle2 className="h-5 w-5 text-success" />
@@ -165,38 +99,61 @@ export default function PMPortal() {
             </Card>
           </div>
 
-          <Tabs defaultValue="da_configurare" className="space-y-4">
-            <TabsList>
-              <TabsTrigger value="da_configurare" className="gap-1.5">
-                <AlertTriangle className="h-3.5 w-3.5" /> Da Configurare ({daConfigurare.length})
-              </TabsTrigger>
-              <TabsTrigger value="in_corso" className="gap-1.5">
-                <Clock className="h-3.5 w-3.5" /> In Corso ({inCorso.length})
-              </TabsTrigger>
-              <TabsTrigger value="certificati" className="gap-1.5">
-                <CheckCircle2 className="h-3.5 w-3.5" /> Certificati ({certificati.length})
-              </TabsTrigger>
-            </TabsList>
+          <Card>
+            <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle>Ultimi progetti assegnati</CardTitle>
+                <CardDescription>Recap rapido dei cantieri su cui stai lavorando.</CardDescription>
+              </div>
+              <Button variant="outline" className="gap-2" onClick={() => navigate("/projects")}>
+                Apri I Miei Cantieri
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {recentProjects.map((project) => {
+                const statusMeta = STATUS_META[project.setup_status];
+                const StatusIcon = statusMeta.icon;
+                return (
+                  <div
+                    key={project.id}
+                    className="flex flex-col gap-3 rounded-lg border border-border/70 bg-muted/20 p-4 lg:flex-row lg:items-center lg:justify-between"
+                  >
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-sm font-semibold text-foreground">{project.name}</h3>
+                        <Badge variant="outline" className={cn(statusMeta.className)}>
+                          <StatusIcon className="mr-1 h-3 w-3" />
+                          {statusMeta.label}
+                        </Badge>
+                      </div>
+                      <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                        <Building2 className="h-3.5 w-3.5" />
+                        {project.client}
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {project.cert_type && <Badge variant="secondary">{project.cert_type}</Badge>}
+                        {project.cert_rating && <Badge variant="outline">{project.cert_rating}</Badge>}
+                        {project.project_subtype && <Badge variant="outline">{project.project_subtype}</Badge>}
+                      </div>
+                    </div>
 
-            <TabsContent value="da_configurare">
-              {renderGrid(daConfigurare, "Tutti i progetti sono stati configurati! 🎉")}
-            </TabsContent>
-            <TabsContent value="in_corso">
-              {renderGrid(inCorso, "Nessun progetto in corso.")}
-            </TabsContent>
-            <TabsContent value="certificati">
-              {renderGrid(certificati, "Nessun progetto certificato.")}
-            </TabsContent>
-          </Tabs>
-        </>
-      )}
-
-      {configProject && (
-        <PMProjectConfigModal
-          project={configProject}
-          open={!!configProject}
-          onOpenChange={(open) => !open && setConfigProject(null)}
-        />
+                    <div className="flex flex-col items-start gap-2 text-sm text-muted-foreground lg:items-end">
+                      <span className="inline-flex items-center gap-1.5">
+                        <CalendarIcon className="h-3.5 w-3.5" />
+                        {format(new Date(project.handover_date), "dd MMM yyyy", { locale: it })}
+                      </span>
+                      <Button size="sm" variant="ghost" className="gap-2 px-0" onClick={() => navigate("/projects")}>
+                        Vai alla dashboard operativa
+                        <ArrowRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
+        </div>
       )}
     </MainLayout>
   );
