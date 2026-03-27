@@ -23,6 +23,7 @@ export interface Project {
   project_type?: string | null;
   cert_type?: string | null;
   cert_rating?: string | null;
+  project_subtype?: string | null;
   is_commissioning?: boolean | null;
   created_at: string;
   updated_at: string;
