@@ -44,12 +44,23 @@ export default function Projects() {
     setLoading(true);
     const { data } = await supabase
       .from("projects")
-      .select("*, profiles(full_name), project_allocations(quantity, products(name, certification))")
+      .select("*, project_allocations(quantity, products(name, certification))")
       .order("handover_date", { ascending: true });
+
+    // Fetch PM names separately (no FK between projects.pm_id and profiles.id)
+    const pmIds = [...new Set((data || []).map((p: any) => p.pm_id).filter(Boolean))] as string[];
+    let pmMap: Record<string, string> = {};
+    if (pmIds.length > 0 && isAdmin) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, full_name")
+        .in("id", pmIds);
+      pmMap = Object.fromEntries((profiles || []).map((p: any) => [p.id, p.full_name || "—"]));
+    }
 
     const mapped = (data || []).map((p: any) => ({
       ...p,
-      pm_name: p.profiles?.full_name || "—",
+      pm_name: pmMap[p.pm_id] || "—",
       allocations_summary: (p.project_allocations || []).map((a: any) => ({
         name: a.products?.name || "—",
         certification: a.products?.certification || "—",

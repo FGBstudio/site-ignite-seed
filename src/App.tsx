@@ -15,6 +15,7 @@ import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 import CeoDashboard from "./pages/CeoDashboard";
 import MyTasks from "./pages/MyTasks";
+import PMPortal from "./pages/PMPortal";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 
