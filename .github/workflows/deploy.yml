@@ -1,0 +1,33 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main] # Si attiva ogni volta che carichi su main
+
+permissions:
+  contents: write # Serve per permettere a GitHub di creare il branch del sito
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout 
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build
+        run: npm run build # Esegue il comando build definito nel tuo package.json
+
+      - name: Deploy
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          folder: dist # La cartella che Vite crea dopo la build
+          branch: gh-pages # Il branch dove starà solo il sito compilato
