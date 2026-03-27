@@ -142,6 +142,8 @@ export default function Projects() {
         </TabsContent>
       </Tabs>
 
+      <SiteProjectOnboardingForm open={onboardingOpen} onOpenChange={setOnboardingOpen} />
+
       <ProjectFormModal
         open={modalOpen}
         onOpenChange={setModalOpen}
