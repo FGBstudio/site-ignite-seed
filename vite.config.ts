@@ -5,8 +5,8 @@ import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
-  // Forza il base path corretto per GitHub Pages. 
-  // Usa '/' se hai un dominio custom, altrimenti il nome della repo.
+  // Il base path deve corrispondere al nome della tua repository GitHub
+  // per permettere il caricamento corretto di JS e CSS in produzione.
   base: mode === 'production' ? '/site-ignite-seed/' : '/',
   
   server: {
@@ -23,8 +23,10 @@ export default defineConfig(({ mode }) => ({
     },
   },
   build: {
-    // Assicura che la build sia pulita per il deploy
     outDir: "dist",
     emptyOutDir: true,
+    // Genera file con nomi puliti per evitare conflitti di cache
+    assetsDir: "assets",
+    sourcemap: false,
   }
 }));
