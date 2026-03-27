@@ -36,6 +36,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Loader2, Plus } from "lucide-react";
+import { RATING_SYSTEMS, RATING_SUBTYPES, type RatingSystem } from "@/data/ratingSubtypes";
 
 const formSchema = z
   .object({
@@ -56,7 +57,8 @@ const formSchema = z
     project_name: z.string().optional(),
     pm_id: z.string().optional(),
     cert_type: z.enum(["LEED", "WELL", "BREEAM", "CO2"]).optional(),
-    cert_rating: z.enum(["ID+C v.4", "ID+C v.4.1", "BD+C", "O+M"]).optional(),
+    cert_rating: z.string().optional(),
+    project_subtype: z.string().optional(),
     is_commissioning: z.boolean().default(false),
   })
   .superRefine((data, ctx) => {
