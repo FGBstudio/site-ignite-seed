@@ -1,7 +1,7 @@
-import { useState, useEffect, useMemo } from "react";
-import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,14 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Plus, Trash2, AlertTriangle } from "lucide-react";
-import { format } from "date-fns";
 import type { PMProject } from "@/hooks/usePMDashboard";
-import {
-  CERT_TYPES,
-  CERT_RATINGS,
-  CERT_LEVELS,
-  getTemplateOrFallback,
-} from "@/data/certificationTemplates";
+import { getTemplateOrFallback } from "@/data/certificationTemplates";
 
 interface Props {
   project: PMProject;
@@ -26,7 +20,138 @@ interface Props {
   onOpenChange: (open: boolean) => void;
 }
 
-// ─── Tab 1: Hardware ───
+// ─── Tab A: Timeline ───
+function TimelineTab({ project }: { project: PMProject }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const cert = project.certifications?.[0];
+  const certId = cert?.id;
+
+  const { template, isGeneric } = getTemplateOrFallback(cert?.cert_type || project.cert_type, project.cert_rating);
+
+  const { data: milestones = [] as any[], refetch } = useQuery({
+    queryKey: ["timeline-milestones", certId],
+    enabled: !!certId,
+    queryFn: async (): Promise<any[]> => {
+      const { data, error } = await (supabase as any)
+        .from("certification_milestones")
+        .select("*")
+        .eq("certification_id", certId!)
+        .eq("milestone_type", "timeline")
+        .order("order_index");
+      if (error) throw error;
+      return (data || []) as any[];
+    },
+  });
+
+  const [saving, setSaving] = useState(false);
+
+  const handleInitialize = async () => {
+    if (!certId) {
+      toast({ variant: "destructive", title: "Nessuna certificazione associata al progetto" });
+      return;
+    }
+    setSaving(true);
+    try {
+      const rows = template.timeline.map((step) => ({
+        certification_id: certId,
+        category: "Timeline",
+        requirement: step.name,
+        milestone_type: "timeline",
+        order_index: step.order_index,
+        max_score: 0,
+        score: 0,
+        status: "pending",
+      }));
+      const { error } = await supabase.from("certification_milestones").insert(rows as any);
+      if (error) throw error;
+      refetch();
+      qc.invalidateQueries({ queryKey: ["pm-dashboard"] });
+      toast({ title: "Timeline inizializzata" });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Errore", description: e.message });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUpdate = async (milestoneId: string, updates: any) => {
+    const { error } = await supabase.from("certification_milestones").update(updates).eq("id", milestoneId);
+    if (error) toast({ variant: "destructive", title: "Errore", description: error.message });
+    else { refetch(); qc.invalidateQueries({ queryKey: ["pm-dashboard"] }); }
+  };
+
+  if (!certId) {
+    return <p className="text-sm text-muted-foreground text-center py-8">Nessuna certificazione associata. L'admin deve prima configurare la certificazione del progetto.</p>;
+  }
+
+  if (milestones.length === 0) {
+    return (
+      <div className="text-center py-8 space-y-3">
+        {isGeneric && (
+          <div className="flex items-center gap-2 justify-center text-warning">
+            <AlertTriangle className="h-4 w-4" />
+            <span className="text-sm">Template generico — inserimento manuale disponibile</span>
+          </div>
+        )}
+        <p className="text-sm text-muted-foreground">Nessuno step timeline trovato.</p>
+        <Button onClick={handleInitialize} disabled={saving} className="gap-1">
+          {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+          Inizializza Timeline da Template
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {isGeneric && (
+        <div className="flex items-center gap-2 text-warning mb-3">
+          <AlertTriangle className="h-4 w-4" />
+          <span className="text-sm">Template in fase di definizione — modifiche manuali consentite</span>
+        </div>
+      )}
+      <div className="border rounded-lg divide-y max-h-[400px] overflow-y-auto">
+        {milestones.map((m: any) => (
+          <div key={m.id} className="grid grid-cols-[1fr_120px_120px_120px_110px] gap-2 items-center px-3 py-2">
+            <span className="text-sm text-foreground truncate">{m.requirement}</span>
+            <Input
+              type="date"
+              className="h-7 text-xs"
+              value={m.start_date || ""}
+              onChange={(e) => handleUpdate(m.id, { start_date: e.target.value || null })}
+            />
+            <Input
+              type="date"
+              className="h-7 text-xs"
+              value={m.due_date || ""}
+              onChange={(e) => handleUpdate(m.id, { due_date: e.target.value || null })}
+            />
+            <Input
+              type="date"
+              className="h-7 text-xs"
+              value={m.completed_date || ""}
+              onChange={(e) => handleUpdate(m.id, { completed_date: e.target.value || null })}
+            />
+            <Select value={m.status || "pending"} onValueChange={(v) => handleUpdate(m.id, { status: v })}>
+              <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="in_progress">In Progress</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        ))}
+      </div>
+      <div className="text-xs text-muted-foreground px-3">
+        Colonne: Nome Step · Data Inizio · Data Scadenza · Data Completamento · Stato
+      </div>
+    </div>
+  );
+}
+
+// ─── Tab B: Hardware ───
 function HardwareTab({ project }: { project: PMProject }) {
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -131,246 +256,7 @@ function HardwareTab({ project }: { project: PMProject }) {
   );
 }
 
-// ─── Tab 2: Certification & Level ───
-function CertificationTab({ project }: { project: PMProject }) {
-  const { toast } = useToast();
-  const qc = useQueryClient();
-  const cert = project.certifications?.[0];
-
-  const [certType, setCertType] = useState(cert?.cert_type || project.cert_type || "");
-  const [rating, setRating] = useState(cert?.level ? "" : "");
-  const [level, setLevel] = useState(cert?.level || "");
-  const [targetScore, setTargetScore] = useState<number>(cert?.target_score || 0);
-  const [saving, setSaving] = useState(false);
-
-  // Derive rating from cert_type on project
-  useEffect(() => {
-    if (cert) {
-      setCertType(cert.cert_type || "");
-      setLevel(cert.level || "");
-      setTargetScore(cert.target_score || 0);
-    }
-  }, [cert]);
-
-  const ratings = CERT_RATINGS[certType] || [];
-  const levels = CERT_LEVELS[certType] || [];
-
-  const handleSave = async () => {
-    if (!certType || !level) {
-      toast({ variant: "destructive", title: "Compila tipo e livello" });
-      return;
-    }
-    setSaving(true);
-    try {
-      if (cert) {
-        // Update existing
-        const { error } = await supabase
-          .from("certifications")
-          .update({ cert_type: certType, level, target_score: targetScore } as any)
-          .eq("id", cert.id);
-        if (error) throw error;
-      } else if (project.site_id) {
-        // Create new
-        const { error } = await supabase
-          .from("certifications")
-          .insert({
-            site_id: project.site_id,
-            cert_type: certType,
-            level,
-            target_score: targetScore,
-            status: "in_progress",
-          } as any);
-        if (error) throw error;
-      } else {
-        throw new Error("Progetto senza sito associato. Associa prima un sito.");
-      }
-      qc.invalidateQueries({ queryKey: ["pm-dashboard"] });
-      toast({ title: "Certificazione salvata" });
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Errore", description: e.message });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <Label className="text-xs">Protocollo</Label>
-          <Select value={certType} onValueChange={(v) => { setCertType(v); setRating(""); setLevel(""); }}>
-            <SelectTrigger><SelectValue placeholder="Seleziona" /></SelectTrigger>
-            <SelectContent>
-              {CERT_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-        <div>
-          <Label className="text-xs">Rating / Tipologia</Label>
-          <Select value={rating} onValueChange={setRating} disabled={!certType}>
-            <SelectTrigger><SelectValue placeholder="Seleziona" /></SelectTrigger>
-            <SelectContent>
-              {ratings.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-        <div>
-          <Label className="text-xs">Livello Target</Label>
-          <Select value={level} onValueChange={setLevel} disabled={!certType}>
-            <SelectTrigger><SelectValue placeholder="Seleziona" /></SelectTrigger>
-            <SelectContent>
-              {levels.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-        <div>
-          <Label className="text-xs">Target Score</Label>
-          <Input type="number" min={0} value={targetScore} onChange={(e) => setTargetScore(Number(e.target.value) || 0)} />
-        </div>
-      </div>
-      <div className="flex justify-end">
-        <Button onClick={handleSave} disabled={saving} className="gap-1">
-          {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-          Salva Certificazione
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-// ─── Tab 3: Timeline ───
-function TimelineTab({ project }: { project: PMProject }) {
-  const { toast } = useToast();
-  const qc = useQueryClient();
-  const cert = project.certifications?.[0];
-  const certId = cert?.id;
-
-  const { template, isGeneric } = getTemplateOrFallback(cert?.cert_type || project.cert_type, project.cert_rating);
-
-  const { data: milestones = [] as any[], refetch } = useQuery({
-    queryKey: ["timeline-milestones", certId],
-    enabled: !!certId,
-    queryFn: async (): Promise<any[]> => {
-      const { data, error } = await (supabase as any)
-        .from("certification_milestones")
-        .select("*")
-        .eq("certification_id", certId!)
-        .eq("milestone_type", "timeline")
-        .order("order_index");
-      if (error) throw error;
-      return (data || []) as any[];
-    },
-  });
-
-  const [saving, setSaving] = useState(false);
-
-  // Initialize milestones from template if none exist
-  const handleInitialize = async () => {
-    if (!certId) {
-      toast({ variant: "destructive", title: "Salva prima la certificazione nel Tab 2" });
-      return;
-    }
-    setSaving(true);
-    try {
-      const rows = template.timeline.map((step) => ({
-        certification_id: certId,
-        category: "Timeline",
-        requirement: step.name,
-        milestone_type: "timeline",
-        order_index: step.order_index,
-        max_score: 0,
-        score: 0,
-        status: "pending",
-      }));
-      const { error } = await supabase.from("certification_milestones").insert(rows as any);
-      if (error) throw error;
-      refetch();
-      qc.invalidateQueries({ queryKey: ["pm-dashboard"] });
-      toast({ title: "Timeline inizializzata" });
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Errore", description: e.message });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleUpdate = async (milestoneId: string, updates: any) => {
-    const { error } = await supabase.from("certification_milestones").update(updates).eq("id", milestoneId);
-    if (error) toast({ variant: "destructive", title: "Errore", description: error.message });
-    else { refetch(); qc.invalidateQueries({ queryKey: ["pm-dashboard"] }); }
-  };
-
-  if (!certId) {
-    return <p className="text-sm text-muted-foreground text-center py-8">Configura prima la certificazione nel Tab 2.</p>;
-  }
-
-  if (milestones.length === 0) {
-    return (
-      <div className="text-center py-8 space-y-3">
-        {isGeneric && (
-          <div className="flex items-center gap-2 justify-center text-warning">
-            <AlertTriangle className="h-4 w-4" />
-            <span className="text-sm">Template generico — inserimento manuale disponibile</span>
-          </div>
-        )}
-        <p className="text-sm text-muted-foreground">Nessuno step timeline trovato.</p>
-        <Button onClick={handleInitialize} disabled={saving} className="gap-1">
-          {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-          Inizializza Timeline da Template
-        </Button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-2">
-      {isGeneric && (
-        <div className="flex items-center gap-2 text-warning mb-3">
-          <AlertTriangle className="h-4 w-4" />
-          <span className="text-sm">Template in fase di definizione — modifiche manuali consentite</span>
-        </div>
-      )}
-      <div className="border rounded-lg divide-y max-h-[400px] overflow-y-auto">
-        {milestones.map((m: any) => (
-          <div key={m.id} className="grid grid-cols-[1fr_120px_120px_120px_110px] gap-2 items-center px-3 py-2">
-            <span className="text-sm text-foreground truncate">{m.requirement}</span>
-            <Input
-              type="date"
-              className="h-7 text-xs"
-              value={m.start_date || ""}
-              onChange={(e) => handleUpdate(m.id, { start_date: e.target.value || null })}
-            />
-            <Input
-              type="date"
-              className="h-7 text-xs"
-              value={m.due_date || ""}
-              onChange={(e) => handleUpdate(m.id, { due_date: e.target.value || null })}
-            />
-            <Input
-              type="date"
-              className="h-7 text-xs"
-              value={m.completed_date || ""}
-              onChange={(e) => handleUpdate(m.id, { completed_date: e.target.value || null })}
-            />
-            <Select value={m.status || "pending"} onValueChange={(v) => handleUpdate(m.id, { status: v })}>
-              <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="in_progress">In Progress</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        ))}
-      </div>
-      <div className="text-xs text-muted-foreground px-3">
-        Colonne: Nome Step · Data Inizio · Data Scadenza · Data Completamento · Stato
-      </div>
-    </div>
-  );
-}
-
-// ─── Tab 4: Scorecard ───
+// ─── Tab C: Scorecard ───
 function ScorecardTab({ project }: { project: PMProject }) {
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -399,7 +285,7 @@ function ScorecardTab({ project }: { project: PMProject }) {
 
   const handleInitialize = async () => {
     if (!certId) {
-      toast({ variant: "destructive", title: "Salva prima la certificazione nel Tab 2" });
+      toast({ variant: "destructive", title: "Nessuna certificazione associata al progetto" });
       return;
     }
     if (template.scorecard.length === 0) {
@@ -421,6 +307,7 @@ function ScorecardTab({ project }: { project: PMProject }) {
       const { error } = await supabase.from("certification_milestones").insert(rows as any);
       if (error) throw error;
       refetch();
+      qc.invalidateQueries({ queryKey: ["pm-dashboard"] });
       toast({ title: "Scorecard inizializzata" });
     } catch (e: any) {
       toast({ variant: "destructive", title: "Errore", description: e.message });
@@ -450,7 +337,7 @@ function ScorecardTab({ project }: { project: PMProject }) {
   };
 
   if (!certId) {
-    return <p className="text-sm text-muted-foreground text-center py-8">Configura prima la certificazione nel Tab 2.</p>;
+    return <p className="text-sm text-muted-foreground text-center py-8">Nessuna certificazione associata. L'admin deve prima configurare la certificazione del progetto.</p>;
   }
 
   if (milestones.length === 0) {
@@ -531,23 +418,20 @@ export function PMProjectConfigModal({ project, open, onOpenChange }: Props) {
       <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Configura Progetto — {project.name}</DialogTitle>
+          <DialogDescription>Compila timeline, hardware e scorecard per completare il setup del progetto.</DialogDescription>
         </DialogHeader>
-        <Tabs defaultValue="hardware" className="space-y-4">
-          <TabsList className="grid grid-cols-4 w-full">
-            <TabsTrigger value="hardware">Hardware</TabsTrigger>
-            <TabsTrigger value="certification">Certificazione</TabsTrigger>
+        <Tabs defaultValue="timeline" className="space-y-4">
+          <TabsList className="grid grid-cols-3 w-full">
             <TabsTrigger value="timeline">Timeline</TabsTrigger>
+            <TabsTrigger value="hardware">Hardware</TabsTrigger>
             <TabsTrigger value="scorecard">Scorecard</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="hardware">
-            <HardwareTab project={project} />
-          </TabsContent>
-          <TabsContent value="certification">
-            <CertificationTab project={project} />
-          </TabsContent>
           <TabsContent value="timeline">
             <TimelineTab project={project} />
+          </TabsContent>
+          <TabsContent value="hardware">
+            <HardwareTab project={project} />
           </TabsContent>
           <TabsContent value="scorecard">
             <ScorecardTab project={project} />
