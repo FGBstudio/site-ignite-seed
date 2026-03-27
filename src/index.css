@@ -6,28 +6,28 @@
 
 @layer base {
   :root {
-    --background: 220 20% 97%;
-    --foreground: 222 47% 11%;
+    --background: 0 0% 98%;
+    --foreground: 0 0% 11%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 0 0% 11%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
+    --popover-foreground: 0 0% 11%;
 
-    --primary: 217 91% 50%;
+    --primary: 211 100% 50%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 220 14% 96%;
-    --secondary-foreground: 222 47% 11%;
+    --secondary: 0 0% 96%;
+    --secondary-foreground: 0 0% 11%;
 
-    --muted: 220 14% 96%;
-    --muted-foreground: 220 9% 46%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 45%;
 
-    --accent: 220 14% 96%;
-    --accent-foreground: 222 47% 11%;
+    --accent: 0 0% 96%;
+    --accent-foreground: 0 0% 11%;
 
-    --destructive: 0 84% 60%;
+    --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
     --success: 142 71% 45%;
@@ -42,65 +42,78 @@
     --outbound: 25 95% 53%;
     --outbound-foreground: 0 0% 100%;
 
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 217 91% 50%;
+    --border: 0 0% 91%;
+    --input: 0 0% 91%;
+    --ring: 211 100% 50%;
 
-    --radius: 0.75rem;
+    --radius: 0.875rem;
 
-    --sidebar-background: 222 47% 11%;
-    --sidebar-foreground: 220 14% 96%;
-    --sidebar-primary: 217 91% 60%;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 0 0% 11%;
+    --sidebar-primary: 211 100% 50%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 222 47% 18%;
-    --sidebar-accent-foreground: 220 14% 96%;
-    --sidebar-border: 222 47% 18%;
-    --sidebar-ring: 217 91% 60%;
+    --sidebar-accent: 0 0% 96%;
+    --sidebar-accent-foreground: 0 0% 11%;
+    --sidebar-border: 0 0% 93%;
+    --sidebar-ring: 211 100% 50%;
 
-    --chart-1: 217 91% 50%;
+    --chart-1: 211 100% 50%;
     --chart-2: 142 71% 45%;
     --chart-3: 25 95% 53%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
+
+    /* Apple-style elevation shadows */
+    --shadow-xs: 0 1px 2px 0 hsl(0 0% 0% / 0.03);
+    --shadow-sm: 0 1px 3px 0 hsl(0 0% 0% / 0.04), 0 1px 2px -1px hsl(0 0% 0% / 0.03);
+    --shadow-md: 0 4px 12px -1px hsl(0 0% 0% / 0.06), 0 2px 6px -2px hsl(0 0% 0% / 0.04);
+    --shadow-lg: 0 10px 30px -3px hsl(0 0% 0% / 0.08), 0 4px 10px -4px hsl(0 0% 0% / 0.04);
+    --shadow-xl: 0 20px 50px -5px hsl(0 0% 0% / 0.1), 0 8px 20px -6px hsl(0 0% 0% / 0.04);
   }
 
   .dark {
-    --background: 222 47% 7%;
-    --foreground: 220 14% 96%;
+    --background: 0 0% 6%;
+    --foreground: 0 0% 96%;
 
-    --card: 222 47% 11%;
-    --card-foreground: 220 14% 96%;
+    --card: 0 0% 10%;
+    --card-foreground: 0 0% 96%;
 
-    --popover: 222 47% 11%;
-    --popover-foreground: 220 14% 96%;
+    --popover: 0 0% 10%;
+    --popover-foreground: 0 0% 96%;
 
-    --primary: 217 91% 60%;
-    --primary-foreground: 222 47% 11%;
+    --primary: 211 100% 60%;
+    --primary-foreground: 0 0% 6%;
 
-    --secondary: 222 47% 18%;
-    --secondary-foreground: 220 14% 96%;
+    --secondary: 0 0% 15%;
+    --secondary-foreground: 0 0% 96%;
 
-    --muted: 222 47% 18%;
-    --muted-foreground: 220 9% 60%;
+    --muted: 0 0% 15%;
+    --muted-foreground: 0 0% 55%;
 
-    --accent: 222 47% 18%;
-    --accent-foreground: 220 14% 96%;
+    --accent: 0 0% 15%;
+    --accent-foreground: 0 0% 96%;
 
     --destructive: 0 62% 30%;
-    --destructive-foreground: 220 14% 96%;
+    --destructive-foreground: 0 0% 96%;
 
-    --border: 222 47% 18%;
-    --input: 222 47% 18%;
-    --ring: 217 91% 60%;
+    --border: 0 0% 16%;
+    --input: 0 0% 16%;
+    --ring: 211 100% 60%;
 
-    --sidebar-background: 222 47% 7%;
-    --sidebar-foreground: 220 14% 96%;
-    --sidebar-primary: 217 91% 60%;
-    --sidebar-primary-foreground: 222 47% 11%;
-    --sidebar-accent: 222 47% 14%;
-    --sidebar-accent-foreground: 220 14% 96%;
-    --sidebar-border: 222 47% 14%;
-    --sidebar-ring: 217 91% 60%;
+    --sidebar-background: 0 0% 8%;
+    --sidebar-foreground: 0 0% 96%;
+    --sidebar-primary: 211 100% 60%;
+    --sidebar-primary-foreground: 0 0% 6%;
+    --sidebar-accent: 0 0% 13%;
+    --sidebar-accent-foreground: 0 0% 96%;
+    --sidebar-border: 0 0% 14%;
+    --sidebar-ring: 211 100% 60%;
+
+    --shadow-xs: 0 1px 2px 0 hsl(0 0% 0% / 0.1);
+    --shadow-sm: 0 1px 3px 0 hsl(0 0% 0% / 0.15), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
+    --shadow-md: 0 4px 12px -1px hsl(0 0% 0% / 0.2), 0 2px 6px -2px hsl(0 0% 0% / 0.12);
+    --shadow-lg: 0 10px 30px -3px hsl(0 0% 0% / 0.25), 0 4px 10px -4px hsl(0 0% 0% / 0.1);
+    --shadow-xl: 0 20px 50px -5px hsl(0 0% 0% / 0.3), 0 8px 20px -6px hsl(0 0% 0% / 0.12);
   }
 }
 
@@ -110,21 +123,50 @@
   }
 
   body {
-    @apply bg-background text-foreground font-sans antialiased;
-    font-family: 'Inter', sans-serif;
+    @apply bg-background text-foreground antialiased;
+    font-family: -apple-system, 'Inter', 'SF Pro Display', 'SF Pro Text', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    letter-spacing: -0.011em;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    letter-spacing: -0.025em;
+    font-weight: 600;
   }
 }
 
 @layer utilities {
   .glass {
-    @apply bg-card/80 backdrop-blur-sm border border-border/50;
+    @apply bg-card/70 backdrop-blur-xl border border-border/40;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .glass-heavy {
+    @apply bg-card/80 backdrop-blur-2xl border border-border/30;
+    box-shadow: var(--shadow-md);
   }
 
   .stat-card {
-    @apply bg-card rounded-xl p-6 shadow-sm border border-border/50 transition-all duration-200 hover:shadow-md hover:border-border;
+    @apply bg-card rounded-2xl p-6 border border-border/40 transition-all duration-300;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .stat-card:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
   }
 
   .table-container {
-    @apply bg-card rounded-xl border border-border/50 overflow-hidden;
+    @apply bg-card rounded-2xl border border-border/40 overflow-hidden;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .apple-shadow {
+    box-shadow: var(--shadow-md);
+  }
+
+  .apple-shadow-lg {
+    box-shadow: var(--shadow-lg);
   }
 }

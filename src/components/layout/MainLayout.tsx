@@ -16,23 +16,23 @@ export function MainLayout({ children, title, subtitle }: MainLayoutProps) {
 
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen w-full">
+      <div className="flex min-h-screen w-full bg-background">
         <AppSidebar />
         <SidebarInset className="flex flex-col flex-1">
-          <header className="sticky top-0 z-10 flex h-16 items-center justify-between gap-4 border-b bg-card/80 backdrop-blur-sm px-6">
+          <header className="sticky top-0 z-10 flex h-14 items-center justify-between gap-4 border-b border-border/40 bg-background/80 backdrop-blur-xl px-6">
             <div className="flex items-center gap-4">
-              <SidebarTrigger className="text-muted-foreground hover:text-foreground" />
+              <SidebarTrigger className="text-muted-foreground hover:text-foreground transition-colors" />
               <div>
-                <h1 className="text-lg font-semibold text-foreground">{title}</h1>
-                {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
+                <h1 className="text-[15px] font-semibold text-foreground tracking-tight">{title}</h1>
+                {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
               </div>
             </div>
             <div className="flex items-center gap-3">
               {profile && (
-                <span className="text-sm text-muted-foreground">{profile.full_name}</span>
+                <span className="text-[13px] text-muted-foreground font-medium">{profile.full_name}</span>
               )}
-              <Button variant="ghost" size="icon" onClick={signOut}>
-                <LogOut className="h-5 w-5" />
+              <Button variant="ghost" size="icon" onClick={signOut} className="h-8 w-8 rounded-full hover:bg-muted">
+                <LogOut className="h-4 w-4" />
               </Button>
             </div>
           </header>
