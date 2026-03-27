@@ -38,6 +38,7 @@ export default function Projects() {
 
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [editProject, setEditProject] = useState<Project | null>(null);
   const [editAllocations, setEditAllocations] = useState<ProjectAllocation[]>([]);
 
