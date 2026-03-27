@@ -38,6 +38,7 @@ export default function Projects() {
 
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [editProject, setEditProject] = useState<Project | null>(null);
   const [editAllocations, setEditAllocations] = useState<ProjectAllocation[]>([]);
 
@@ -112,7 +113,7 @@ export default function Projects() {
 
   const filtersAndTable = renderFiltersAndTableContent(
     search, setSearch, regionFilter, setRegionFilter, pmFilter, setPmFilter,
-    pmList, isAdmin, openNew, loading, filtered, openEdit, navigate,
+    pmList, isAdmin, openNew, loading, filtered, openEdit, navigate, () => setOnboardingOpen(true),
   );
 
   return (
@@ -141,6 +142,8 @@ export default function Projects() {
         </TabsContent>
       </Tabs>
 
+      <SiteProjectOnboardingForm open={onboardingOpen} onOpenChange={setOnboardingOpen} />
+
       <ProjectFormModal
         open={modalOpen}
         onOpenChange={setModalOpen}
@@ -159,7 +162,7 @@ function renderFiltersAndTableContent(
   pmList: { id: string; full_name: string }[],
   isAdmin: boolean, openNew: () => void,
   loading: boolean, filtered: any[], openEdit: (p: any) => void,
-  navigate: (path: string) => void,
+  navigate: (path: string) => void, openOnboarding: () => void,
 ) {
   return (
     <>
@@ -193,7 +196,7 @@ function renderFiltersAndTableContent(
           )}
         </div>
         <div className="flex gap-2 shrink-0">
-          {isAdmin && <SiteProjectOnboardingForm />}
+          {isAdmin && <Button onClick={openOnboarding} variant="outline" className="gap-2"><Plus className="h-4 w-4" /> Onboarding Sito</Button>}
           <Button onClick={openNew} className="gap-2" variant="outline">
             <Plus className="h-4 w-4" /> Nuovo Progetto
           </Button>
