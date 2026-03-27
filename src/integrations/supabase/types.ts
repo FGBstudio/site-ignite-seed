@@ -1611,6 +1611,7 @@ export type Database = {
           is_commissioning: boolean | null
           name: string
           pm_id: string | null
+          project_subtype: string | null
           region: string
           site_id: string | null
           status: string
@@ -1626,6 +1627,7 @@ export type Database = {
           is_commissioning?: boolean | null
           name: string
           pm_id?: string | null
+          project_subtype?: string | null
           region?: string
           site_id?: string | null
           status?: string
@@ -1641,6 +1643,7 @@ export type Database = {
           is_commissioning?: boolean | null
           name?: string
           pm_id?: string | null
+          project_subtype?: string | null
           region?: string
           site_id?: string | null
           status?: string

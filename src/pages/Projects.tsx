@@ -212,11 +212,13 @@ function renderFiltersAndTableContent(
                 <th className="text-left p-4 font-medium text-muted-foreground">Progetto</th>
                 <th className="text-left p-4 font-medium text-muted-foreground">Cliente</th>
                 <th className="text-left p-4 font-medium text-muted-foreground">Region</th>
-                <th className="text-left p-4 font-medium text-muted-foreground">Tipo</th>
+                <th className="text-left p-4 font-medium text-muted-foreground">Certificazione</th>
+                <th className="text-left p-4 font-medium text-muted-foreground">Rating</th>
+                <th className="text-left p-4 font-medium text-muted-foreground">Sottotipologia</th>
                 {isAdmin && <th className="text-left p-4 font-medium text-muted-foreground">PM</th>}
                 <th className="text-left p-4 font-medium text-muted-foreground">Handover</th>
                 <th className="text-left p-4 font-medium text-muted-foreground">Stato</th>
-                <th className="text-left p-4 font-medium text-muted-foreground">Hardware Assegnati</th>
+                <th className="text-left p-4 font-medium text-muted-foreground">Hardware</th>
                 <th className="p-4"></th>
               </tr>
             </thead>
@@ -229,8 +231,22 @@ function renderFiltersAndTableContent(
                     <td className="p-4 text-foreground">{project.client}</td>
                     <td className="p-4"><Badge variant="outline">{project.region}</Badge></td>
                     <td className="p-4">
-                      {project.project_type ? (
-                        <Badge variant="secondary" className="text-xs">{project.project_type}</Badge>
+                      {project.cert_type ? (
+                        <Badge variant="secondary" className="text-xs">{project.cert_type}</Badge>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">—</span>
+                      )}
+                    </td>
+                    <td className="p-4">
+                      {project.cert_rating ? (
+                        <Badge variant="outline" className="text-xs">{project.cert_rating}</Badge>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">—</span>
+                      )}
+                    </td>
+                    <td className="p-4">
+                      {project.project_subtype ? (
+                        <Badge variant="outline" className="text-xs bg-accent/50">{project.project_subtype}</Badge>
                       ) : (
                         <span className="text-muted-foreground text-xs">—</span>
                       )}
