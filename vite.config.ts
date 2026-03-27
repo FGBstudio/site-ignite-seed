@@ -3,10 +3,11 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 
+// https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
-  // QUESTA È LA RIGA CRUCIALE:
-  // Sostituisci 'site-ignite-seed' con il nome ESATTO della tua repository su GitHub
-  base: mode === 'production' ? '/site-ignite-seed/' : '/', 
+  // Forza il base path corretto per GitHub Pages. 
+  // Usa '/' se hai un dominio custom, altrimenti il nome della repo.
+  base: mode === 'production' ? '/site-ignite-seed/' : '/',
   
   server: {
     host: "::",
@@ -14,12 +15,16 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [
     react(),
-    mode === 'development' &&
-    componentTagger(),
+    mode === 'development' && componentTagger(),
   ].filter(Boolean),
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    // Assicura che la build sia pulita per il deploy
+    outDir: "dist",
+    emptyOutDir: true,
+  }
 }));
