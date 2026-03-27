@@ -69,25 +69,25 @@ export function AppSidebar() {
   };
 
   return (
-    <Sidebar collapsible="icon" className="border-r-0">
-      <SidebarHeader className="p-4">
+    <Sidebar collapsible="icon" className="border-r border-sidebar-border/60">
+      <SidebarHeader className="p-4 pb-2">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sidebar-primary">
-            <Package className="h-5 w-5 text-sidebar-primary-foreground" />
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-foreground">
+            <Package className="h-4 w-4 text-background" />
           </div>
           {!collapsed && (
             <div className="flex flex-col">
-              <span className="font-semibold text-sidebar-foreground">FGB Studio</span>
-              <span className="text-xs text-sidebar-foreground/60">Engine Room</span>
+              <span className="text-[15px] font-semibold tracking-tight text-sidebar-foreground">FGB Studio</span>
+              <span className="text-[11px] text-sidebar-foreground/50 font-medium">Engine Room</span>
             </div>
           )}
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="px-2">
+      <SidebarContent className="px-3 pt-2">
         <SidebarGroup>
-          <SidebarGroupLabel className="text-sidebar-foreground/50 text-xs uppercase tracking-wider">
-            {!collapsed && "Operations"}
+          <SidebarGroupLabel className="text-[11px] font-medium text-sidebar-foreground/40 uppercase tracking-widest px-3 mb-1">
+            {!collapsed && "Menu"}
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -98,14 +98,14 @@ export function AppSidebar() {
                     isActive={isActive(item.url)}
                     tooltip={item.title}
                     className={cn(
-                      "transition-all duration-200",
+                      "rounded-lg h-9 transition-all duration-200 font-medium text-[13px]",
                       isActive(item.url) 
-                        ? "bg-sidebar-primary text-sidebar-primary-foreground" 
-                        : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                        ? "bg-primary/10 text-primary" 
+                        : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground"
                     )}
                   >
                     <NavLink to={item.url}>
-                      <item.icon className="h-4 w-4" />
+                      <item.icon className="h-[18px] w-[18px]" strokeWidth={1.8} />
                       <span>{item.title}</span>
                     </NavLink>
                   </SidebarMenuButton>
@@ -117,8 +117,8 @@ export function AppSidebar() {
 
         {isAdmin && (
           <SidebarGroup className="mt-auto">
-            <SidebarGroupLabel className="text-sidebar-foreground/50 text-xs uppercase tracking-wider">
-              {!collapsed && "System"}
+            <SidebarGroupLabel className="text-[11px] font-medium text-sidebar-foreground/40 uppercase tracking-widest px-3 mb-1">
+              {!collapsed && "Sistema"}
             </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
@@ -128,14 +128,14 @@ export function AppSidebar() {
                     isActive={isActive("/settings")}
                     tooltip="Settings"
                     className={cn(
-                      "transition-all duration-200",
+                      "rounded-lg h-9 transition-all duration-200 font-medium text-[13px]",
                       isActive("/settings")
-                        ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                        : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                        ? "bg-primary/10 text-primary"
+                        : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground"
                     )}
                   >
                     <NavLink to="/settings">
-                      <Settings className="h-4 w-4" />
+                      <Settings className="h-[18px] w-[18px]" strokeWidth={1.8} />
                       <span>Settings</span>
                     </NavLink>
                   </SidebarMenuButton>
@@ -148,8 +148,8 @@ export function AppSidebar() {
 
       <SidebarFooter className="p-4">
         {!collapsed && (
-          <div className="rounded-lg bg-sidebar-accent p-3">
-            <p className="text-xs text-sidebar-foreground/70">FGB Engine Room v2.0</p>
+          <div className="rounded-xl bg-muted/50 p-3">
+            <p className="text-[11px] text-muted-foreground font-medium">FGB Engine Room v2.0</p>
           </div>
         )}
       </SidebarFooter>
