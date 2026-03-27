@@ -2772,6 +2772,10 @@ export type Database = {
         Returns: Database["public"]["Enums"]["device_type"]
       }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
+      is_cert_pm: {
+        Args: { p_certification_id: string; p_user_id: string }
+        Returns: boolean
+      }
       is_project_pm: {
         Args: { _project_id: string; _user_id: string }
         Returns: boolean
