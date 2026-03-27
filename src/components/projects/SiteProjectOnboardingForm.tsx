@@ -187,7 +187,7 @@ export function SiteProjectOnboardingForm() {
       <DialogTrigger asChild>
         <Button>
           <Plus className="mr-2 h-4 w-4" />
-          Nuovo Sito & Progetto
+          Onboarding Sito
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
