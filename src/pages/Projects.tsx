@@ -42,9 +42,9 @@ export default function Projects() {
 
   const fetchProjects = async () => {
     setLoading(true);
-    const { data } = await (supabase as any)
+    const { data } = await supabase
       .from("projects")
-      .select("*, profiles!projects_pm_id_fkey(full_name), project_allocations(quantity, products(name, certification))")
+      .select("*, profiles(full_name), project_allocations(quantity, products(name, certification))")
       .order("handover_date", { ascending: true });
 
     const mapped = (data || []).map((p: any) => ({

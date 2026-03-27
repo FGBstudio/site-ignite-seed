@@ -409,7 +409,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
                   control={control}
                   name="project_type"
                   render={({ field }) => (
-                    <Select value={field.value} onValueChange={field.onChange}>
+                    <Select value={field.value || ""} onValueChange={field.onChange}>
                       <SelectTrigger><SelectValue placeholder="Seleziona tipo" /></SelectTrigger>
                       <SelectContent>
                         {PROJECT_TYPES.map((t) => (
@@ -424,7 +424,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
               <div className="space-y-2">
                 <Label>Region</Label>
                 <Controller control={control} name="region" render={({ field }) => (
-                  <Select value={field.value} onValueChange={field.onChange}>
+                  <Select value={field.value || ""} onValueChange={field.onChange}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {REGIONS.map((r) => (
@@ -453,7 +453,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
               <div className="space-y-2">
                 <Label>Stato</Label>
                 <Controller control={control} name="status" render={({ field }) => (
-                  <Select value={field.value} onValueChange={field.onChange}>
+                  <Select value={field.value || ""} onValueChange={field.onChange}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {PROJECT_STATUSES.map((s) => (
