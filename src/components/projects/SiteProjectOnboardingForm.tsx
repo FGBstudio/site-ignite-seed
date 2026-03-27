@@ -107,7 +107,20 @@ export function SiteProjectOnboardingForm() {
   });
 
   const createProject = form.watch("create_project");
+  const watchedCertType = form.watch("cert_type");
+  const watchedCertRating = form.watch("cert_rating");
   const isSubmitting = form.formState.isSubmitting;
+
+  // Available subtypes based on selected rating
+  const availableSubtypes = watchedCertRating && RATING_SUBTYPES[watchedCertRating as RatingSystem]
+    ? RATING_SUBTYPES[watchedCertRating as RatingSystem]
+    : [];
+
+  // Reset subtype when rating changes
+  const handleRatingChange = (value: string, fieldOnChange: (v: string) => void) => {
+    fieldOnChange(value);
+    form.setValue("project_subtype", undefined);
+  };
 
   const onSubmit = async (values: FormValues) => {
     try {
