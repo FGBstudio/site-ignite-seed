@@ -80,32 +80,36 @@ export function usePMDashboard() {
         );
         const allocations = p.project_allocations || [];
 
-        // Classification logic
+        // Classification logic (spec v1.0)
+        const today = new Date().toISOString().slice(0, 10);
         const isCertified =
-          projectCerts.some((c: any) => c.status === "active") ||
-          p.status === "Completed";
+          projectCerts.some(
+            (c: any) => c.status === "active" && c.issued_date && c.issued_date <= today
+          );
 
-        const hasHardware = allocations.length > 0;
-        const hasTimeline = projectMilestones.some(
-          (m: any) =>
-            m.milestone_type === "timeline" &&
-            (m.start_date || m.due_date)
+        // Timeline: all timeline milestones have start_date + due_date filled
+        const timelineMilestones = projectMilestones.filter(
+          (m: any) => m.milestone_type === "timeline"
         );
+        const allTimelineDatesFilled =
+          timelineMilestones.length > 0 &&
+          timelineMilestones.every((m: any) => m.start_date && m.due_date);
+
+        // Scorecard: at least one scorecard row exists
         const hasScorecard = projectMilestones.some(
           (m: any) => m.milestone_type === "scorecard"
         );
 
         const missing: string[] = [];
         if (!isCertified) {
-          if (!hasHardware) missing.push("Hardware");
-          if (!hasTimeline) missing.push("Timeline");
+          if (!allTimelineDatesFilled) missing.push("Timeline");
           if (!hasScorecard) missing.push("Scorecard");
         }
 
         let setup_status: SetupStatus;
         if (isCertified) {
           setup_status = "certificato";
-        } else if (hasHardware && hasTimeline && hasScorecard) {
+        } else if (allTimelineDatesFilled && hasScorecard) {
           setup_status = "in_corso";
         } else {
           setup_status = "da_configurare";
