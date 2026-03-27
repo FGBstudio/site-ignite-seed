@@ -196,7 +196,7 @@ function renderFiltersAndTableContent(
           )}
         </div>
         <div className="flex gap-2 shrink-0">
-          {isAdmin && <Button onClick={() => {}} id="onboarding-trigger" variant="outline" className="gap-2 hidden"><Plus className="h-4 w-4" /> Onboarding Sito</Button>}
+          {isAdmin && <Button onClick={openNew} variant="outline" className="gap-2"><Plus className="h-4 w-4" /> Onboarding Sito</Button>}
           <Button onClick={openNew} className="gap-2" variant="outline">
             <Plus className="h-4 w-4" /> Nuovo Progetto
           </Button>
