@@ -194,7 +194,7 @@ function renderFiltersAndTableContent(
           )}
         </div>
         <div className="flex gap-2 shrink-0">
-          {isAdmin && <SiteProjectOnboardingForm />}
+          {isAdmin && <><Button onClick={() => setOnboardingOpen(true)} variant="outline" className="gap-2"><Plus className="h-4 w-4" /> Onboarding Sito</Button><SiteProjectOnboardingForm open={onboardingOpen} onOpenChange={setOnboardingOpen} /></>}
           <Button onClick={openNew} className="gap-2" variant="outline">
             <Plus className="h-4 w-4" /> Nuovo Progetto
           </Button>
