@@ -63,8 +63,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         full_name: p.full_name || p.display_name || [p.first_name, p.last_name].filter(Boolean).join(" ") || p.email,
       });
     }
+    const directRoles = Array.isArray(rolesRes.data)
+      ? (rolesRes.data as any[]).map((entry) => entry?.role as string | null | undefined)
+      : [];
+
     const effectiveRole = pickBestRole([
-      ...((rolesRes.data as Array<{ role: string }> | null)?.map((entry) => entry.role) ?? []),
+      ...directRoles,
       (roleRes.data as string | null | undefined) ?? null,
     ]);
 
