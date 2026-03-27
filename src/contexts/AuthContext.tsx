@@ -3,6 +3,23 @@ import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { AppRole } from "@/types/custom-tables";
 
+const ROLE_PRIORITY: AppRole[] = ["ADMIN", "PM", "document_manager", "specialist", "energy_modeler", "cxa", "admin", "superuser", "editor", "viewer"];
+
+function normalizeRole(rawRole: string | null | undefined): AppRole | null {
+  if (!rawRole) return null;
+  if (rawRole === "admin") return "ADMIN";
+  if (rawRole === "pm") return "PM";
+  return rawRole as AppRole;
+}
+
+function pickBestRole(rawRoles: Array<string | null | undefined>): AppRole | null {
+  const normalizedRoles = rawRoles
+    .map(normalizeRole)
+    .filter((role): role is AppRole => Boolean(role));
+
+  return ROLE_PRIORITY.find((role) => normalizedRoles.includes(role)) ?? normalizedRoles[0] ?? null;
+}
+
 interface Profile {
   id: string;
   email: string;
@@ -32,8 +49,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const fetchUserData = async (userId: string) => {
-    const [profileRes, roleRes] = await Promise.all([
+    const [profileRes, rolesRes, roleRes] = await Promise.all([
       supabase.from("profiles").select("*").eq("id", userId).single(),
+      supabase.from("user_roles" as any).select("role").eq("user_id", userId),
       supabase.rpc("get_user_role" as any, { _user_id: userId }),
     ]);
 
@@ -45,11 +63,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         full_name: p.full_name || p.display_name || [p.first_name, p.last_name].filter(Boolean).join(" ") || p.email,
       });
     }
-    if (roleRes.data) {
-      const raw = roleRes.data as string;
-      const normalized = raw === "admin" ? "ADMIN" : raw === "pm" ? "PM" : raw;
-      setRole(normalized as AppRole);
-    }
+    const effectiveRole = pickBestRole([
+      ...((rolesRes.data as Array<{ role: string }> | null)?.map((entry) => entry.role) ?? []),
+      (roleRes.data as string | null | undefined) ?? null,
+    ]);
+
+    setRole(effectiveRole);
   };
 
   useEffect(() => {
@@ -59,21 +78,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(session?.user ?? null);
 
         if (session?.user) {
-          setTimeout(() => fetchUserData(session.user.id), 0);
+          setLoading(true);
+          setProfile(null);
+          setRole(null);
+          setTimeout(() => {
+            void fetchUserData(session.user.id).finally(() => setLoading(false));
+          }, 0);
         } else {
           setProfile(null);
           setRole(null);
+          setLoading(false);
         }
-        setLoading(false);
       }
     );
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
+
       if (session?.user) {
-        fetchUserData(session.user.id);
+        setLoading(true);
+        setProfile(null);
+        setRole(null);
+        await fetchUserData(session.user.id);
+      } else {
+        setProfile(null);
+        setRole(null);
       }
+
       setLoading(false);
     });
 
