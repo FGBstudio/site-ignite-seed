@@ -607,10 +607,10 @@ export function SiteProjectOnboardingForm({
                                           acc[cert].push(p);
                                           return acc;
                                         }, {} as Record<string, any[]>)
-                                      ).map(([cert, prods]) => (
+                                      ).map(([cert, prods]: [string, any[]]) => (
                                         <div key={cert}>
                                           <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50">{cert}</div>
-                                          {prods.map((p) => (
+                                          {prods.map((p: any) => (
                                             <SelectItem key={p.id} value={p.id}>{p.name} ({p.sku})</SelectItem>
                                           ))}
                                         </div>
