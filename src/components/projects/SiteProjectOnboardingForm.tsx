@@ -158,6 +158,7 @@ export function SiteProjectOnboardingForm() {
             status: "Design",
             cert_type: values.cert_type || null,
             cert_rating: values.cert_rating || null,
+            project_subtype: values.project_subtype || null,
             is_commissioning: values.is_commissioning,
           } as any);
 
@@ -469,7 +470,7 @@ export function SiteProjectOnboardingForm() {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Tipo Certificazione</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
+                          <Select onValueChange={field.onChange} value={field.value || ""}>
                             <FormControl>
                               <SelectTrigger>
                                 <SelectValue placeholder="Seleziona" />
@@ -490,15 +491,18 @@ export function SiteProjectOnboardingForm() {
                       name="cert_rating"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Rating</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
+                          <FormLabel>Rating System</FormLabel>
+                          <Select
+                            onValueChange={(v) => handleRatingChange(v, field.onChange)}
+                            value={field.value || ""}
+                          >
                             <FormControl>
                               <SelectTrigger>
-                                <SelectValue placeholder="Seleziona" />
+                                <SelectValue placeholder="Seleziona Rating" />
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              {["ID+C v.4", "ID+C v.4.1", "BD+C", "O+M"].map((v) => (
+                              {RATING_SYSTEMS.map((v) => (
                                 <SelectItem key={v} value={v}>{v}</SelectItem>
                               ))}
                             </SelectContent>
@@ -508,6 +512,34 @@ export function SiteProjectOnboardingForm() {
                       )}
                     />
                   </div>
+
+                  {/* Sottotipologia - dependent on cert_rating */}
+                  <FormField
+                    control={form.control}
+                    name="project_subtype"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Sottotipologia</FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value || ""}
+                          disabled={availableSubtypes.length === 0}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder={availableSubtypes.length === 0 ? "Seleziona prima il Rating System" : "Seleziona sottotipologia"} />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {availableSubtypes.map((v) => (
+                              <SelectItem key={v} value={v}>{v}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
                   <FormField
                     control={form.control}
