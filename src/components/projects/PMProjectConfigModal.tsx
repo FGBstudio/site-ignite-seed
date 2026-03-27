@@ -212,7 +212,7 @@ function TimelineTab({ project }: { project: PMProject }) {
             <div
               key={m.id}
               className={`grid grid-cols-[1fr_80px_120px_120px_120px_100px] gap-2 items-center px-3 py-2 ${
-                isCalculated ? "bg-muted/40" : "bg-background"
+                isCalculated ? "bg-muted/50" : "bg-background"
               }`}
             >
               <div className="flex items-center gap-2">
