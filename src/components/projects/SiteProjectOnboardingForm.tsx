@@ -163,6 +163,22 @@ export function SiteProjectOnboardingForm() {
           } as any);
 
         if (projectError) throw projectError;
+
+        // Auto-create certifications record if cert_type is set
+        if (values.cert_type) {
+          const { error: certError } = await supabase
+            .from("certifications")
+            .insert({
+              site_id: siteData.id,
+              cert_type: values.cert_type,
+              level: values.cert_rating || null,
+              status: "in_progress",
+              score: 0,
+            });
+          if (certError) {
+            console.warn("Certification auto-create failed:", certError.message);
+          }
+        }
       }
 
       toast({
