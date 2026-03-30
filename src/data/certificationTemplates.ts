@@ -112,8 +112,8 @@ const BREEAM_IU_P1_TIMELINE = toTimeline([
   { order: 2, task_name: "Implementation phase (se dovuta)", type: "manual_input", assigned_to_role: "PM" },
   { order: 3, task_name: "Implementation end", type: "manual_input", assigned_to_role: "PM" },
   { order: 4, task_name: "On-site visit", type: "manual_input", assigned_to_role: "PM" },
-  { order: 5, task_name: "Cliente fornisce documentazione", type: "calculated_deadline", offset_days: 30, assigned_to_role: "Client" },
-  { order: 6, task_name: "Sottomissione a BRE", type: "calculated_deadline", offset_days: 60, assigned_to_role: "PM" },
+  { order: 5, task_name: "GC Provides Documentation", type: "calculated_deadline", offset_days: 30, assigned_to_role: "Client" },
+  { order: 6, task_name: "Submission a BRE", type: "calculated_deadline", offset_days: 60, assigned_to_role: "PM" },
 ]);
 
 const BREEAM_IU_P2_TIMELINE = toTimeline([
@@ -122,7 +122,7 @@ const BREEAM_IU_P2_TIMELINE = toTimeline([
   { order: 3, task_name: "Review docs by FGB", type: "calculated_deadline", offset_days: 60, assigned_to_role: "PM" },
   { order: 4, task_name: "Implementation phase (se dovuta)", type: "manual_input", assigned_to_role: "PM" },
   { order: 5, task_name: "Closeout documentation", type: "manual_input", assigned_to_role: "PM" },
-  { order: 6, task_name: "Sottomissione a BRE", type: "calculated_deadline", offset_days: 30, assigned_to_role: "PM" },
+  { order: 6, task_name: "Submission a BRE", type: "calculated_deadline", offset_days: 30, assigned_to_role: "PM" },
 ]);
 
 const WELL_NC_TIMELINE = toTimeline([
@@ -134,7 +134,7 @@ const WELL_NC_TIMELINE = toTimeline([
   { order: 6, task_name: "Construction end (Handover)", type: "manual_input", assigned_to_role: "PM" },
   { order: 7, task_name: "GC Provides Documentation", type: "calculated_deadline", offset_days: 30, assigned_to_role: "GC" },
   { order: 8, task_name: "Project Submission (by PM)", type: "calculated_deadline", offset_days: 90, assigned_to_role: "PM" },
-  { order: 9, task_name: "Ottenimento certificazione WELL", type: "calculated_deadline", offset_days: 180, assigned_to_role: "PM" },
+  { order: 9, task_name: "Certification Attainment WELL", type: "calculated_deadline", offset_days: 180, assigned_to_role: "PM" },
 ]);
 
 const WELL_EXISTING_TIMELINE = toTimeline([
@@ -143,7 +143,7 @@ const WELL_EXISTING_TIMELINE = toTimeline([
   { order: 3, task_name: "On-site Visit + Performance Testing", type: "manual_input", assigned_to_role: "PM" },
   { order: 4, task_name: "Lab/Cliente fornisce documentazione", type: "calculated_deadline", offset_days: 30, assigned_to_role: "Client" },
   { order: 5, task_name: "Project Submission (by PM)", type: "calculated_deadline", offset_days: 90, assigned_to_role: "PM" },
-  { order: 6, task_name: "Ottenimento certificazione WELL", type: "calculated_deadline", offset_days: 180, assigned_to_role: "PM" },
+  { order: 6, task_name: "Certification Attainment WELL", type: "calculated_deadline", offset_days: 180, assigned_to_role: "PM" },
 ]);
 
 const GENERIC_TIMELINE: TimelineStep[] = [
