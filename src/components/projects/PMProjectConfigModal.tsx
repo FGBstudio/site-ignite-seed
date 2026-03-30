@@ -23,11 +23,12 @@ interface Props {
 
 // ─── Helpers ───
 
-/** Resolve a template to the project's cert_type + cert_rating */
+/** Resolve a template to the project's cert_type + cert_rating + subtype */
 function useProjectTemplate(project: PMProject) {
   const certType = project.certifications?.[0]?.cert_type || project.cert_type;
   const certRating = project.cert_rating;
-  return getTemplateOrFallback(certType, certRating);
+  const subtype = project.project_subtype;
+  return getTemplateOrFallback(certType, certRating, subtype);
 }
 
 /** Given milestones and the template, compute calculated deadline dates */

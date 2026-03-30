@@ -18,6 +18,7 @@ export interface PMProject {
   created_at: string;
   updated_at: string;
   is_commissioning: boolean | null;
+  project_subtype: string | null;
   // Joined
   sites: { name: string; city: string | null; country: string | null } | null;
   certifications: any[];
