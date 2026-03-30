@@ -1,14 +1,9 @@
 /**
  * Certification Templates Configuration
  *
- * Elastic system: given a cert_type + rating, returns the correct
- * timeline steps (with type, role, offset_days) and scorecard categories.
- *
- * Timeline data sourced from the operational JSON provided by the team.
- * Scorecard data from leedTemplate.ts (LEED) or empty for others.
+ * Elastic system: given a cert_type + rating + optional subtype,
+ * returns the correct timeline steps and scorecard categories.
  */
-
-import { LEED_TEMPLATE } from "./leedTemplate";
 
 // ─── Shared Types ───
 
@@ -17,11 +12,8 @@ export type TimelineEntryType = "manual_input" | "calculated_deadline";
 export interface TimelineStep {
   name: string;
   order_index: number;
-  /** manual_input = PM fills dates; calculated_deadline = auto-calculated from previous step */
   type: TimelineEntryType;
-  /** Role responsible for this step */
   assigned_to_role: string;
-  /** For calculated_deadline: days offset from the previous manual_input step */
   offset_days?: number;
 }
 
@@ -56,7 +48,21 @@ function toTimeline(
   }));
 }
 
-// ─── LEED BD+C Timeline (9 steps) ───
+// ─── Helper: convert scorecard JSON entries ───
+function toScorecard(
+  items: Array<{ category_code: string; requirement_label: string; max_score: number; order_index: number }>
+): ScorecardCategory[] {
+  return items.map((i) => ({
+    category: i.category_code,
+    requirement: i.requirement_label,
+    max_score: i.max_score,
+  }));
+}
+
+// ═══════════════════════════════════════════
+// TIMELINES
+// ═══════════════════════════════════════════
+
 const LEED_BDC_TIMELINE = toTimeline([
   { order: 1, task_name: "Pre-assessment", type: "manual_input", assigned_to_role: "PM" },
   { order: 2, task_name: "FGB Design guidelines", type: "manual_input", assigned_to_role: "PM" },
@@ -69,7 +75,6 @@ const LEED_BDC_TIMELINE = toTimeline([
   { order: 9, task_name: "Ottenimento certificazione LEED", type: "calculated_deadline", offset_days: 180, assigned_to_role: "PM" },
 ]);
 
-// ─── LEED ID+C Timeline (9 steps) ───
 const LEED_IDC_TIMELINE = toTimeline([
   { order: 1, task_name: "Pre-assessment", type: "manual_input", assigned_to_role: "PM" },
   { order: 2, task_name: "FGB Design guidelines", type: "manual_input", assigned_to_role: "PM" },
@@ -82,7 +87,6 @@ const LEED_IDC_TIMELINE = toTimeline([
   { order: 9, task_name: "Ottenimento certificazione LEED", type: "calculated_deadline", offset_days: 150, assigned_to_role: "PM" },
 ]);
 
-// ─── LEED O+M Timeline (5 steps) ───
 const LEED_OM_TIMELINE = toTimeline([
   { order: 1, task_name: "Pre-assessment", type: "manual_input", assigned_to_role: "PM" },
   { order: 2, task_name: "Reference period", type: "manual_input", assigned_to_role: "PM" },
@@ -91,7 +95,6 @@ const LEED_OM_TIMELINE = toTimeline([
   { order: 5, task_name: "Ottenimento certificazione LEED", type: "calculated_deadline", offset_days: 150, assigned_to_role: "PM" },
 ]);
 
-// ─── BREEAM New Construction / Refurbishment Timeline (9 steps) ───
 const BREEAM_NC_REFURB_TIMELINE = toTimeline([
   { order: 1, task_name: "Pre-assessment", type: "manual_input", assigned_to_role: "PM" },
   { order: 2, task_name: "FGB Design guidelines", type: "manual_input", assigned_to_role: "PM" },
@@ -104,7 +107,6 @@ const BREEAM_NC_REFURB_TIMELINE = toTimeline([
   { order: 9, task_name: "Sottomissione progetto (da parte di PM)", type: "calculated_deadline", offset_days: 90, assigned_to_role: "PM" },
 ]);
 
-// ─── BREEAM In-Use Part 1 Timeline (6 steps) ───
 const BREEAM_IU_P1_TIMELINE = toTimeline([
   { order: 1, task_name: "Pre-assessment", type: "manual_input", assigned_to_role: "PM" },
   { order: 2, task_name: "Implementation phase (se dovuta)", type: "manual_input", assigned_to_role: "PM" },
@@ -114,7 +116,6 @@ const BREEAM_IU_P1_TIMELINE = toTimeline([
   { order: 6, task_name: "Sottomissione a BRE", type: "calculated_deadline", offset_days: 60, assigned_to_role: "PM" },
 ]);
 
-// ─── BREEAM In-Use Part 2 Timeline (6 steps) ───
 const BREEAM_IU_P2_TIMELINE = toTimeline([
   { order: 1, task_name: "Pre-assessment", type: "manual_input", assigned_to_role: "PM" },
   { order: 2, task_name: "Docs provided by Client", type: "calculated_deadline", offset_days: 30, assigned_to_role: "Client" },
@@ -124,7 +125,6 @@ const BREEAM_IU_P2_TIMELINE = toTimeline([
   { order: 6, task_name: "Sottomissione a BRE", type: "calculated_deadline", offset_days: 30, assigned_to_role: "PM" },
 ]);
 
-// ─── WELL New Construction Timeline (9 steps) ───
 const WELL_NC_TIMELINE = toTimeline([
   { order: 1, task_name: "Pre-assessment", type: "manual_input", assigned_to_role: "PM" },
   { order: 2, task_name: "FGB Design guidelines", type: "manual_input", assigned_to_role: "PM" },
@@ -137,7 +137,6 @@ const WELL_NC_TIMELINE = toTimeline([
   { order: 9, task_name: "Ottenimento certificazione WELL", type: "calculated_deadline", offset_days: 180, assigned_to_role: "PM" },
 ]);
 
-// ─── WELL Existing Buildings Timeline (6 steps) ───
 const WELL_EXISTING_TIMELINE = toTimeline([
   { order: 1, task_name: "Pre-assessment", type: "manual_input", assigned_to_role: "PM" },
   { order: 2, task_name: "Policy Review", type: "manual_input", assigned_to_role: "PM" },
@@ -147,7 +146,6 @@ const WELL_EXISTING_TIMELINE = toTimeline([
   { order: 6, task_name: "Ottenimento certificazione WELL", type: "calculated_deadline", offset_days: 180, assigned_to_role: "PM" },
 ]);
 
-// ─── Generic fallback (no specific template) ───
 const GENERIC_TIMELINE: TimelineStep[] = [
   { name: "Registrazione", order_index: 0, type: "manual_input", assigned_to_role: "PM" },
   { name: "Raccolta Documentazione", order_index: 1, type: "manual_input", assigned_to_role: "PM" },
@@ -158,128 +156,253 @@ const GENERIC_TIMELINE: TimelineStep[] = [
   { name: "Certificazione", order_index: 6, type: "calculated_deadline", offset_days: 90, assigned_to_role: "PM" },
 ];
 
-// ─── Scorecards ───
+// ═══════════════════════════════════════════
+// SCORECARDS (from scorecard.json)
+// ═══════════════════════════════════════════
 
-const LEED_BDC_SCORECARD: ScorecardCategory[] = LEED_TEMPLATE.map((c) => ({
-  category: c.category,
-  requirement: c.requirement,
-  max_score: c.max_score,
-}));
+// --- LEED ---
 
-// ID+C reuses BD+C scorecard as close approximation
-const LEED_IDC_SCORECARD: ScorecardCategory[] = LEED_BDC_SCORECARD;
+const LEED_BDC_NC_SCORECARD = toScorecard([
+  { category_code: "IP", requirement_label: "Processo Integrativo", max_score: 1, order_index: 1 },
+  { category_code: "LT", requirement_label: "Localizzazione e Trasporti", max_score: 16, order_index: 2 },
+  { category_code: "SS", requirement_label: "Siti Sostenibili", max_score: 10, order_index: 3 },
+  { category_code: "WE", requirement_label: "Efficienza Idrica", max_score: 11, order_index: 4 },
+  { category_code: "EA", requirement_label: "Energia e Atmosfera", max_score: 33, order_index: 5 },
+  { category_code: "MR", requirement_label: "Materiali e Risorse", max_score: 13, order_index: 6 },
+  { category_code: "EQ", requirement_label: "Qualità Ambientale Interna", max_score: 16, order_index: 7 },
+  { category_code: "IN", requirement_label: "Innovazione", max_score: 6, order_index: 8 },
+  { category_code: "RP", requirement_label: "Priorità Regionale", max_score: 4, order_index: 9 },
+]);
 
-const LEED_OM_SCORECARD: ScorecardCategory[] = [
-  { category: "Energy & Atmosphere", requirement: "Energy Performance", max_score: 25 },
-  { category: "Energy & Atmosphere", requirement: "Existing Building Commissioning", max_score: 5 },
-  { category: "Energy & Atmosphere", requirement: "Ongoing Commissioning", max_score: 3 },
-  { category: "Energy & Atmosphere", requirement: "Advanced Energy Metering", max_score: 2 },
-  { category: "Energy & Atmosphere", requirement: "Demand Response", max_score: 3 },
-  { category: "Energy & Atmosphere", requirement: "Renewable Energy", max_score: 5 },
-  { category: "Energy & Atmosphere", requirement: "Enhanced Refrigerant Management", max_score: 1 },
-  { category: "Water Efficiency", requirement: "Indoor Water Use Reduction", max_score: 12 },
-  { category: "Water Efficiency", requirement: "Outdoor Water Use Reduction", max_score: 2 },
-  { category: "Water Efficiency", requirement: "Cooling Tower Water Use", max_score: 3 },
-  { category: "Water Efficiency", requirement: "Water Metering", max_score: 2 },
-  { category: "Materials & Resources", requirement: "Purchasing Policy", max_score: 2 },
-  { category: "Materials & Resources", requirement: "Facility Maintenance", max_score: 2 },
-  { category: "Materials & Resources", requirement: "Waste Performance", max_score: 2 },
-  { category: "Indoor Environmental Quality", requirement: "Indoor Air Quality", max_score: 2 },
-  { category: "Indoor Environmental Quality", requirement: "Thermal Comfort", max_score: 1 },
-  { category: "Indoor Environmental Quality", requirement: "Interior Lighting", max_score: 2 },
-  { category: "Indoor Environmental Quality", requirement: "Daylight & Views", max_score: 4 },
-  { category: "Indoor Environmental Quality", requirement: "Green Cleaning", max_score: 2 },
-  { category: "Sustainable Sites", requirement: "Site Management", max_score: 2 },
-  { category: "Sustainable Sites", requirement: "Rainwater Management", max_score: 3 },
-  { category: "Sustainable Sites", requirement: "Heat Island Reduction", max_score: 2 },
-  { category: "Sustainable Sites", requirement: "Light Pollution Reduction", max_score: 1 },
-  { category: "Location & Transportation", requirement: "Alternative Transportation", max_score: 15 },
-  { category: "Innovation", requirement: "Innovation Credit 1", max_score: 1 },
-  { category: "Innovation", requirement: "Innovation Credit 2", max_score: 1 },
-  { category: "Innovation", requirement: "Innovation Credit 3", max_score: 1 },
-  { category: "Innovation", requirement: "Innovation Credit 4", max_score: 1 },
-  { category: "Innovation", requirement: "Innovation Credit 5", max_score: 1 },
-  { category: "Innovation", requirement: "LEED Accredited Professional", max_score: 1 },
-  { category: "Regional Priority", requirement: "Regional Priority Credit 1", max_score: 1 },
-  { category: "Regional Priority", requirement: "Regional Priority Credit 2", max_score: 1 },
-  { category: "Regional Priority", requirement: "Regional Priority Credit 3", max_score: 1 },
-  { category: "Regional Priority", requirement: "Regional Priority Credit 4", max_score: 1 },
-];
+const LEED_BDC_CS_SCORECARD = toScorecard([
+  { category_code: "IP", requirement_label: "Processo Integrativo", max_score: 1, order_index: 1 },
+  { category_code: "LT", requirement_label: "Localizzazione e Trasporti", max_score: 20, order_index: 2 },
+  { category_code: "SS", requirement_label: "Siti Sostenibili", max_score: 11, order_index: 3 },
+  { category_code: "WE", requirement_label: "Efficienza Idrica", max_score: 11, order_index: 4 },
+  { category_code: "EA", requirement_label: "Energia e Atmosfera", max_score: 33, order_index: 5 },
+  { category_code: "MR", requirement_label: "Materiali e Risorse", max_score: 14, order_index: 6 },
+  { category_code: "EQ", requirement_label: "Qualità Ambientale Interna", max_score: 11, order_index: 7 },
+  { category_code: "IN", requirement_label: "Innovazione", max_score: 6, order_index: 8 },
+  { category_code: "RP", requirement_label: "Priorità Regionale", max_score: 4, order_index: 9 },
+]);
 
-// ─── Template Registry ───
-// Key format: "CERT_TYPE|RATING"
+const LEED_BDC_HEALTHCARE_SCORECARD = toScorecard([
+  { category_code: "IP", requirement_label: "Processo Integrativo", max_score: 1, order_index: 1 },
+  { category_code: "LT", requirement_label: "Localizzazione e Trasporti", max_score: 9, order_index: 2 },
+  { category_code: "SS", requirement_label: "Siti Sostenibili", max_score: 9, order_index: 3 },
+  { category_code: "WE", requirement_label: "Efficienza Idrica", max_score: 11, order_index: 4 },
+  { category_code: "EA", requirement_label: "Energia e Atmosfera", max_score: 35, order_index: 5 },
+  { category_code: "MR", requirement_label: "Materiali e Risorse", max_score: 19, order_index: 6 },
+  { category_code: "EQ", requirement_label: "Qualità Ambientale Interna", max_score: 16, order_index: 7 },
+  { category_code: "IN", requirement_label: "Innovazione", max_score: 6, order_index: 8 },
+  { category_code: "RP", requirement_label: "Priorità Regionale", max_score: 4, order_index: 9 },
+]);
+
+const LEED_IDC_CI_SCORECARD = toScorecard([
+  { category_code: "IP", requirement_label: "Processo Integrativo", max_score: 2, order_index: 1 },
+  { category_code: "LT", requirement_label: "Localizzazione e Trasporti", max_score: 18, order_index: 2 },
+  { category_code: "WE", requirement_label: "Efficienza Idrica", max_score: 12, order_index: 3 },
+  { category_code: "EA", requirement_label: "Energia e Atmosfera", max_score: 38, order_index: 4 },
+  { category_code: "MR", requirement_label: "Materiali e Risorse", max_score: 13, order_index: 5 },
+  { category_code: "EQ", requirement_label: "Qualità Ambientale Interna", max_score: 17, order_index: 6 },
+  { category_code: "IN", requirement_label: "Innovazione", max_score: 6, order_index: 7 },
+  { category_code: "RP", requirement_label: "Priorità Regionale", max_score: 4, order_index: 8 },
+]);
+
+const LEED_OM_EB_SCORECARD = toScorecard([
+  { category_code: "LT", requirement_label: "Localizzazione e Trasporti", max_score: 15, order_index: 1 },
+  { category_code: "SS", requirement_label: "Siti Sostenibili", max_score: 10, order_index: 2 },
+  { category_code: "WE", requirement_label: "Efficienza Idrica", max_score: 12, order_index: 3 },
+  { category_code: "EA", requirement_label: "Energia e Atmosfera", max_score: 38, order_index: 4 },
+  { category_code: "MR", requirement_label: "Materiali e Risorse", max_score: 8, order_index: 5 },
+  { category_code: "EQ", requirement_label: "Qualità Ambientale Interna", max_score: 17, order_index: 6 },
+  { category_code: "IN", requirement_label: "Innovazione", max_score: 6, order_index: 7 },
+  { category_code: "RP", requirement_label: "Priorità Regionale", max_score: 4, order_index: 8 },
+]);
+
+// --- BREEAM ---
+
+const BREEAM_NC_FULLY_FITTED_SCORECARD = toScorecard([
+  { category_code: "Man", requirement_label: "Gestione", max_score: 21, order_index: 1 },
+  { category_code: "Hea", requirement_label: "Salute e Benessere", max_score: 22, order_index: 2 },
+  { category_code: "Ene", requirement_label: "Energia", max_score: 31, order_index: 3 },
+  { category_code: "Tra", requirement_label: "Trasporti", max_score: 12, order_index: 4 },
+  { category_code: "Wat", requirement_label: "Acqua", max_score: 10, order_index: 5 },
+  { category_code: "Mat", requirement_label: "Materiali", max_score: 14, order_index: 6 },
+  { category_code: "Wst", requirement_label: "Rifiuti", max_score: 6, order_index: 7 },
+  { category_code: "LE", requirement_label: "Uso del suolo ed Ecologia", max_score: 10, order_index: 8 },
+  { category_code: "Pol", requirement_label: "Inquinamento", max_score: 12, order_index: 9 },
+  { category_code: "Inn", requirement_label: "Innovazione", max_score: 10, order_index: 10 },
+]);
+
+const BREEAM_NC_SIMPLE_SCORECARD = toScorecard([
+  { category_code: "Man", requirement_label: "Gestione", max_score: 9, order_index: 1 },
+  { category_code: "Hea", requirement_label: "Salute e Benessere", max_score: 15, order_index: 2 },
+  { category_code: "Ene", requirement_label: "Energia", max_score: 14, order_index: 3 },
+  { category_code: "Tra", requirement_label: "Trasporti", max_score: 11, order_index: 4 },
+  { category_code: "Wat", requirement_label: "Acqua", max_score: 7, order_index: 5 },
+  { category_code: "Mat", requirement_label: "Materiali", max_score: 9, order_index: 6 },
+  { category_code: "Wst", requirement_label: "Rifiuti", max_score: 6, order_index: 7 },
+  { category_code: "LE", requirement_label: "Uso del suolo ed Ecologia", max_score: 10, order_index: 8 },
+  { category_code: "Pol", requirement_label: "Inquinamento", max_score: 5, order_index: 9 },
+  { category_code: "Inn", requirement_label: "Innovazione", max_score: 10, order_index: 10 },
+]);
+
+const BREEAM_IU_ASSET_SCORECARD = toScorecard([
+  { category_code: "Hea", requirement_label: "Salute e Benessere", max_score: 47, order_index: 1 },
+  { category_code: "Ene", requirement_label: "Energia", max_score: 66, order_index: 2 },
+  { category_code: "Tra", requirement_label: "Trasporti", max_score: 22, order_index: 3 },
+  { category_code: "Wat", requirement_label: "Acqua", max_score: 38, order_index: 4 },
+  { category_code: "Rsc", requirement_label: "Risorse", max_score: 23, order_index: 5 },
+  { category_code: "Rsl", requirement_label: "Resilienza", max_score: 18, order_index: 6 },
+  { category_code: "Lue", requirement_label: "Uso del suolo ed Ecologia", max_score: 6, order_index: 7 },
+  { category_code: "Pol", requirement_label: "Inquinamento", max_score: 18, order_index: 8 },
+  { category_code: "Exm", requirement_label: "Esemplare", max_score: 12, order_index: 9 },
+]);
+
+const BREEAM_IU_MANAGEMENT_SCORECARD = toScorecard([
+  { category_code: "Man", requirement_label: "Gestione", max_score: 31, order_index: 1 },
+  { category_code: "Hea", requirement_label: "Salute e Benessere", max_score: 19, order_index: 2 },
+  { category_code: "Ene", requirement_label: "Energia", max_score: 30, order_index: 3 },
+  { category_code: "Wat", requirement_label: "Acqua", max_score: 13, order_index: 4 },
+  { category_code: "Rsc", requirement_label: "Risorse", max_score: 10, order_index: 5 },
+  { category_code: "Rsl", requirement_label: "Resilienza", max_score: 16, order_index: 6 },
+  { category_code: "Lue", requirement_label: "Uso del suolo ed Ecologia", max_score: 5, order_index: 7 },
+  { category_code: "Pol", requirement_label: "Inquinamento", max_score: 10, order_index: 8 },
+  { category_code: "Exm", requirement_label: "Esemplare", max_score: 11, order_index: 9 },
+]);
+
+// --- WELL ---
+
+const WELL_V2_SCORECARD = toScorecard([
+  { category_code: "A", requirement_label: "Aria", max_score: 12, order_index: 1 },
+  { category_code: "W", requirement_label: "Acqua", max_score: 12, order_index: 2 },
+  { category_code: "N", requirement_label: "Alimentazione", max_score: 12, order_index: 3 },
+  { category_code: "L", requirement_label: "Luce", max_score: 12, order_index: 4 },
+  { category_code: "V", requirement_label: "Movimento", max_score: 12, order_index: 5 },
+  { category_code: "T", requirement_label: "Comfort Termico", max_score: 12, order_index: 6 },
+  { category_code: "S", requirement_label: "Suono", max_score: 12, order_index: 7 },
+  { category_code: "X", requirement_label: "Materiali", max_score: 12, order_index: 8 },
+  { category_code: "M", requirement_label: "Mente", max_score: 12, order_index: 9 },
+  { category_code: "C", requirement_label: "Comunità", max_score: 12, order_index: 10 },
+  { category_code: "I", requirement_label: "Innovazione", max_score: 10, order_index: 11 },
+]);
+
+// ═══════════════════════════════════════════
+// TEMPLATE REGISTRY
+// ═══════════════════════════════════════════
+// Key format: "CERT_TYPE|RATING" or "CERT_TYPE|RATING|SUBTYPE"
 
 const TEMPLATE_REGISTRY: Record<string, CertificationTemplate> = {
-  // LEED
+  // ─── LEED BD+C ───
   "LEED|BD+C": {
-    scorecard: LEED_BDC_SCORECARD,
+    scorecard: LEED_BDC_NC_SCORECARD, // Default = New Construction
     timeline: LEED_BDC_TIMELINE,
     label: "LEED BD+C",
   },
+  "LEED|BD+C|New Construction": {
+    scorecard: LEED_BDC_NC_SCORECARD,
+    timeline: LEED_BDC_TIMELINE,
+    label: "LEED BD+C New Construction",
+  },
+  "LEED|BD+C|Core & Shell": {
+    scorecard: LEED_BDC_CS_SCORECARD,
+    timeline: LEED_BDC_TIMELINE,
+    label: "LEED BD+C Core & Shell",
+  },
+  "LEED|BD+C|Healthcare": {
+    scorecard: LEED_BDC_HEALTHCARE_SCORECARD,
+    timeline: LEED_BDC_TIMELINE,
+    label: "LEED BD+C Healthcare",
+  },
+
+  // ─── LEED ID+C ───
   "LEED|ID+C": {
-    scorecard: LEED_IDC_SCORECARD,
+    scorecard: LEED_IDC_CI_SCORECARD,
     timeline: LEED_IDC_TIMELINE,
     label: "LEED ID+C",
   },
+
+  // ─── LEED O+M ───
   "LEED|O+M": {
-    scorecard: LEED_OM_SCORECARD,
+    scorecard: LEED_OM_EB_SCORECARD,
     timeline: LEED_OM_TIMELINE,
     label: "LEED O+M",
   },
 
-  // BREEAM
+  // ─── BREEAM ───
   "BREEAM|New Construction": {
-    scorecard: [],
+    scorecard: BREEAM_NC_FULLY_FITTED_SCORECARD, // Default = Fully Fitted
     timeline: BREEAM_NC_REFURB_TIMELINE,
     label: "BREEAM New Construction",
   },
+  "BREEAM|New Construction|Simple Buildings": {
+    scorecard: BREEAM_NC_SIMPLE_SCORECARD,
+    timeline: BREEAM_NC_REFURB_TIMELINE,
+    label: "BREEAM NC Simple Buildings",
+  },
   "BREEAM|Refurbishment": {
-    scorecard: [],
+    scorecard: BREEAM_NC_FULLY_FITTED_SCORECARD,
     timeline: BREEAM_NC_REFURB_TIMELINE,
     label: "BREEAM Refurbishment",
   },
   "BREEAM|In-Use Part 1": {
-    scorecard: [],
+    scorecard: BREEAM_IU_ASSET_SCORECARD,
     timeline: BREEAM_IU_P1_TIMELINE,
     label: "BREEAM In-Use Part 1",
   },
   "BREEAM|In-Use Part 2": {
-    scorecard: [],
+    scorecard: BREEAM_IU_MANAGEMENT_SCORECARD,
     timeline: BREEAM_IU_P2_TIMELINE,
     label: "BREEAM In-Use Part 2",
   },
 
-  // WELL
+  // ─── WELL (unico template per tutti i rating) ───
   "WELL|New & Existing Buildings": {
-    scorecard: [],
+    scorecard: WELL_V2_SCORECARD,
     timeline: WELL_NC_TIMELINE,
     label: "WELL New & Existing Buildings",
   },
   "WELL|New & Existing Interiors": {
-    scorecard: [],
+    scorecard: WELL_V2_SCORECARD,
     timeline: WELL_EXISTING_TIMELINE,
     label: "WELL New & Existing Interiors",
   },
   "WELL|Core": {
-    scorecard: [],
+    scorecard: WELL_V2_SCORECARD,
     timeline: WELL_NC_TIMELINE,
     label: "WELL Core",
   },
 };
 
-// ─── Public API ───
+// ═══════════════════════════════════════════
+// PUBLIC API
+// ═══════════════════════════════════════════
 
 /**
- * Get template for a given cert_type and rating.
- * Returns null if no specific template exists.
+ * Get template for a given cert_type, rating, and optional subtype.
+ * Lookup order: type|rating|subtype → type|rating → null
  */
 export function getCertificationTemplate(
   certType: string | null | undefined,
-  rating: string | null | undefined
+  rating: string | null | undefined,
+  subtype?: string | null
 ): CertificationTemplate | null {
   if (!certType) return null;
-  const key = rating ? `${certType}|${rating}` : certType;
-  return TEMPLATE_REGISTRY[key] || null;
+
+  // Try most specific first: type|rating|subtype
+  if (rating && subtype) {
+    const specificKey = `${certType}|${rating}|${subtype}`;
+    if (TEMPLATE_REGISTRY[specificKey]) return TEMPLATE_REGISTRY[specificKey];
+  }
+
+  // Then type|rating
+  if (rating) {
+    const ratingKey = `${certType}|${rating}`;
+    if (TEMPLATE_REGISTRY[ratingKey]) return TEMPLATE_REGISTRY[ratingKey];
+  }
+
+  return null;
 }
 
 /**
@@ -287,9 +410,10 @@ export function getCertificationTemplate(
  */
 export function getTemplateOrFallback(
   certType: string | null | undefined,
-  rating: string | null | undefined
+  rating: string | null | undefined,
+  subtype?: string | null
 ): { template: CertificationTemplate; isGeneric: boolean } {
-  const specific = getCertificationTemplate(certType, rating);
+  const specific = getCertificationTemplate(certType, rating, subtype);
   if (specific) return { template: specific, isGeneric: false };
 
   return {
@@ -300,6 +424,13 @@ export function getTemplateOrFallback(
     },
     isGeneric: true,
   };
+}
+
+/**
+ * Compute the max total score for a given template's scorecard.
+ */
+export function getMaxTotal(scorecard: ScorecardCategory[]): number {
+  return scorecard.reduce((sum, s) => sum + s.max_score, 0);
 }
 
 // ─── Available options for UI selects ───
@@ -316,4 +447,9 @@ export const CERT_LEVELS: Record<string, string[]> = {
   LEED: ["Certified", "Silver", "Gold", "Platinum"],
   WELL: ["Bronze", "Silver", "Gold", "Platinum"],
   BREEAM: ["Pass", "Good", "Very Good", "Excellent", "Outstanding"],
+};
+
+export const CERT_SUBTYPES: Record<string, string[]> = {
+  "LEED|BD+C": ["New Construction", "Core & Shell", "Healthcare"],
+  "BREEAM|New Construction": ["Fully Fitted", "Simple Buildings"],
 };
