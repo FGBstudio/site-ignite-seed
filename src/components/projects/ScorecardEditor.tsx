@@ -11,6 +11,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { ChevronDown, Upload, FileCheck, Loader2, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getLeedLevel, LEED_MAX_TOTAL } from "@/data/leedTemplate";
+import { getMaxTotal } from "@/data/certificationTemplates";
 
 const statusColors: Record<string, string> = {
   pending: "bg-muted text-muted-foreground",
