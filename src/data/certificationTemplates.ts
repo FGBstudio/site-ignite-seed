@@ -70,9 +70,9 @@ const LEED_BDC_TIMELINE = toTimeline([
   { order: 4, task_name: "Construction phase", type: "manual_input", assigned_to_role: "PM" },
   { order: 5, task_name: "LEED GC training", type: "manual_input", assigned_to_role: "PM" },
   { order: 6, task_name: "Construction end (Handover)", type: "manual_input", assigned_to_role: "PM" },
-  { order: 7, task_name: "GC fornisce documentazione", type: "calculated_deadline", offset_days: 60, assigned_to_role: "GC" },
-  { order: 8, task_name: "Sottomissione progetto (da parte di PM)", type: "calculated_deadline", offset_days: 90, assigned_to_role: "PM" },
-  { order: 9, task_name: "Ottenimento certificazione LEED", type: "calculated_deadline", offset_days: 180, assigned_to_role: "PM" },
+  { order: 7, task_name: "GC Provides Documentation", type: "calculated_deadline", offset_days: 60, assigned_to_role: "GC" },
+  { order: 8, task_name: "Project Submission (by PM)", type: "calculated_deadline", offset_days: 90, assigned_to_role: "PM" },
+  { order: 9, task_name: "LEED Certification Attainment", type: "calculated_deadline", offset_days: 180, assigned_to_role: "PM" },
 ]);
 
 const LEED_IDC_TIMELINE = toTimeline([
@@ -82,17 +82,17 @@ const LEED_IDC_TIMELINE = toTimeline([
   { order: 4, task_name: "Construction phase", type: "manual_input", assigned_to_role: "PM" },
   { order: 5, task_name: "LEED GC training", type: "manual_input", assigned_to_role: "PM" },
   { order: 6, task_name: "Construction end (Handover)", type: "manual_input", assigned_to_role: "PM" },
-  { order: 7, task_name: "GC fornisce documentazione", type: "calculated_deadline", offset_days: 30, assigned_to_role: "GC" },
-  { order: 8, task_name: "Sottomissione progetto (da parte di PM)", type: "calculated_deadline", offset_days: 60, assigned_to_role: "PM" },
-  { order: 9, task_name: "Ottenimento certificazione LEED", type: "calculated_deadline", offset_days: 150, assigned_to_role: "PM" },
+  { order: 7, task_name: "GC Provides Documentation", type: "calculated_deadline", offset_days: 30, assigned_to_role: "GC" },
+  { order: 8, task_name: "Project Submission (by PM)", type: "calculated_deadline", offset_days: 60, assigned_to_role: "PM" },
+  { order: 9, task_name: "LEED Certification Attainment", type: "calculated_deadline", offset_days: 150, assigned_to_role: "PM" },
 ]);
 
 const LEED_OM_TIMELINE = toTimeline([
   { order: 1, task_name: "Pre-assessment", type: "manual_input", assigned_to_role: "PM" },
   { order: 2, task_name: "Reference period", type: "manual_input", assigned_to_role: "PM" },
   { order: 3, task_name: "On-site visit", type: "manual_input", assigned_to_role: "PM" },
-  { order: 4, task_name: "Sottomissione progetto (da parte di PM)", type: "calculated_deadline", offset_days: 60, assigned_to_role: "PM" },
-  { order: 5, task_name: "Ottenimento certificazione LEED", type: "calculated_deadline", offset_days: 150, assigned_to_role: "PM" },
+  { order: 4, task_name: "Project Submission (by PM)", type: "calculated_deadline", offset_days: 60, assigned_to_role: "PM" },
+  { order: 5, task_name: "LEED Certification Attainment", type: "calculated_deadline", offset_days: 150, assigned_to_role: "PM" },
 ]);
 
 const BREEAM_NC_REFURB_TIMELINE = toTimeline([
@@ -103,8 +103,8 @@ const BREEAM_NC_REFURB_TIMELINE = toTimeline([
   { order: 5, task_name: "BREEAM GC training", type: "manual_input", assigned_to_role: "PM" },
   { order: 6, task_name: "Construction end (Handover)", type: "manual_input", assigned_to_role: "PM" },
   { order: 7, task_name: "Assessor site visit", type: "manual_input", assigned_to_role: "Assessor" },
-  { order: 8, task_name: "GC fornisce documentazione", type: "calculated_deadline", offset_days: 60, assigned_to_role: "GC" },
-  { order: 9, task_name: "Sottomissione progetto (da parte di PM)", type: "calculated_deadline", offset_days: 90, assigned_to_role: "PM" },
+  { order: 8, task_name: "GC Provides Documentation", type: "calculated_deadline", offset_days: 60, assigned_to_role: "GC" },
+  { order: 9, task_name: "Project Submission (by PM)", type: "calculated_deadline", offset_days: 90, assigned_to_role: "PM" },
 ]);
 
 const BREEAM_IU_P1_TIMELINE = toTimeline([
@@ -132,17 +132,17 @@ const WELL_NC_TIMELINE = toTimeline([
   { order: 4, task_name: "Construction phase", type: "manual_input", assigned_to_role: "PM" },
   { order: 5, task_name: "WELL GC training", type: "manual_input", assigned_to_role: "PM" },
   { order: 6, task_name: "Construction end (Handover)", type: "manual_input", assigned_to_role: "PM" },
-  { order: 7, task_name: "GC fornisce documentazione", type: "calculated_deadline", offset_days: 30, assigned_to_role: "GC" },
-  { order: 8, task_name: "Sottomissione progetto (da parte di PM)", type: "calculated_deadline", offset_days: 90, assigned_to_role: "PM" },
+  { order: 7, task_name: "GC Provides Documentation", type: "calculated_deadline", offset_days: 30, assigned_to_role: "GC" },
+  { order: 8, task_name: "Project Submission (by PM)", type: "calculated_deadline", offset_days: 90, assigned_to_role: "PM" },
   { order: 9, task_name: "Ottenimento certificazione WELL", type: "calculated_deadline", offset_days: 180, assigned_to_role: "PM" },
 ]);
 
 const WELL_EXISTING_TIMELINE = toTimeline([
   { order: 1, task_name: "Pre-assessment", type: "manual_input", assigned_to_role: "PM" },
   { order: 2, task_name: "Policy Review", type: "manual_input", assigned_to_role: "PM" },
-  { order: 3, task_name: "Visita + PT (Performance Testing)", type: "manual_input", assigned_to_role: "PM" },
+  { order: 3, task_name: "On-site Visit + Performance Testing", type: "manual_input", assigned_to_role: "PM" },
   { order: 4, task_name: "Lab/Cliente fornisce documentazione", type: "calculated_deadline", offset_days: 30, assigned_to_role: "Client" },
-  { order: 5, task_name: "Sottomissione progetto (da parte di PM)", type: "calculated_deadline", offset_days: 90, assigned_to_role: "PM" },
+  { order: 5, task_name: "Project Submission (by PM)", type: "calculated_deadline", offset_days: 90, assigned_to_role: "PM" },
   { order: 6, task_name: "Ottenimento certificazione WELL", type: "calculated_deadline", offset_days: 180, assigned_to_role: "PM" },
 ]);
 
@@ -150,7 +150,7 @@ const GENERIC_TIMELINE: TimelineStep[] = [
   { name: "Registrazione", order_index: 0, type: "manual_input", assigned_to_role: "PM" },
   { name: "Raccolta Documentazione", order_index: 1, type: "manual_input", assigned_to_role: "PM" },
   { name: "Fase di Design", order_index: 2, type: "manual_input", assigned_to_role: "PM" },
-  { name: "Fase di Costruzione", order_index: 3, type: "manual_input", assigned_to_role: "PM" },
+  { name: "Construction Phase", order_index: 3, type: "manual_input", assigned_to_role: "PM" },
   { name: "Sottomissione Review", order_index: 4, type: "calculated_deadline", offset_days: 30, assigned_to_role: "PM" },
   { name: "Risposta Review", order_index: 5, type: "calculated_deadline", offset_days: 60, assigned_to_role: "PM" },
   { name: "Certificazione", order_index: 6, type: "calculated_deadline", offset_days: 90, assigned_to_role: "PM" },
