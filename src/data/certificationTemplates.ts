@@ -381,7 +381,7 @@ const TEMPLATE_REGISTRY: Record<string, CertificationTemplate> = {
 
 /**
  * Get template for a given cert_type, rating, and optional subtype.
- * Lookup order: type|rating|subtype → type|rating → null
+ * Lookup order: type|rating|subtype → type|rating → fuzzy match → base type fallback → null
  */
 export function getCertificationTemplate(
   certType: string | null | undefined,
@@ -390,17 +390,41 @@ export function getCertificationTemplate(
 ): CertificationTemplate | null {
   if (!certType) return null;
 
-  // Try most specific first: type|rating|subtype
-  if (rating && subtype) {
-    const specificKey = `${certType}|${rating}|${subtype}`;
-    if (TEMPLATE_REGISTRY[specificKey]) return TEMPLATE_REGISTRY[specificKey];
+  // Normalizziamo il tipo base in modo da evitare disallineamenti di case
+  const cleanType = certType.trim().toUpperCase();
+
+  // LA MAGIA È QUI: Rimuoviamo "v.4", "v4", "v4.1" dal rating. 
+  // "ID+C v.4" diventerà pulito: "ID+C"
+  const cleanRating = rating 
+    ? rating.replace(/v\.?\s*\d+(\.\d+)?/gi, '').trim() 
+    : '';
+
+  const cleanSubtype = subtype ? subtype.trim() : '';
+
+  // Array delle chiavi disponibili per fare lookup case-insensitive e fuzzy
+  const registryKeys = Object.keys(TEMPLATE_REGISTRY);
+
+  // 1. Tenta il match esatto (type|rating|subtype)
+  if (cleanRating && cleanSubtype) {
+    const exactKey = `${cleanType}|${cleanRating}|${cleanSubtype}`;
+    const match = registryKeys.find(k => k.toLowerCase() === exactKey.toLowerCase());
+    if (match) return TEMPLATE_REGISTRY[match];
   }
 
-  // Then type|rating
-  if (rating) {
-    const ratingKey = `${certType}|${rating}`;
-    if (TEMPLATE_REGISTRY[ratingKey]) return TEMPLATE_REGISTRY[ratingKey];
+  // 2. Tenta il match senza subtype (type|rating)
+  if (cleanRating) {
+    const ratingKey = `${cleanType}|${cleanRating}`;
+    const match = registryKeys.find(k => k.toLowerCase() === ratingKey.toLowerCase());
+    if (match) return TEMPLATE_REGISTRY[match];
+
+    // 3. Fallback elastico: cerca qualsiasi chiave che contenga la combinazione pulita "TYPE|RATING"
+    const fuzzyMatch = registryKeys.find(k => k.toLowerCase().includes(ratingKey.toLowerCase()));
+    if (fuzzyMatch) return TEMPLATE_REGISTRY[fuzzyMatch];
   }
+
+  // 4. Fallback estremo per certificazioni generiche (es. pesca il primo template "WELL" se il rating non combacia con nulla)
+  const baseMatch = registryKeys.find(k => k.toUpperCase().startsWith(`${cleanType}|`));
+  if (baseMatch) return TEMPLATE_REGISTRY[baseMatch];
 
   return null;
 }
