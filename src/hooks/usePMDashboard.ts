@@ -72,11 +72,20 @@ export function usePMDashboard() {
         milestones = data || [];
       }
 
-      // 4. Merge and classify
+      // 4. Merge and classify — match by site_id + cert_type + level
       return (projects as any[]).map((p): PMProject => {
-        const projectCerts = certifications.filter((c) => c.site_id === p.site_id);
+        // Precise match: site_id + cert_type + level/cert_rating
+        const projectCerts = certifications.filter((c) =>
+          c.site_id === p.site_id &&
+          c.cert_type === p.cert_type &&
+          (c.level === p.cert_rating || (!c.level && !p.cert_rating))
+        );
+        // Fallback: if no precise match, try site_id + cert_type only
+        const fallbackCerts = projectCerts.length > 0
+          ? projectCerts
+          : certifications.filter((c) => c.site_id === p.site_id && c.cert_type === p.cert_type);
         const projectMilestones = milestones.filter((m) =>
-          projectCerts.some((c: any) => c.id === m.certification_id)
+          fallbackCerts.some((c: any) => c.id === m.certification_id)
         );
         const allocations = p.project_allocations || [];
 
@@ -117,7 +126,7 @@ export function usePMDashboard() {
 
         return {
           ...p,
-          certifications: projectCerts,
+          certifications: fallbackCerts,
           certification_milestones: projectMilestones,
           setup_status,
           missing,

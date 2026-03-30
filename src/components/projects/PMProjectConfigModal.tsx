@@ -534,58 +534,10 @@ function ScorecardTab({ project }: { project: PMProject }) {
   );
 }
 
-// ─── Fallback: auto-create missing certification ───
-function MissingCertificationFallback({ project }: { project: PMProject }) {
-  const { toast } = useToast();
-  const qc = useQueryClient();
-  const [creating, setCreating] = useState(false);
-
-  const handleCreate = async () => {
-    if (!project.site_id || !project.cert_type) return;
-    setCreating(true);
-    try {
-      const { error } = await supabase.from("certifications").insert({
-        site_id: project.site_id,
-        cert_type: project.cert_type,
-        level: project.cert_rating || null,
-        status: "in_progress",
-        score: 0,
-      });
-      if (error) throw error;
-      qc.invalidateQueries({ queryKey: ["pm-dashboard"] });
-      toast({ title: "Certificazione creata", description: "Ora puoi configurare Timeline e Scorecard." });
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Errore", description: e.message });
-    } finally {
-      setCreating(false);
-    }
-  };
-
-  return (
-    <div className="flex flex-col items-center justify-center gap-4 py-12 text-center">
-      <Award className="w-12 h-12 text-muted-foreground" />
-      <p className="text-muted-foreground max-w-md">
-        Nessuna certificazione associata a questo progetto.
-        {project.cert_type && project.site_id
-          ? " Puoi crearla automaticamente."
-          : " L'admin deve configurare il tipo di progetto e il sito."}
-      </p>
-      {project.cert_type && project.site_id && (
-        <Button onClick={handleCreate} disabled={creating}>
-          {creating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          <Plus className="mr-2 h-4 w-4" />
-          Crea Certificazione ({project.cert_type})
-        </Button>
-      )}
-    </div>
-  );
-}
 
 // ─── Main Modal ───
 export function PMProjectConfigModal({ project, open, onOpenChange }: Props) {
   const { template } = useProjectTemplate(project);
-  const hasCert = !!project.certifications?.[0]?.id;
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
@@ -597,35 +549,31 @@ export function PMProjectConfigModal({ project, open, onOpenChange }: Props) {
           </DialogDescription>
         </DialogHeader>
 
-        {!hasCert ? (
-          <MissingCertificationFallback project={project} />
-        ) : (
-          <Tabs defaultValue="timeline" className="flex-1 flex flex-col mt-4">
-            <TabsList className="grid grid-cols-3 w-full bg-background border">
-              <TabsTrigger value="timeline" className="gap-2">
-                <Calendar className="w-4 h-4" /> Timeline
-              </TabsTrigger>
-              <TabsTrigger value="hardware" className="gap-2">
-                <Monitor className="w-4 h-4" /> Hardware
-              </TabsTrigger>
-              <TabsTrigger value="scorecard" className="gap-2">
-                <Award className="w-4 h-4" /> Scorecard
-              </TabsTrigger>
-            </TabsList>
+        <Tabs defaultValue="timeline" className="flex-1 flex flex-col mt-4">
+          <TabsList className="grid grid-cols-3 w-full bg-background border">
+            <TabsTrigger value="timeline" className="gap-2">
+              <Calendar className="w-4 h-4" /> Timeline
+            </TabsTrigger>
+            <TabsTrigger value="hardware" className="gap-2">
+              <Monitor className="w-4 h-4" /> Hardware
+            </TabsTrigger>
+            <TabsTrigger value="scorecard" className="gap-2">
+              <Award className="w-4 h-4" /> Scorecard
+            </TabsTrigger>
+          </TabsList>
 
-            <div className="flex-1 mt-4 overflow-auto">
-              <TabsContent value="timeline" className="m-0">
-                <TimelineTab project={project} />
-              </TabsContent>
-              <TabsContent value="hardware" className="m-0">
-                <HardwareTab project={project} />
-              </TabsContent>
-              <TabsContent value="scorecard" className="m-0">
-                <ScorecardTab project={project} />
-              </TabsContent>
-            </div>
-          </Tabs>
-        )}
+          <div className="flex-1 mt-4 overflow-auto">
+            <TabsContent value="timeline" className="m-0">
+              <TimelineTab project={project} />
+            </TabsContent>
+            <TabsContent value="hardware" className="m-0">
+              <HardwareTab project={project} />
+            </TabsContent>
+            <TabsContent value="scorecard" className="m-0">
+              <ScorecardTab project={project} />
+            </TabsContent>
+          </div>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );

@@ -164,7 +164,7 @@ export function SiteProjectOnboardingForm() {
 
         if (projectError) throw projectError;
 
-        // Auto-create certifications record if cert_type is set
+        // Auto-create certifications record — mandatory if cert_type is set
         if (values.cert_type) {
           const { error: certError } = await supabase
             .from("certifications")
@@ -175,9 +175,7 @@ export function SiteProjectOnboardingForm() {
               status: "in_progress",
               score: 0,
             });
-          if (certError) {
-            console.warn("Certification auto-create failed:", certError.message);
-          }
+          if (certError) throw certError;
         }
       }
 
