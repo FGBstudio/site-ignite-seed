@@ -97,13 +97,11 @@ export function usePMDashboard() {
             (c: any) => c.status === "active" && c.issued_date && c.issued_date <= today
           );
 
-        // Timeline: all timeline milestones have start_date + due_date filled
+        // Timeline: Check if timeline milestones EXIST (instead of requiring all dates to be filled)
         const timelineMilestones = projectMilestones.filter(
           (m: any) => m.milestone_type === "timeline"
         );
-        const allTimelineDatesFilled =
-          timelineMilestones.length > 0 &&
-          timelineMilestones.every((m: any) => m.start_date && m.due_date);
+        const hasTimeline = timelineMilestones.length > 0;
 
         // Scorecard: at least one scorecard row exists
         const hasScorecard = projectMilestones.some(
@@ -112,14 +110,15 @@ export function usePMDashboard() {
 
         const missing: string[] = [];
         if (!isCertified) {
-          if (!allTimelineDatesFilled) missing.push("Timeline");
+          if (!hasTimeline) missing.push("Timeline");
           if (!hasScorecard) missing.push("Scorecard");
         }
 
         let setup_status: SetupStatus;
         if (isCertified) {
           setup_status = "certificato";
-        } else if (allTimelineDatesFilled && hasScorecard) {
+        } else if (hasTimeline && hasScorecard) {
+          // Both structures are generated, PM can work. Move to "In Corso"
           setup_status = "in_corso";
         } else {
           setup_status = "da_configurare";
