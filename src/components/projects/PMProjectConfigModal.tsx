@@ -89,8 +89,8 @@ function TimelineTab({ project }: { project: PMProject }) {
     try {
       const rows = template.timeline.map((step) => ({
         certification_id: certId,
-        category: "Timeline",
-        requirement: step.name,
+        category: step.name,      // FIX: Scrive "Pre-assessment", "Start construction phase", ecc.
+        requirement: step.name,   // Manteniamo allineato per doppia sicurezza
         milestone_type: "timeline" as const,
         order_index: step.order_index,
         max_score: 0,
