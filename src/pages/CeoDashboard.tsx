@@ -480,8 +480,20 @@ export default function CeoDashboard() {
   const { data: tasks = [], isLoading: loadingTasks } = useCertTasks();
   const { data: payments = [], isLoading: loadingPayments } = useCertPayments();
   const { data: projects = [], isLoading: loadingProjects } = useActiveProjects();
+  const { data: calendarProjects = [], isLoading: loadingCalendar } = useAdminCalendarData();
 
   const isLoading = loadingTasks || loadingPayments || loadingProjects;
+
+  // Build pm names map for the calendar filter
+  const pmNames = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const p of calendarProjects) {
+      if (p.pm_id && p.pm_name) {
+        map.set(p.pm_id, p.pm_name);
+      }
+    }
+    return map;
+  }, [calendarProjects]);
 
   return (
     <MainLayout title="CEO Dashboard" subtitle="Hub di controllo direzionale — Certificazioni & Portfolio">
@@ -497,6 +509,8 @@ export default function CeoDashboard() {
       ) : (
         <>
           <KpiStrip tasks={tasks} payments={payments} />
+
+          <PMCalendar projects={calendarProjects} adminMode pmNames={pmNames} />
 
           <Tabs defaultValue="progetti" className="space-y-4">
             <TabsList>
