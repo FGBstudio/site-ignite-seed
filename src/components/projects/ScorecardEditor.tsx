@@ -113,7 +113,7 @@ export function ScorecardEditor({
         requirement: item.requirement,
         score: 0,
         max_score: item.max_score,
-        milestone_type: 'scorecard',
+        milestone_type: 'scorecard' as const,
         status: 'pending'
       }));
 

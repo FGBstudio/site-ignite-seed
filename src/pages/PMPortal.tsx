@@ -100,6 +100,8 @@ export default function PMPortal() {
             </Card>
           </div>
 
+          <PMCalendar projects={projects} />
+
           <Card>
             <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
