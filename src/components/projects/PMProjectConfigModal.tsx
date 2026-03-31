@@ -60,7 +60,7 @@ function computeCalculatedDate(
 }
 
 // ─── Tab A: Timeline ───
-function TimelineTab({ project }: { project: PMProject }) {
+function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChange: (open: boolean) => void }) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const certId = project.certifications?.[0]?.id;
@@ -157,18 +157,18 @@ function TimelineTab({ project }: { project: PMProject }) {
   const handleSaveTimeline = async () => {
     setSaving(true);
     try {
-      // 1. Aggiorna lo stato della certificazione a "in_progress"
+      // 1. Aggiorna lo stato della certificazione a "in_corso"
       if (certId) {
         await supabase
           .from("certifications")
-          .update({ status: "in_progress" } as any)
+          .update({ status: "in_corso" } as any)
           .eq("id", certId);
       }
       
       // 2. Aggiorna anche lo stato del progetto master per sicurezza
       await supabase
         .from("projects")
-        .update({ status: "in_progress" } as any)
+        .update({ status: "in_corso" } as any)
         .eq("id", project.id);
 
       // 3. Ricarica la dashboard per far sparire il "Manca Timeline"
@@ -182,6 +182,45 @@ function TimelineTab({ project }: { project: PMProject }) {
       });
     } catch (e: any) {
       toast({ variant: "destructive", title: "Errore di Salvataggio", description: e.message });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // --- Dichiara il progetto Certificato ---
+  const handleMarkAsCertified = async () => {
+    if (!confirm("Sei sicuro di voler chiudere questo progetto? Verrà spostato nei Certificati e la Timeline sarà bloccata.")) return;
+    
+    setSaving(true);
+    try {
+      // 1. Aggiorna lo stato del progetto master
+      await supabase
+        .from("projects")
+        .update({ status: "certificato" } as any) 
+        .eq("id", project.id);
+
+      // 2. Aggiorna la certificazione base
+      if (certId) {
+        await supabase
+          .from("certifications")
+          .update({ status: "certificato" } as any)
+          .eq("id", certId);
+      }
+
+      // 3. Sposta la card aggiornando la dashboard
+      qc.invalidateQueries({ queryKey: ["pm-dashboard"] });
+      qc.invalidateQueries({ queryKey: ["projects"] });
+      
+      toast({ 
+        title: "Traguardo Raggiunto! 🏆", 
+        description: "Il cantiere è stato ufficialmente certificato e chiuso." 
+      });
+      
+      // 4. Chiude il modale in automatico
+      onOpenChange(false);
+
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Errore", description: e.message });
     } finally {
       setSaving(false);
     }
@@ -224,6 +263,10 @@ function TimelineTab({ project }: { project: PMProject }) {
       return {};
     }
   };
+
+  // Calcola se l'ultima milestone è "achieved"
+  const finalMilestone = milestones[milestones.length - 1];
+  const isReadyToCertify = finalMilestone?.status === "achieved";
 
   return (
     <div className="space-y-3">
@@ -303,16 +346,28 @@ function TimelineTab({ project }: { project: PMProject }) {
         })}
       </div>
 
-      {/* --- PULSANTE DI SALVATAGGIO --- */}
-      <div className="flex justify-end pt-4 mt-2 border-t">
+      {/* --- BARRA DEI PULSANTI INFERIORE --- */}
+      <div className="flex justify-end gap-3 pt-4 mt-2 border-t">
         <Button 
           onClick={handleSaveTimeline} 
           disabled={saving} 
-          className="bg-emerald-600 hover:bg-emerald-700 text-white"
+          variant={isReadyToCertify ? "outline" : "default"}
+          className={!isReadyToCertify ? "bg-emerald-600 hover:bg-emerald-700 text-white" : ""}
         >
           {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-          Conferma e Salva Timeline
+          Salva Modifiche
         </Button>
+
+        {isReadyToCertify && (
+          <Button 
+            onClick={handleMarkAsCertified} 
+            disabled={saving}
+            className="bg-yellow-600 hover:bg-yellow-700 text-white shadow-lg shadow-yellow-600/20"
+          >
+            {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Award className="w-4 h-4 mr-2" />}
+            Dichiara Progetto Certificato
+          </Button>
+        )}
       </div>
 
     </div>
@@ -344,7 +399,7 @@ function HardwareTab({ project }: { project: PMProject }) {
   });
 
   const [newProductId, setNewProductId] = useState("");
-  const [newQty, setNewQty] = useState(1);
+  const [newQty, setQty] = useState(1);
   const [saving, setSaving] = useState(false);
 
   const handleAdd = async () => {
@@ -358,7 +413,7 @@ function HardwareTab({ project }: { project: PMProject }) {
         status: "Requested",
       } as any);
       setNewProductId("");
-      setNewQty(1);
+      setQty(1);
       refetch();
       qc.invalidateQueries({ queryKey: ["pm-dashboard"] });
       toast({ title: "Hardware richiesto con successo" });
@@ -397,7 +452,7 @@ function HardwareTab({ project }: { project: PMProject }) {
             type="number"
             min={1}
             value={newQty}
-            onChange={(e) => setNewQty(Number(e.target.value) || 1)}
+            onChange={(e) => setQty(Number(e.target.value) || 1)}
             className="bg-background"
           />
         </div>
@@ -612,7 +667,7 @@ export function PMProjectConfigModal({ project, open, onOpenChange }: Props) {
 
           <div className="flex-1 mt-4 overflow-auto">
             <TabsContent value="timeline" className="m-0">
-              <TimelineTab project={project} />
+              <TimelineTab project={project} onOpenChange={onOpenChange} />
             </TabsContent>
             <TabsContent value="hardware" className="m-0">
               <HardwareTab project={project} />
