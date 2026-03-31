@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Plus, Trash2, Calendar, Monitor, Award, Lock, User } from "lucide-react";
+import { Loader2, Plus, Trash2, Calendar, Monitor, Award, Lock, User, Save } from "lucide-react";
 import { addDays, format, parseISO } from "date-fns";
 import { getTemplateOrFallback, type TimelineStep } from "@/data/certificationTemplates";
 import type { PMProject } from "@/hooks/usePMDashboard";
@@ -152,6 +152,40 @@ function TimelineTab({ project }: { project: PMProject }) {
       refetch();
     }, 300);
   };
+  
+  // --- Ufficializza la Timeline e sblocca la Dashboard ---
+  const handleSaveTimeline = async () => {
+    setSaving(true);
+    try {
+      // 1. Aggiorna lo stato della certificazione a "in_progress"
+      if (certId) {
+        await supabase
+          .from("certifications")
+          .update({ status: "in_progress" } as any)
+          .eq("id", certId);
+      }
+      
+      // 2. Aggiorna anche lo stato del progetto master per sicurezza
+      await supabase
+        .from("projects")
+        .update({ status: "in_progress" } as any)
+        .eq("id", project.id);
+
+      // 3. Ricarica la dashboard per far sparire il "Manca Timeline"
+      qc.invalidateQueries({ queryKey: ["pm-dashboard"] });
+      qc.invalidateQueries({ queryKey: ["projects"] });
+      qc.invalidateQueries({ queryKey: ["timeline-milestones"] });
+
+      toast({ 
+        title: "Progetto Avviato", 
+        description: "Timeline salvata con successo. Il cantiere è ora 'In Corso'." 
+      });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Errore di Salvataggio", description: e.message });
+    } finally {
+      setSaving(false);
+    }
+  };
 
   if (!certId) {
     return (
@@ -268,6 +302,19 @@ function TimelineTab({ project }: { project: PMProject }) {
           );
         })}
       </div>
+
+      {/* --- PULSANTE DI SALVATAGGIO --- */}
+      <div className="flex justify-end pt-4 mt-2 border-t">
+        <Button 
+          onClick={handleSaveTimeline} 
+          disabled={saving} 
+          className="bg-emerald-600 hover:bg-emerald-700 text-white"
+        >
+          {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+          Conferma e Salva Timeline
+        </Button>
+      </div>
+
     </div>
   );
 }
