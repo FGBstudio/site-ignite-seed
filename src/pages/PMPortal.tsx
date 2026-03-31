@@ -9,6 +9,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { AlertTriangle, ArrowRight, Building2, CalendarIcon, CheckCircle2, Clock3, FolderKanban } from "lucide-react";
+import { PMCalendar } from "@/components/dashboard/PMCalendar";
 
 type PMProjectView = PMProject & { project_subtype?: string | null };
 
@@ -98,6 +99,8 @@ export default function PMPortal() {
               </CardContent>
             </Card>
           </div>
+
+          <PMCalendar projects={projects} />
 
           <Card>
             <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
