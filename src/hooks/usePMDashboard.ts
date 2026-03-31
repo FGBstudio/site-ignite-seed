@@ -90,11 +90,15 @@ export function usePMDashboard() {
         );
         const allocations = p.project_allocations || [];
 
-        // Classification logic (spec v1.0)
+        // Classification logic
         const today = new Date().toISOString().slice(0, 10);
-        const isCertified =
+        
+        // FIX CRITICO: Controlla se il DB (tabella projects) ha lo status "certificato"
+        // OPPURE se la certificazione è "active" e la sua data (troncata) è <= a oggi.
+        const isCertified = 
+          p.status === "certificato" || 
           projectCerts.some(
-            (c: any) => c.status === "active" && c.issued_date && c.issued_date <= today
+            (c: any) => c.status === "active" && c.issued_date && c.issued_date.slice(0, 10) <= today
           );
 
         // Timeline: Check if timeline milestones EXIST (instead of requiring all dates to be filled)
