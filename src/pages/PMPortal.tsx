@@ -9,6 +9,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { AlertTriangle, ArrowRight, Building2, CalendarIcon, CheckCircle2, Clock3, FolderKanban } from "lucide-react";
+import { PMCalendar } from "@/components/dashboard/PMCalendar";
 
 type PMProjectView = PMProject & { project_subtype?: string | null };
 
