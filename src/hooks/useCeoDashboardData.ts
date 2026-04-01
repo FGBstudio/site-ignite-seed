@@ -38,7 +38,9 @@ export interface ProjectRow {
   handover_date: string;
   status: string;
   site_id: string | null;
-  profiles?: { full_name: string | null };
+  cert_type: string | null;
+  cert_rating: string | null;
+  pm_display_name?: string | null;
 }
 
 export function useCertTasks() {
