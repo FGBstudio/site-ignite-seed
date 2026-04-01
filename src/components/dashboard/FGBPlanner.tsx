@@ -12,14 +12,14 @@ export interface GanttRowData {
   launchDate?: string | null; // Data di riferimento iniziale
   
   // Baseline (Tratteggio)
-  planStart: string | null;   // Start_Date
-  planEnd: string | null;     // End_Forecast
+  planStart: string | null;   // Inizio previsto
+  planEnd: string | null;     // Fine prevista
   
   // Actual (Barra Piena)
-  actualStart: string | null; // Actual_Start
-  actualEnd: string | null;   // End_Actual
+  actualStart: string | null; // Inizio effettivo
+  actualEnd: string | null;   // Fine effettiva
   
-  progress: number; // Percent_Complete (0 - 100)
+  progress: number; // 0 - 100
   status: "pending" | "in_progress" | "achieved" | "late" | string;
   
   onClickUrl?: string;
@@ -28,7 +28,7 @@ export interface GanttRowData {
 
 interface FGBPlannerProps {
   data: GanttRowData[];
-  dayWidth?: number; // Zoom
+  dayWidth?: number; // Permette di zoomare
 }
 
 export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
@@ -85,7 +85,7 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
       <div className="max-w-[65%] flex-shrink-0 border-r bg-muted/10 flex flex-col z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] overflow-x-auto custom-scrollbar">
         
         <div className="h-12 border-b flex items-center px-4 font-semibold text-[10px] text-muted-foreground uppercase tracking-wide bg-muted/30 w-max">
-          <div className="w-[200px] shrink-0">Activity / Phase</div>
+          <div className="w-[200px] shrink-0">Attività / Fase</div>
           <div className="w-[75px] shrink-0">Launch</div>
           <div className="w-[75px] shrink-0">Start Plan</div>
           <div className="w-[75px] shrink-0">End Fcst</div>
@@ -171,40 +171,65 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
           )}
 
           {data.map((row) => {
-            // Calcolo Plan (Base)
+            // Calcolo Plan (Base Tratteggiata per TUTTE le attività con date)
             const pStart = row.planStart ? differenceInDays(new Date(row.planStart), minDate) : null;
             const pEnd = row.planEnd ? differenceInDays(new Date(row.planEnd), minDate) : null;
             const planWidth = (pStart !== null && pEnd !== null) ? Math.max((pEnd - pStart), 1) : 0;
             
-            // Calcolo Actual (Progresso)
-            const aStart = row.actualStart ? differenceInDays(new Date(row.actualStart), minDate) : pStart;
-            const aEnd = row.actualEnd ? differenceInDays(new Date(row.actualEnd), minDate) : null;
+            // Calcolo Actual (Progresso Reale / Campitura Piena)
+            let aStart = row.actualStart ? differenceInDays(new Date(row.actualStart), minDate) : pStart;
+            let aEnd = row.actualEnd ? differenceInDays(new Date(row.actualEnd), minDate) : null;
             
-            // LOGICA CORRETTA DEL RIEMPIMENTO:
             let actualWidth = 0;
-            if (aStart !== null) {
-              if (aEnd !== null) {
-                // Task completata o con fine forzata: Disegna fino alla fine effettiva
+            
+            if (row.status === 'achieved') {
+              // Se Completata: Campitura PIENA sull'intera durata
+              if (aStart !== null && aEnd !== null) {
                 actualWidth = Math.max(aEnd - aStart, 1);
-              } else if (row.progress > 0) {
-                // Task in corso: Disegna una larghezza proporzionale all'avanzamento!
+              } else if (pStart !== null && pEnd !== null) {
+                aStart = pStart;
+                actualWidth = planWidth;
+              }
+            } else if (row.status === 'in_progress') {
+              // Se In Corso: Campitura Piena in base alla % di avanzamento sul piano
+              if (aStart !== null && planWidth > 0) {
                 actualWidth = planWidth * (row.progress / 100);
                 if (actualWidth < 4) actualWidth = 4; // Spessore visivo minimo
               }
+            } else if (row.status === 'late') {
+              // Se In Ritardo
+              if (aStart !== null) {
+                if (aEnd !== null) {
+                  actualWidth = Math.max(aEnd - aStart, 1);
+                } else if (planWidth > 0 && row.progress > 0) {
+                  actualWidth = planWidth * (row.progress / 100);
+                  if (actualWidth < 4) actualWidth = 4;
+                } else {
+                  actualWidth = 4; // Mostra solo un pallino rosso di inizio
+                }
+              }
             }
 
-            // Colori
-            let actualColor = "bg-blue-500";
-            if (row.progress >= 100) actualColor = "bg-emerald-500";
-            if (row.status === "late") actualColor = "bg-red-500";
+            // COLORI DINAMICI - Grammatica FGB
+            let planBaseClass = "border-2 border-dashed border-gray-400 bg-gray-100/50"; // Grigie tratteggiate (In Attesa)
+            let actualColor = "bg-[#009293]"; // Verde FGB (Completate / In Corso)
+
+            if (row.status === "in_progress") {
+              planBaseClass = "border-2 border-dashed border-[#009293] bg-[#009293]/10"; // Verdino tratteggiato
+            } else if (row.status === "achieved") {
+              planBaseClass = "border-2 border-[#009293]/20 bg-[#009293]/10"; // Sfondo per completate
+            } else if (row.status === "late") {
+              planBaseClass = "border-2 border-dashed border-red-400 bg-red-50"; 
+              actualColor = "bg-red-500";
+            }
 
             return (
               <div key={row.id} className={cn("h-14 border-b relative group hover:bg-muted/10 transition-colors", row.id === "summary" && "bg-primary/5")}>
                 
-                {/* 1. PLAN DURATION (Baseline Tratteggiata Molto Visibile) */}
+                {/* 1. PLAN DURATION (Baseline Visibile per TUTTE le attività) */}
                 {pStart !== null && pEnd !== null && (
                   <div 
-                    className="absolute top-4 h-6 border-2 border-dashed border-slate-400 rounded-md bg-[repeating-linear-gradient(45deg,transparent,transparent_4px,rgba(100,116,139,0.1)_4px,rgba(100,116,139,0.1)_8px)]"
+                    className={cn("absolute top-4 h-6 rounded-md", planBaseClass)}
                     style={{ left: pStart * dayWidth, width: planWidth * dayWidth }}
                   />
                 )}
@@ -212,7 +237,7 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
                 {/* 2. ACTUAL DURATION (Campitura Piena Progressiva) */}
                 {aStart !== null && actualWidth > 0 && (
                   <div 
-                    className={cn("absolute top-4 h-6 rounded-md shadow-sm z-10 transition-all opacity-90", actualColor)}
+                    className={cn("absolute top-4 h-6 rounded-md shadow-sm z-10 transition-all opacity-95", actualColor)}
                     style={{ left: aStart * dayWidth, width: actualWidth * dayWidth }}
                   />
                 )}
