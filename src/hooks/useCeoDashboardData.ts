@@ -73,15 +73,43 @@ export function useCertPayments() {
 
 export function useActiveProjects() {
   return useQuery({
-    queryKey: ["ceo-all-projects-v3"], // Cache key aggiornata
+    queryKey: ["ceo-all-projects-v4"],
     queryFn: async () => {
-      // FIX: Rimosso il filtro di stato per includere Da Configurare e Certificati
       const { data, error } = await (supabase as any)
         .from("projects")
-        .select("*, profiles!projects_pm_id_fkey(full_name)")
+        .select("*")
         .order("handover_date", { ascending: true });
       if (error) throw error;
-      return (data || []) as ProjectRow[];
+      const projects = (data || []) as any[];
+
+      // Fetch PM profiles separately (no FK between projects and profiles)
+      const pmIds = [...new Set(projects.map((p) => p.pm_id).filter(Boolean))] as string[];
+      let profileMap = new Map<string, string>();
+      if (pmIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, full_name, display_name")
+          .in("id", pmIds);
+        if (profiles) {
+          for (const pr of profiles) {
+            profileMap.set(pr.id, pr.display_name || pr.full_name || pr.email || pr.id);
+          }
+        }
+      }
+
+      return projects.map((p): ProjectRow => ({
+        id: p.id,
+        name: p.name,
+        client: p.client,
+        region: p.region,
+        pm_id: p.pm_id,
+        handover_date: p.handover_date,
+        status: p.status,
+        site_id: p.site_id,
+        cert_type: p.cert_type,
+        cert_rating: p.cert_rating,
+        pm_display_name: p.pm_id ? profileMap.get(p.pm_id) || null : null,
+      }));
     },
   });
 }
