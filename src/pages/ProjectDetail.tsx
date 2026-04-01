@@ -13,6 +13,12 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 
+// --- NUOVI IMPORT PER IL PLANNER ---
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { FGBPlanner, type GanttRowData } from "@/components/dashboard/FGBPlanner";
+
 const statusColors: Record<string, string> = {
   Design: "bg-primary/10 text-primary border-primary/20",
   Construction: "bg-warning/10 text-warning border-warning/20",
@@ -26,6 +32,63 @@ export default function ProjectDetail() {
   const { data: project, isLoading } = useProjectDetails(projectId);
   const { data: certification } = useCertification(projectId);
   const { data: allocations } = useProjectAllocations(projectId);
+
+  // =======================================================================
+  // FETCH: Scarichiamo le righe della timeline per questo progetto specifico
+  // =======================================================================
+  const { data: timelineMilestones = [] } = useQuery({
+    queryKey: ["project-timeline", certification?.id],
+    enabled: !!certification?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("certification_milestones")
+        .select("*")
+        .eq("certification_id", certification!.id)
+        .eq("milestone_type", "timeline")
+        .order("order_index");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // =======================================================================
+  // MAP: Trasformiamo le righe del DB in dati compatibili col Motore Gantt
+  // =======================================================================
+  const plannerData: GanttRowData[] = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+
+    return timelineMilestones.map((m: any) => {
+      // Estraiamo il ruolo dalle note JSON (se presente)
+      let role = "Specialista";
+      try {
+        const meta = JSON.parse(m.notes || "{}");
+        if (meta.assigned_to_role) role = meta.assigned_to_role;
+      } catch (e) {}
+
+      // Logica dei colori/status (Rosso se la scadenza è passata e non è completato)
+      let displayStatus = m.status;
+      if (m.status !== "achieved" && m.due_date && m.due_date < today) {
+        displayStatus = "late"; // Diventa Rosso
+      } else if (m.status === "achieved") {
+        displayStatus = "achieved"; // Diventa Verde
+      } else if (m.status === "in_progress") {
+        displayStatus = "in_progress"; // Diventa Blu
+      }
+
+      return {
+        id: m.id,
+        label: m.requirement,
+        subLabel: `Ruolo: ${role}`,
+        planStart: m.start_date,
+        planEnd: m.due_date,
+        // Se è in attesa, non mostriamo la barra solida di esecuzione reale
+        actualStart: m.status !== "pending" ? m.start_date : null,
+        actualEnd: m.completed_date || null,
+        progress: m.status === "achieved" ? 100 : m.status === "in_progress" ? 50 : 0,
+        status: displayStatus,
+      };
+    });
+  }, [timelineMilestones]);
 
   if (isLoading) {
     return (
@@ -108,13 +171,31 @@ export default function ProjectDetail() {
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue={hasCert ? "scorecard" : "wbs"} className="space-y-4">
+      <Tabs defaultValue="planner" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="hardware">Hardware</TabsTrigger>
+          <TabsTrigger value="planner">Planner (Fasi)</TabsTrigger>
           {hasCert && <TabsTrigger value="scorecard">Scorecard {(project as any).project_type}</TabsTrigger>}
           <TabsTrigger value="wbs">Cronoprogramma</TabsTrigger>
+          <TabsTrigger value="hardware">Hardware</TabsTrigger>
           <TabsTrigger value="payments">Pagamenti</TabsTrigger>
         </TabsList>
+
+        {/* NUOVO TAB: PLANNER MICRO-VISTA */}
+        <TabsContent value="planner">
+          <Card>
+            <CardContent className="p-0 border-none">
+              {plannerData.length === 0 ? (
+                <div className="py-12 text-center text-muted-foreground">
+                  Nessuna timeline inizializzata. Configura il progetto dalla dashboard PM.
+                </div>
+              ) : (
+                <div className="h-[600px]">
+                  <FGBPlanner data={plannerData} />
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="hardware">
           {!allocations || allocations.length === 0 ? (
