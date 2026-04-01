@@ -12,14 +12,14 @@ export interface GanttRowData {
   launchDate?: string | null; // Data di riferimento iniziale
   
   // Baseline (Tratteggio)
-  planStart: string | null;   // Inizio previsto
-  planEnd: string | null;     // Fine prevista
+  planStart: string | null;   // Start_Date
+  planEnd: string | null;     // End_Forecast
   
   // Actual (Barra Piena)
-  actualStart: string | null; // Inizio effettivo
-  actualEnd: string | null;   // Fine effettiva
+  actualStart: string | null; // Actual_Start
+  actualEnd: string | null;   // End_Actual
   
-  progress: number; // 0 - 100
+  progress: number; // Percent_Complete (0 - 100)
   status: "pending" | "in_progress" | "achieved" | "late" | string;
   
   onClickUrl?: string;
@@ -28,7 +28,7 @@ export interface GanttRowData {
 
 interface FGBPlannerProps {
   data: GanttRowData[];
-  dayWidth?: number; // Permette di zoomare
+  dayWidth?: number; // Zoom
 }
 
 export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
@@ -54,20 +54,17 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
       });
     });
 
-    // Se non ci sono date valide, usa oggi
     if (min > max) {
       min = new Date();
       max = addDays(new Date(), 30);
     }
 
-    // Aggiungiamo un po' di "respiro" all'inizio e alla fine (allineando alle settimane)
     const startDate = startOfWeek(addDays(min, -7), { weekStartsOn: 1 });
     const endDate = endOfWeek(addDays(max, 14), { weekStartsOn: 1 });
 
     return { minDate: startDate, maxDate: endDate, totalDays: differenceInDays(endDate, startDate) };
   }, [data]);
 
-  // Genera l'array dei giorni per l'header
   const days = useMemo(() => {
     const arr = [];
     for (let i = 0; i <= totalDays; i++) {
@@ -79,7 +76,6 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
   const today = new Date();
   const todayOffset = differenceInDays(today, minDate);
 
-  // Formattatore rapido per le date nella tabella
   const fmt = (d: Date | null) => d ? format(d, "dd/MM/yy") : "—";
 
   return (
@@ -88,9 +84,8 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
       {/* PANNELLO SINISTRO (Data Grid Ingegneristica) */}
       <div className="max-w-[65%] flex-shrink-0 border-r bg-muted/10 flex flex-col z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] overflow-x-auto custom-scrollbar">
         
-        {/* Header Tabella Sinistro */}
         <div className="h-12 border-b flex items-center px-4 font-semibold text-[10px] text-muted-foreground uppercase tracking-wide bg-muted/30 w-max">
-          <div className="w-[200px] shrink-0">Attività / Fase</div>
+          <div className="w-[200px] shrink-0">Activity / Phase</div>
           <div className="w-[75px] shrink-0">Launch</div>
           <div className="w-[75px] shrink-0">Start Plan</div>
           <div className="w-[75px] shrink-0">End Fcst</div>
@@ -102,7 +97,6 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
           <div className="w-[60px] shrink-0 text-right">% Comp</div>
         </div>
         
-        {/* Righe Sinistre */}
         <div className="flex-1 overflow-y-hidden w-max">
           {data.map((row) => {
             const pStart = row.planStart ? new Date(row.planStart) : null;
@@ -111,7 +105,6 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
             const aEnd = row.actualEnd ? new Date(row.actualEnd) : null;
             const launch = row.launchDate ? new Date(row.launchDate) : pStart;
 
-            // Calcoli Matematici Specifici
             const planStartOffset = pStart ? differenceInDays(pStart, minDate) : "—";
             const planDuration = pStart && pEnd ? Math.max(differenceInDays(pEnd, pStart), 1) : "—";
             const actStartOffset = aStart ? differenceInDays(aStart, minDate) : "—";
@@ -151,26 +144,16 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
         </div>
       </div>
 
-      {/* PANNELLO DESTRO (Timeline Scorrevolmente Orizzontale) */}
+      {/* PANNELLO DESTRO (Timeline Grafica) */}
       <div className="flex-1 overflow-x-auto overflow-y-hidden relative custom-scrollbar bg-card">
         
-        {/* Header Timeline (Giorni e Mesi) */}
         <div className="h-12 border-b bg-muted/30 relative" style={{ width: totalDays * dayWidth }}>
-          <div className="absolute top-0 left-0 h-6 flex items-center text-[10px] font-bold text-muted-foreground uppercase px-2">
-            Timeline
-          </div>
+          <div className="absolute top-0 left-0 h-6 flex items-center text-[10px] font-bold text-muted-foreground uppercase px-2">Timeline</div>
           <div className="absolute bottom-0 left-0 h-6 flex">
             {days.map((d, i) => {
               const isWeekend = d.getDay() === 0 || d.getDay() === 6;
               return (
-                <div 
-                  key={i} 
-                  className={cn(
-                    "flex-shrink-0 flex items-center justify-center text-[9px] border-l border-border/50",
-                    isWeekend ? "bg-muted/50 text-muted-foreground/50" : "text-muted-foreground"
-                  )}
-                  style={{ width: dayWidth }}
-                >
+                <div key={i} className={cn("flex-shrink-0 flex items-center justify-center text-[9px] border-l border-border/50", isWeekend ? "bg-muted/50 text-muted-foreground/50" : "text-muted-foreground")} style={{ width: dayWidth }}>
                   {format(d, "eeeee", { locale: it })}
                 </div>
               );
@@ -178,68 +161,59 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
           </div>
         </div>
 
-        {/* Area del Grafico */}
         <div className="relative" style={{ width: totalDays * dayWidth }}>
-          
-          {/* Sfondo a griglia (colonne dei giorni) */}
           <div className="absolute inset-0 flex pointer-events-none opacity-20">
-            {days.map((d, i) => (
-              <div key={i} className="h-full border-l flex-shrink-0" style={{ width: dayWidth }} />
-            ))}
+            {days.map((d, i) => <div key={i} className="h-full border-l flex-shrink-0" style={{ width: dayWidth }} />)}
           </div>
 
-          {/* Linea di OGGI */}
           {todayOffset >= 0 && todayOffset <= totalDays && (
-            <div 
-              className="absolute top-0 bottom-0 border-l-2 border-red-500/50 z-10 pointer-events-none"
-              style={{ left: todayOffset * dayWidth }}
-            />
+            <div className="absolute top-0 bottom-0 border-l-2 border-red-500/50 z-10 pointer-events-none" style={{ left: todayOffset * dayWidth }} />
           )}
 
-          {/* Righe Gantt */}
           {data.map((row) => {
-            // Calcolo coordinate Plan (Tratteggio)
+            // Calcolo Plan (Base)
             const pStart = row.planStart ? differenceInDays(new Date(row.planStart), minDate) : null;
             const pEnd = row.planEnd ? differenceInDays(new Date(row.planEnd), minDate) : null;
+            const planWidth = (pStart !== null && pEnd !== null) ? Math.max((pEnd - pStart), 1) : 0;
             
-            // Calcolo coordinate Actual (Barra solida)
+            // Calcolo Actual (Progresso)
             const aStart = row.actualStart ? differenceInDays(new Date(row.actualStart), minDate) : pStart;
-            // Se non c'è fine effettiva, spingiamo la barra fino a "oggi" se in corso, oppure alla planEnd se completato
-            let aEnd = row.actualEnd ? differenceInDays(new Date(row.actualEnd), minDate) : null;
-            if (aStart !== null && aEnd === null && row.progress > 0) {
-                aEnd = Math.min(todayOffset, pEnd || todayOffset); // Se in corso, arriva fino a oggi o al massimo al planEnd
+            const aEnd = row.actualEnd ? differenceInDays(new Date(row.actualEnd), minDate) : null;
+            
+            // LOGICA CORRETTA DEL RIEMPIMENTO:
+            let actualWidth = 0;
+            if (aStart !== null) {
+              if (aEnd !== null) {
+                // Task completata o con fine forzata: Disegna fino alla fine effettiva
+                actualWidth = Math.max(aEnd - aStart, 1);
+              } else if (row.progress > 0) {
+                // Task in corso: Disegna una larghezza proporzionale all'avanzamento!
+                actualWidth = planWidth * (row.progress / 100);
+                if (actualWidth < 4) actualWidth = 4; // Spessore visivo minimo
+              }
             }
 
-            // Colori della barra effettiva in base allo status
-            let actualColor = "bg-blue-500"; // in_progress
+            // Colori
+            let actualColor = "bg-blue-500";
             if (row.progress >= 100) actualColor = "bg-emerald-500";
-            if (row.status === "late" || row.status === "ritardo") actualColor = "bg-red-500";
+            if (row.status === "late") actualColor = "bg-red-500";
 
             return (
-              <div key={row.id} className={cn(
-                "h-14 border-b relative group hover:bg-muted/10 transition-colors",
-                row.id === "summary" && "bg-primary/5" // Sfondo leggero anche per la riga master nella timeline
-              )}>
+              <div key={row.id} className={cn("h-14 border-b relative group hover:bg-muted/10 transition-colors", row.id === "summary" && "bg-primary/5")}>
                 
-                {/* 1. PLAN DURATION (La base tratteggiata) */}
+                {/* 1. PLAN DURATION (Baseline Tratteggiata Molto Visibile) */}
                 {pStart !== null && pEnd !== null && (
                   <div 
-                    className="absolute top-4 h-6 border-2 border-dashed border-muted-foreground/40 rounded bg-[repeating-linear-gradient(45deg,transparent,transparent_4px,rgba(0,0,0,0.05)_4px,rgba(0,0,0,0.05)_8px)]"
-                    style={{ 
-                      left: pStart * dayWidth, 
-                      width: Math.max((pEnd - pStart) * dayWidth, dayWidth) 
-                    }}
+                    className="absolute top-4 h-6 border-2 border-dashed border-slate-400 rounded-md bg-[repeating-linear-gradient(45deg,transparent,transparent_4px,rgba(100,116,139,0.1)_4px,rgba(100,116,139,0.1)_8px)]"
+                    style={{ left: pStart * dayWidth, width: planWidth * dayWidth }}
                   />
                 )}
 
-                {/* 2. ACTUAL DURATION (La barra di avanzamento reale) */}
-                {aStart !== null && aEnd !== null && (
+                {/* 2. ACTUAL DURATION (Campitura Piena Progressiva) */}
+                {aStart !== null && actualWidth > 0 && (
                   <div 
-                    className={cn("absolute top-4 h-6 rounded shadow-sm z-10 transition-all opacity-90", actualColor)}
-                    style={{ 
-                      left: aStart * dayWidth, 
-                      width: Math.max((aEnd - aStart) * dayWidth, 4) 
-                    }}
+                    className={cn("absolute top-4 h-6 rounded-md shadow-sm z-10 transition-all opacity-90", actualColor)}
+                    style={{ left: aStart * dayWidth, width: actualWidth * dayWidth }}
                   />
                 )}
               </div>
