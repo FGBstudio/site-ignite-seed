@@ -139,23 +139,35 @@ function KpiStrip({ tasks, payments, projects }: { tasks: CertTaskRow[]; payment
 // ============================================================
 // Tab: Risorse
 // ============================================================
-function TabRisorse({ tasks }: { tasks: CertTaskRow[] }) {
+function TabRisorse({ tasks, projects }: { tasks: CertTaskRow[]; projects: ProjectRow[] }) {
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
 
+  // Build user map from BOTH cert_tasks assignees AND project PMs
   const userMap = useMemo(() => {
-    const map = new Map<string, { name: string; tasks: CertTaskRow[] }>();
+    const map = new Map<string, { name: string; tasks: CertTaskRow[]; projectCount: number }>();
+
+    // 1. Add all PMs from projects
+    for (const p of projects) {
+      if (!p.pm_id) continue;
+      if (!map.has(p.pm_id)) {
+        map.set(p.pm_id, { name: p.pm_display_name || "PM senza nome", tasks: [], projectCount: 0 });
+      }
+      map.get(p.pm_id)!.projectCount++;
+    }
+
+    // 2. Add cert_tasks assignees and their tasks
     for (const t of tasks) {
       if (!t.assignee_id) continue;
       if (!map.has(t.assignee_id)) {
-        map.set(t.assignee_id, { name: t.profiles?.full_name || "Senza nome", tasks: [] });
+        map.set(t.assignee_id, { name: t.profiles?.full_name || "Senza nome", tasks: [], projectCount: 0 });
       }
       map.get(t.assignee_id)!.tasks.push(t);
     }
     return map;
-  }, [tasks]);
+  }, [tasks, projects]);
 
   const users = useMemo(() =>
-    Array.from(userMap.entries()).map(([id, v]) => ({ id, ...v })).sort((a, b) => b.tasks.length - a.tasks.length),
+    Array.from(userMap.entries()).map(([id, v]) => ({ id, ...v })).sort((a, b) => b.tasks.length - a.tasks.length || b.projectCount - a.projectCount),
     [userMap]
   );
 
@@ -175,7 +187,6 @@ function TabRisorse({ tasks }: { tasks: CertTaskRow[] }) {
     return Array.from(map.values());
   }, [selectedTasks]);
 
-  // Simple overlap / saturation calculation
   const computeSaturation = (userTasks: CertTaskRow[]) => {
     const withDates = userTasks.filter(t => t.start_date && t.end_date && t.status !== "Completed");
     if (withDates.length <= 1) return withDates.length;
@@ -193,9 +204,12 @@ function TabRisorse({ tasks }: { tasks: CertTaskRow[] }) {
     return maxOverlap;
   };
 
+  const getUserProjectCount = (userId: string) => {
+    return projects.filter(p => p.pm_id === userId).length;
+  };
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      {/* User list */}
       <Card className="md:col-span-1">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">PM / DM / Specialisti</CardTitle>
@@ -206,6 +220,7 @@ function TabRisorse({ tasks }: { tasks: CertTaskRow[] }) {
               <p className="text-sm text-muted-foreground text-center py-8">Nessuna risorsa assegnata</p>
             ) : users.map(u => {
               const sat = computeSaturation(u.tasks);
+              const pCount = getUserProjectCount(u.id);
               const satColor = sat >= 4 ? "text-destructive" : sat >= 2 ? "text-warning" : "text-success";
               return (
                 <button
@@ -218,12 +233,20 @@ function TabRisorse({ tasks }: { tasks: CertTaskRow[] }) {
                 >
                   <div>
                     <p className="font-medium text-sm text-foreground">{u.name}</p>
-                    <p className="text-xs text-muted-foreground">{u.tasks.filter(t => t.status !== "Completed").length} task attive</p>
+                    <p className="text-xs text-muted-foreground">
+                      {pCount} progett{pCount === 1 ? "o" : "i"} · {u.tasks.filter(t => t.status !== "Completed").length} task attive
+                    </p>
                   </div>
                   <div className="text-right">
-                    <Badge variant="outline" className={cn("text-xs", satColor)}>
-                      Saturazione: {sat}x
-                    </Badge>
+                    {u.tasks.length > 0 ? (
+                      <Badge variant="outline" className={cn("text-xs", satColor)}>
+                        Saturazione: {sat}x
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-xs text-muted-foreground">
+                        Nessuna task
+                      </Badge>
+                    )}
                   </div>
                 </button>
               );
@@ -232,7 +255,6 @@ function TabRisorse({ tasks }: { tasks: CertTaskRow[] }) {
         </CardContent>
       </Card>
 
-      {/* Task detail */}
       <Card className="md:col-span-2">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">
@@ -243,7 +265,14 @@ function TabRisorse({ tasks }: { tasks: CertTaskRow[] }) {
           {!selectedUser ? (
             <p className="text-sm text-muted-foreground text-center py-12">Clicca su un nome a sinistra per vedere le task assegnate</p>
           ) : tasksByProject.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-12">Nessuna task</p>
+            <div className="text-center py-12">
+              <p className="text-sm text-muted-foreground">Nessuna task operativa assegnata</p>
+              {getUserProjectCount(selectedUser) > 0 && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Questa risorsa è PM di {getUserProjectCount(selectedUser)} progett{getUserProjectCount(selectedUser) === 1 ? "o" : "i"}
+                </p>
+              )}
+            </div>
           ) : (
             <div className="space-y-4 max-h-[400px] overflow-y-auto">
               {tasksByProject.map(({ projectName, tasks: pTasks }) => (
@@ -276,6 +305,7 @@ function TabRisorse({ tasks }: { tasks: CertTaskRow[] }) {
     </div>
   );
 }
+
 
 // ============================================================
 // Tab: Progetti
@@ -346,7 +376,7 @@ function TabProgetti({ tasks, projects }: { tasks: CertTaskRow[]; projects: any[
                   </TableCell>
                   <TableCell className="text-sm">{p.minStart ? format(new Date(p.minStart), "dd MMM yy", { locale: it }) : "—"}</TableCell>
                   <TableCell className="text-sm">{p.handover_date ? format(new Date(p.handover_date), "dd MMM yy", { locale: it }) : "—"}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{p.profiles?.full_name || "—"}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{p.pm_display_name || "—"}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <Progress value={p.progress} className="h-2 flex-1" />
@@ -525,7 +555,7 @@ export default function CeoDashboard() {
             </TabsList>
 
             <TabsContent value="risorse">
-              <TabRisorse tasks={tasks} />
+              <TabRisorse tasks={tasks} projects={projects} />
             </TabsContent>
 
             <TabsContent value="progetti">
