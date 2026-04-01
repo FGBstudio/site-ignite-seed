@@ -16,6 +16,7 @@ import {
   computeOverduePayments,
   type CertTaskRow,
   type CertPaymentRow,
+  type ProjectRow,
 } from "@/hooks/useCeoDashboardData";
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LabelList,
@@ -25,28 +26,29 @@ import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 
-// Chart color tokens (HSL from design system)
+// Chart color tokens (HSL from design system) - AGGIORNATI PER I NUOVI STATUS
 const COLORS = {
-  late: "hsl(0, 84%, 60%)",        // destructive
-  inProgress: "hsl(38, 92%, 50%)", // warning
-  toStart: "hsl(217, 91%, 50%)",   // primary
-  completed: "hsl(142, 71%, 45%)", // success
-  blocked: "hsl(38, 92%, 50%)",
+  late: "hsl(0, 84%, 60%)",          // destructive (Rosso - In Ritardo)
+  inProgress: "hsl(217, 91%, 50%)",  // primary (Blu - In Corso)
+  toConfigure: "hsl(220, 14%, 71%)", // muted (Grigio - Da Configurare)
+  certified: "hsl(142, 71%, 45%)",   // success (Verde - Certificati)
   overdue: "hsl(0, 84%, 60%)",
   paid: "hsl(142, 71%, 45%)",
+  blocked: "hsl(38, 92%, 50%)",
 };
 
 // ============================================================
 // KPI Strip
 // ============================================================
-function KpiStrip({ tasks, payments }: { tasks: CertTaskRow[]; payments: CertPaymentRow[] }) {
-  const { late, inProgress, toStart, lateProjects } = useMemo(() => computeProjectStatus(tasks), [tasks]);
+function KpiStrip({ tasks, payments, projects }: { tasks: CertTaskRow[]; payments: CertPaymentRow[]; projects: ProjectRow[] }) {
+  const { inRitardo, inCorso, daConfigurare, certificati, lateProjects } = useMemo(() => computeProjectStatus(projects, tasks), [projects, tasks]);
   const overdueByProject = useMemo(() => computeOverduePayments(payments), [payments]);
 
   const pieData = [
-    { name: "In Ritardo", value: late, color: COLORS.late },
-    { name: "In Corso", value: inProgress, color: COLORS.inProgress },
-    { name: "Da Avviare", value: toStart, color: COLORS.toStart },
+    { name: "In Ritardo", value: inRitardo, color: COLORS.late },
+    { name: "In Corso", value: inCorso, color: COLORS.inProgress },
+    { name: "Da Configurare", value: daConfigurare, color: COLORS.toConfigure },
+    { name: "Certificati", value: certificati, color: COLORS.certified },
   ].filter(d => d.value > 0);
 
   const sortedLate = [...lateProjects].sort((a, b) => b.daysLate - a.daysLate).slice(0, 8);
@@ -335,12 +337,15 @@ function TabProgetti({ tasks, projects }: { tasks: CertTaskRow[]; projects: any[
                   <TableCell className="text-foreground">{p.client}</TableCell>
                   <TableCell>
                     <Badge variant="outline" className={cn("text-xs border", {
-                      "bg-primary/10 text-primary border-primary/20": p.status === "Design",
-                      "bg-warning/10 text-warning border-warning/20": p.status === "Construction",
-                    })}>{p.status}</Badge>
+                      "bg-primary/10 text-primary border-primary/20": p.status === "in_corso" || p.status === "Design" || p.status === "Construction",
+                      "bg-success/10 text-success border-success/20": p.status === "certificato" || p.status === "certified",
+                      "bg-muted text-muted-foreground border-muted": !p.status || p.status === "pending" || p.status === "da_configurare",
+                    })}>
+                      {p.status || "da_configurare"}
+                    </Badge>
                   </TableCell>
                   <TableCell className="text-sm">{p.minStart ? format(new Date(p.minStart), "dd MMM yy", { locale: it }) : "—"}</TableCell>
-                  <TableCell className="text-sm">{format(new Date(p.handover_date), "dd MMM yy", { locale: it })}</TableCell>
+                  <TableCell className="text-sm">{p.handover_date ? format(new Date(p.handover_date), "dd MMM yy", { locale: it }) : "—"}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">{p.profiles?.full_name || "—"}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
@@ -508,7 +513,7 @@ export default function CeoDashboard() {
         </div>
       ) : (
         <>
-          <KpiStrip tasks={tasks} payments={payments} />
+          <KpiStrip tasks={tasks} payments={payments} projects={projects} />
 
           <PMCalendar projects={calendarProjects} adminMode pmNames={pmNames} />
 
