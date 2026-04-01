@@ -71,12 +71,12 @@ export function useCertPayments() {
 
 export function useActiveProjects() {
   return useQuery({
-    queryKey: ["ceo-active-projects-v2"],
+    queryKey: ["ceo-all-projects-v3"], // Cache key aggiornata
     queryFn: async () => {
+      // FIX: Rimosso il filtro di stato per includere Da Configurare e Certificati
       const { data, error } = await (supabase as any)
         .from("projects")
         .select("*, profiles!projects_pm_id_fkey(full_name)")
-        .in("status", ["Design", "Construction"])
         .order("handover_date", { ascending: true });
       if (error) throw error;
       return (data || []) as ProjectRow[];
@@ -84,42 +84,72 @@ export function useActiveProjects() {
   });
 }
 
-// Derived computations
-export function computeProjectStatus(tasks: CertTaskRow[]) {
+// Derived computations (Nuova logica connessa agli status del PM)
+export function computeProjectStatus(projects: ProjectRow[], tasks: CertTaskRow[]) {
   const today = new Date();
-  const byProject = new Map<string, { name: string; tasks: CertTaskRow[] }>();
+  today.setHours(0, 0, 0, 0);
 
+  const tasksByProject = new Map<string, CertTaskRow[]>();
   for (const t of tasks) {
-    const pid = t.project_id;
-    if (!byProject.has(pid)) {
-      byProject.set(pid, { name: t.projects?.name || pid, tasks: [] });
-    }
-    byProject.get(pid)!.tasks.push(t);
+    if (!tasksByProject.has(t.project_id)) tasksByProject.set(t.project_id, []);
+    tasksByProject.get(t.project_id)!.push(t);
   }
 
-  let late = 0, inProgress = 0, toStart = 0;
+  let inRitardo = 0;
+  let inCorso = 0;
+  let daConfigurare = 0;
+  let certificati = 0;
   const lateProjects: { name: string; daysLate: number }[] = [];
 
-  for (const [, proj] of byProject) {
-    const incompleteTasks = proj.tasks.filter(t => t.status !== "Completed");
-    const hasLate = incompleteTasks.some(t => t.end_date && new Date(t.end_date) < today);
+  for (const p of projects) {
+    // 1. Certificati (Stato definitivo chiuso dal PM)
+    if (p.status === "certificato" || p.status === "certified") {
+      certificati++;
+      continue;
+    }
 
-    if (hasLate) {
-      late++;
-      const maxDays = Math.max(
-        ...incompleteTasks
-          .filter(t => t.end_date && new Date(t.end_date) < today)
-          .map(t => differenceInDays(today, new Date(t.end_date!)))
-      );
-      lateProjects.push({ name: proj.name, daysLate: maxDays });
-    } else if (incompleteTasks.some(t => t.status === "In_Progress")) {
-      inProgress++;
+    // 2. Da Configurare (Progetti nuovi appena assegnati o non inizializzati)
+    if (!p.status || p.status === "pending" || p.status === "da_configurare") {
+      daConfigurare++;
+      continue;
+    }
+
+    // 3. In Corso vs In Ritardo (Se non è certificato né da configurare, è attivo)
+    let isLate = false;
+    let maxDaysLate = 0;
+
+    // A. Controllo sul ritardo del progetto generale (Handover Date)
+    if (p.handover_date) {
+      const handover = new Date(p.handover_date);
+      if (handover < today) {
+        isLate = true;
+        maxDaysLate = Math.max(maxDaysLate, differenceInDays(today, handover));
+      }
+    }
+
+    // B. Controllo sulle singole Task operative assegnate (Gantt)
+    const pTasks = tasksByProject.get(p.id) || [];
+    const incompleteTasks = pTasks.filter(t => t.status !== "Completed");
+    for (const t of incompleteTasks) {
+      if (t.end_date) {
+        const endDate = new Date(t.end_date);
+        if (endDate < today) {
+          isLate = true;
+          maxDaysLate = Math.max(maxDaysLate, differenceInDays(today, endDate));
+        }
+      }
+    }
+
+    // Smistamento finale
+    if (isLate) {
+      inRitardo++;
+      lateProjects.push({ name: p.name, daysLate: maxDaysLate });
     } else {
-      toStart++;
+      inCorso++; // Il cantiere è attivo e le scadenze (task e handover) sono in regola
     }
   }
 
-  return { late, inProgress, toStart, lateProjects, byProject };
+  return { inRitardo, inCorso, daConfigurare, certificati, lateProjects };
 }
 
 export function computeOverduePayments(payments: CertPaymentRow[]) {
