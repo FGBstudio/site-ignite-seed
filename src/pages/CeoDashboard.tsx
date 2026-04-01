@@ -139,10 +139,172 @@ function KpiStrip({ tasks, payments, projects }: { tasks: CertTaskRow[]; payment
 // ============================================================
 // Tab: Risorse
 // ============================================================
-function TabRisorse({ tasks }: { tasks: CertTaskRow[] }) {
+function TabRisorse({ tasks, projects }: { tasks: CertTaskRow[]; projects: ProjectRow[] }) {
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
 
+  // Build user map from BOTH cert_tasks assignees AND project PMs
   const userMap = useMemo(() => {
+    const map = new Map<string, { name: string; tasks: CertTaskRow[]; projectCount: number }>();
+
+    // 1. Add all PMs from projects
+    for (const p of projects) {
+      if (!p.pm_id) continue;
+      if (!map.has(p.pm_id)) {
+        map.set(p.pm_id, { name: p.pm_display_name || "PM senza nome", tasks: [], projectCount: 0 });
+      }
+      map.get(p.pm_id)!.projectCount++;
+    }
+
+    // 2. Add cert_tasks assignees and their tasks
+    for (const t of tasks) {
+      if (!t.assignee_id) continue;
+      if (!map.has(t.assignee_id)) {
+        map.set(t.assignee_id, { name: t.profiles?.full_name || "Senza nome", tasks: [], projectCount: 0 });
+      }
+      map.get(t.assignee_id)!.tasks.push(t);
+    }
+    return map;
+  }, [tasks, projects]);
+
+  const users = useMemo(() =>
+    Array.from(userMap.entries()).map(([id, v]) => ({ id, ...v })).sort((a, b) => b.tasks.length - a.tasks.length || b.projectCount - a.projectCount),
+    [userMap]
+  );
+
+  const selectedTasks = useMemo(() => {
+    if (!selectedUser) return [];
+    return userMap.get(selectedUser)?.tasks || [];
+  }, [selectedUser, userMap]);
+
+  const tasksByProject = useMemo(() => {
+    const map = new Map<string, { projectName: string; tasks: CertTaskRow[] }>();
+    for (const t of selectedTasks) {
+      if (!map.has(t.project_id)) {
+        map.set(t.project_id, { projectName: t.projects?.name || "—", tasks: [] });
+      }
+      map.get(t.project_id)!.tasks.push(t);
+    }
+    return Array.from(map.values());
+  }, [selectedTasks]);
+
+  const computeSaturation = (userTasks: CertTaskRow[]) => {
+    const withDates = userTasks.filter(t => t.start_date && t.end_date && t.status !== "Completed");
+    if (withDates.length <= 1) return withDates.length;
+    let maxOverlap = 1;
+    for (let i = 0; i < withDates.length; i++) {
+      let overlap = 1;
+      for (let j = 0; j < withDates.length; j++) {
+        if (i === j) continue;
+        const s1 = new Date(withDates[i].start_date!), e1 = new Date(withDates[i].end_date!);
+        const s2 = new Date(withDates[j].start_date!), e2 = new Date(withDates[j].end_date!);
+        if (s1 <= e2 && s2 <= e1) overlap++;
+      }
+      maxOverlap = Math.max(maxOverlap, overlap);
+    }
+    return maxOverlap;
+  };
+
+  const getUserProjectCount = (userId: string) => {
+    return projects.filter(p => p.pm_id === userId).length;
+  };
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <Card className="md:col-span-1">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">PM / DM / Specialisti</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="max-h-[450px] overflow-y-auto">
+            {users.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">Nessuna risorsa assegnata</p>
+            ) : users.map(u => {
+              const sat = computeSaturation(u.tasks);
+              const pCount = getUserProjectCount(u.id);
+              const satColor = sat >= 4 ? "text-destructive" : sat >= 2 ? "text-warning" : "text-success";
+              return (
+                <button
+                  key={u.id}
+                  onClick={() => setSelectedUser(u.id === selectedUser ? null : u.id)}
+                  className={cn(
+                    "w-full text-left px-4 py-3 border-b transition-colors hover:bg-muted/50 flex justify-between items-center",
+                    selectedUser === u.id && "bg-primary/5 border-l-2 border-l-primary"
+                  )}
+                >
+                  <div>
+                    <p className="font-medium text-sm text-foreground">{u.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {pCount} progett{pCount === 1 ? "o" : "i"} · {u.tasks.filter(t => t.status !== "Completed").length} task attive
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    {u.tasks.length > 0 ? (
+                      <Badge variant="outline" className={cn("text-xs", satColor)}>
+                        Saturazione: {sat}x
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-xs text-muted-foreground">
+                        Nessuna task
+                      </Badge>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="md:col-span-2">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">
+            {selectedUser ? `Task di ${userMap.get(selectedUser)?.name}` : "Seleziona una risorsa"}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {!selectedUser ? (
+            <p className="text-sm text-muted-foreground text-center py-12">Clicca su un nome a sinistra per vedere le task assegnate</p>
+          ) : tasksByProject.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-sm text-muted-foreground">Nessuna task operativa assegnata</p>
+              {getUserProjectCount(selectedUser) > 0 && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Questa risorsa è PM di {getUserProjectCount(selectedUser)} progett{getUserProjectCount(selectedUser) === 1 ? "o" : "i"}
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-4 max-h-[400px] overflow-y-auto">
+              {tasksByProject.map(({ projectName, tasks: pTasks }) => (
+                <div key={projectName}>
+                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">{projectName}</h4>
+                  <div className="space-y-1">
+                    {pTasks.map(t => {
+                      const statusColor = t.status === "Completed" ? "bg-success/10 text-success" :
+                        t.status === "Blocked" ? "bg-destructive/10 text-destructive" :
+                        t.status === "In_Progress" ? "bg-warning/10 text-warning" : "bg-muted text-muted-foreground";
+                      return (
+                        <div key={t.id} className="flex items-center justify-between p-2 rounded border bg-card">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-foreground truncate">{t.title}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {t.start_date ? format(new Date(t.start_date), "dd MMM", { locale: it }) : "—"} → {t.end_date ? format(new Date(t.end_date), "dd MMM", { locale: it }) : "—"}
+                            </p>
+                          </div>
+                          <Badge variant="outline" className={cn("text-xs ml-2 shrink-0", statusColor)}>{t.status.replace("_", " ")}</Badge>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
     const map = new Map<string, { name: string; tasks: CertTaskRow[] }>();
     for (const t of tasks) {
       if (!t.assignee_id) continue;
