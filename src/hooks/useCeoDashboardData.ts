@@ -88,7 +88,7 @@ export function useActiveProjects() {
       if (pmIds.length > 0) {
         const { data: profiles } = await supabase
           .from("profiles")
-          .select("id, full_name, display_name")
+          .select("id, full_name, display_name, email")
           .in("id", pmIds);
         if (profiles) {
           for (const pr of profiles) {
