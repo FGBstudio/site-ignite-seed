@@ -183,21 +183,14 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
             let actualWidth = 0;
             
             if (row.status === 'achieved') {
-              // Se Completata: Campitura PIENA sull'intera durata
-              if (aStart !== null && aEnd !== null) {
-                actualWidth = Math.max(aEnd - aStart, 1);
-              } else if (pStart !== null && pEnd !== null) {
-                aStart = pStart;
-                actualWidth = planWidth;
-              }
+              // Completata: la barra plan è già piena verde, no overlay separato
+              actualWidth = 0;
             } else if (row.status === 'in_progress') {
-              // Se In Corso: Campitura Piena in base alla % di avanzamento sul piano
               if (aStart !== null && planWidth > 0) {
                 actualWidth = planWidth * (row.progress / 100);
-                if (actualWidth < 4) actualWidth = 4; // Spessore visivo minimo
+                if (actualWidth < 4) actualWidth = 4;
               }
             } else if (row.status === 'late') {
-              // Se In Ritardo
               if (aStart !== null) {
                 if (aEnd !== null) {
                   actualWidth = Math.max(aEnd - aStart, 1);
@@ -205,7 +198,7 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
                   actualWidth = planWidth * (row.progress / 100);
                   if (actualWidth < 4) actualWidth = 4;
                 } else {
-                  actualWidth = 4; // Mostra solo un pallino rosso di inizio
+                  actualWidth = 4;
                 }
               }
             }
