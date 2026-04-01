@@ -183,21 +183,14 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
             let actualWidth = 0;
             
             if (row.status === 'achieved') {
-              // Se Completata: Campitura PIENA sull'intera durata
-              if (aStart !== null && aEnd !== null) {
-                actualWidth = Math.max(aEnd - aStart, 1);
-              } else if (pStart !== null && pEnd !== null) {
-                aStart = pStart;
-                actualWidth = planWidth;
-              }
+              // Completata: la barra plan è già piena verde, no overlay separato
+              actualWidth = 0;
             } else if (row.status === 'in_progress') {
-              // Se In Corso: Campitura Piena in base alla % di avanzamento sul piano
               if (aStart !== null && planWidth > 0) {
                 actualWidth = planWidth * (row.progress / 100);
-                if (actualWidth < 4) actualWidth = 4; // Spessore visivo minimo
+                if (actualWidth < 4) actualWidth = 4;
               }
             } else if (row.status === 'late') {
-              // Se In Ritardo
               if (aStart !== null) {
                 if (aEnd !== null) {
                   actualWidth = Math.max(aEnd - aStart, 1);
@@ -205,22 +198,30 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
                   actualWidth = planWidth * (row.progress / 100);
                   if (actualWidth < 4) actualWidth = 4;
                 } else {
-                  actualWidth = 4; // Mostra solo un pallino rosso di inizio
+                  actualWidth = 4;
                 }
               }
             }
 
             // COLORI DINAMICI - Grammatica FGB
-            let planBaseClass = "border-2 border-dashed border-gray-400 bg-gray-100/50"; // Grigie tratteggiate (In Attesa)
-            let actualColor = "bg-[#009293]"; // Verde FGB (Completate / In Corso)
+            // Pending: grigio tratteggiato | In corso: FGB tratteggiato | Completato: FGB verde pieno
+            let planBaseClass = "";
+            let actualColor = "";
+            const dashedBg = "repeating-linear-gradient(90deg, transparent, transparent 4px, currentColor 4px, currentColor 6px)";
 
-            if (row.status === "in_progress") {
-              planBaseClass = "border-2 border-dashed border-[#009293] bg-[#009293]/10"; // Verdino tratteggiato
+            if (row.status === "pending") {
+              planBaseClass = "border border-dashed border-gray-400/70 bg-gray-200/40";
+            } else if (row.status === "in_progress") {
+              planBaseClass = "border border-dashed border-[#009293]/60 bg-[#009293]/10";
+              actualColor = "bg-[#009293]";
             } else if (row.status === "achieved") {
-              planBaseClass = "border-2 border-[#009293]/20 bg-[#009293]/10"; // Sfondo per completate
+              planBaseClass = "bg-[#009293] border-none";
+              actualColor = "bg-[#009293]";
             } else if (row.status === "late") {
-              planBaseClass = "border-2 border-dashed border-red-400 bg-red-50"; 
+              planBaseClass = "border border-dashed border-red-400/70 bg-red-100/40";
               actualColor = "bg-red-500";
+            } else {
+              planBaseClass = "border border-dashed border-gray-400/70 bg-gray-200/40";
             }
 
             return (
