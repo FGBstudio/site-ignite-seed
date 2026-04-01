@@ -211,16 +211,24 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
             }
 
             // COLORI DINAMICI - Grammatica FGB
-            let planBaseClass = "border-2 border-dashed border-gray-400 bg-gray-100/50"; // Grigie tratteggiate (In Attesa)
-            let actualColor = "bg-[#009293]"; // Verde FGB (Completate / In Corso)
+            // Pending: grigio tratteggiato | In corso: FGB tratteggiato | Completato: FGB verde pieno
+            let planBaseClass = "";
+            let actualColor = "";
+            const dashedBg = "repeating-linear-gradient(90deg, transparent, transparent 4px, currentColor 4px, currentColor 6px)";
 
-            if (row.status === "in_progress") {
-              planBaseClass = "border-2 border-dashed border-[#009293] bg-[#009293]/10"; // Verdino tratteggiato
+            if (row.status === "pending") {
+              planBaseClass = "border border-dashed border-gray-400/70 bg-gray-200/40";
+            } else if (row.status === "in_progress") {
+              planBaseClass = "border border-dashed border-[#009293]/60 bg-[#009293]/10";
+              actualColor = "bg-[#009293]";
             } else if (row.status === "achieved") {
-              planBaseClass = "border-2 border-[#009293]/20 bg-[#009293]/10"; // Sfondo per completate
+              planBaseClass = "bg-[#009293] border-none";
+              actualColor = "bg-[#009293]";
             } else if (row.status === "late") {
-              planBaseClass = "border-2 border-dashed border-red-400 bg-red-50"; 
+              planBaseClass = "border border-dashed border-red-400/70 bg-red-100/40";
               actualColor = "bg-red-500";
+            } else {
+              planBaseClass = "border border-dashed border-gray-400/70 bg-gray-200/40";
             }
 
             return (
