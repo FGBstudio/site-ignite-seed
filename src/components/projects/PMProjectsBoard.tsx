@@ -9,6 +9,8 @@ import {
   Clock3,
   Layers3,
   Settings2,
+  LayoutGrid,
+  GanttChartSquare,
 } from "lucide-react";
 import { usePMDashboard, type PMProject } from "@/hooks/usePMDashboard";
 import { cn } from "@/lib/utils";
@@ -17,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { FGBPlanner } from "@/components/dashboard/FGBPlanner";
 
 type PMProjectView = PMProject & {
   project_subtype?: string | null;
@@ -179,38 +182,72 @@ export function PMProjectsBoard() {
 
   return (
     <>
-      <Tabs defaultValue="da_configurare" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
-          {Object.entries(STATUS_META).map(([key, meta]) => {
-            const Icon = meta.icon;
-            return (
-              <TabsTrigger key={key} value={key} className="gap-2">
-                <Icon className="h-4 w-4" />
-                {meta.label} ({groupedProjects[key as keyof typeof groupedProjects].length})
-              </TabsTrigger>
-            );
-          })}
-        </TabsList>
+      <Tabs defaultValue="kanban" className="w-full space-y-6">
+        
+        {/* HEADER CON IL TOGGLE VIEW */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
+          <h2 className="text-xl font-bold tracking-tight">Panoramica Cantieri</h2>
+          <TabsList className="bg-muted">
+            <TabsTrigger value="kanban" className="gap-2">
+              <LayoutGrid className="w-4 h-4" /> Kanban Board
+            </TabsTrigger>
+            <TabsTrigger value="planner" className="gap-2">
+              <GanttChartSquare className="w-4 h-4" /> Planner Globale
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
-        {(Object.keys(STATUS_META) as Array<keyof typeof STATUS_META>).map((key) => (
-          <TabsContent key={key} value={key} className="space-y-4">
-            {groupedProjects[key].length === 0 ? (
-              <Card>
-                <CardContent className="py-12 text-center text-muted-foreground">
-                  {STATUS_META[key].emptyMessage}
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid gap-4 xl:grid-cols-2">
-                {groupedProjects[key].map((project) => (
-                  <PMProjectCard key={project.id} project={project} onConfigure={setSelectedProject} />
-                ))}
-              </div>
-            )}
-          </TabsContent>
-        ))}
+        {/* 1. VISTA ORIGINALE KANBAN (A schede operative) */}
+        <TabsContent value="kanban" className="m-0 focus-visible:outline-none">
+          <Tabs defaultValue="da_configurare" className="space-y-6">
+            <TabsList className="grid w-full grid-cols-3">
+              {Object.entries(STATUS_META).map(([key, meta]) => {
+                const Icon = meta.icon;
+                return (
+                  <TabsTrigger key={key} value={key} className="gap-2">
+                    <Icon className="h-4 w-4" />
+                    {meta.label} ({groupedProjects[key as keyof typeof groupedProjects].length})
+                  </TabsTrigger>
+                );
+              })}
+            </TabsList>
+
+            {(Object.keys(STATUS_META) as Array<keyof typeof STATUS_META>).map((key) => (
+              <TabsContent key={key} value={key} className="space-y-4">
+                {groupedProjects[key].length === 0 ? (
+                  <Card>
+                    <CardContent className="py-12 text-center text-muted-foreground">
+                      {STATUS_META[key].emptyMessage}
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="grid gap-4 xl:grid-cols-2">
+                    {groupedProjects[key].map((project) => (
+                      <PMProjectCard key={project.id} project={project} onConfigure={setSelectedProject} />
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+            ))}
+          </Tabs>
+        </TabsContent>
+
+        {/* 2. NUOVA VISTA PLANNER GLOBALE (Gantt) */}
+        <TabsContent value="planner" className="m-0 focus-visible:outline-none">
+          <div className="h-[600px] border rounded-lg shadow-sm bg-background">
+            <FGBPlanner 
+              data={projects.map(p => ({
+                ...p.plannerData,
+                // Assicurati che il clic sulla riga del Gantt apra lo stesso modale delle card!
+                onClick: () => setSelectedProject(p as PMProjectView) 
+              }))} 
+            />
+          </div>
+        </TabsContent>
+
       </Tabs>
 
+      {/* IL MODALE (Appare sia cliccando sulle card che sulle righe del Gantt) */}
       {selectedProject && (
         <PMProjectConfigModal
           project={selectedProject}
