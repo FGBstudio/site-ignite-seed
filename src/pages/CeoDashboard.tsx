@@ -305,9 +305,8 @@ function TabRisorse({ tasks, projects }: { tasks: CertTaskRow[]; projects: Proje
     </div>
   );
 }
-    const map = new Map<string, { name: string; tasks: CertTaskRow[] }>();
-    for (const t of tasks) {
-      if (!t.assignee_id) continue;
+
+
       if (!map.has(t.assignee_id)) {
         map.set(t.assignee_id, { name: t.profiles?.full_name || "Senza nome", tasks: [] });
       }
