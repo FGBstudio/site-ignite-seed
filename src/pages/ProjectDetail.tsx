@@ -55,17 +55,20 @@ export default function ProjectDetail() {
   // MAP: Trasformiamo le righe del DB in dati compatibili col Motore Gantt
   // =======================================================================
   const plannerData: GanttRowData[] = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
+    if (!project || timelineMilestones.length === 0) return [];
 
-    return timelineMilestones.map((m: any) => {
-      // Estraiamo il ruolo dalle note JSON (se presente)
+    const today = new Date().toISOString().slice(0, 10);
+    // Data di lancio globale del progetto
+    const projectLaunchDate = project.created_at.slice(0, 10);
+
+    // Mappatura delle singole fasi
+    const phases: GanttRowData[] = timelineMilestones.map((m: any) => {
       let role = "Specialista";
       try {
         const meta = JSON.parse(m.notes || "{}");
         if (meta.assigned_to_role) role = meta.assigned_to_role;
       } catch (e) {}
 
-      // Logica dei colori/status (Rosso se la scadenza è passata e non è completato)
       let displayStatus = m.status;
       if (m.status !== "achieved" && m.due_date && m.due_date < today) {
         displayStatus = "late"; // Diventa Rosso
@@ -79,16 +82,38 @@ export default function ProjectDetail() {
         id: m.id,
         label: m.requirement,
         subLabel: `Ruolo: ${role}`,
+        launchDate: projectLaunchDate, // Viene mappata in tutte le righe
         planStart: m.start_date,
         planEnd: m.due_date,
-        // Se è in attesa, non mostriamo la barra solida di esecuzione reale
         actualStart: m.status !== "pending" ? m.start_date : null,
         actualEnd: m.completed_date || null,
         progress: m.status === "achieved" ? 100 : m.status === "in_progress" ? 50 : 0,
         status: displayStatus,
       };
     });
-  }, [timelineMilestones]);
+
+    // RIGA RIASSUNTIVA DEL PROGETTO (Macro-Avanzamento)
+    const totalAchieved = timelineMilestones.filter((m: any) => m.status === 'achieved').length;
+    const overallProgress = timelineMilestones.length > 0 ? Math.round((totalAchieved / timelineMilestones.length) * 100) : 0;
+    
+    // Trova la primissima data di inizio tra tutte le fasi
+    const firstStartDate = timelineMilestones.map((m: any) => m.start_date).filter(Boolean).sort()[0] || projectLaunchDate;
+
+    const summaryRow: GanttRowData = {
+      id: "summary",
+      label: "TOTALE CANTIERE",
+      subLabel: "Avanzamento Globale",
+      launchDate: projectLaunchDate,
+      planStart: firstStartDate,
+      planEnd: project.handover_date,
+      actualStart: overallProgress > 0 ? firstStartDate : null,
+      actualEnd: project.status === "certificato" ? today : null,
+      progress: overallProgress,
+      status: project.status === "certificato" ? "achieved" : (project.handover_date < today ? "late" : "in_progress"),
+    };
+
+    return [summaryRow, ...phases];
+  }, [timelineMilestones, project]);
 
   if (isLoading) {
     return (
@@ -180,7 +205,7 @@ export default function ProjectDetail() {
           <TabsTrigger value="payments">Pagamenti</TabsTrigger>
         </TabsList>
 
-        {/* NUOVO TAB: PLANNER MICRO-VISTA */}
+        {/* NUOVO TAB: PLANNER MICRO-VISTA CON LA DATA GRID E RIGA TOTALE */}
         <TabsContent value="planner">
           <Card>
             <CardContent className="p-0 border-none">
@@ -189,7 +214,7 @@ export default function ProjectDetail() {
                   Nessuna timeline inizializzata. Configura il progetto dalla dashboard PM.
                 </div>
               ) : (
-                <div className="h-[600px]">
+                <div className="h-[600px] flex flex-col">
                   <FGBPlanner data={plannerData} />
                 </div>
               )}
