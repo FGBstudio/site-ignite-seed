@@ -9,18 +9,21 @@ export interface GanttRowData {
   label: string;
   subLabel?: string;
   
+  launchDate?: string | null; // Data di riferimento iniziale
+  
   // Baseline (Tratteggio)
-  planStart: string | null;
-  planEnd: string | null;
+  planStart: string | null;   // Inizio previsto
+  planEnd: string | null;     // Fine prevista
   
   // Actual (Barra Piena)
-  actualStart: string | null;
-  actualEnd: string | null;
+  actualStart: string | null; // Inizio effettivo
+  actualEnd: string | null;   // Fine effettiva
   
   progress: number; // 0 - 100
   status: "pending" | "in_progress" | "achieved" | "late" | string;
   
   onClickUrl?: string;
+  onClick?: () => void;
 }
 
 interface FGBPlannerProps {
@@ -38,6 +41,7 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
 
     data.forEach((row) => {
       const dates = [
+        row.launchDate ? new Date(row.launchDate) : null,
         row.planStart ? new Date(row.planStart) : null,
         row.planEnd ? new Date(row.planEnd) : null,
         row.actualStart ? new Date(row.actualStart) : null,
@@ -75,48 +79,86 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
   const today = new Date();
   const todayOffset = differenceInDays(today, minDate);
 
+  // Formattatore rapido per le date nella tabella
+  const fmt = (d: Date | null) => d ? format(d, "dd/MM/yy") : "—";
+
   return (
     <div className="flex h-full w-full bg-background border rounded-lg overflow-hidden text-sm">
       
-      {/* PANNELLO SINISTRO (Dati Tabellari) */}
-      <div className="w-[350px] flex-shrink-0 border-r bg-muted/10 flex flex-col z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
-        {/* Header Sinistro */}
-        <div className="h-12 border-b flex items-center px-4 font-semibold text-xs text-muted-foreground uppercase tracking-wide bg-muted/30">
-          <div className="flex-1">Attività / Fase</div>
-          <div className="w-16 text-right">Prog.</div>
+      {/* PANNELLO SINISTRO (Data Grid Ingegneristica) */}
+      <div className="max-w-[65%] flex-shrink-0 border-r bg-muted/10 flex flex-col z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] overflow-x-auto custom-scrollbar">
+        
+        {/* Header Tabella Sinistro */}
+        <div className="h-12 border-b flex items-center px-4 font-semibold text-[10px] text-muted-foreground uppercase tracking-wide bg-muted/30 w-max">
+          <div className="w-[200px] shrink-0">Attività / Fase</div>
+          <div className="w-[75px] shrink-0">Launch</div>
+          <div className="w-[75px] shrink-0">Start Plan</div>
+          <div className="w-[75px] shrink-0">End Fcst</div>
+          <div className="w-[75px] shrink-0">End Act</div>
+          <div className="w-[60px] shrink-0 text-right">Plan St</div>
+          <div className="w-[60px] shrink-0 text-right">Plan Dur</div>
+          <div className="w-[60px] shrink-0 text-right">Act St</div>
+          <div className="w-[60px] shrink-0 text-right">Act Dur</div>
+          <div className="w-[60px] shrink-0 text-right">% Comp</div>
         </div>
         
         {/* Righe Sinistre */}
-        <div className="flex-1 overflow-y-hidden">
-          {data.map((row) => (
-            <div 
-              key={row.id} 
-              className={cn(
-                "h-14 border-b flex flex-col justify-center px-4 hover:bg-muted/50 transition-colors",
-                row.onClickUrl && "cursor-pointer"
-              )}
-              onClick={() => row.onClickUrl && navigate(row.onClickUrl)}
-            >
-              <div className="flex items-center justify-between">
-                <span className="font-semibold text-foreground truncate pr-2">{row.label}</span>
-                <span className="text-xs font-mono text-muted-foreground">{Math.round(row.progress)}%</span>
+        <div className="flex-1 overflow-y-hidden w-max">
+          {data.map((row) => {
+            const pStart = row.planStart ? new Date(row.planStart) : null;
+            const pEnd = row.planEnd ? new Date(row.planEnd) : null;
+            const aStart = row.actualStart ? new Date(row.actualStart) : null;
+            const aEnd = row.actualEnd ? new Date(row.actualEnd) : null;
+            const launch = row.launchDate ? new Date(row.launchDate) : pStart;
+
+            // Calcoli Matematici Specifici
+            const planStartOffset = pStart ? differenceInDays(pStart, minDate) : "—";
+            const planDuration = pStart && pEnd ? Math.max(differenceInDays(pEnd, pStart), 1) : "—";
+            const actStartOffset = aStart ? differenceInDays(aStart, minDate) : "—";
+            const actDuration = aStart && aEnd 
+                ? Math.max(differenceInDays(aEnd, aStart), 1) 
+                : (aStart && row.progress > 0 ? Math.max(differenceInDays(today, aStart), 1) : "—");
+
+            return (
+              <div 
+                key={row.id} 
+                className={cn(
+                  "h-14 border-b flex items-center px-4 hover:bg-muted/50 transition-colors",
+                  (row.onClickUrl || row.onClick) && "cursor-pointer",
+                  row.id === "summary" && "bg-primary/5 font-semibold"
+                )}
+                onClick={() => {
+                  if (row.onClick) row.onClick();
+                  else if (row.onClickUrl) navigate(row.onClickUrl);
+                }}
+              >
+                <div className="w-[200px] shrink-0 pr-2 flex flex-col justify-center">
+                  <span className="text-sm truncate text-foreground">{row.label}</span>
+                  {row.subLabel && <span className="text-[10px] text-muted-foreground truncate">{row.subLabel}</span>}
+                </div>
+                <div className="w-[75px] shrink-0 text-xs text-muted-foreground">{fmt(launch)}</div>
+                <div className="w-[75px] shrink-0 text-xs">{fmt(pStart)}</div>
+                <div className="w-[75px] shrink-0 text-xs">{fmt(pEnd)}</div>
+                <div className="w-[75px] shrink-0 text-xs">{fmt(aEnd)}</div>
+                <div className="w-[60px] shrink-0 text-xs text-right font-mono text-muted-foreground">{planStartOffset}</div>
+                <div className="w-[60px] shrink-0 text-xs text-right font-mono">{planDuration}</div>
+                <div className="w-[60px] shrink-0 text-xs text-right font-mono text-muted-foreground">{actStartOffset}</div>
+                <div className="w-[60px] shrink-0 text-xs text-right font-mono">{actDuration}</div>
+                <div className="w-[60px] shrink-0 text-xs text-right font-bold text-primary">{Math.round(row.progress)}%</div>
               </div>
-              {row.subLabel && <span className="text-[10px] text-muted-foreground truncate">{row.subLabel}</span>}
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
       {/* PANNELLO DESTRO (Timeline Scorrevolmente Orizzontale) */}
-      <div className="flex-1 overflow-x-auto overflow-y-hidden relative custom-scrollbar">
+      <div className="flex-1 overflow-x-auto overflow-y-hidden relative custom-scrollbar bg-card">
         
         {/* Header Timeline (Giorni e Mesi) */}
         <div className="h-12 border-b bg-muted/30 relative" style={{ width: totalDays * dayWidth }}>
-          {/* Riga Mesi (opzionale, semplificata) */}
           <div className="absolute top-0 left-0 h-6 flex items-center text-[10px] font-bold text-muted-foreground uppercase px-2">
             Timeline
           </div>
-          {/* Riga Giorni (L, M, M, G, V, S, D) */}
           <div className="absolute bottom-0 left-0 h-6 flex">
             {days.map((d, i) => {
               const isWeekend = d.getDay() === 0 || d.getDay() === 6;
@@ -174,7 +216,10 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
             if (row.status === "late" || row.status === "ritardo") actualColor = "bg-red-500";
 
             return (
-              <div key={row.id} className="h-14 border-b relative group hover:bg-muted/10 transition-colors">
+              <div key={row.id} className={cn(
+                "h-14 border-b relative group hover:bg-muted/10 transition-colors",
+                row.id === "summary" && "bg-primary/5" // Sfondo leggero anche per la riga master nella timeline
+              )}>
                 
                 {/* 1. PLAN DURATION (La base tratteggiata) */}
                 {pStart !== null && pEnd !== null && (
@@ -182,7 +227,7 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
                     className="absolute top-4 h-6 border-2 border-dashed border-muted-foreground/40 rounded bg-[repeating-linear-gradient(45deg,transparent,transparent_4px,rgba(0,0,0,0.05)_4px,rgba(0,0,0,0.05)_8px)]"
                     style={{ 
                       left: pStart * dayWidth, 
-                      width: Math.max((pEnd - pStart) * dayWidth, dayWidth) // Minimo 1 giorno di larghezza
+                      width: Math.max((pEnd - pStart) * dayWidth, dayWidth) 
                     }}
                   />
                 )}
@@ -190,14 +235,13 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
                 {/* 2. ACTUAL DURATION (La barra di avanzamento reale) */}
                 {aStart !== null && aEnd !== null && (
                   <div 
-                    className={cn("absolute top-4 h-6 rounded shadow-sm z-10 transition-all", actualColor)}
+                    className={cn("absolute top-4 h-6 rounded shadow-sm z-10 transition-all opacity-90", actualColor)}
                     style={{ 
                       left: aStart * dayWidth, 
-                      width: Math.max((aEnd - aStart) * dayWidth, 4) // Minimo spessore visivo
+                      width: Math.max((aEnd - aStart) * dayWidth, 4) 
                     }}
                   />
                 )}
-
               </div>
             );
           })}
