@@ -346,7 +346,7 @@ function TabProgetti({ tasks, projects }: { tasks: CertTaskRow[]; projects: any[
                   </TableCell>
                   <TableCell className="text-sm">{p.minStart ? format(new Date(p.minStart), "dd MMM yy", { locale: it }) : "—"}</TableCell>
                   <TableCell className="text-sm">{p.handover_date ? format(new Date(p.handover_date), "dd MMM yy", { locale: it }) : "—"}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{p.profiles?.full_name || "—"}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{p.pm_display_name || "—"}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <Progress value={p.progress} className="h-2 flex-1" />
