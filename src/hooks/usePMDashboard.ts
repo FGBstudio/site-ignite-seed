@@ -27,6 +27,7 @@ export interface PMProject {
   setup_status: SetupStatus;
   missing: string[];
   certification_milestones: any[];
+  plannerData?: any; // <--- AGGIUNTO PER IL MOTORE GANTT
 }
 
 export function usePMDashboard() {
@@ -101,7 +102,7 @@ export function usePMDashboard() {
             (c: any) => c.status === "active" && c.issued_date && c.issued_date.slice(0, 10) <= today
           );
 
-        // Timeline: Check if timeline milestones EXIST (instead of requiring all dates to be filled)
+        // Timeline: Check if timeline milestones EXIST
         const timelineMilestones = projectMilestones.filter(
           (m: any) => m.milestone_type === "timeline"
         );
@@ -116,17 +117,52 @@ export function usePMDashboard() {
         if (!isCertified) {
           if (!hasTimeline) missing.push("Timeline");
           if (!hasScorecard) missing.push("Scorecard");
+          if (allocations.length === 0) missing.push("Hardware"); // RE-INSERITO IL FIX HARDWARE!
         }
 
         let setup_status: SetupStatus;
         if (isCertified) {
           setup_status = "certificato";
         } else if (hasTimeline && hasScorecard) {
-          // Both structures are generated, PM can work. Move to "In Corso"
           setup_status = "in_corso";
         } else {
           setup_status = "da_configurare";
         }
+
+        // =========================================================
+        // CALCOLO DATI MACRO-PLANNER (Il Motore Gantt Globale)
+        // =========================================================
+        let planStart = p.created_at.slice(0, 10); // Default: Data di assegnazione del progetto
+        let achievedCount = 0;
+        
+        if (hasTimeline) {
+          // Trova la prima data ufficiale inserita nel Gantt dal PM
+          const startDates = timelineMilestones.map((m: any) => m.start_date).filter(Boolean).sort();
+          if (startDates.length > 0) planStart = startDates[0];
+          
+          achievedCount = timelineMilestones.filter((m: any) => m.status === "achieved").length;
+        }
+        
+        // Calcolo saturazione 0-100%
+        const progress = hasTimeline ? Math.round((achievedCount / timelineMilestones.length) * 100) : 0;
+        
+        // Logica visiva (Rosso se in ritardo sulla consegna, verde se certificato)
+        let plannerStatus = setup_status === "certificato" ? "achieved" : "in_progress";
+        if (setup_status === "da_configurare") plannerStatus = "pending";
+        if (setup_status === "in_corso" && p.handover_date < today) plannerStatus = "late";
+
+        const plannerData = {
+          id: p.id,
+          label: p.name,
+          subLabel: p.client,
+          planStart: planStart,
+          planEnd: p.handover_date,
+          actualStart: setup_status !== "da_configurare" ? planStart : null,
+          actualEnd: setup_status === "certificato" ? today : null,
+          progress: progress,
+          status: plannerStatus
+        };
+        // =========================================================
 
         return {
           ...p,
@@ -134,6 +170,7 @@ export function usePMDashboard() {
           certification_milestones: projectMilestones,
           setup_status,
           missing,
+          plannerData, // Injectiamo i dati preparati
         };
       });
     },
