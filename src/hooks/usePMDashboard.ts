@@ -165,6 +165,13 @@ export function usePMDashboard() {
         // Calcolo saturazione 0-100% globale del progetto
         const progress = hasTimeline ? Math.round((achievedCount / timelineMilestones.length) * 100) : 0;
         
+        // --- AGGIUNTA PER TROVARE L'ATTIVITA' IN CORSO ---
+        const activeMilestone = timelineMilestones.find((m: any) => m.status === "in_progress");
+        const currentActivity = activeMilestone 
+          ? activeMilestone.requirement 
+          : (setup_status === "certificato" ? "Completato" : "In attesa");
+        // -------------------------------------------------
+
         // Logica visiva per la riga master del Progetto
         let plannerStatus = "pending";
         if (setup_status === "certificato") {
@@ -182,6 +189,7 @@ export function usePMDashboard() {
           label: p.name,
           subLabel: p.client,
           launchDate: projectLaunchDate, // Iniettato
+          currentActivity: currentActivity, // <--- AGGIUNTA QUI
           planStart: planStart,
           planEnd: p.handover_date,
           actualStart: plannerStatus !== "pending" ? planStart : null,
