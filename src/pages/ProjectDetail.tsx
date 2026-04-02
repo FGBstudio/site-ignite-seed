@@ -96,6 +96,7 @@ export default function ProjectDetail() {
         id: m.id,
         label: m.requirement,
         subLabel: `Ruolo: ${role}`,
+        currentActivity: m.status === "in_progress" ? m.requirement : (m.status === "achieved" ? "Completato" : "In attesa"),
         launchDate: projectLaunchDate, 
         planStart: m.start_date,
         planEnd: m.due_date,
@@ -112,10 +113,14 @@ export default function ProjectDetail() {
     
     const firstStartDate = timelineMilestones.map((m: any) => m.start_date).filter(Boolean).sort()[0] || projectLaunchDate;
 
+    const activeMilestone = timelineMilestones.find((m: any) => m.status === "in_progress");
+    const summaryActivity = activeMilestone ? activeMilestone.requirement : (project.status === "certificato" ? "Completato" : "In attesa");
+
     const summaryRow: GanttRowData = {
       id: "summary",
       label: "TOTALE CANTIERE",
       subLabel: "Avanzamento Globale",
+      currentActivity: summaryActivity,
       launchDate: projectLaunchDate,
       planStart: firstStartDate,
       planEnd: project.handover_date,
@@ -123,7 +128,7 @@ export default function ProjectDetail() {
       actualEnd: project.status === "certificato" ? today : null,
       progress: overallProgress,
       status: project.status === "certificato" ? "achieved" : (project.handover_date < today ? "late" : "in_progress"),
-      segments: projectSegments // <--- LA CHICCA: La riga master mostra il "treno" di segmenti FGB
+      segments: projectSegments
     };
 
     return [summaryRow, ...phases];
