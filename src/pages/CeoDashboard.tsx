@@ -552,6 +552,7 @@ export default function CeoDashboard() {
             <TabsList>
               <TabsTrigger value="risorse">Risorse</TabsTrigger>
               <TabsTrigger value="progetti">Progetti</TabsTrigger>
+              <TabsTrigger value="timeline">Timeline</TabsTrigger>
               <TabsTrigger value="pagamenti">Pagamenti</TabsTrigger>
             </TabsList>
 
