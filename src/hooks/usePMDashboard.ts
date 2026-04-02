@@ -117,7 +117,7 @@ export function usePMDashboard() {
         if (!isCertified) {
           if (!hasTimeline) missing.push("Timeline");
           if (!hasScorecard) missing.push("Scorecard");
-          if (allocations.length === 0) missing.push("Hardware"); // RE-INSERITO IL FIX HARDWARE!
+          if (allocations.length === 0) missing.push("Hardware");
         }
 
         let setup_status: SetupStatus;
@@ -130,37 +130,65 @@ export function usePMDashboard() {
         }
 
         // =========================================================
-        // CALCOLO DATI MACRO-PLANNER (Il Motore Gantt Globale)
+        // CALCOLO DATI MACRO-PLANNER (Il Motore Gantt a Segmenti)
         // =========================================================
-        let planStart = p.created_at.slice(0, 10); // Default: Data di assegnazione del progetto
+        const projectLaunchDate = p.created_at.slice(0, 10); // Launch date
+        let planStart = projectLaunchDate; // Default
         let achievedCount = 0;
         
+        const segments: any[] = []; // I "vagoni" del nostro treno di progetto
+        
         if (hasTimeline) {
-          // Trova la prima data ufficiale inserita nel Gantt dal PM
+          // Trova la prima data ufficiale per l'inizio del progetto globale
           const startDates = timelineMilestones.map((m: any) => m.start_date).filter(Boolean).sort();
           if (startDates.length > 0) planStart = startDates[0];
           
           achievedCount = timelineMilestones.filter((m: any) => m.status === "achieved").length;
+
+          // Popoliamo i segmenti iterando sulle milestone di questo progetto
+          timelineMilestones.forEach((m: any) => {
+            if (m.start_date && m.due_date) { // Includiamo solo le fasi con date valide
+              // Logica colore rosso per i segmenti in ritardo
+              let displayStatus = m.status;
+              if (m.status !== "achieved" && m.due_date < today) displayStatus = "late";
+
+              segments.push({
+                start: m.start_date,
+                end: m.due_date,
+                status: displayStatus,
+                progress: m.status === "achieved" ? 100 : m.status === "in_progress" ? 50 : 0
+              });
+            }
+          });
         }
         
-        // Calcolo saturazione 0-100%
+        // Calcolo saturazione 0-100% globale del progetto
         const progress = hasTimeline ? Math.round((achievedCount / timelineMilestones.length) * 100) : 0;
         
-        // Logica visiva (Rosso se in ritardo sulla consegna, verde se certificato)
-        let plannerStatus = setup_status === "certificato" ? "achieved" : "in_progress";
-        if (setup_status === "da_configurare") plannerStatus = "pending";
-        if (setup_status === "in_corso" && p.handover_date < today) plannerStatus = "late";
+        // Logica visiva per la riga master del Progetto
+        let plannerStatus = "pending";
+        if (setup_status === "certificato") {
+          plannerStatus = "achieved";
+        } else if (hasTimeline) {
+          // Se almeno una attività è iniziata o completata, il progetto è "in corso"
+          const hasActive = timelineMilestones.some((m: any) => m.status === "in_progress" || m.status === "achieved");
+          if (hasActive) {
+            plannerStatus = p.handover_date < today ? "late" : "in_progress";
+          }
+        }
 
         const plannerData = {
           id: p.id,
           label: p.name,
           subLabel: p.client,
+          launchDate: projectLaunchDate, // Iniettato
           planStart: planStart,
           planEnd: p.handover_date,
-          actualStart: setup_status !== "da_configurare" ? planStart : null,
+          actualStart: plannerStatus !== "pending" ? planStart : null,
           actualEnd: setup_status === "certificato" ? today : null,
           progress: progress,
-          status: plannerStatus
+          status: plannerStatus,
+          segments: segments // Iniettiamo l'array dei segmenti
         };
         // =========================================================
 
