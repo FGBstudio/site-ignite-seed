@@ -7,10 +7,10 @@ export function useProjectDetails(projectId: string | undefined) {
     queryFn: async () => {
       if (!projectId) throw new Error("No project ID");
       
-      const { data, error } = await (supabase as any)
+      // Fetch project without profiles join (FK points to auth.users, not profiles)
+      const { data: project, error } = await (supabase as any)
         .from("projects")
-        // FIX CRITICO: Inserito il disambiguatore esatto per 'sites' come nella dashboard
-        .select("*, profiles(*), sites!projects_site_id_fkey(name, city, country)")
+        .select("*, sites!projects_site_id_fkey(name, city, country)")
         .eq("id", projectId)
         .single();
         
@@ -18,23 +18,34 @@ export function useProjectDetails(projectId: string | undefined) {
         console.error("ERRORE Query Dettaglio Progetto:", error);
         throw error;
       }
-      return data;
+
+      // Fetch PM profile separately
+      if (project.pm_id) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("id, full_name, display_name, email")
+          .eq("id", project.pm_id)
+          .maybeSingle();
+        project.profiles = profile;
+      }
+
+      return project;
     },
     enabled: !!projectId,
   });
 }
 
-export function useCertification(projectId: string | undefined) {
+export function useCertification(projectId: string | undefined, siteId?: string | null) {
   return useQuery({
-    queryKey: ["certification", projectId],
+    queryKey: ["certification", projectId, siteId],
     queryFn: async () => {
-      if (!projectId) throw new Error("No project ID");
+      if (!siteId) return null;
       
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from("certifications")
         .select("*")
-        .eq("project_id", projectId)
-        .maybeSingle(); // FIX: Evita crash fatali se la certificazione non esiste ancora
+        .eq("site_id", siteId)
+        .maybeSingle();
         
       if (error) {
         console.error("ERRORE Query Certificazione:", error);
@@ -42,7 +53,7 @@ export function useCertification(projectId: string | undefined) {
       }
       return data;
     },
-    enabled: !!projectId,
+    enabled: !!siteId,
   });
 }
 

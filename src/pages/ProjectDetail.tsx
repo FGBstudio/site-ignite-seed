@@ -31,7 +31,7 @@ export default function ProjectDetail() {
   const projectId = params.projectId || params.id; 
   const navigate = useNavigate();
   const { data: project, isLoading } = useProjectDetails(projectId);
-  const { data: certification } = useCertification(projectId);
+  const { data: certification } = useCertification(projectId, project?.site_id);
   const { data: allocations } = useProjectAllocations(projectId);
 
   // =======================================================================
@@ -157,7 +157,7 @@ export default function ProjectDetail() {
   }
 
   const hasCert = (project as any).project_type === "LEED" || (project as any).project_type === "WELL";
-  const pmName = (project as any).profiles?.full_name || "—";
+  const pmName = (project as any).profiles?.display_name || (project as any).profiles?.full_name || (project as any).profiles?.email || "—";
   const siteName = (project as any).sites?.name;
   const siteCity = (project as any).sites?.city;
   const siteCountry = (project as any).sites?.country;
