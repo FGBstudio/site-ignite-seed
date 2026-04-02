@@ -30,12 +30,6 @@ export function useProjectDetails(projectId: string | undefined) {
       }
 
       return project;
-        
-      if (error) {
-        console.error("ERRORE Query Dettaglio Progetto:", error);
-        throw error;
-      }
-      return data;
     },
     enabled: !!projectId,
   });
