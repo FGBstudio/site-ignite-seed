@@ -31,7 +31,7 @@ export default function ProjectDetail() {
   const projectId = params.projectId || params.id; 
   const navigate = useNavigate();
   const { data: project, isLoading } = useProjectDetails(projectId);
-  const { data: certification } = useCertification(projectId);
+  const { data: certification } = useCertification(projectId, project?.site_id);
   const { data: allocations } = useProjectAllocations(projectId);
 
   // =======================================================================
