@@ -22,6 +22,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,15 @@ import {
 } from "@/components/ui/select";
 import { Loader2, Plus } from "lucide-react";
 import { RATING_SYSTEMS, RATING_SUBTYPES, type RatingSystem } from "@/data/ratingSubtypes";
+
+// ============================================================================
+// MAPPA DEI LIVELLI DI CERTIFICAZIONE CONSENTITI
+// ============================================================================
+const CERT_LEVELS: Record<string, string[]> = {
+  LEED: ["Certified", "Silver", "Gold", "Platinum"],
+  WELL: ["Bronze", "Silver", "Gold", "Platinum"],
+  BREEAM: ["Pass", "Good", "Very Good", "Excellent", "Outstanding"],
+};
 
 const formSchema = z
   .object({
@@ -58,6 +68,7 @@ const formSchema = z
     pm_id: z.string().optional(),
     cert_type: z.enum(["LEED", "WELL", "BREEAM", "CO2"]).optional(),
     cert_rating: z.string().optional(),
+    cert_level: z.string().optional(), // <--- NUOVO CAMPO
     project_subtype: z.string().optional(),
     is_commissioning: z.boolean().default(false),
   })
@@ -76,6 +87,16 @@ const formSchema = z
           message: "PM richiesto",
           path: ["pm_id"],
         });
+      }
+      // Validazione base Livello
+      if (data.cert_type && CERT_LEVELS[data.cert_type]) {
+        if (data.cert_level && !CERT_LEVELS[data.cert_type].includes(data.cert_level)) {
+           ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Livello non valido per ${data.cert_type}`,
+            path: ["cert_level"],
+          });
+        }
       }
     }
   });
@@ -115,11 +136,23 @@ export function SiteProjectOnboardingForm() {
   const availableSubtypes = watchedCertRating && RATING_SUBTYPES[watchedCertRating as RatingSystem]
     ? RATING_SUBTYPES[watchedCertRating as RatingSystem]
     : [];
+    
+  // Available levels based on selected certification type
+  const availableLevels = watchedCertType && CERT_LEVELS[watchedCertType] 
+    ? CERT_LEVELS[watchedCertType] 
+    : [];
 
   // Reset subtype when rating changes
   const handleRatingChange = (value: string, fieldOnChange: (v: string) => void) => {
     fieldOnChange(value);
     form.setValue("project_subtype", undefined);
+  };
+  
+  // Reset level when cert type changes
+  const handleCertTypeChange = (value: "LEED" | "WELL" | "BREEAM" | "CO2", fieldOnChange: (v: string) => void) => {
+    fieldOnChange(value);
+    // Selezionando un nuovo tipo, azzeriamo il livello precedente che potrebbe non essere compatibile
+    form.setValue("cert_level", undefined);
   };
 
   const onSubmit = async (values: FormValues) => {
@@ -147,6 +180,10 @@ export function SiteProjectOnboardingForm() {
       if (siteError) throw siteError;
 
       if (values.create_project && siteData?.id) {
+        
+        // Assicuriamoci che se il tipo non prevede livelli (es CO2), il valore sia null
+        const finalCertLevel = (values.cert_type && CERT_LEVELS[values.cert_type]) ? values.cert_level || null : null;
+
         const { error: projectError } = await supabase
           .from("projects")
           .insert({
@@ -159,6 +196,8 @@ export function SiteProjectOnboardingForm() {
             cert_type: values.cert_type || null,
             cert_rating: values.cert_rating || null,
             project_subtype: values.project_subtype || null,
+            // NOTA: Se la colonna 'cert_level' esiste in 'projects', viene salvata qui
+            cert_level: finalCertLevel, 
             is_commissioning: values.is_commissioning,
           } as any);
 
@@ -171,7 +210,7 @@ export function SiteProjectOnboardingForm() {
             .insert({
               site_id: siteData.id,
               cert_type: values.cert_type,
-              level: values.cert_rating || null,
+              level: finalCertLevel, // Utilizziamo il livello qui
               status: "in_progress",
               score: 0,
             });
@@ -484,7 +523,10 @@ export function SiteProjectOnboardingForm() {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Tipo Certificazione</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value || ""}>
+                          <Select 
+                            onValueChange={(v: any) => handleCertTypeChange(v, field.onChange)} 
+                            value={field.value || ""}
+                          >
                             <FormControl>
                               <SelectTrigger>
                                 <SelectValue placeholder="Seleziona" />
@@ -500,6 +542,40 @@ export function SiteProjectOnboardingForm() {
                         </FormItem>
                       )}
                     />
+                    
+                    {/* NUOVO CAMPO: Certificate Level */}
+                    <FormField
+                      control={form.control}
+                      name="cert_level"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Certificate Level</FormLabel>
+                          <Select
+                            onValueChange={field.onChange}
+                            value={field.value || ""}
+                            disabled={availableLevels.length === 0}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder={availableLevels.length === 0 ? "Non applicabile" : "Seleziona livello"} />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {availableLevels.map((v) => (
+                                <SelectItem key={v} value={v}>{v}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormDescription className="text-[10px] leading-tight">
+                            Le opzioni cambiano in base al tipo di certificazione selezionato.
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
                     <FormField
                       control={form.control}
                       name="cert_rating"
@@ -525,35 +601,35 @@ export function SiteProjectOnboardingForm() {
                         </FormItem>
                       )}
                     />
-                  </div>
 
-                  {/* Sottotipologia - dependent on cert_rating */}
-                  <FormField
-                    control={form.control}
-                    name="project_subtype"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Sottotipologia</FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          value={field.value || ""}
-                          disabled={availableSubtypes.length === 0}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder={availableSubtypes.length === 0 ? "Seleziona prima il Rating System" : "Seleziona sottotipologia"} />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {availableSubtypes.map((v) => (
-                              <SelectItem key={v} value={v}>{v}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                    {/* Sottotipologia - dependent on cert_rating */}
+                    <FormField
+                      control={form.control}
+                      name="project_subtype"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Sottotipologia</FormLabel>
+                          <Select
+                            onValueChange={field.onChange}
+                            value={field.value || ""}
+                            disabled={availableSubtypes.length === 0}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder={availableSubtypes.length === 0 ? "Seleziona Rating" : "Seleziona sottotipologia"} />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {availableSubtypes.map((v) => (
+                                <SelectItem key={v} value={v}>{v}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
 
                   <FormField
                     control={form.control}
