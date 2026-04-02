@@ -96,6 +96,7 @@ export default function ProjectDetail() {
         id: m.id,
         label: m.requirement,
         subLabel: `Ruolo: ${role}`,
+        currentActivity: m.status === "in_progress" ? m.requirement : (m.status === "achieved" ? "Completato" : "In attesa"),
         launchDate: projectLaunchDate, 
         planStart: m.start_date,
         planEnd: m.due_date,
