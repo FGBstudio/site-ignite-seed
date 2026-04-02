@@ -6,12 +6,18 @@ export function useProjectDetails(projectId: string | undefined) {
     queryKey: ["project", projectId],
     queryFn: async () => {
       if (!projectId) throw new Error("No project ID");
+      
       const { data, error } = await (supabase as any)
         .from("projects")
-        .select("*, profiles!projects_pm_id_fkey(full_name), sites(name, city, country)")
+        // FIX CRITICO: Inserito il disambiguatore esatto per 'sites' come nella dashboard
+        .select("*, profiles(*), sites!projects_site_id_fkey(name, city, country)")
         .eq("id", projectId)
         .single();
-      if (error) throw error;
+        
+      if (error) {
+        console.error("ERRORE Query Dettaglio Progetto:", error);
+        throw error;
+      }
       return data;
     },
     enabled: !!projectId,
@@ -23,12 +29,17 @@ export function useCertification(projectId: string | undefined) {
     queryKey: ["certification", projectId],
     queryFn: async () => {
       if (!projectId) throw new Error("No project ID");
+      
       const { data, error } = await (supabase as any)
         .from("certifications")
         .select("*")
         .eq("project_id", projectId)
-        .single();
-      if (error && error.code !== "PGRST116") throw error;
+        .maybeSingle(); // FIX: Evita crash fatali se la certificazione non esiste ancora
+        
+      if (error) {
+        console.error("ERRORE Query Certificazione:", error);
+        throw error;
+      }
       return data;
     },
     enabled: !!projectId,
