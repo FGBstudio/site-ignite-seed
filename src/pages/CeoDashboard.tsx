@@ -564,6 +564,10 @@ export default function CeoDashboard() {
               <TabProgetti tasks={tasks} projects={projects} />
             </TabsContent>
 
+            <TabsContent value="timeline">
+              <AdminTimeline />
+            </TabsContent>
+
             <TabsContent value="pagamenti">
               <TabPagamenti payments={payments} projects={projects} />
             </TabsContent>
