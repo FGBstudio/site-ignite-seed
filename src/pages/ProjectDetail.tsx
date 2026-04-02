@@ -13,11 +13,11 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 
-// --- NUOVI IMPORT PER IL PLANNER ---
+// --- IMPORT PER IL PLANNER ---
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { FGBPlanner, type GanttRowData } from "@/components/dashboard/FGBPlanner";
+import { FGBPlanner, type GanttRowData, type GanttSegment } from "@/components/dashboard/FGBPlanner";
 
 const statusColors: Record<string, string> = {
   Design: "bg-primary/10 text-primary border-primary/20",
@@ -61,7 +61,10 @@ export default function ProjectDetail() {
     // Data di lancio globale del progetto
     const projectLaunchDate = project.created_at.slice(0, 10);
 
-    // Mappatura delle singole fasi
+    // Costruiamo i "Segmenti" per la riga master riassuntiva
+    const projectSegments: GanttSegment[] = [];
+
+    // Mappatura delle singole fasi (Gantt a cascata)
     const phases: GanttRowData[] = timelineMilestones.map((m: any) => {
       let role = "Specialista";
       try {
@@ -75,14 +78,25 @@ export default function ProjectDetail() {
       } else if (m.status === "achieved") {
         displayStatus = "achieved"; // Diventa Verde
       } else if (m.status === "in_progress") {
-        displayStatus = "in_progress"; // Diventa Blu
+        displayStatus = "in_progress"; // Diventa Blu (o Verde FGB tratteggiato)
+      }
+
+      // Popoliamo i segmenti per la riga TOTALE CANTIERE
+      if (m.start_date && m.due_date) {
+        projectSegments.push({
+          id: m.id,
+          start: m.start_date,
+          end: m.due_date,
+          status: displayStatus,
+          progress: m.status === "achieved" ? 100 : m.status === "in_progress" ? 50 : 0
+        });
       }
 
       return {
         id: m.id,
         label: m.requirement,
         subLabel: `Ruolo: ${role}`,
-        launchDate: projectLaunchDate, // Viene mappata in tutte le righe
+        launchDate: projectLaunchDate, 
         planStart: m.start_date,
         planEnd: m.due_date,
         actualStart: m.status !== "pending" ? m.start_date : null,
@@ -92,11 +106,10 @@ export default function ProjectDetail() {
       };
     });
 
-    // RIGA RIASSUNTIVA DEL PROGETTO (Macro-Avanzamento)
+    // RIGA RIASSUNTIVA DEL PROGETTO (Macro-Avanzamento con i Segmenti)
     const totalAchieved = timelineMilestones.filter((m: any) => m.status === 'achieved').length;
     const overallProgress = timelineMilestones.length > 0 ? Math.round((totalAchieved / timelineMilestones.length) * 100) : 0;
     
-    // Trova la primissima data di inizio tra tutte le fasi
     const firstStartDate = timelineMilestones.map((m: any) => m.start_date).filter(Boolean).sort()[0] || projectLaunchDate;
 
     const summaryRow: GanttRowData = {
@@ -110,6 +123,7 @@ export default function ProjectDetail() {
       actualEnd: project.status === "certificato" ? today : null,
       progress: overallProgress,
       status: project.status === "certificato" ? "achieved" : (project.handover_date < today ? "late" : "in_progress"),
+      segments: projectSegments // <--- LA CHICCA: La riga master mostra il "treno" di segmenti FGB
     };
 
     return [summaryRow, ...phases];
@@ -205,7 +219,7 @@ export default function ProjectDetail() {
           <TabsTrigger value="payments">Pagamenti</TabsTrigger>
         </TabsList>
 
-        {/* NUOVO TAB: PLANNER MICRO-VISTA CON LA DATA GRID E RIGA TOTALE */}
+        {/* TAB PLANNER: MICRO-VISTA CON LA DATA GRID E RIGA TOTALE */}
         <TabsContent value="planner">
           <Card>
             <CardContent className="p-0 border-none">
