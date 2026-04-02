@@ -27,7 +27,8 @@ const statusColors: Record<string, string> = {
 };
 
 export default function ProjectDetail() {
-  const { projectId } = useParams<{ projectId: string }>();
+  const params = useParams();
+  const projectId = params.projectId || params.id; 
   const navigate = useNavigate();
   const { data: project, isLoading } = useProjectDetails(projectId);
   const { data: certification } = useCertification(projectId);
