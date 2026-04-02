@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { format, differenceInDays, addDays, startOfWeek, endOfWeek } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -16,6 +16,7 @@ export interface GanttRowData {
   id: string;
   label: string;
   subLabel?: string;
+  currentActivity?: string; // Aggiunto per l'attività in corso
   
   launchDate?: string | null;
   
@@ -43,6 +44,9 @@ interface FGBPlannerProps {
 
 export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
   const navigate = useNavigate();
+
+  // STATO PER IL PERIOD HIGHLIGHT
+  const [highlightOffset, setHighlightOffset] = useState<number | null>(null);
 
   // 1. Calculate the overall timeline bounds
   const { minDate, maxDate, totalDays } = useMemo(() => {
@@ -93,6 +97,7 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
 
   const today = new Date();
   const todayOffset = differenceInDays(today, minDate);
+  const activeOffset = highlightOffset !== null ? highlightOffset : todayOffset;
 
   const fmt = (d: Date | null) => d ? format(d, "dd/MM/yy") : "—";
 
@@ -100,216 +105,246 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
   const isMacroView = data.some(row => row.segments && row.segments.length > 0);
 
   return (
-    <div className="flex h-full w-full bg-background border rounded-lg overflow-hidden text-sm">
+    <div className="flex flex-col h-full w-full bg-background border rounded-lg overflow-hidden text-sm">
       
-      {/* LEFT PANEL (Data Grid) */}
-      <div className={cn(
-        "flex-shrink-0 border-r bg-muted/10 flex flex-col z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] overflow-x-auto custom-scrollbar",
-        isMacroView ? "max-w-[40%]" : "max-w-[65%]" // Narrower for Macro view to show more timeline
-      )}>
-        
-        {/* Header */}
-        <div className="h-12 border-b flex items-center px-4 font-semibold text-[10px] text-muted-foreground uppercase tracking-wide bg-muted/30 w-max">
-          <div className="w-[200px] shrink-0">{isMacroView ? "Progetto / Cliente" : "Attività / Fase"}</div>
-          {!isMacroView && <div className="w-[75px] shrink-0">Launch</div>}
-          <div className="w-[75px] shrink-0">Start Plan</div>
-          <div className="w-[75px] shrink-0">End Fcst</div>
-          {!isMacroView && (
-            <>
-              <div className="w-[75px] shrink-0">End Act</div>
-              <div className="w-[60px] shrink-0 text-right">Plan St</div>
-              <div className="w-[60px] shrink-0 text-right">Plan Dur</div>
-              <div className="w-[60px] shrink-0 text-right">Act St</div>
-              <div className="w-[60px] shrink-0 text-right">Act Dur</div>
-            </>
+      {/* BARRA CONTROLLI (Period Highlight) */}
+      <div className="h-10 border-b flex items-center justify-between px-4 bg-muted/20 shrink-0">
+        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+          Controlli Timeline
+        </span>
+        <div className="flex items-center gap-4">
+          <span className="text-xs font-medium text-foreground">
+            Highlight Day: {activeOffset} 
+            <span className="text-muted-foreground ml-1">({format(addDays(minDate, activeOffset), "dd MMM yy", {locale: it})})</span>
+          </span>
+          <input 
+            type="range" 
+            min={0} 
+            max={totalDays} 
+            value={activeOffset} 
+            onChange={(e) => setHighlightOffset(Number(e.target.value))}
+            className="w-48 accent-primary cursor-ew-resize"
+          />
+          {highlightOffset !== null && highlightOffset !== todayOffset && (
+            <button 
+              className="h-6 text-[10px] px-2 border rounded border-border hover:bg-muted transition-colors" 
+              onClick={() => setHighlightOffset(null)}
+            >
+              Reset Oggi
+            </button>
           )}
-          <div className="w-[60px] shrink-0 text-right">% Comp</div>
-        </div>
-        
-        {/* Rows */}
-        <div className="flex-1 overflow-y-hidden w-max">
-          {data.map((row) => {
-            const pStart = row.planStart ? new Date(row.planStart) : null;
-            const pEnd = row.planEnd ? new Date(row.planEnd) : null;
-            const aStart = row.actualStart ? new Date(row.actualStart) : null;
-            const aEnd = row.actualEnd ? new Date(row.actualEnd) : null;
-            const launch = row.launchDate ? new Date(row.launchDate) : pStart;
-
-            const planStartOffset = pStart ? differenceInDays(pStart, minDate) : "—";
-            const planDuration = pStart && pEnd ? Math.max(differenceInDays(pEnd, pStart), 1) : "—";
-            const actStartOffset = aStart ? differenceInDays(aStart, minDate) : "—";
-            const actDuration = aStart && aEnd 
-                ? Math.max(differenceInDays(aEnd, aStart), 1) 
-                : (aStart && row.progress > 0 ? Math.max(differenceInDays(today, aStart), 1) : "—");
-
-            return (
-              <div 
-                key={row.id} 
-                className={cn(
-                  "h-14 border-b flex items-center px-4 hover:bg-muted/50 transition-colors",
-                  (row.onClickUrl || row.onClick) && "cursor-pointer",
-                  row.id === "summary" && "bg-primary/5 font-semibold"
-                )}
-                onClick={() => {
-                  if (row.onClick) row.onClick();
-                  else if (row.onClickUrl) navigate(row.onClickUrl);
-                }}
-              >
-                <div className="w-[200px] shrink-0 pr-2 flex flex-col justify-center">
-                  <span className="text-sm truncate text-foreground font-medium">{row.label}</span>
-                  {row.subLabel && <span className="text-[10px] text-muted-foreground truncate">{row.subLabel}</span>}
-                </div>
-                {!isMacroView && <div className="w-[75px] shrink-0 text-xs text-muted-foreground">{fmt(launch)}</div>}
-                <div className="w-[75px] shrink-0 text-xs">{fmt(pStart)}</div>
-                <div className="w-[75px] shrink-0 text-xs">{fmt(pEnd)}</div>
-                {!isMacroView && (
-                  <>
-                    <div className="w-[75px] shrink-0 text-xs">{fmt(aEnd)}</div>
-                    <div className="w-[60px] shrink-0 text-xs text-right font-mono text-muted-foreground">{planStartOffset}</div>
-                    <div className="w-[60px] shrink-0 text-xs text-right font-mono">{planDuration}</div>
-                    <div className="w-[60px] shrink-0 text-xs text-right font-mono text-muted-foreground">{actStartOffset}</div>
-                    <div className="w-[60px] shrink-0 text-xs text-right font-mono">{actDuration}</div>
-                  </>
-                )}
-                <div className="w-[60px] shrink-0 text-xs text-right font-bold text-primary">{Math.round(row.progress)}%</div>
-              </div>
-            );
-          })}
         </div>
       </div>
 
-      {/* RIGHT PANEL (Timeline) */}
-      <div className="flex-1 overflow-x-auto overflow-y-hidden relative custom-scrollbar bg-card">
-        
-        {/* Timeline Header */}
-        <div className="h-12 border-b bg-muted/30 relative" style={{ width: totalDays * dayWidth }}>
-          <div className="absolute top-0 left-0 h-6 flex items-center text-[10px] font-bold text-muted-foreground uppercase px-2">Timeline</div>
-          <div className="absolute bottom-0 left-0 h-6 flex">
-            {days.map((d, i) => {
-              const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+      <div className="flex flex-1 overflow-hidden">
+        {/* LEFT PANEL (Data Grid) */}
+        <div className="flex-shrink-0 border-r bg-muted/10 flex flex-col z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] overflow-x-auto custom-scrollbar max-w-[65%]">
+          
+          {/* Header */}
+          <div className="h-12 border-b flex items-center px-4 font-semibold text-[10px] text-muted-foreground uppercase tracking-wide bg-muted/30 w-max">
+            <div className="w-[180px] shrink-0">{isMacroView ? "Progetto / Cliente" : "Attività / Fase"}</div>
+            {isMacroView && <div className="w-[140px] shrink-0 border-l border-muted-foreground/20 pl-2">Activity</div>}
+            <div className="w-[75px] shrink-0 border-l border-muted-foreground/20 pl-2">Launch</div>
+            <div className="w-[75px] shrink-0 border-l border-muted-foreground/20 pl-2">Start Plan</div>
+            <div className="w-[75px] shrink-0 border-l border-muted-foreground/20 pl-2">End Fcst</div>
+            <div className="w-[75px] shrink-0 border-l border-muted-foreground/20 pl-2">End Act</div>
+            <div className="w-[60px] shrink-0 border-l border-muted-foreground/20 pl-2 text-right">Plan St</div>
+            <div className="w-[60px] shrink-0 border-l border-muted-foreground/20 pl-2 text-right">Plan Dur</div>
+            <div className="w-[60px] shrink-0 border-l border-muted-foreground/20 pl-2 text-right">Act St</div>
+            <div className="w-[60px] shrink-0 border-l border-muted-foreground/20 pl-2 text-right">Act Dur</div>
+            <div className="w-[60px] shrink-0 border-l border-muted-foreground/20 pl-2 text-right">% Comp</div>
+          </div>
+          
+          {/* Rows */}
+          <div className="flex-1 overflow-y-auto w-max custom-scrollbar">
+            {data.map((row) => {
+              const pStart = row.planStart ? new Date(row.planStart) : null;
+              const pEnd = row.planEnd ? new Date(row.planEnd) : null;
+              const aStart = row.actualStart ? new Date(row.actualStart) : null;
+              const aEnd = row.actualEnd ? new Date(row.actualEnd) : null;
+              const launch = row.launchDate ? new Date(row.launchDate) : pStart;
+
+              const planStartOffset = pStart ? differenceInDays(pStart, minDate) : "—";
+              const planDuration = pStart && pEnd ? Math.max(differenceInDays(pEnd, pStart), 1) : "—";
+              const actStartOffset = aStart ? differenceInDays(aStart, minDate) : "—";
+              
+              // Actual Duration calcolata rispetto all'Active Offset (slider) per task in corso
+              const actDuration = aStart && aEnd 
+                  ? Math.max(differenceInDays(aEnd, aStart), 1) 
+                  : (aStart && row.progress > 0 ? Math.max(activeOffset - differenceInDays(aStart, minDate), 1) : "—");
+
               return (
-                <div key={i} className={cn("flex-shrink-0 flex items-center justify-center text-[9px] border-l border-border/50", isWeekend ? "bg-muted/50 text-muted-foreground/50" : "text-muted-foreground")} style={{ width: dayWidth }}>
-                  {format(d, "eeeee", { locale: it })}
+                <div 
+                  key={row.id} 
+                  className={cn(
+                    "h-14 border-b flex items-center px-4 hover:bg-muted/50 transition-colors",
+                    (row.onClickUrl || row.onClick) && "cursor-pointer",
+                    row.id === "summary" && "bg-primary/5 font-semibold"
+                  )}
+                  onClick={() => {
+                    if (row.onClick) row.onClick();
+                    else if (row.onClickUrl) navigate(row.onClickUrl);
+                  }}
+                >
+                  <div className="w-[180px] shrink-0 pr-2 flex flex-col justify-center">
+                    <span className="text-sm truncate text-foreground font-medium">{row.label}</span>
+                    {row.subLabel && <span className="text-[10px] text-muted-foreground truncate">{row.subLabel}</span>}
+                  </div>
+                  {isMacroView && (
+                    <div className="w-[140px] shrink-0 pl-2 flex items-center">
+                      <span className="truncate text-[10px] font-medium px-2 py-0.5 rounded-full border border-[#009293]/30 text-[#009293] bg-[#009293]/5">
+                        {row.currentActivity || "—"}
+                      </span>
+                    </div>
+                  )}
+                  <div className="w-[75px] shrink-0 pl-2 text-xs text-muted-foreground">{fmt(launch)}</div>
+                  <div className="w-[75px] shrink-0 pl-2 text-xs">{fmt(pStart)}</div>
+                  <div className="w-[75px] shrink-0 pl-2 text-xs">{fmt(pEnd)}</div>
+                  <div className="w-[75px] shrink-0 pl-2 text-xs">{fmt(aEnd)}</div>
+                  <div className="w-[60px] shrink-0 pl-2 text-xs text-right font-mono text-muted-foreground">{planStartOffset}</div>
+                  <div className="w-[60px] shrink-0 pl-2 text-xs text-right font-mono">{planDuration}</div>
+                  <div className="w-[60px] shrink-0 pl-2 text-xs text-right font-mono text-muted-foreground">{actStartOffset}</div>
+                  <div className="w-[60px] shrink-0 pl-2 text-xs text-right font-mono">{actDuration}</div>
+                  <div className="w-[60px] shrink-0 pl-2 text-xs text-right font-bold text-primary">{Math.round(row.progress)}%</div>
                 </div>
               );
             })}
           </div>
         </div>
 
-        {/* Timeline Grid */}
-        <div className="relative" style={{ width: totalDays * dayWidth }}>
-          <div className="absolute inset-0 flex pointer-events-none opacity-20">
-            {days.map((d, i) => <div key={i} className="h-full border-l flex-shrink-0" style={{ width: dayWidth }} />)}
+        {/* RIGHT PANEL (Timeline) */}
+        <div className="flex-1 overflow-x-auto overflow-y-auto relative custom-scrollbar bg-card">
+          
+          {/* Timeline Header */}
+          <div className="h-12 border-b bg-muted/30 relative" style={{ width: totalDays * dayWidth }}>
+            <div className="absolute top-0 left-0 h-6 flex items-center text-[10px] font-bold text-muted-foreground uppercase px-2">Timeline</div>
+            <div className="absolute bottom-0 left-0 h-6 flex">
+              {days.map((d, i) => {
+                const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                return (
+                  <div key={i} className={cn("flex-shrink-0 flex items-center justify-center text-[9px] border-l border-border/50", isWeekend ? "bg-muted/50 text-muted-foreground/50" : "text-muted-foreground")} style={{ width: dayWidth }}>
+                    {format(d, "eeeee", { locale: it })}
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
-          {/* Today Line */}
-          {todayOffset >= 0 && todayOffset <= totalDays && (
-            <div className="absolute top-0 bottom-0 border-l-2 border-red-500/50 z-10 pointer-events-none" style={{ left: todayOffset * dayWidth }} />
-          )}
+          {/* Timeline Grid */}
+          <div className="relative" style={{ width: totalDays * dayWidth }}>
+            <div className="absolute inset-0 flex pointer-events-none opacity-20">
+              {days.map((d, i) => <div key={i} className="h-full border-l flex-shrink-0" style={{ width: dayWidth }} />)}
+            </div>
 
-          {/* Rows Rendering */}
-          {data.map((row) => {
-            return (
-              <div key={row.id} className={cn("h-14 border-b relative group hover:bg-muted/10 transition-colors", row.id === "summary" && "bg-primary/5")}>
-                
-                {/* MACRO VIEW: Render individual segments */}
-                {row.segments && row.segments.length > 0 ? (
-                  row.segments.map((seg, idx) => {
-                    if (!seg.start || !seg.end) return null;
-                    
-                    const segStart = differenceInDays(new Date(seg.start), minDate);
-                    const segEnd = differenceInDays(new Date(seg.end), minDate);
-                    const segWidth = Math.max(segEnd - segStart, 1);
+            {/* Today/Highlight Line */}
+            {activeOffset >= 0 && activeOffset <= totalDays && (
+              <div className="absolute top-0 bottom-0 border-l-2 border-red-500/80 z-30 pointer-events-none shadow-[0_0_8px_rgba(239,68,68,0.5)] transition-all duration-75" style={{ left: activeOffset * dayWidth }} />
+            )}
 
-                    let segBaseClass = "border-2 border-dashed border-gray-400/70 bg-gray-200/40";
-                    let segFillClass = "bg-[#009293]";
-                    let fillWidth = 0;
+            {/* Rows Rendering */}
+            {data.map((row) => {
+              return (
+                <div key={row.id} className={cn("h-14 border-b relative group hover:bg-muted/10 transition-colors", row.id === "summary" && "bg-primary/5")}>
+                  
+                  {/* MACRO VIEW: Render individual segments */}
+                  {row.segments && row.segments.length > 0 ? (
+                    row.segments.map((seg, idx) => {
+                      if (!seg.start || !seg.end) return null;
+                      
+                      const segStart = differenceInDays(new Date(seg.start), minDate);
+                      const segEnd = differenceInDays(new Date(seg.end), minDate);
+                      const segWidth = Math.max(segEnd - segStart, 1);
 
-                    if (seg.status === "in_progress") {
-                      segBaseClass = "border-2 border-dashed border-[#009293]/60 bg-[#009293]/10";
-                      fillWidth = segWidth * ((seg.progress || 50) / 100);
-                      if (fillWidth < 4) fillWidth = 4;
-                    } else if (seg.status === "achieved") {
-                      segBaseClass = "bg-[#009293] border-none";
-                      fillWidth = segWidth;
-                    } else if (seg.status === "late") {
-                      segBaseClass = "border-2 border-dashed border-red-400/70 bg-red-100/40";
-                      segFillClass = "bg-red-500";
-                      fillWidth = segWidth * ((seg.progress || 50) / 100);
-                      if (fillWidth < 4) fillWidth = 4;
-                    }
+                      let segBaseClass = "border-2 border-dashed border-gray-400/70 bg-gray-200/40";
+                      let segFillClass = "bg-[#009293]";
+                      let fillWidth = 0;
 
-                    return (
-                       <div key={idx} className="absolute top-3 h-8 group-hover:z-20 transition-all" style={{ left: segStart * dayWidth, width: segWidth * dayWidth }}>
-                          {/* Segment Base (Dashed/Empty) */}
-                          <div className={cn("absolute inset-0 rounded-md", segBaseClass)} />
-                          {/* Segment Fill (Solid) */}
-                          {fillWidth > 0 && (
-                            <div className={cn("absolute top-0 bottom-0 left-0 rounded-md shadow-sm opacity-95", segFillClass)} style={{ width: fillWidth * dayWidth }} />
-                          )}
-                       </div>
-                    )
-                  })
-                ) : (
-                  /* MICRO VIEW: Render standard single bar */
-                  (() => {
-                    const pStart = row.planStart ? differenceInDays(new Date(row.planStart), minDate) : null;
-                    const pEnd = row.planEnd ? differenceInDays(new Date(row.planEnd), minDate) : null;
-                    const planWidth = (pStart !== null && pEnd !== null) ? Math.max((pEnd - pStart), 1) : 0;
-                    
-                    let aStart = row.actualStart ? differenceInDays(new Date(row.actualStart), minDate) : pStart;
-                    let aEnd = row.actualEnd ? differenceInDays(new Date(row.actualEnd), minDate) : null;
-                    
-                    let actualWidth = 0;
-                    
-                    if (row.status === 'achieved') {
-                      actualWidth = 0; // Handled by base class
-                    } else if (row.status === 'in_progress') {
-                      if (aStart !== null && planWidth > 0) {
-                        actualWidth = planWidth * (row.progress / 100);
-                        if (actualWidth < 4) actualWidth = 4;
+                      if (seg.status === "in_progress") {
+                        segBaseClass = "border-2 border-dashed border-[#009293]/60 bg-[#009293]/10";
+                        fillWidth = segWidth * ((seg.progress || 50) / 100);
+                        if (fillWidth < 4) fillWidth = 4;
+                      } else if (seg.status === "achieved") {
+                        segBaseClass = "bg-[#009293] border-none";
+                        fillWidth = segWidth;
+                      } else if (seg.status === "late") {
+                        segBaseClass = "border-2 border-dashed border-red-400/70 bg-red-100/40";
+                        segFillClass = "bg-red-500";
+                        fillWidth = segWidth * ((seg.progress || 50) / 100);
+                        if (fillWidth < 4) fillWidth = 4;
                       }
-                    } else if (row.status === 'late') {
-                      if (aStart !== null) {
-                        if (aEnd !== null) {
-                          actualWidth = Math.max(aEnd - aStart, 1);
-                        } else if (planWidth > 0 && row.progress > 0) {
+
+                      return (
+                         <div key={idx} className="absolute top-3 h-8 group-hover:z-20 transition-all" style={{ left: segStart * dayWidth, width: segWidth * dayWidth }}>
+                            {/* Segment Base (Dashed/Empty) */}
+                            <div className={cn("absolute inset-0 rounded-md", segBaseClass)} />
+                            {/* Segment Fill (Solid) */}
+                            {fillWidth > 0 && (
+                              <div className={cn("absolute top-0 bottom-0 left-0 rounded-md shadow-sm opacity-95", segFillClass)} style={{ width: fillWidth * dayWidth }} />
+                            )}
+                         </div>
+                      )
+                    })
+                  ) : (
+                    /* MICRO VIEW: Render standard single bar */
+                    (() => {
+                      const pStart = row.planStart ? differenceInDays(new Date(row.planStart), minDate) : null;
+                      const pEnd = row.planEnd ? differenceInDays(new Date(row.planEnd), minDate) : null;
+                      const planWidth = (pStart !== null && pEnd !== null) ? Math.max((pEnd - pStart), 1) : 0;
+                      
+                      let aStart = row.actualStart ? differenceInDays(new Date(row.actualStart), minDate) : pStart;
+                      let aEnd = row.actualEnd ? differenceInDays(new Date(row.actualEnd), minDate) : null;
+                      
+                      let actualWidth = 0;
+                      
+                      if (row.status === 'achieved') {
+                        actualWidth = 0; // Handled by base class
+                      } else if (row.status === 'in_progress') {
+                        if (aStart !== null && planWidth > 0) {
                           actualWidth = planWidth * (row.progress / 100);
                           if (actualWidth < 4) actualWidth = 4;
-                        } else {
-                          actualWidth = 4;
+                        }
+                      } else if (row.status === 'late') {
+                        if (aStart !== null) {
+                          if (aEnd !== null) {
+                            actualWidth = Math.max(aEnd - aStart, 1);
+                          } else if (planWidth > 0 && row.progress > 0) {
+                            actualWidth = planWidth * (row.progress / 100);
+                            if (actualWidth < 4) actualWidth = 4;
+                          } else {
+                            actualWidth = 4;
+                          }
                         }
                       }
-                    }
 
-                    let planBaseClass = "border border-dashed border-gray-400/70 bg-gray-200/40";
-                    let actualColor = "bg-[#009293]";
+                      let planBaseClass = "border border-dashed border-gray-400/70 bg-gray-200/40";
+                      let actualColor = "bg-[#009293]";
 
-                    if (row.status === "in_progress") {
-                      planBaseClass = "border border-dashed border-[#009293]/60 bg-[#009293]/10";
-                    } else if (row.status === "achieved") {
-                      planBaseClass = "bg-[#009293] border-none";
-                      actualColor = "bg-[#009293]";
-                    } else if (row.status === "late") {
-                      planBaseClass = "border border-dashed border-red-400/70 bg-red-100/40";
-                      actualColor = "bg-red-500";
-                    }
+                      if (row.status === "in_progress") {
+                        planBaseClass = "border border-dashed border-[#009293]/60 bg-[#009293]/10";
+                      } else if (row.status === "achieved") {
+                        planBaseClass = "bg-[#009293] border-none";
+                        actualColor = "bg-[#009293]";
+                      } else if (row.status === "late") {
+                        planBaseClass = "border border-dashed border-red-400/70 bg-red-100/40";
+                        actualColor = "bg-red-500";
+                      }
 
-                    return (
-                      <>
-                        {pStart !== null && pEnd !== null && (
-                          <div className={cn("absolute top-4 h-6 rounded-md", planBaseClass)} style={{ left: pStart * dayWidth, width: planWidth * dayWidth }} />
-                        )}
-                        {aStart !== null && actualWidth > 0 && (
-                          <div className={cn("absolute top-4 h-6 rounded-md shadow-sm z-10 transition-all opacity-95", actualColor)} style={{ left: aStart * dayWidth, width: actualWidth * dayWidth }} />
-                        )}
-                      </>
-                    );
-                  })()
-                )}
-              </div>
-            );
-          })}
+                      return (
+                        <>
+                          {pStart !== null && pEnd !== null && (
+                            <div className={cn("absolute top-4 h-6 rounded-md", planBaseClass)} style={{ left: pStart * dayWidth, width: planWidth * dayWidth }} />
+                          )}
+                          {aStart !== null && actualWidth > 0 && (
+                            <div className={cn("absolute top-4 h-6 rounded-md shadow-sm z-10 transition-all opacity-95", actualColor)} style={{ left: aStart * dayWidth, width: actualWidth * dayWidth }} />
+                          )}
+                        </>
+                      );
+                    })()
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>
