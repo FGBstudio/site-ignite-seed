@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
+import { useNavigate } from "react-router-dom"; // <--- IMPORT AGGIUNTO
 import {
   AlertTriangle,
   Building2,
@@ -148,6 +149,7 @@ function PMProjectCard({
 export function PMProjectsBoard() {
   const { data: projects = [], isLoading } = usePMDashboard();
   const [selectedProject, setSelectedProject] = useState<PMProjectView | null>(null);
+  const navigate = useNavigate(); // <--- AGGIUNTO IL NAVIGATE QUI
 
   const groupedProjects = useMemo(
     () => ({
@@ -238,8 +240,8 @@ export function PMProjectsBoard() {
             <FGBPlanner 
               data={projects.map(p => ({
                 ...p.plannerData,
-                // Assicurati che il clic sulla riga del Gantt apra lo stesso modale delle card!
-                onClick: () => setSelectedProject(p as PMProjectView) 
+                // Naviga al dettaglio del progetto cliccato invece di aprire il modale
+                onClickUrl: `/projects/${p.id}` 
               }))} 
             />
           </div>
@@ -247,7 +249,7 @@ export function PMProjectsBoard() {
 
       </Tabs>
 
-      {/* IL MODALE (Appare sia cliccando sulle card che sulle righe del Gantt) */}
+      {/* IL MODALE (Appare solo cliccando il bottone Configura sulle card del Kanban) */}
       {selectedProject && (
         <PMProjectConfigModal
           project={selectedProject}
