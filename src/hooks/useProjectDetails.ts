@@ -35,17 +35,17 @@ export function useProjectDetails(projectId: string | undefined) {
   });
 }
 
-export function useCertification(projectId: string | undefined) {
+export function useCertification(projectId: string | undefined, siteId?: string | null) {
   return useQuery({
-    queryKey: ["certification", projectId],
+    queryKey: ["certification", projectId, siteId],
     queryFn: async () => {
-      if (!projectId) throw new Error("No project ID");
+      if (!siteId) return null;
       
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from("certifications")
         .select("*")
-        .eq("project_id", projectId)
-        .maybeSingle(); // FIX: Evita crash fatali se la certificazione non esiste ancora
+        .eq("site_id", siteId)
+        .maybeSingle();
         
       if (error) {
         console.error("ERRORE Query Certificazione:", error);
@@ -53,7 +53,7 @@ export function useCertification(projectId: string | undefined) {
       }
       return data;
     },
-    enabled: !!projectId,
+    enabled: !!siteId,
   });
 }
 
