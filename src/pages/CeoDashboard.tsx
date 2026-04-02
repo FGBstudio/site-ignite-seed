@@ -25,6 +25,7 @@ import { format, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
+import { AdminTimeline } from "@/components/admin/AdminTimeline";
 
 // Chart color tokens (HSL from design system) - AGGIORNATI PER I NUOVI STATUS
 const COLORS = {
