@@ -68,7 +68,7 @@ const formSchema = z
     pm_id: z.string().optional(),
     cert_type: z.enum(["LEED", "WELL", "BREEAM", "CO2"]).optional(),
     cert_rating: z.string().optional(),
-    cert_level: z.string().optional(), // <--- NUOVO CAMPO
+    cert_level: z.string().optional(), 
     project_subtype: z.string().optional(),
     is_commissioning: z.boolean().default(false),
   })
@@ -184,7 +184,8 @@ export function SiteProjectOnboardingForm() {
         // Assicuriamoci che se il tipo non prevede livelli (es CO2), il valore sia null
         const finalCertLevel = (values.cert_type && CERT_LEVELS[values.cert_type]) ? values.cert_level || null : null;
 
-        const { error: projectError } = await supabase
+        // FIX: Selezioniamo e recuperiamo l'ID del progetto appena creato
+        const { data: projectData, error: projectError } = await supabase
           .from("projects")
           .insert({
             name: values.project_name!,
@@ -196,10 +197,11 @@ export function SiteProjectOnboardingForm() {
             cert_type: values.cert_type || null,
             cert_rating: values.cert_rating || null,
             project_subtype: values.project_subtype || null,
-            // NOTA: Se la colonna 'cert_level' esiste in 'projects', viene salvata qui
             cert_level: finalCertLevel, 
             is_commissioning: values.is_commissioning,
-          } as any);
+          } as any)
+          .select("id")
+          .single();
 
         if (projectError) throw projectError;
 
@@ -208,9 +210,10 @@ export function SiteProjectOnboardingForm() {
           const { error: certError } = await supabase
             .from("certifications")
             .insert({
+              project_id: projectData.id, // FIX: Ora passiamo l'ID del progetto per rispettare la Foreign Key
               site_id: siteData.id,
               cert_type: values.cert_type,
-              level: finalCertLevel, // Utilizziamo il livello qui
+              level: finalCertLevel, 
               status: "in_progress",
               score: 0,
             });
@@ -567,7 +570,7 @@ export function SiteProjectOnboardingForm() {
                             </SelectContent>
                           </Select>
                           <FormDescription className="text-[10px] leading-tight">
-                            Le opzioni cambiano in base al tipo di certificazione selezionato.
+                            Le opzioni cambiano in base al tipo selezionato.
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
@@ -602,7 +605,7 @@ export function SiteProjectOnboardingForm() {
                       )}
                     />
 
-                    {/* Sottotipologia - dependent on cert_rating */}
+                    {/* Sottotipologia */}
                     <FormField
                       control={form.control}
                       name="project_subtype"
