@@ -25,7 +25,6 @@ import { format, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
-import { AdminTimeline } from "@/components/admin/AdminTimeline";
 
 // Chart color tokens (HSL from design system) - AGGIORNATI PER I NUOVI STATUS
 const COLORS = {
@@ -307,7 +306,6 @@ function TabRisorse({ tasks, projects }: { tasks: CertTaskRow[]; projects: Proje
   );
 }
 
-
 // ============================================================
 // Tab: Progetti
 // ============================================================
@@ -447,7 +445,7 @@ function TabPagamenti({ payments, projects }: { payments: CertPaymentRow[]; proj
         ))}
       </div>
 
-      {/* Timeline */}
+      {/* Timeline Payments */}
       <Card>
         <CardContent className="pt-4">
           {filteredPayments.length === 0 ? (
@@ -552,7 +550,6 @@ export default function CeoDashboard() {
             <TabsList>
               <TabsTrigger value="risorse">Risorse</TabsTrigger>
               <TabsTrigger value="progetti">Progetti</TabsTrigger>
-              <TabsTrigger value="timeline">Timeline</TabsTrigger>
               <TabsTrigger value="pagamenti">Pagamenti</TabsTrigger>
             </TabsList>
 
@@ -562,10 +559,6 @@ export default function CeoDashboard() {
 
             <TabsContent value="progetti">
               <TabProgetti tasks={tasks} projects={projects} />
-            </TabsContent>
-
-            <TabsContent value="timeline">
-              <AdminTimeline />
             </TabsContent>
 
             <TabsContent value="pagamenti">
