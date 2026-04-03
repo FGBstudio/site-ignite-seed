@@ -39,6 +39,9 @@ import {
 import { Loader2, Plus } from "lucide-react";
 import { RATING_SYSTEMS, RATING_SUBTYPES, type RatingSystem } from "@/data/ratingSubtypes";
 
+// IMPORT CRITICO: Il motore che legge i template esatti
+import { getCertificationTemplate } from "@/data/certificationTemplates";
+
 // ============================================================================
 // MAPPA DEI LIVELLI DI CERTIFICAZIONE CONSENTITI
 // ============================================================================
@@ -205,19 +208,75 @@ export function SiteProjectOnboardingForm() {
 
         if (projectError) throw projectError;
 
-        // Auto-create certifications record — mandatory if cert_type is set
+        // Creazione Certificazione + Generazione Automatica Righe (Timeline e Scorecard)
         if (values.cert_type) {
-          const { error: certError } = await supabase
+          const { data: certData, error: certError } = await supabase
             .from("certifications")
             .insert({
               project_id: projectData.id, // ORA FUNZIONA: Passiamo l'ID del progetto esistente
               site_id: siteData.id,
               cert_type: values.cert_type,
-              level: values.cert_rating || null, // IL RATING IN LEVEL: Per innescare i trigger di generazione milestone
+              level: values.cert_rating || null, // IL RATING IN LEVEL: Per innescare i trigger di generazione milestone (se ancora attivi)
               status: "in_progress",
               score: 0,
-            } as any);
+            } as any)
+            .select("id")
+            .single();
+            
           if (certError) throw certError;
+
+          // =========================================================================
+          // IL MOTORE ESPLICITO: Andiamo a pescare il template e creiamo le righe
+          // =========================================================================
+          const templateInfo = getCertificationTemplate(
+            values.cert_type,
+            values.cert_rating,
+            values.project_subtype
+          );
+
+          if (templateInfo) {
+            const milestoneRows: any[] = [];
+
+            // Genera le righe per la TIMELINE (Gantt)
+            templateInfo.timeline.forEach((t) => {
+              milestoneRows.push({
+                certification_id: certData.id,
+                category: "Timeline",
+                requirement: t.name,
+                milestone_type: "timeline", // Fondamentale per farla riconoscere al Planner
+                status: "pending",
+              });
+            });
+
+            // Genera le righe per la SCORECARD (Crediti)
+            templateInfo.scorecard.forEach((s) => {
+              milestoneRows.push({
+                certification_id: certData.id,
+                category: s.category,
+                requirement: s.requirement,
+                milestone_type: "scorecard", // Fondamentale per differenziarla dal Gantt
+                max_score: s.max_score,
+                score: 0,
+                status: "pending",
+              });
+            });
+
+            // Scrive tutte le righe nel Database in un colpo solo
+            if (milestoneRows.length > 0) {
+              // Dividiamo in blocchi di 50 per evitare limiti di payload del DB
+              for (let i = 0; i < milestoneRows.length; i += 50) {
+                const batch = milestoneRows.slice(i, i + 50);
+                const { error: mErr } = await supabase
+                  .from("certification_milestones")
+                  .insert(batch as any);
+                if (mErr) {
+                   console.error("Errore inserimento milestone da template:", mErr);
+                   // Non blocchiamo l'esecuzione se fallisce l'inserimento delle milestone, 
+                   // altrimenti il PM si trova senza progetto. Logghiamo l'errore.
+                }
+              }
+            }
+          }
         }
       }
 
