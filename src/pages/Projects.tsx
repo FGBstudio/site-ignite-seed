@@ -10,13 +10,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, Plus, Pencil, BarChart3, FileUp, Eye } from "lucide-react";
+import { Search, Plus, Pencil, BarChart3, FileUp, Eye, GanttChartSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { ProcurementForecasting } from "@/components/dashboard/ProcurementForecasting";
 import { DataImporter } from "@/components/admin/DataImporter";
 import { PMProjectsBoard } from "@/components/projects/PMProjectsBoard";
+import { AdminTimeline } from "@/components/admin/AdminTimeline";
 import type { Project, ProjectAllocation } from "@/types/custom-tables";
 
 const statusColors: Record<string, string> = {
@@ -118,8 +119,12 @@ export default function Projects() {
 
   return (
     <MainLayout title="Tutti i Cantieri" subtitle="Gestione progetti e allocazioni hardware">
-      <Tabs defaultValue="projects" className="space-y-6">
+      <Tabs defaultValue="timeline" className="space-y-6">
         <TabsList>
+          {/* TAB TIMELINE (aggiunto prima di Cantieri) */}
+          <TabsTrigger value="timeline" className="gap-2">
+            <GanttChartSquare className="h-4 w-4" /> Timeline
+          </TabsTrigger>
           <TabsTrigger value="projects">Cantieri</TabsTrigger>
           <TabsTrigger value="forecast" className="gap-2">
             <BarChart3 className="h-4 w-4" /> Analisi Fabbisogno
@@ -128,6 +133,10 @@ export default function Projects() {
             <FileUp className="h-4 w-4" /> Import CSV
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="timeline">
+          <AdminTimeline />
+        </TabsContent>
 
         <TabsContent value="projects" className="space-y-6">
           {filtersAndTable}
@@ -164,7 +173,6 @@ function renderFiltersAndTableContent(
 ) {
   return (
     <>
-      {/* Filters + Create */}
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
         <div className="flex flex-col sm:flex-row gap-3 flex-1">
           <div className="relative flex-1 max-w-sm">
@@ -201,7 +209,6 @@ function renderFiltersAndTableContent(
         </div>
       </div>
 
-      {/* Table */}
       {loading ? (
         <div className="flex justify-center py-20">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
