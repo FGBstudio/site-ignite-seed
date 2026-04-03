@@ -38,6 +38,8 @@ export function usePMDashboard() {
     queryKey: ["pm-dashboard", userId, role],
     enabled: !!userId,
     queryFn: async () => {
+      console.log("🚀 [PM Dashboard] Avvio sincronizzazione dati...");
+
       // 1. Fetch projects with relations
       let query = (supabase as any)
         .from("projects")
@@ -53,6 +55,8 @@ export function usePMDashboard() {
       if (error) throw error;
       if (!projects || projects.length === 0) return [] as PMProject[];
 
+      console.log(`📦 [PM Dashboard] Trovati ${projects.length} progetti per l'utente ${userId}.`);
+
       // 2. Fetch certifications for project sites
       const siteIds = [...new Set(
         (projects as any[]).map((p) => p.site_id).filter(Boolean)
@@ -66,6 +70,7 @@ export function usePMDashboard() {
           .in("site_id", siteIds);
         if (certErr) throw certErr;
         certifications = data || [];
+        console.log(`📜 [PM Dashboard] Trovate ${certifications.length} certificazioni legate ai siti.`);
       }
 
       // 3. Fetch milestones for those certifications
@@ -78,6 +83,7 @@ export function usePMDashboard() {
           .in("certification_id", certIds);
         if (mErr) throw mErr;
         milestones = data || [];
+        console.log(`🎯 [PM Dashboard] Trovate ${milestones.length} milestone totali nel DB.`);
       }
 
       // 4. Merge and classify
@@ -104,6 +110,18 @@ export function usePMDashboard() {
         const projectMilestones = milestones.filter((m) =>
           fallbackCerts.some((c: any) => c.id === m.certification_id)
         );
+
+        // --- DEBUG CHIRURGICO ---
+        if (projectMilestones.length === 0) {
+           console.warn(`⚠️ [Mancanza Dati] Il progetto "${p.name}" (ID: ${p.id}) NON ha milestone collegate! Certificazioni trovate: ${fallbackCerts.length}`);
+           if (fallbackCerts.length > 0) {
+              console.warn(`👉 La certificazione esiste (ID: ${fallbackCerts[0].id}, Level: ${fallbackCerts[0].level}), ma il DB non le ha assegnato milestone.`);
+           } else {
+              console.warn(`👉 La certificazione NON è stata trovata. Match fallito per site_id: ${p.site_id}, cert_type: ${p.cert_type}`);
+           }
+        }
+        // ------------------------
+
         const allocations = p.project_allocations || [];
 
         // Classification logic
