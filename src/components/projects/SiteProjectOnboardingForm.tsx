@@ -184,7 +184,7 @@ export function SiteProjectOnboardingForm() {
         // Assicuriamoci che se il tipo non prevede livelli (es CO2), il valore sia null
         const finalCertLevel = (values.cert_type && CERT_LEVELS[values.cert_type]) ? values.cert_level || null : null;
 
-        // FIX: Selezioniamo e recuperiamo l'ID del progetto appena creato
+        // FIX CHIRURGICO: Selezioniamo e recuperiamo l'ID del progetto appena creato per evitare la FK violation
         const { data: projectData, error: projectError } = await supabase
           .from("projects")
           .insert({
@@ -210,9 +210,10 @@ export function SiteProjectOnboardingForm() {
           const { error: certError } = await supabase
             .from("certifications")
             .insert({
+              project_id: projectData.id, // ORA FUNZIONA: Passiamo l'ID del progetto esistente
               site_id: siteData.id,
               cert_type: values.cert_type,
-              level: finalCertLevel, 
+              level: values.cert_rating || null, // IL RATING IN LEVEL: Per innescare i trigger di generazione milestone
               status: "in_progress",
               score: 0,
             } as any);
