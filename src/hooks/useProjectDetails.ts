@@ -35,25 +35,59 @@ export function useProjectDetails(projectId: string | undefined) {
   });
 }
 
+// FIX: Aggiunta logica avanzata di match (Project_ID -> Fallback Storico)
 export function useCertification(projectId: string | undefined, siteId?: string | null) {
   return useQuery({
     queryKey: ["certification", projectId, siteId],
     queryFn: async () => {
-      if (!siteId) return null;
+      if (!projectId) return null; // Abortiamo se non c'è progetto
       
-      const { data, error } = await supabase
+      // 1. Cerca usando il nuovo e infallibile project_id
+      let { data, error } = await (supabase as any)
         .from("certifications")
         .select("*")
-        .eq("site_id", siteId)
-        .maybeSingle();
+        .eq("project_id", projectId)
+        .maybeSingle(); 
         
+      // 2. Fallback per i progetti storici: usa le info del progetto per trovarla
+      if (!data) {
+         // Recupera le informazioni necessarie dal progetto
+         const { data: proj } = await (supabase as any)
+            .from("projects")
+            .select("site_id, cert_type, cert_rating")
+            .eq("id", projectId)
+            .single();
+            
+         // Se ha le info, cerca il match esatto (oppure se è stato passato il siteId come parametro)
+         const targetSiteId = proj?.site_id || siteId;
+         
+         if (targetSiteId) {
+            let fallbackQuery = (supabase as any)
+              .from("certifications")
+              .select("*")
+              .eq("site_id", targetSiteId);
+              
+            if (proj?.cert_type) {
+                fallbackQuery = fallbackQuery.eq("cert_type", proj.cert_type);
+            }
+            if (proj?.cert_rating) {
+                fallbackQuery = fallbackQuery.eq("level", proj.cert_rating);
+            }
+            
+            const { data: fallbackData } = await fallbackQuery.maybeSingle();
+            data = fallbackData;
+         }
+      }
+      
       if (error) {
         console.error("ERRORE Query Certificazione:", error);
-        throw error;
+        // Non blocchiamo se è solo un "non trovato", ma lanciamo l'errore se è di rete o permessi
+        if (error.code !== "PGRST116") throw error; 
       }
+      
       return data;
     },
-    enabled: !!siteId,
+    enabled: !!projectId, // Attiviamo la query se esiste il projectId
   });
 }
 
