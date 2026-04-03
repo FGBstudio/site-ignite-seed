@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { SiteProjectOnboardingForm } from "@/components/projects/SiteProjectOnboardingForm";
 import { useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -10,15 +10,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, Plus, Pencil, BarChart3, FileUp, Eye, CalendarDays } from "lucide-react";
+import { Search, Plus, Pencil, BarChart3, FileUp, Eye } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { ProcurementForecasting } from "@/components/dashboard/ProcurementForecasting";
 import { DataImporter } from "@/components/admin/DataImporter";
 import { PMProjectsBoard } from "@/components/projects/PMProjectsBoard";
-import { PMCalendar } from "@/components/dashboard/PMCalendar";
-import { useAdminCalendarData } from "@/hooks/useAdminCalendarData";
 import type { Project, ProjectAllocation } from "@/types/custom-tables";
 
 const statusColors: Record<string, string> = {
@@ -43,9 +41,6 @@ export default function Projects() {
   
   const [editProject, setEditProject] = useState<Project | null>(null);
   const [editAllocations, setEditAllocations] = useState<ProjectAllocation[]>([]);
-
-  // Admin Calendar Data
-  const { data: calendarProjects = [], isLoading: loadingCalendar } = useAdminCalendarData();
 
   const fetchProjects = async () => {
     setLoading(true);
@@ -101,16 +96,6 @@ export default function Projects() {
     setModalOpen(true);
   };
 
-  const pmNamesForCalendar = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const p of calendarProjects) {
-      if (p.pm_id && p.pm_name) {
-        map.set(p.pm_id, p.pm_name);
-      }
-    }
-    return map;
-  }, [calendarProjects]);
-
   if (!isAdmin) {
     return (
       <MainLayout title="I Miei Cantieri" subtitle="Dashboard operativa dei progetti assegnati">
@@ -133,11 +118,8 @@ export default function Projects() {
 
   return (
     <MainLayout title="Tutti i Cantieri" subtitle="Gestione progetti e allocazioni hardware">
-      <Tabs defaultValue="timeline" className="space-y-6">
+      <Tabs defaultValue="projects" className="space-y-6">
         <TabsList>
-          <TabsTrigger value="timeline" className="gap-2">
-            <CalendarDays className="h-4 w-4" /> Timeline
-          </TabsTrigger>
           <TabsTrigger value="projects">Cantieri</TabsTrigger>
           <TabsTrigger value="forecast" className="gap-2">
             <BarChart3 className="h-4 w-4" /> Analisi Fabbisogno
@@ -146,16 +128,6 @@ export default function Projects() {
             <FileUp className="h-4 w-4" /> Import CSV
           </TabsTrigger>
         </TabsList>
-
-        <TabsContent value="timeline">
-          {loadingCalendar ? (
-            <div className="flex justify-center py-20">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-            </div>
-          ) : (
-            <PMCalendar projects={calendarProjects} adminMode pmNames={pmNamesForCalendar} />
-          )}
-        </TabsContent>
 
         <TabsContent value="projects" className="space-y-6">
           {filtersAndTable}
