@@ -2,8 +2,6 @@ import { useState, useMemo } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { PMCalendar } from "@/components/dashboard/PMCalendar";
-import { useAdminCalendarData } from "@/hooks/useAdminCalendarData";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -19,15 +17,14 @@ import {
   type ProjectRow,
 } from "@/hooks/useCeoDashboardData";
 import {
-  PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LabelList,
+  PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList,
 } from "recharts";
 import { format, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
-import { AdminTimeline } from "@/components/admin/AdminTimeline";
 
-// Chart color tokens (HSL from design system) - AGGIORNATI PER I NUOVI STATUS
+// Chart color tokens (HSL from design system)
 const COLORS = {
   late: "hsl(0, 84%, 60%)",          // destructive (Rosso - In Ritardo)
   inProgress: "hsl(217, 91%, 50%)",  // primary (Blu - In Corso)
@@ -143,11 +140,8 @@ function KpiStrip({ tasks, payments, projects }: { tasks: CertTaskRow[]; payment
 function TabRisorse({ tasks, projects }: { tasks: CertTaskRow[]; projects: ProjectRow[] }) {
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
 
-  // Build user map from BOTH cert_tasks assignees AND project PMs
   const userMap = useMemo(() => {
     const map = new Map<string, { name: string; tasks: CertTaskRow[]; projectCount: number }>();
-
-    // 1. Add all PMs from projects
     for (const p of projects) {
       if (!p.pm_id) continue;
       if (!map.has(p.pm_id)) {
@@ -155,8 +149,6 @@ function TabRisorse({ tasks, projects }: { tasks: CertTaskRow[]; projects: Proje
       }
       map.get(p.pm_id)!.projectCount++;
     }
-
-    // 2. Add cert_tasks assignees and their tasks
     for (const t of tasks) {
       if (!t.assignee_id) continue;
       if (!map.has(t.assignee_id)) {
@@ -307,7 +299,6 @@ function TabRisorse({ tasks, projects }: { tasks: CertTaskRow[]; projects: Proje
   );
 }
 
-
 // ============================================================
 // Tab: Progetti
 // ============================================================
@@ -447,7 +438,7 @@ function TabPagamenti({ payments, projects }: { payments: CertPaymentRow[]; proj
         ))}
       </div>
 
-      {/* Timeline */}
+      {/* Timeline Payments */}
       <Card>
         <CardContent className="pt-4">
           {filteredPayments.length === 0 ? (
@@ -516,20 +507,8 @@ export default function CeoDashboard() {
   const { data: tasks = [], isLoading: loadingTasks } = useCertTasks();
   const { data: payments = [], isLoading: loadingPayments } = useCertPayments();
   const { data: projects = [], isLoading: loadingProjects } = useActiveProjects();
-  const { data: calendarProjects = [], isLoading: loadingCalendar } = useAdminCalendarData();
 
   const isLoading = loadingTasks || loadingPayments || loadingProjects;
-
-  // Build pm names map for the calendar filter
-  const pmNames = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const p of calendarProjects) {
-      if (p.pm_id && p.pm_name) {
-        map.set(p.pm_id, p.pm_name);
-      }
-    }
-    return map;
-  }, [calendarProjects]);
 
   return (
     <MainLayout title="CEO Dashboard" subtitle="Hub di controllo direzionale — Certificazioni & Portfolio">
@@ -546,13 +525,10 @@ export default function CeoDashboard() {
         <>
           <KpiStrip tasks={tasks} payments={payments} projects={projects} />
 
-          <PMCalendar projects={calendarProjects} adminMode pmNames={pmNames} />
-
-          <Tabs defaultValue="progetti" className="space-y-4">
+          <Tabs defaultValue="risorse" className="space-y-4">
             <TabsList>
               <TabsTrigger value="risorse">Risorse</TabsTrigger>
               <TabsTrigger value="progetti">Progetti</TabsTrigger>
-              <TabsTrigger value="timeline">Timeline</TabsTrigger>
               <TabsTrigger value="pagamenti">Pagamenti</TabsTrigger>
             </TabsList>
 
@@ -562,10 +538,6 @@ export default function CeoDashboard() {
 
             <TabsContent value="progetti">
               <TabProgetti tasks={tasks} projects={projects} />
-            </TabsContent>
-
-            <TabsContent value="timeline">
-              <AdminTimeline />
             </TabsContent>
 
             <TabsContent value="pagamenti">
