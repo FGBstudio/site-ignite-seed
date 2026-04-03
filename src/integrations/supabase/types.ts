@@ -1602,6 +1602,7 @@ export type Database = {
       }
       projects: {
         Row: {
+          cert_level: string | null
           cert_rating: string | null
           cert_type: string | null
           client: string
@@ -1618,6 +1619,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          cert_level?: string | null
           cert_rating?: string | null
           cert_type?: string | null
           client?: string
@@ -1634,6 +1636,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          cert_level?: string | null
           cert_rating?: string | null
           cert_type?: string | null
           client?: string
