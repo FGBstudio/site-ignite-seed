@@ -90,32 +90,26 @@ export function usePMDashboard() {
       return (projects as any[]).map((p): PMProject => {
         
         // FIX CRITICO MOTORE DI RICERCA: 
-        // Cerchiamo PRIMA tramite il project_id esatto (che abbiamo iniziato a salvare)
-        let projectCerts = certifications.filter((c) => c.project_id === p.id);
+        // Cerchiamo la certificazione tramite site_id e cert_type
+        let projectCerts = certifications.filter((c) => 
+          c.site_id === p.site_id && c.cert_type === p.cert_type
+        );
         
-        // Fallback per progetti storici che non hanno il project_id salvato nella certificazione
-        if (projectCerts.length === 0) {
-          projectCerts = certifications.filter((c) =>
-            c.site_id === p.site_id &&
-            c.cert_type === p.cert_type &&
-            (c.level === p.cert_rating || (!c.level && !p.cert_rating))
-          );
+        // Affinamento per progetti legacy se ci sono match multipli
+        if (projectCerts.length > 1 && p.cert_rating) {
+           const exactMatch = projectCerts.filter(c => c.level === p.cert_rating);
+           if (exactMatch.length > 0) projectCerts = exactMatch;
         }
-
-        // Ultimo Fallback: se ancora non trova nulla, prova solo site_id + cert_type
-        const fallbackCerts = projectCerts.length > 0
-          ? projectCerts
-          : certifications.filter((c) => c.site_id === p.site_id && c.cert_type === p.cert_type);
           
         const projectMilestones = milestones.filter((m) =>
-          fallbackCerts.some((c: any) => c.id === m.certification_id)
+          projectCerts.some((c: any) => c.id === m.certification_id)
         );
 
         // --- DEBUG CHIRURGICO ---
         if (projectMilestones.length === 0) {
-           console.warn(`⚠️ [Mancanza Dati] Il progetto "${p.name}" (ID: ${p.id}) NON ha milestone collegate! Certificazioni trovate: ${fallbackCerts.length}`);
-           if (fallbackCerts.length > 0) {
-              console.warn(`👉 La certificazione esiste (ID: ${fallbackCerts[0].id}, Level: ${fallbackCerts[0].level}), ma il DB non le ha assegnato milestone.`);
+           console.warn(`⚠️ [Mancanza Dati] Il progetto "${p.name}" (ID: ${p.id}) NON ha milestone collegate! Certificazioni trovate: ${projectCerts.length}`);
+           if (projectCerts.length > 0) {
+              console.warn(`👉 La certificazione esiste (ID: ${projectCerts[0].id}, Level: ${projectCerts[0].level}), ma il DB non le ha assegnato milestone.`);
            } else {
               console.warn(`👉 La certificazione NON è stata trovata. Match fallito per site_id: ${p.site_id}, cert_type: ${p.cert_type}`);
            }
@@ -131,7 +125,7 @@ export function usePMDashboard() {
         // OPPURE se la certificazione è "active" e la sua data (troncata) è <= a oggi.
         const isCertified = 
           p.status === "certificato" || 
-          fallbackCerts.some(
+          projectCerts.some(
             (c: any) => c.status === "active" && c.issued_date && c.issued_date.slice(0, 10) <= today
           );
 
@@ -146,9 +140,17 @@ export function usePMDashboard() {
           (m: any) => m.milestone_type === "scorecard"
         );
 
+        // =====================================================================
+        // FIX 2.0: La timeline è "configurata" solo se il PM ha inserito delle date
+        // =====================================================================
+        const isTimelineConfigured = timelineMilestones.some(
+          (m: any) => m.start_date !== null || m.due_date !== null
+        );
+
         const missing: string[] = [];
         if (!isCertified) {
           if (!hasTimeline) missing.push("Timeline");
+          else if (!isTimelineConfigured) missing.push("Pianifica Date"); // Extra info UI per il PM
           if (!hasScorecard) missing.push("Scorecard");
           if (allocations.length === 0) missing.push("Hardware");
         }
@@ -156,7 +158,8 @@ export function usePMDashboard() {
         let setup_status: SetupStatus;
         if (isCertified) {
           setup_status = "certificato";
-        } else if (hasTimeline && hasScorecard) {
+        } else if (hasTimeline && hasScorecard && isTimelineConfigured) {
+          // Passa a "in_corso" SOLO se sono state popolate le date
           setup_status = "in_corso";
         } else {
           setup_status = "da_configurare";
@@ -171,7 +174,8 @@ export function usePMDashboard() {
         
         const segments: any[] = []; // I "vagoni" del nostro treno di progetto
         
-        if (hasTimeline) {
+        // Calcola segmenti solo se la timeline è stata configurata dal PM
+        if (hasTimeline && isTimelineConfigured) {
           // Trova la prima data ufficiale per l'inizio del progetto globale
           const startDates = timelineMilestones.map((m: any) => m.start_date).filter(Boolean).sort();
           if (startDates.length > 0) planStart = startDates[0];
@@ -196,7 +200,7 @@ export function usePMDashboard() {
         }
         
         // Calcolo saturazione 0-100% globale del progetto
-        const progress = hasTimeline ? Math.round((achievedCount / timelineMilestones.length) * 100) : 0;
+        const progress = (hasTimeline && isTimelineConfigured) ? Math.round((achievedCount / timelineMilestones.length) * 100) : 0;
         
         // --- AGGIUNTA PER TROVARE L'ATTIVITA' IN CORSO ---
         const activeMilestone = timelineMilestones.find((m: any) => m.status === "in_progress");
@@ -209,7 +213,7 @@ export function usePMDashboard() {
         let plannerStatus = "pending";
         if (setup_status === "certificato") {
           plannerStatus = "achieved";
-        } else if (hasTimeline) {
+        } else if (hasTimeline && isTimelineConfigured) {
           // Se almeno una attività è iniziata o completata, il progetto è "in corso"
           const hasActive = timelineMilestones.some((m: any) => m.status === "in_progress" || m.status === "achieved");
           if (hasActive) {
@@ -235,7 +239,7 @@ export function usePMDashboard() {
 
         return {
           ...p,
-          certifications: fallbackCerts,
+          certifications: projectCerts,
           certification_milestones: projectMilestones,
           setup_status,
           missing,
