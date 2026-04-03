@@ -4,7 +4,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { useHoldings, useBrands, useSites } from "@/hooks/useProjectDetails";
-import { LEED_TEMPLATE } from "@/data/leedTemplate";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,11 +17,14 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import type { Product, Project, ProjectAllocation } from "@/types/custom-tables";
 
+// IMPORT CRITICO: Il motore che legge i template esatti (Gantt + Scorecard)
+import { getCertificationTemplate } from "@/data/certificationTemplates";
+
 const REGIONS = ["Europe", "America", "APAC", "ME"] as const;
 const PROJECT_STATUSES = ["Design", "Construction", "Completed", "Cancelled"] as const;
 const ALLOCATION_STATUSES = ["Draft", "Allocated", "Requested", "Shipped", "Installed_Online"] as const;
 
-const PROJECT_TYPES = ["LEED", "WELL", "Monitoring", "Consulting"] as const;
+const PROJECT_TYPES = ["LEED", "WELL", "BREEAM", "Monitoring", "Consulting"] as const; // Aggiunto BREEAM
 
 interface AllocationLine {
   id?: string;
@@ -134,7 +136,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
         name: project.name, client: project.client, region: project.region,
         handover_date: new Date(project.handover_date), status: project.status,
         pm_id: project.pm_id || "", site_id: project.site_id || "",
-        project_type: (project as any).project_type || "",
+        project_type: (project as any).project_type || (project as any).cert_type || "", // Aggiunto fallback per cert_type
         allocations: existingAllocations.map((a) => ({
           id: a.id, product_id: a.product_id, quantity: a.quantity, status: a.status,
         })),
@@ -193,12 +195,14 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
 
       let projectId = project?.id;
 
+      // Nota: Nel modal classico non chiediamo rating e subtype, quindi li settiamo a null di default.
+      // Se si tratta di un progetto LEED/WELL, utilizzerà il template "generico" o base.
       const projectPayload = {
         name: data.name, client: data.client,
         region: data.region as any, handover_date: handoverStr,
         status: data.status as any, pm_id: pmId || null,
         site_id: siteId,
-        project_type: data.project_type || null,
+        cert_type: data.project_type || null, // Uniformato a cert_type
       };
 
       if (project) {
@@ -210,8 +214,10 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
         if (error) throw error;
         projectId = newProject.id;
 
-        // TRIGGER: Auto-generate certification + milestones for LEED/WELL
-        if (data.project_type === "LEED" || data.project_type === "WELL") {
+        // CREAZIONE CERTIFICAZIONE E MILESTONE ESPLICITA (Nuovo Motore Frontend)
+        if (data.project_type === "LEED" || data.project_type === "WELL" || data.project_type === "BREEAM") {
+          
+          // 1. Crea la Certificazione
           const { data: cert, error: certErr } = await supabase
             .from("certifications")
             .insert({
@@ -220,25 +226,50 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
               cert_type: data.project_type as any,
               score: 0,
               target_score: data.project_type === "LEED" ? 110 : 100,
+              status: "in_progress",
             })
             .select("id")
             .single();
+            
           if (certErr) throw certErr;
 
-          const template = data.project_type === "LEED" ? LEED_TEMPLATE : LEED_TEMPLATE; // TODO: WELL template
-          const milestoneRows = template.map((t) => ({
-            certification_id: cert.id,
-            category: t.category,
-            requirement: t.requirement,
-            score: 0,
-            max_score: t.max_score,
-            status: "pending" as const,
-          }));
+          // 2. Estrai il template (qui non abbiamo rating, quindi usa il fallback del template)
+          const templateInfo = getCertificationTemplate(data.project_type, null, null);
 
-          for (let i = 0; i < milestoneRows.length; i += 50) {
-            const batch = milestoneRows.slice(i, i + 50);
-            const { error: mErr } = await supabase.from("certification_milestones").insert(batch as any);
-            if (mErr) throw mErr;
+          if (templateInfo) {
+            const milestoneRows: any[] = [];
+
+            // Timeline
+            templateInfo.timeline.forEach((t) => {
+              milestoneRows.push({
+                certification_id: cert.id,
+                category: "Timeline",
+                requirement: t.name,
+                milestone_type: "timeline",
+                status: "pending",
+              });
+            });
+
+            // Scorecard
+            templateInfo.scorecard.forEach((s) => {
+              milestoneRows.push({
+                certification_id: cert.id,
+                category: s.category,
+                requirement: s.requirement,
+                milestone_type: "scorecard",
+                max_score: s.max_score,
+                score: 0,
+                status: "pending",
+              });
+            });
+
+            if (milestoneRows.length > 0) {
+              for (let i = 0; i < milestoneRows.length; i += 50) {
+                const batch = milestoneRows.slice(i, i + 50);
+                const { error: mErr } = await supabase.from("certification_milestones").insert(batch as any);
+                if (mErr) console.error("Errore inserimento milestone:", mErr);
+              }
+            }
           }
         }
       }
