@@ -31,19 +31,25 @@ export interface PMProject {
 }
 
 export function usePMDashboard() {
-  const { user } = useAuth();
+  const { user, role } = useAuth(); // Aggiunto 'role' per gestire l'Admin
   const userId = user?.id;
 
   return useQuery({
-    queryKey: ["pm-dashboard", userId],
+    queryKey: ["pm-dashboard", userId, role],
     enabled: !!userId,
     queryFn: async () => {
       // 1. Fetch projects with relations
-      const { data: projects, error } = await (supabase as any)
+      let query = (supabase as any)
         .from("projects")
         .select("*, sites!projects_site_id_fkey(name, city, country), project_allocations(*)")
-        .eq("pm_id", userId)
         .order("handover_date", { ascending: true });
+
+      // Se NON è admin, filtra solo i suoi progetti
+      if (role !== "ADMIN") {
+         query = query.eq("pm_id", userId);
+      }
+      
+      const { data: projects, error } = await query;
       if (error) throw error;
       if (!projects || projects.length === 0) return [] as PMProject[];
 
@@ -74,18 +80,27 @@ export function usePMDashboard() {
         milestones = data || [];
       }
 
-      // 4. Merge and classify — match by site_id + cert_type + level
+      // 4. Merge and classify
       return (projects as any[]).map((p): PMProject => {
-        // Precise match: site_id + cert_type + level/cert_rating
-        const projectCerts = certifications.filter((c) =>
-          c.site_id === p.site_id &&
-          c.cert_type === p.cert_type &&
-          (c.level === p.cert_rating || (!c.level && !p.cert_rating))
-        );
-        // Fallback: if no precise match, try site_id + cert_type only
+        
+        // FIX CRITICO MOTORE DI RICERCA: 
+        // Cerchiamo PRIMA tramite il project_id esatto (che abbiamo iniziato a salvare)
+        let projectCerts = certifications.filter((c) => c.project_id === p.id);
+        
+        // Fallback per progetti storici che non hanno il project_id salvato nella certificazione
+        if (projectCerts.length === 0) {
+          projectCerts = certifications.filter((c) =>
+            c.site_id === p.site_id &&
+            c.cert_type === p.cert_type &&
+            (c.level === p.cert_rating || (!c.level && !p.cert_rating))
+          );
+        }
+
+        // Ultimo Fallback: se ancora non trova nulla, prova solo site_id + cert_type
         const fallbackCerts = projectCerts.length > 0
           ? projectCerts
           : certifications.filter((c) => c.site_id === p.site_id && c.cert_type === p.cert_type);
+          
         const projectMilestones = milestones.filter((m) =>
           fallbackCerts.some((c: any) => c.id === m.certification_id)
         );
@@ -98,7 +113,7 @@ export function usePMDashboard() {
         // OPPURE se la certificazione è "active" e la sua data (troncata) è <= a oggi.
         const isCertified = 
           p.status === "certificato" || 
-          projectCerts.some(
+          fallbackCerts.some(
             (c: any) => c.status === "active" && c.issued_date && c.issued_date.slice(0, 10) <= today
           );
 
