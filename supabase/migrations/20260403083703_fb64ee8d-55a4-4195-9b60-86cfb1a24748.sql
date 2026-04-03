@@ -1,0 +1,1 @@
+ALTER TABLE public.projects DROP CONSTRAINT chk_cert_rating;
