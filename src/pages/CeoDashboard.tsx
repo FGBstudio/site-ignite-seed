@@ -2,6 +2,8 @@ import { useState, useMemo } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { PMCalendar } from "@/components/dashboard/PMCalendar";
+import { useAdminCalendarData } from "@/hooks/useAdminCalendarData";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -17,24 +19,28 @@ import {
   type ProjectRow,
 } from "@/hooks/useCeoDashboardData";
 import {
-  PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList,
+  PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LabelList,
 } from "recharts";
 import { format, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
+import { AdminTimeline } from "@/components/admin/AdminTimeline";
 
-// Chart color tokens
+// Chart color tokens (HSL from design system) - AGGIORNATI PER I NUOVI STATUS
 const COLORS = {
-  late: "hsl(0, 84%, 60%)",          
-  inProgress: "hsl(217, 91%, 50%)",  
-  toConfigure: "hsl(220, 14%, 71%)", 
-  certified: "hsl(142, 71%, 45%)",   
+  late: "hsl(0, 84%, 60%)",          // destructive (Rosso - In Ritardo)
+  inProgress: "hsl(217, 91%, 50%)",  // primary (Blu - In Corso)
+  toConfigure: "hsl(220, 14%, 71%)", // muted (Grigio - Da Configurare)
+  certified: "hsl(142, 71%, 45%)",   // success (Verde - Certificati)
   overdue: "hsl(0, 84%, 60%)",
   paid: "hsl(142, 71%, 45%)",
   blocked: "hsl(38, 92%, 50%)",
 };
 
+// ============================================================
+// KPI Strip
+// ============================================================
 function KpiStrip({ tasks, payments, projects }: { tasks: CertTaskRow[]; payments: CertPaymentRow[]; projects: ProjectRow[] }) {
   const { inRitardo, inCorso, daConfigurare, certificati, lateProjects } = useMemo(() => computeProjectStatus(projects, tasks), [projects, tasks]);
   const overdueByProject = useMemo(() => computeOverduePayments(payments), [payments]);
@@ -51,6 +57,7 @@ function KpiStrip({ tasks, payments, projects }: { tasks: CertTaskRow[]; payment
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+      {/* Pie */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium text-muted-foreground">Status Progetti</CardTitle>
@@ -73,6 +80,7 @@ function KpiStrip({ tasks, payments, projects }: { tasks: CertTaskRow[]; payment
         </CardContent>
       </Card>
 
+      {/* Bar: Late projects */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium text-muted-foreground">Progetti in Ritardo (giorni)</CardTitle>
@@ -94,6 +102,7 @@ function KpiStrip({ tasks, payments, projects }: { tasks: CertTaskRow[]; payment
         </CardContent>
       </Card>
 
+      {/* Bar: Financial */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium text-muted-foreground">Criticità Finanziarie</CardTitle>
@@ -128,11 +137,17 @@ function KpiStrip({ tasks, payments, projects }: { tasks: CertTaskRow[]; payment
   );
 }
 
+// ============================================================
+// Tab: Risorse
+// ============================================================
 function TabRisorse({ tasks, projects }: { tasks: CertTaskRow[]; projects: ProjectRow[] }) {
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
 
+  // Build user map from BOTH cert_tasks assignees AND project PMs
   const userMap = useMemo(() => {
     const map = new Map<string, { name: string; tasks: CertTaskRow[]; projectCount: number }>();
+
+    // 1. Add all PMs from projects
     for (const p of projects) {
       if (!p.pm_id) continue;
       if (!map.has(p.pm_id)) {
@@ -140,6 +155,8 @@ function TabRisorse({ tasks, projects }: { tasks: CertTaskRow[]; projects: Proje
       }
       map.get(p.pm_id)!.projectCount++;
     }
+
+    // 2. Add cert_tasks assignees and their tasks
     for (const t of tasks) {
       if (!t.assignee_id) continue;
       if (!map.has(t.assignee_id)) {
@@ -290,6 +307,10 @@ function TabRisorse({ tasks, projects }: { tasks: CertTaskRow[]; projects: Proje
   );
 }
 
+
+// ============================================================
+// Tab: Progetti
+// ============================================================
 function TabProgetti({ tasks, projects }: { tasks: CertTaskRow[]; projects: any[] }) {
   const navigate = useNavigate();
 
@@ -373,6 +394,9 @@ function TabProgetti({ tasks, projects }: { tasks: CertTaskRow[]; projects: any[
   );
 }
 
+// ============================================================
+// Tab: Pagamenti
+// ============================================================
 function TabPagamenti({ payments, projects }: { payments: CertPaymentRow[]; projects: any[] }) {
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
 
@@ -402,6 +426,7 @@ function TabPagamenti({ payments, projects }: { payments: CertPaymentRow[]; proj
 
   return (
     <div className="space-y-4">
+      {/* Project filter */}
       <div className="flex flex-wrap gap-2">
         <Badge
           variant={selectedProject === null ? "default" : "outline"}
@@ -422,6 +447,7 @@ function TabPagamenti({ payments, projects }: { payments: CertPaymentRow[]; proj
         ))}
       </div>
 
+      {/* Timeline */}
       <Card>
         <CardContent className="pt-4">
           {filteredPayments.length === 0 ? (
@@ -457,6 +483,7 @@ function TabPagamenti({ payments, projects }: { payments: CertPaymentRow[]; proj
                         </Badge>
                       </div>
                     </div>
+                    {/* Visual bar */}
                     <div className="w-full h-3 rounded-full bg-muted overflow-hidden">
                       <div
                         className="h-full rounded-full transition-all"
@@ -482,12 +509,27 @@ function TabPagamenti({ payments, projects }: { payments: CertPaymentRow[]; proj
   );
 }
 
+// ============================================================
+// Main Dashboard
+// ============================================================
 export default function CeoDashboard() {
   const { data: tasks = [], isLoading: loadingTasks } = useCertTasks();
   const { data: payments = [], isLoading: loadingPayments } = useCertPayments();
   const { data: projects = [], isLoading: loadingProjects } = useActiveProjects();
+  const { data: calendarProjects = [], isLoading: loadingCalendar } = useAdminCalendarData();
 
   const isLoading = loadingTasks || loadingPayments || loadingProjects;
+
+  // Build pm names map for the calendar filter
+  const pmNames = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const p of calendarProjects) {
+      if (p.pm_id && p.pm_name) {
+        map.set(p.pm_id, p.pm_name);
+      }
+    }
+    return map;
+  }, [calendarProjects]);
 
   return (
     <MainLayout title="CEO Dashboard" subtitle="Hub di controllo direzionale — Certificazioni & Portfolio">
@@ -504,10 +546,13 @@ export default function CeoDashboard() {
         <>
           <KpiStrip tasks={tasks} payments={payments} projects={projects} />
 
-          <Tabs defaultValue="risorse" className="space-y-4">
+          <PMCalendar projects={calendarProjects} adminMode pmNames={pmNames} />
+
+          <Tabs defaultValue="progetti" className="space-y-4">
             <TabsList>
               <TabsTrigger value="risorse">Risorse</TabsTrigger>
               <TabsTrigger value="progetti">Progetti</TabsTrigger>
+              <TabsTrigger value="timeline">Timeline</TabsTrigger>
               <TabsTrigger value="pagamenti">Pagamenti</TabsTrigger>
             </TabsList>
 
@@ -517,6 +562,10 @@ export default function CeoDashboard() {
 
             <TabsContent value="progetti">
               <TabProgetti tasks={tasks} projects={projects} />
+            </TabsContent>
+
+            <TabsContent value="timeline">
+              <AdminTimeline />
             </TabsContent>
 
             <TabsContent value="pagamenti">
