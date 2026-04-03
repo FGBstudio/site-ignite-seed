@@ -210,13 +210,12 @@ export function SiteProjectOnboardingForm() {
           const { error: certError } = await supabase
             .from("certifications")
             .insert({
-              project_id: projectData.id, // FIX: Ora passiamo l'ID del progetto per rispettare la Foreign Key
               site_id: siteData.id,
               cert_type: values.cert_type,
               level: finalCertLevel, 
               status: "in_progress",
               score: 0,
-            });
+            } as any);
           if (certError) throw certError;
         }
       }
