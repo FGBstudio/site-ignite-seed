@@ -10,10 +10,11 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Plus, Trash2, Calendar, Monitor, Award, Lock, User, Save } from "lucide-react";
+import { Loader2, Plus, Trash2, Calendar, Monitor, Award, Lock, User, Save, Wand2 } from "lucide-react";
 import { addDays, format, parseISO } from "date-fns";
 import { getTemplateOrFallback, type TimelineStep } from "@/data/certificationTemplates";
 import type { PMProject } from "@/hooks/usePMDashboard";
+import { TimelineSetupWizard } from "./TimelineSetupWizard";
 
 interface Props {
   project: PMProject;
@@ -65,6 +66,7 @@ function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChan
   const qc = useQueryClient();
   const certId = project.certifications?.[0]?.id;
   const { template, isGeneric } = useProjectTemplate(project);
+  const [wizardMode, setWizardMode] = useState<boolean | null>(null); // null = auto-detect
 
   const { data: milestones = [], refetch } = useQuery({
     queryKey: ["timeline-milestones", certId],
@@ -255,6 +257,26 @@ function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChan
     );
   }
 
+  // Auto-detect: show wizard if most dates are empty
+  const emptyDates = milestones.filter((m: any) => !m.start_date && !m.due_date).length;
+  const shouldShowWizard = wizardMode === true || (wizardMode === null && emptyDates > milestones.length / 2);
+
+  if (shouldShowWizard) {
+    return (
+      <TimelineSetupWizard
+        milestones={milestones}
+        templateSteps={template.timeline}
+        certId={certId!}
+        projectName={project.name}
+        onComplete={() => {
+          onOpenChange(false);
+          qc.invalidateQueries({ queryKey: ["pm-dashboard"] });
+        }}
+        onSwitchToGrid={() => setWizardMode(false)}
+      />
+    );
+  }
+
   // Parse step metadata from notes
   const getStepMeta = (m: any) => {
     try {
@@ -270,6 +292,14 @@ function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChan
 
   return (
     <div className="space-y-3">
+      {/* Wizard toggle */}
+      <div className="flex justify-end">
+        <Button variant="ghost" size="sm" onClick={() => setWizardMode(true)} className="text-xs text-muted-foreground">
+          <Wand2 className="w-3.5 h-3.5 mr-1.5" />
+          Modalità Guidata
+        </Button>
+      </div>
+      
       {/* Header */}
       <div className="grid grid-cols-[1fr_80px_120px_120px_120px_100px] gap-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
         <span>Step</span>
