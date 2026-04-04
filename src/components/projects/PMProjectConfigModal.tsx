@@ -66,6 +66,7 @@ function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChan
   const qc = useQueryClient();
   const certId = project.certifications?.[0]?.id;
   const { template, isGeneric } = useProjectTemplate(project);
+  const [wizardMode, setWizardMode] = useState<boolean | null>(null); // null = auto-detect
 
   const { data: milestones = [], refetch } = useQuery({
     queryKey: ["timeline-milestones", certId],
