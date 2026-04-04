@@ -1,60 +1,52 @@
 
 
-# Integrazione Scorecard Templates dal JSON
+## Timeline Setup Wizard
 
-## Cosa cambia
+### Summary
+Replace the current Excel-style grid in the Timeline tab with a full-screen step-by-step wizard that guides PMs through one milestone at a time, reducing cognitive load and improving data quality.
 
-Il file JSON fornisce scorecard per tutte le tipologie di certificazione: LEED (5 varianti per subtype), BREEAM (4 varianti), WELL (1 universale). Attualmente `certificationTemplates.ts` ha scorecard solo per LEED BD+C e O+M, mentre BREEAM e WELL mostrano "scorecard non disponibile".
+### Architecture
 
-## Mappatura chiavi JSON → sistema esistente
+**New component**: `src/components/projects/TimelineSetupWizard.tsx`
 
-| Chiave JSON | cert_type | cert_rating | project_subtype | Note |
-|---|---|---|---|---|
-| LEED_BD+C_NC | LEED | BD+C | New Construction | Default per BD+C |
-| LEED_BD+C_CS | LEED | BD+C | Core & Shell | |
-| LEED_BD+C_Healthcare | LEED | BD+C | Healthcare | |
-| LEED_ID+C_CI | LEED | ID+C | (tutti) | Stessa scorecard per CI/Retail/Hospitality |
-| LEED_O+M_EB | LEED | O+M | (tutti) | |
-| BREEAM_UK_NC_2018_Fully_Fitted | BREEAM | New Construction | — | Default per NC |
-| BREEAM_UK_NC_2018_Simple_Buildings | BREEAM | New Construction | Simple Buildings | Variante semplificata |
-| BREEAM_InUse_V6_Asset_Performance | BREEAM | In-Use Part 1 | — | |
-| BREEAM_InUse_V6_Management_Performance | BREEAM | In-Use Part 2 | — | |
-| WELL_v2 | WELL | (tutti) | — | Unico template per tutti i rating WELL |
+A full-screen overlay (split-screen layout) that replaces the current `TimelineTab` grid when milestones have unset dates.
 
-## Piano tecnico
+### Data Layer
 
-### 1. Aggiornare `src/data/certificationTemplates.ts`
-- Sostituire le scorecard hardcoded con i dati dal JSON
-- Ogni entry del JSON diventa una `ScorecardCategory` con `category = category_code`, `requirement = requirement_label`, `max_score`
-- Aggiungere chiavi con subtype nel registry: `"LEED|BD+C|Core & Shell"`, `"LEED|BD+C|Healthcare"`, etc.
-- Per BREEAM NC aggiungere entrambe le varianti (Fully Fitted come default)
-- Per WELL usare lo stesso template per tutti i rating
-- Rimuovere il vecchio `LEED_TEMPLATE` import e le scorecard dettagliate per credito singolo
+1. **Add `description` field to `TimelineStep` interface** in `certificationTemplates.ts` -- this provides the educational/help text shown in the wizard's left panel. Each timeline step gets a human-readable description explaining what the PM needs to do (e.g., "Inserisci la data in cui prevedi di fare la prima call ufficiale con il cliente per validare i crediti").
 
-### 2. Aggiornare `getCertificationTemplate()` e `getTemplateOrFallback()`
-- Aggiungere parametro opzionale `subtype?: string`
-- Logica di lookup: prima `cert_type|rating|subtype`, poi fallback a `cert_type|rating`, poi `cert_type`
-- Per WELL: il template è unico, quindi `"WELL|*"` match qualsiasi rating
+2. **No database migration needed** -- the help text lives in the static template file (`certificationTemplates.ts`), not in `certification_milestones`. The existing `certification_milestones` table already has `start_date`, `due_date`, `order_index`, and `status` which is all we need.
 
-### 3. Aggiornare `PMProjectConfigModal.tsx`
-- In `useProjectTemplate()`: passare anche `project.project_subtype` alla funzione di lookup
-- Il resto del flusso (inizializzazione, salvataggio in `certification_milestones`, aggiornamento score su `certifications`) resta identico
+### Component Design
 
-### 4. Aggiungere `project_subtype` al tipo `PMProject`
-- In `usePMDashboard.ts`, aggiungere `project_subtype?: string | null` all'interfaccia `PMProject`
-- Il campo è già fetchato dalla query (`SELECT *`) ma non tipizzato
+**TimelineSetupWizard.tsx** -- Split-screen wizard:
 
-### 5. Rimuovere `src/data/leedTemplate.ts` (opzionale)
-- Non più necessario: le scorecard sono tutte definite in `certificationTemplates.ts`
-- Il file è usato anche da `ScorecardEditor.tsx` per `getLeedLevel` e `LEED_MAX_TOTAL` → spostare queste utility in `certificationTemplates.ts` o lasciarle in `leedTemplate.ts`
+- **State**: `currentIndex` (0-based), `milestones[]` (from DB query), `templateSteps[]` (from template).
+- **Header**: Progress bar (`Step {n} di {total}`) + project name.
+- **Left column (60%)**: Large card with:
+  - Milestone name as title
+  - Educational panel (light blue bg) with `description` from template
+  - Role badge (PM/GC/Client/Assessor)
+  - Two date pickers (Start Date, End Date) -- disabled if `calculated_deadline` (auto-computed, shown as read-only with explanation)
+- **Right column (40%)**: Next milestone card preview, greyed out (`opacity-40`, `pointer-events-none`).
+- **Footer (sticky)**:
+  - Left: "Indietro" button (disabled on step 0)
+  - Right: "Salta per ora" ghost button + "Salva e Continua" primary button (disabled until dates are filled for `manual_input` steps; always enabled for `calculated_deadline` steps since dates are auto-computed)
 
-## File coinvolti
-1. `src/data/certificationTemplates.ts` — nuovi dati scorecard + lookup con subtype
-2. `src/components/projects/PMProjectConfigModal.tsx` — passare subtype al template resolver
-3. `src/hooks/usePMDashboard.ts` — tipizzare `project_subtype`
+**Save logic**:
+- "Salva e Continua": calls `supabase.from("certification_milestones").update({start_date, due_date}).eq("id", milestone.id)`, then increments `currentIndex`. For `calculated_deadline` steps, auto-computes dates from the previous manual step using existing `computeCalculatedDate` logic.
+- "Salta per ora": just increments `currentIndex`, no DB call.
+- **Completion screen**: when `currentIndex === milestones.length`, show celebration card with "Pianificazione Completata!" and a button to close the wizard / return to dashboard.
 
-## Risultato
-- PM clicca "Genera Griglia Scorecard" → ottiene la scorecard corretta per il suo specifico tipo/sottotipo di certificazione
-- Le righe vengono scritte in `certification_milestones` con `milestone_type = 'scorecard'`, immediatamente visibili anche lato cliente (Showroom)
-- BREEAM e WELL non mostrano più "scorecard non disponibile"
+### Integration Points
+
+1. **PMProjectConfigModal.tsx** -- In the `TimelineTab`, after milestones are initialized (line ~237-256), check if most dates are still `null`. If so, render `<TimelineSetupWizard>` instead of the grid. Add a toggle/button to switch between wizard and grid view for PMs who prefer the table.
+
+2. **certificationTemplates.ts** -- Add optional `description?: string` to `TimelineStep` interface and populate it for all timeline definitions (LEED_BDC, LEED_IDC, BREEAM, WELL, GENERIC). The `toTimeline` helper gets an optional `description` field.
+
+### Steps
+
+1. Update `TimelineStep` interface and all timeline definitions in `certificationTemplates.ts` with `description` field
+2. Create `TimelineSetupWizard.tsx` component with split-screen layout, progress bar, date pickers, navigation, and incremental save logic
+3. Integrate wizard into `TimelineTab` in `PMProjectConfigModal.tsx` -- show wizard when dates are mostly empty, with option to switch to grid view
 
