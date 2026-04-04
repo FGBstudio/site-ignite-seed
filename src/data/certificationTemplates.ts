@@ -15,6 +15,7 @@ export interface TimelineStep {
   type: TimelineEntryType;
   assigned_to_role: string;
   offset_days?: number;
+  description?: string;
 }
 
 export interface ScorecardCategory {
