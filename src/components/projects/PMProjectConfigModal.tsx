@@ -257,6 +257,26 @@ function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChan
     );
   }
 
+  // Auto-detect: show wizard if most dates are empty
+  const emptyDates = milestones.filter((m: any) => !m.start_date && !m.due_date).length;
+  const shouldShowWizard = wizardMode === true || (wizardMode === null && emptyDates > milestones.length / 2);
+
+  if (shouldShowWizard) {
+    return (
+      <TimelineSetupWizard
+        milestones={milestones}
+        templateSteps={template.timeline}
+        certId={certId!}
+        projectName={project.name}
+        onComplete={() => {
+          onOpenChange(false);
+          qc.invalidateQueries({ queryKey: ["pm-dashboard"] });
+        }}
+        onSwitchToGrid={() => setWizardMode(false)}
+      />
+    );
+  }
+
   // Parse step metadata from notes
   const getStepMeta = (m: any) => {
     try {
