@@ -292,6 +292,14 @@ function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChan
 
   return (
     <div className="space-y-3">
+      {/* Wizard toggle */}
+      <div className="flex justify-end">
+        <Button variant="ghost" size="sm" onClick={() => setWizardMode(true)} className="text-xs text-muted-foreground">
+          <Wand2 className="w-3.5 h-3.5 mr-1.5" />
+          Modalità Guidata
+        </Button>
+      </div>
+      
       {/* Header */}
       <div className="grid grid-cols-[1fr_80px_120px_120px_120px_100px] gap-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
         <span>Step</span>
