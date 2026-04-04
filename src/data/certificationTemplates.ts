@@ -38,6 +38,7 @@ function toTimeline(
     type: string;
     assigned_to_role: string;
     offset_days?: number;
+    description?: string;
   }>
 ): TimelineStep[] {
   return tasks.map((t) => ({
@@ -46,6 +47,7 @@ function toTimeline(
     type: t.type as TimelineEntryType,
     assigned_to_role: t.assigned_to_role,
     ...(t.offset_days != null ? { offset_days: t.offset_days } : {}),
+    ...(t.description ? { description: t.description } : {}),
   }));
 }
 
