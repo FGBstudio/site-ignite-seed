@@ -257,15 +257,34 @@ function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChan
     );
   }
 
+  // Sort milestones to match template step order (handles legacy data with order_index=0)
+  const sortedMilestones = [...milestones].sort((a: any, b: any) => {
+    const idxA = template.timeline.findIndex((s) => s.name === a.requirement);
+    const idxB = template.timeline.findIndex((s) => s.name === b.requirement);
+    return (idxA === -1 ? 999 : idxA) - (idxB === -1 ? 999 : idxB);
+  });
+
   // Auto-detect: show wizard if most dates are empty
-  const emptyDates = milestones.filter((m: any) => !m.start_date && !m.due_date).length;
-  const shouldShowWizard = wizardMode === true || (wizardMode === null && emptyDates > milestones.length / 2);
+  const emptyDates = sortedMilestones.filter((m: any) => !m.start_date && !m.due_date).length;
+  const shouldShowWizard = wizardMode === true || (wizardMode === null && emptyDates > sortedMilestones.length / 2);
 
   if (shouldShowWizard) {
+    // Build aligned templateSteps matching sortedMilestones
+    const alignedSteps = sortedMilestones.map((m: any) => {
+      const match = template.timeline.find((s) => s.name === m.requirement);
+      return match || {
+        name: m.requirement,
+        order_index: 0,
+        type: "manual_input" as const,
+        assigned_to_role: "PM",
+        description: "Inserisci le date per questa fase del progetto.",
+      };
+    });
+
     return (
       <TimelineSetupWizard
-        milestones={milestones}
-        templateSteps={template.timeline}
+        milestones={sortedMilestones}
+        templateSteps={alignedSteps}
         certId={certId!}
         projectName={project.name}
         onComplete={() => {
