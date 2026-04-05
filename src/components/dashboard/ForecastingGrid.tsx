@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronRight, AlertTriangle, CheckCircle } from "lucide-react";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import type { RunwayRow } from "@/hooks/useDashboardData";
 import { cn } from "@/lib/utils";
 
@@ -22,7 +21,7 @@ const statusBadgeVariant = (status: string) => {
   }
 };
 
-const fmt = (iso: string) => format(new Date(iso), "dd MMM yyyy", { locale: it });
+const fmt = (iso: string) => format(new Date(iso), "dd MMM yyyy");
 
 export function ForecastingGrid({ data }: ForecastingGridProps) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -38,7 +37,7 @@ export function ForecastingGrid({ data }: ForecastingGridProps) {
   if (data.length === 0) {
     return (
       <div className="table-container p-12 text-center text-muted-foreground">
-        Nessun dato di forecast disponibile.
+        No forecast data available.
       </div>
     );
   }
@@ -49,21 +48,19 @@ export function ForecastingGrid({ data }: ForecastingGridProps) {
         <thead>
           <tr className="border-b bg-muted/30">
             <th className="text-left p-4 font-medium text-muted-foreground w-8"></th>
-            <th className="text-left p-4 font-medium text-muted-foreground">Prodotto</th>
-            <th className="text-right p-4 font-medium text-muted-foreground">Stock Attuale</th>
-            <th className="text-right p-4 font-medium text-muted-foreground">Domanda Totale</th>
+            <th className="text-left p-4 font-medium text-muted-foreground">Product</th>
+            <th className="text-right p-4 font-medium text-muted-foreground">Current Stock</th>
+            <th className="text-right p-4 font-medium text-muted-foreground">Total Demand</th>
             <th className="text-left p-4 font-medium text-muted-foreground">Runway</th>
-            <th className="text-left p-4 font-medium text-muted-foreground">Suggerimento Ordine</th>
+            <th className="text-left p-4 font-medium text-muted-foreground">Order Suggestion</th>
           </tr>
         </thead>
-        {/* IL CORPO DELLA TABELLA INIZIA QUI: Eliminato il <tbody> globale */}
         {data.map((row) => {
           const isOpen = expanded.has(row.product.id);
           const hasShortfall = row.orderQty > 0;
 
           return (
             <Collapsible key={row.product.id} open={isOpen} onOpenChange={() => toggle(row.product.id)} asChild>
-              {/* ORA OGNI ELEMENTO HA IL SUO TBODY - Questo risolve l'errore asChild e Fragment */}
               <tbody className="border-b-0">
                 <CollapsibleTrigger asChild>
                   <tr
@@ -90,7 +87,7 @@ export function ForecastingGrid({ data }: ForecastingGridProps) {
                         </span>
                       ) : (
                         <span className="flex items-center gap-1 text-success font-medium">
-                          <CheckCircle className="h-3.5 w-3.5" /> Coperto
+                          <CheckCircle className="h-3.5 w-3.5" /> Covered
                         </span>
                       )}
                     </td>
@@ -98,15 +95,15 @@ export function ForecastingGrid({ data }: ForecastingGridProps) {
                       {hasShortfall ? (
                         <div className="flex items-center gap-2">
                           <AlertTriangle className="h-3.5 w-3.5 text-destructive shrink-0" />
-                          <span className="text-destructive font-semibold">{row.orderQty} unità</span>
+                          <span className="text-destructive font-semibold">{row.orderQty} units</span>
                           {row.orderByDate && (
                             <span className="text-xs text-muted-foreground">
-                              entro {fmt(row.orderByDate)}
+                              by {fmt(row.orderByDate)}
                             </span>
                           )}
                         </div>
                       ) : (
-                        <span className="text-success text-xs font-medium">Nessun ordine necessario</span>
+                        <span className="text-success text-xs font-medium">No order needed</span>
                       )}
                     </td>
                   </tr>
@@ -120,7 +117,7 @@ export function ForecastingGrid({ data }: ForecastingGridProps) {
                             <div className="flex items-center gap-2 mb-2">
                               <Badge variant="outline" className="text-xs">{reg.region}</Badge>
                               <span className="text-xs text-muted-foreground">
-                                {reg.totalQty} unità richieste
+                                {reg.totalQty} units requested
                               </span>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">

@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
-import { useNavigate } from "react-router-dom"; // <--- IMPORT AGGIUNTO
+import { useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
   Building2,
@@ -28,22 +27,22 @@ type PMProjectView = PMProject & {
 
 const STATUS_META = {
   da_configurare: {
-    label: "Da Configurare",
+    label: "To Configure",
     icon: AlertTriangle,
     className: "border-warning/30 bg-warning/10 text-warning",
-    emptyMessage: "Nessun progetto da configurare.",
+    emptyMessage: "No projects to configure.",
   },
   in_corso: {
-    label: "In Corso",
+    label: "In Progress",
     icon: Clock3,
     className: "border-primary/30 bg-primary/10 text-primary",
-    emptyMessage: "Nessun progetto in corso.",
+    emptyMessage: "No projects in progress.",
   },
   certificato: {
-    label: "Certificati",
+    label: "Certified",
     icon: CheckCircle2,
     className: "border-success/30 bg-success/10 text-success",
-    emptyMessage: "Nessun progetto certificato.",
+    emptyMessage: "No certified projects.",
   },
 } as const;
 
@@ -97,19 +96,19 @@ function PMProjectCard({
           <div className="rounded-lg border border-border/70 bg-muted/30 p-3">
             <p className="text-xs uppercase tracking-wide text-muted-foreground">Timeline</p>
             <p className="mt-1 text-sm font-medium text-foreground">
-              {timelineConfigured ? "Configurata" : "Da definire"}
+              {timelineConfigured ? "Configured" : "To define"}
             </p>
           </div>
           <div className="rounded-lg border border-border/70 bg-muted/30 p-3">
             <p className="text-xs uppercase tracking-wide text-muted-foreground">Hardware</p>
             <p className="mt-1 text-sm font-medium text-foreground">
-              {hardwareConfigured ? `${project.project_allocations.length} richieste` : "Da richiedere"}
+              {hardwareConfigured ? `${project.project_allocations.length} requests` : "To request"}
             </p>
           </div>
           <div className="rounded-lg border border-border/70 bg-muted/30 p-3">
             <p className="text-xs uppercase tracking-wide text-muted-foreground">Scorecard</p>
             <p className="mt-1 text-sm font-medium text-foreground">
-              {scorecardConfigured ? "Compilata" : "Da compilare"}
+              {scorecardConfigured ? "Filled" : "To fill"}
             </p>
           </div>
         </div>
@@ -117,10 +116,10 @@ function PMProjectCard({
         <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
           <span className="inline-flex items-center gap-1.5">
             <CalendarDays className="h-3.5 w-3.5" />
-            {format(new Date(project.handover_date), "dd MMM yyyy", { locale: it })}
+            {format(new Date(project.handover_date), "dd MMM yyyy")}
           </span>
           <span className={cn("text-xs font-medium", daysLeft <= 30 ? "text-warning" : "text-muted-foreground")}>
-            {daysLeft >= 0 ? `${daysLeft} gg al handover` : `${Math.abs(daysLeft)} gg di ritardo`}
+            {daysLeft >= 0 ? `${daysLeft}d to handover` : `${Math.abs(daysLeft)}d overdue`}
           </span>
         </div>
 
@@ -129,7 +128,7 @@ function PMProjectCard({
             {project.missing.map((item) => (
               <Badge key={item} variant="outline" className="border-warning/30 bg-warning/10 text-warning">
                 <AlertTriangle className="mr-1 h-3 w-3" />
-                Manca {MISSING_META[item] ?? item}
+                Missing {MISSING_META[item] ?? item}
               </Badge>
             ))}
           </div>
@@ -138,7 +137,7 @@ function PMProjectCard({
         {project.setup_status !== "certificato" && (
           <Button className="w-full gap-2" onClick={() => onConfigure(project)}>
             <Settings2 className="h-4 w-4" />
-            Configura Progetto
+            Configure Project
           </Button>
         )}
       </CardContent>
@@ -149,7 +148,7 @@ function PMProjectCard({
 export function PMProjectsBoard() {
   const { data: projects = [], isLoading } = usePMDashboard();
   const [selectedProject, setSelectedProject] = useState<PMProjectView | null>(null);
-  const navigate = useNavigate(); // <--- AGGIUNTO IL NAVIGATE QUI
+  const navigate = useNavigate();
 
   const groupedProjects = useMemo(
     () => ({
@@ -173,9 +172,9 @@ export function PMProjectsBoard() {
       <Card>
         <CardContent className="flex flex-col items-center py-16 text-center">
           <Layers3 className="mb-4 h-10 w-10 text-muted-foreground" />
-          <p className="text-lg font-medium text-foreground">Nessun progetto assegnato</p>
+          <p className="text-lg font-medium text-foreground">No projects assigned</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Quando un admin ti assegna un cantiere, lo troverai qui organizzato per stato operativo.
+            When an admin assigns you a project, you'll find it here organized by operational status.
           </p>
         </CardContent>
       </Card>
@@ -185,21 +184,18 @@ export function PMProjectsBoard() {
   return (
     <>
       <Tabs defaultValue="kanban" className="w-full space-y-6">
-        
-        {/* HEADER CON IL TOGGLE VIEW */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
-          <h2 className="text-xl font-bold tracking-tight">Panoramica Cantieri</h2>
+          <h2 className="text-xl font-bold tracking-tight">Projects Overview</h2>
           <TabsList className="bg-muted">
             <TabsTrigger value="kanban" className="gap-2">
               <LayoutGrid className="w-4 h-4" /> Kanban Board
             </TabsTrigger>
             <TabsTrigger value="planner" className="gap-2">
-              <GanttChartSquare className="w-4 h-4" /> Planner Globale
+              <GanttChartSquare className="w-4 h-4" /> Global Planner
             </TabsTrigger>
           </TabsList>
         </div>
 
-        {/* 1. VISTA ORIGINALE KANBAN (A schede operative) */}
         <TabsContent value="kanban" className="m-0 focus-visible:outline-none">
           <Tabs defaultValue="da_configurare" className="space-y-6">
             <TabsList className="grid w-full grid-cols-3">
@@ -234,22 +230,18 @@ export function PMProjectsBoard() {
           </Tabs>
         </TabsContent>
 
-        {/* 2. NUOVA VISTA PLANNER GLOBALE (Gantt) */}
         <TabsContent value="planner" className="m-0 focus-visible:outline-none">
           <div className="h-[600px] border rounded-lg shadow-sm bg-background">
             <FGBPlanner 
               data={projects.map(p => ({
                 ...p.plannerData,
-                // Naviga al dettaglio del progetto cliccato invece di aprire il modale
                 onClickUrl: `/projects/${p.id}` 
               }))} 
             />
           </div>
         </TabsContent>
-
       </Tabs>
 
-      {/* IL MODALE (Appare solo cliccando il bottone Configura sulle card del Kanban) */}
       {selectedProject && (
         <PMProjectConfigModal
           project={selectedProject}

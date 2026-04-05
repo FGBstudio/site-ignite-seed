@@ -20,12 +20,11 @@ export default function Login() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Domain check
     const domain = email.split("@")[1]?.toLowerCase();
     if (!ALLOWED_DOMAINS.includes(domain)) {
       toast({
-        title: "Accesso negato",
-        description: "Solo gli utenti con dominio @fgbstudio.com possono accedere.",
+        title: "Access denied",
+        description: "Only users with @fgbstudio.com domain can access this application.",
         variant: "destructive",
       });
       return;
@@ -36,7 +35,7 @@ export default function Login() {
     setIsLoading(false);
 
     if (error) {
-      toast({ title: "Errore di accesso", description: error.message, variant: "destructive" });
+      toast({ title: "Login error", description: error.message, variant: "destructive" });
     }
   };
 
@@ -48,18 +47,18 @@ export default function Login() {
             <Package className="h-7 w-7 text-primary-foreground" />
           </div>
           <h1 className="text-2xl font-bold text-foreground">FGB Studio</h1>
-          <p className="text-sm text-muted-foreground">Engine Room — Accesso Interno</p>
+          <p className="text-sm text-muted-foreground">Engine Room — Internal Access</p>
         </div>
 
         <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2">
           <ShieldAlert className="h-4 w-4 text-muted-foreground shrink-0" />
-          <p className="text-xs text-muted-foreground">Accesso riservato al dominio <span className="font-medium text-foreground">@fgbstudio.com</span></p>
+          <p className="text-xs text-muted-foreground">Access restricted to <span className="font-medium text-foreground">@fgbstudio.com</span> domain</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="nome@fgb-studio.com" required />
+            <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@fgb-studio.com" required />
           </div>
           <div className="space-y-2">
             <Label htmlFor="password">Password</Label>
@@ -67,7 +66,7 @@ export default function Login() {
           </div>
           <Button type="submit" className="w-full gap-2" disabled={isLoading}>
             <LogIn className="h-4 w-4" />
-            {isLoading ? "Accesso in corso..." : "Accedi"}
+            {isLoading ? "Signing in..." : "Sign In"}
           </Button>
         </form>
       </div>

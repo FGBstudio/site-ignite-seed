@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import {
   AlertTriangle, CheckCircle2, Clock3, LayoutGrid, GanttChartSquare, Building2, CalendarDays, Settings2,
 } from "lucide-react";
@@ -15,22 +14,22 @@ import { useNavigate } from "react-router-dom";
 
 const STATUS_META = {
   da_configurare: {
-    label: "Da Configurare",
+    label: "To Configure",
     icon: AlertTriangle,
     className: "border-warning/30 bg-warning/10 text-warning",
-    emptyMessage: "Nessun progetto da configurare.",
+    emptyMessage: "No projects to configure.",
   },
   in_corso: {
-    label: "In Corso",
+    label: "In Progress",
     icon: Clock3,
     className: "border-primary/30 bg-primary/10 text-primary",
-    emptyMessage: "Nessun progetto in corso.",
+    emptyMessage: "No projects in progress.",
   },
   certificato: {
-    label: "Certificati",
+    label: "Certified",
     icon: CheckCircle2,
     className: "border-success/30 bg-success/10 text-success",
-    emptyMessage: "Nessun progetto certificato.",
+    emptyMessage: "No certified projects.",
   },
 } as const;
 
@@ -71,10 +70,10 @@ function AdminProjectCard({ project }: { project: AdminPlannerProject }) {
         <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
           <span className="inline-flex items-center gap-1.5">
             <CalendarDays className="h-3.5 w-3.5" />
-            {format(new Date(project.handover_date), "dd MMM yyyy", { locale: it })}
+            {format(new Date(project.handover_date), "dd MMM yyyy")}
           </span>
           <span className={cn("text-xs font-medium", daysLeft <= 30 ? "text-warning" : "text-muted-foreground")}>
-            {daysLeft >= 0 ? `${daysLeft} gg al handover` : `${Math.abs(daysLeft)} gg di ritardo`}
+            {daysLeft >= 0 ? `${daysLeft}d to handover` : `${Math.abs(daysLeft)}d overdue`}
           </span>
         </div>
         {project.missing.length > 0 && (
@@ -82,7 +81,7 @@ function AdminProjectCard({ project }: { project: AdminPlannerProject }) {
             {project.missing.map((item) => (
               <Badge key={item} variant="outline" className="border-warning/30 bg-warning/10 text-warning">
                 <AlertTriangle className="mr-1 h-3 w-3" />
-                Manca {item}
+                Missing {item}
               </Badge>
             ))}
           </div>
@@ -95,13 +94,11 @@ function AdminProjectCard({ project }: { project: AdminPlannerProject }) {
 export function AdminTimeline() {
   const { data: projects = [], isLoading } = useAdminPlannerData();
 
-  // Filter state
   const [filterPM, setFilterPM] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterCert, setFilterCert] = useState("all");
   const [filterBrand, setFilterBrand] = useState("all");
 
-  // Derive unique values for filters
   const { pmOptions, certOptions, brandOptions } = useMemo(() => {
     const pms = new Map<string, string>();
     const certs = new Set<string>();
@@ -118,7 +115,6 @@ export function AdminTimeline() {
     };
   }, [projects]);
 
-  // Apply filters
   const filtered = useMemo(() => {
     return projects.filter((p) => {
       if (filterPM !== "all" && p.pm_id !== filterPM) return false;
@@ -145,12 +141,11 @@ export function AdminTimeline() {
 
   return (
     <div className="space-y-4">
-      {/* FILTERS */}
       <div className="flex flex-wrap gap-3 items-center">
         <Select value={filterPM} onValueChange={setFilterPM}>
           <SelectTrigger className="w-44"><SelectValue placeholder="PM" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Tutti i PM</SelectItem>
+            <SelectItem value="all">All PMs</SelectItem>
             {pmOptions.map((pm) => (
               <SelectItem key={pm.id} value={pm.id}>{pm.name}</SelectItem>
             ))}
@@ -158,20 +153,20 @@ export function AdminTimeline() {
         </Select>
 
         <Select value={filterStatus} onValueChange={setFilterStatus}>
-          <SelectTrigger className="w-44"><SelectValue placeholder="Stato" /></SelectTrigger>
+          <SelectTrigger className="w-44"><SelectValue placeholder="Status" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Tutti gli stati</SelectItem>
-            <SelectItem value="da_configurare">Da Configurare</SelectItem>
-            <SelectItem value="in_corso">In Corso</SelectItem>
-            <SelectItem value="certificato">Certificati</SelectItem>
+            <SelectItem value="all">All Statuses</SelectItem>
+            <SelectItem value="da_configurare">To Configure</SelectItem>
+            <SelectItem value="in_corso">In Progress</SelectItem>
+            <SelectItem value="certificato">Certified</SelectItem>
           </SelectContent>
         </Select>
 
         {certOptions.length > 0 && (
           <Select value={filterCert} onValueChange={setFilterCert}>
-            <SelectTrigger className="w-44"><SelectValue placeholder="Certificazione" /></SelectTrigger>
+            <SelectTrigger className="w-44"><SelectValue placeholder="Certification" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Tutte le cert.</SelectItem>
+              <SelectItem value="all">All Certs</SelectItem>
               {certOptions.map((c) => (
                 <SelectItem key={c} value={c}>{c}</SelectItem>
               ))}
@@ -183,7 +178,7 @@ export function AdminTimeline() {
           <Select value={filterBrand} onValueChange={setFilterBrand}>
             <SelectTrigger className="w-44"><SelectValue placeholder="Brand" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Tutti i brand</SelectItem>
+              <SelectItem value="all">All Brands</SelectItem>
               {brandOptions.map((b) => (
                 <SelectItem key={b} value={b}>{b}</SelectItem>
               ))}
@@ -196,27 +191,25 @@ export function AdminTimeline() {
             className="text-xs text-muted-foreground hover:text-foreground underline"
             onClick={() => { setFilterPM("all"); setFilterStatus("all"); setFilterCert("all"); setFilterBrand("all"); }}
           >
-            Reset filtri
+            Reset filters
           </button>
         )}
 
         <span className="text-xs text-muted-foreground ml-auto">
-          {filtered.length} / {projects.length} progetti
+          {filtered.length} / {projects.length} projects
         </span>
       </div>
 
-      {/* KANBAN / PLANNER TOGGLE */}
       <Tabs defaultValue="kanban" className="w-full space-y-4">
         <TabsList className="bg-muted">
           <TabsTrigger value="kanban" className="gap-2">
             <LayoutGrid className="w-4 h-4" /> Kanban Board
           </TabsTrigger>
           <TabsTrigger value="planner" className="gap-2">
-            <GanttChartSquare className="w-4 h-4" /> Planner Globale
+            <GanttChartSquare className="w-4 h-4" /> Global Planner
           </TabsTrigger>
         </TabsList>
 
-        {/* KANBAN */}
         <TabsContent value="kanban" className="m-0">
           <Tabs defaultValue="da_configurare" className="space-y-4">
             <TabsList className="grid w-full grid-cols-3">
@@ -250,7 +243,6 @@ export function AdminTimeline() {
           </Tabs>
         </TabsContent>
 
-        {/* PLANNER */}
         <TabsContent value="planner" className="m-0">
           <div className="h-[600px] border rounded-lg shadow-sm bg-background">
             <FGBPlanner data={filtered.map((p) => p.plannerData)} />

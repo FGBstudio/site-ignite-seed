@@ -46,20 +46,20 @@ export function AppSidebar() {
   if (isAdmin) {
     mainNavItems = [
       { title: "CEO Dashboard", url: "/ceo-dashboard", icon: Crown },
-      { title: "Tutti i Cantieri", url: "/projects", icon: FolderKanban },
-      { title: "Magazzino", url: "/inventory", icon: Package },
-      { title: "Ordini Fornitori", url: "/supplier-orders", icon: Truck },
+      { title: "All Projects", url: "/projects", icon: FolderKanban },
+      { title: "Inventory", url: "/inventory", icon: Package },
+      { title: "Supplier Orders", url: "/supplier-orders", icon: Truck },
       { title: "Reports", url: "/reports", icon: BarChart3 },
     ];
   } else if (isPM) {
     mainNavItems = [
-      { title: "I Miei Cantieri", url: "/projects", icon: FolderKanban },
-      { title: "Dashboard PM", url: "/pm-portal", icon: LayoutDashboard },
-      { title: "I Miei Task", url: "/my-tasks", icon: Inbox },
+      { title: "My Projects", url: "/projects", icon: FolderKanban },
+      { title: "PM Dashboard", url: "/pm-portal", icon: LayoutDashboard },
+      { title: "My Tasks", url: "/my-tasks", icon: Inbox },
     ];
   } else if (isOperative) {
     mainNavItems = [
-      { title: "Inbox / I Miei Task", url: "/my-tasks", icon: Inbox },
+      { title: "Inbox / My Tasks", url: "/my-tasks", icon: Inbox },
     ];
   }
 
@@ -118,7 +118,7 @@ export function AppSidebar() {
         {isAdmin && (
           <SidebarGroup className="mt-auto">
             <SidebarGroupLabel className="text-[11px] font-medium text-sidebar-foreground/40 uppercase tracking-widest px-3 mb-1">
-              {!collapsed && "Sistema"}
+              {!collapsed && "System"}
             </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
