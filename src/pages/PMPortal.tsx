@@ -6,7 +6,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { AlertTriangle, ArrowRight, Building2, CalendarIcon, CheckCircle2, Clock3, FolderKanban } from "lucide-react";
 import { PMCalendar } from "@/components/dashboard/PMCalendar";
@@ -15,17 +14,17 @@ type PMProjectView = PMProject & { project_subtype?: string | null };
 
 const STATUS_META = {
   da_configurare: {
-    label: "Da Configurare",
+    label: "To Configure",
     icon: AlertTriangle,
     className: "border-warning/30 bg-warning/10 text-warning",
   },
   in_corso: {
-    label: "In Corso",
+    label: "In Progress",
     icon: Clock3,
     className: "border-primary/30 bg-primary/10 text-primary",
   },
   certificato: {
-    label: "Certificati",
+    label: "Certified",
     icon: CheckCircle2,
     className: "border-success/30 bg-success/10 text-success",
   },
@@ -47,7 +46,7 @@ export default function PMPortal() {
   );
 
   return (
-    <MainLayout title="Dashboard PM" subtitle="Recap operativo dei progetti assegnati">
+    <MainLayout title="PM Dashboard" subtitle="Operational overview of assigned projects">
       {isLoading ? (
         <div className="flex justify-center py-20">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
@@ -56,9 +55,9 @@ export default function PMPortal() {
         <Card>
           <CardContent className="py-16 text-center">
             <FolderKanban className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
-            <p className="text-lg font-medium text-foreground">Nessun cantiere assegnato</p>
+            <p className="text-lg font-medium text-foreground">No projects assigned</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Quando un admin ti assegna un progetto, vedrai qui il recap e in “I Miei Cantieri” la dashboard operativa.
+              When an admin assigns you a project, you'll see the recap here and in "My Projects" the operational dashboard.
             </p>
           </CardContent>
         </Card>
@@ -72,7 +71,7 @@ export default function PMPortal() {
                 </div>
                 <div>
                   <p className="text-2xl font-bold text-foreground">{daConfigurare.length}</p>
-                  <p className="text-xs text-muted-foreground">Da Configurare</p>
+                  <p className="text-xs text-muted-foreground">To Configure</p>
                 </div>
               </CardContent>
             </Card>
@@ -83,7 +82,7 @@ export default function PMPortal() {
                 </div>
                 <div>
                   <p className="text-2xl font-bold text-foreground">{inCorso.length}</p>
-                  <p className="text-xs text-muted-foreground">In Corso</p>
+                  <p className="text-xs text-muted-foreground">In Progress</p>
                 </div>
               </CardContent>
             </Card>
@@ -94,7 +93,7 @@ export default function PMPortal() {
                 </div>
                 <div>
                   <p className="text-2xl font-bold text-foreground">{certificati.length}</p>
-                  <p className="text-xs text-muted-foreground">Certificati</p>
+                  <p className="text-xs text-muted-foreground">Certified</p>
                 </div>
               </CardContent>
             </Card>
@@ -105,11 +104,11 @@ export default function PMPortal() {
           <Card>
             <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <CardTitle>Ultimi progetti assegnati</CardTitle>
-                <CardDescription>Recap rapido dei cantieri su cui stai lavorando.</CardDescription>
+                <CardTitle>Recently assigned projects</CardTitle>
+                <CardDescription>Quick recap of the projects you're working on.</CardDescription>
               </div>
               <Button variant="outline" className="gap-2" onClick={() => navigate("/projects")}>
-                Apri I Miei Cantieri
+                Open My Projects
                 <ArrowRight className="h-4 w-4" />
               </Button>
             </CardHeader>
@@ -144,10 +143,10 @@ export default function PMPortal() {
                     <div className="flex flex-col items-start gap-2 text-sm text-muted-foreground lg:items-end">
                       <span className="inline-flex items-center gap-1.5">
                         <CalendarIcon className="h-3.5 w-3.5" />
-                        {format(new Date(project.handover_date), "dd MMM yyyy", { locale: it })}
+                        {format(new Date(project.handover_date), "dd MMM yyyy")}
                       </span>
                       <Button size="sm" variant="ghost" className="gap-2 px-0" onClick={() => navigate("/projects")}>
-                        Vai alla dashboard operativa
+                        Go to operational dashboard
                         <ArrowRight className="h-4 w-4" />
                       </Button>
                     </div>
