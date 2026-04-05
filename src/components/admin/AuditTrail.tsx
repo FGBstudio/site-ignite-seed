@@ -3,7 +3,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Clock, ArrowRight } from "lucide-react";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 
 interface AuditEntry {
   id: string;
@@ -57,9 +56,9 @@ export function AuditTrail() {
 
   const fieldLabels: Record<string, string> = {
     handover_date: "Handover Date",
-    status: "Stato Progetto",
-    allocation_requested: "Nuova Allocazione",
-    allocation_status: "Stato Allocazione",
+    status: "Project Status",
+    allocation_requested: "New Allocation",
+    allocation_status: "Allocation Status",
   };
 
   if (loading) {
@@ -69,7 +68,7 @@ export function AuditTrail() {
   return (
     <div className="space-y-3">
       {logs.length === 0 ? (
-        <div className="text-center py-8 text-muted-foreground">Nessuna attività registrata.</div>
+        <div className="text-center py-8 text-muted-foreground">No activity recorded.</div>
       ) : (
         logs.map((log) => (
           <div key={log.id} className="flex items-start gap-3 p-3 rounded-lg border border-border/50 hover:bg-muted/30 transition-colors">
@@ -78,11 +77,11 @@ export function AuditTrail() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm text-foreground">
-                <span className="font-medium">{log.user_name || "Utente"}</span>{" "}
-                ha modificato{" "}
+                <span className="font-medium">{log.user_name || "User"}</span>{" "}
+                modified{" "}
                 <Badge variant="outline" className="mx-1 text-xs">{fieldLabels[log.changed_field] || log.changed_field}</Badge>{" "}
                 {log.project_name && (
-                  <>su <span className="font-medium">{log.project_name}</span></>
+                  <>on <span className="font-medium">{log.project_name}</span></>
                 )}
               </p>
               {log.old_value && log.new_value && (
@@ -96,7 +95,7 @@ export function AuditTrail() {
                 <p className="text-xs text-muted-foreground mt-1">{log.new_value}</p>
               )}
               <p className="text-xs text-muted-foreground mt-1">
-                {format(new Date(log.created_at), "dd MMM yyyy HH:mm", { locale: it })}
+                {format(new Date(log.created_at), "dd MMM yyyy HH:mm")}
               </p>
             </div>
           </div>

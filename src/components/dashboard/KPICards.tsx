@@ -3,7 +3,6 @@ import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, PackageCheck, Warehouse, FileStack, ShoppingCart } from "lucide-react";
 import type { KPIData } from "@/hooks/useDashboardData";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 
 interface KPICardsProps {
   data: KPIData;
@@ -67,7 +66,7 @@ export function KPICards({ data }: KPICardsProps) {
                 </div>
                 {isToOrder && value > 0 && (
                   <Badge variant="destructive" className="text-[10px] px-1.5 py-0.5">
-                    Urgente
+                    Urgent
                   </Badge>
                 )}
               </div>
@@ -77,7 +76,7 @@ export function KPICards({ data }: KPICardsProps) {
               </div>
               {isToOrder && data.dropDeadDate && value > 0 && (
                 <p className="text-[11px] text-destructive font-medium">
-                  Ordinare entro {format(new Date(data.dropDeadDate), "dd MMM yyyy", { locale: it })}
+                  Order by {format(new Date(data.dropDeadDate), "dd MMM yyyy")}
                 </p>
               )}
             </CardContent>

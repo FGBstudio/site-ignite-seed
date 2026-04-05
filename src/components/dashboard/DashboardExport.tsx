@@ -3,7 +3,6 @@ import { Download } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import type { KPIData, RunwayRow } from "@/hooks/useDashboardData";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 
 interface DashboardExportProps {
   kpi: KPIData;
@@ -11,15 +10,14 @@ interface DashboardExportProps {
 }
 
 const fmt = (iso: string | null) =>
-  iso ? format(new Date(iso), "dd/MM/yyyy", { locale: it }) : "N/A";
+  iso ? format(new Date(iso), "dd/MM/yyyy") : "N/A";
 
 export function DashboardExport({ kpi, runway }: DashboardExportProps) {
   const exportCSV = () => {
     const lines: string[] = [];
 
-    // KPI Snapshot
     lines.push("=== EXECUTIVE SUMMARY ===");
-    lines.push("Metrica,Valore");
+    lines.push("Metric,Value");
     lines.push(`Hardware Installed,${kpi.installed}`);
     lines.push(`Assigned (Confirmed),${kpi.confirmed}`);
     lines.push(`In Stock,${kpi.inStock}`);
@@ -28,9 +26,8 @@ export function DashboardExport({ kpi, runway }: DashboardExportProps) {
     if (kpi.dropDeadDate) lines.push(`Order Deadline,${fmt(kpi.dropDeadDate)}`);
     lines.push("");
 
-    // Forecast grid
     lines.push("=== FORECASTING BREAKDOWN ===");
-    lines.push("Prodotto,SKU,Stock,Domanda,Runway,Ordine Qty,Ordinare Entro,Region,Progetto,Handover,Qty Progetto,Stato");
+    lines.push("Product,SKU,Stock,Demand,Runway,Order Qty,Order By,Region,Project,Handover,Project Qty,Status");
 
     for (const row of runway) {
       if (row.regions.length === 0) {
@@ -54,7 +51,7 @@ export function DashboardExport({ kpi, runway }: DashboardExportProps) {
     a.download = `dashboard-export-${format(new Date(), "yyyy-MM-dd")}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    toast({ title: "CSV esportato", description: "File scaricato con successo." });
+    toast({ title: "CSV exported", description: "File downloaded successfully." });
   };
 
   const exportPDF = async () => {
@@ -64,16 +61,14 @@ export function DashboardExport({ kpi, runway }: DashboardExportProps) {
 
       const doc = new jsPDF({ orientation: "landscape" });
 
-      // Title
       doc.setFontSize(16);
       doc.text("Executive Dashboard Report", 14, 20);
       doc.setFontSize(10);
-      doc.text(`Generato il ${format(new Date(), "dd MMMM yyyy", { locale: it })}`, 14, 28);
+      doc.text(`Generated on ${format(new Date(), "dd MMMM yyyy")}`, 14, 28);
 
-      // KPI Table
       autoTable(doc, {
         startY: 35,
-        head: [["Metrica", "Valore"]],
+        head: [["Metric", "Value"]],
         body: [
           ["Hardware Installed", String(kpi.installed)],
           ["Assigned (Confirmed)", String(kpi.confirmed)],
@@ -87,7 +82,6 @@ export function DashboardExport({ kpi, runway }: DashboardExportProps) {
         styles: { fontSize: 9 },
       });
 
-      // Forecast Table
       const forecastRows: string[][] = [];
       for (const row of runway) {
         for (const reg of row.regions) {
@@ -112,7 +106,7 @@ export function DashboardExport({ kpi, runway }: DashboardExportProps) {
       const finalY = (doc as any).lastAutoTable?.finalY || 80;
       autoTable(doc, {
         startY: finalY + 10,
-        head: [["Prodotto", "Stock", "Domanda", "Runway", "Ordine", "Entro", "Region", "Progetto", "Handover", "Qty", "Stato"]],
+        head: [["Product", "Stock", "Demand", "Runway", "Order", "By", "Region", "Project", "Handover", "Qty", "Status"]],
         body: forecastRows,
         theme: "striped",
         headStyles: { fillColor: [37, 99, 235] },
@@ -120,9 +114,9 @@ export function DashboardExport({ kpi, runway }: DashboardExportProps) {
       });
 
       doc.save(`dashboard-report-${format(new Date(), "yyyy-MM-dd")}.pdf`);
-      toast({ title: "PDF esportato", description: "Report scaricato con successo." });
+      toast({ title: "PDF exported", description: "Report downloaded successfully." });
     } catch {
-      toast({ title: "Errore", description: "Impossibile generare il PDF.", variant: "destructive" });
+      toast({ title: "Error", description: "Unable to generate PDF.", variant: "destructive" });
     }
   };
 
