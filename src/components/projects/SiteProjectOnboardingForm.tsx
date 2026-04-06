@@ -27,11 +27,11 @@ const CERT_LEVELS: Record<string, string[]> = {
 };
 
 const formSchema = z.object({
-  brand_id: z.string().uuid("Seleziona un brand"),
-  site_name: z.string().min(2, "Il nome è obbligatorio"),
+  brand_id: z.string().uuid("Select a brand"),
+  site_name: z.string().min(2, "Name is required"),
   address: z.string().optional(),
-  city: z.string().min(2, "La città è obbligatoria"),
-  country: z.string().min(2, "Il paese è obbligatorio"),
+  city: z.string().min(2, "City is required"),
+  country: z.string().min(2, "Country is required"),
   region: z.enum(["Europe", "America", "APAC", "ME"]),
   lat: z.coerce.number().optional(),
   lng: z.coerce.number().optional(),
@@ -51,14 +51,14 @@ const formSchema = z.object({
 }).superRefine((data, ctx) => {
   if (data.create_project) {
     if (!data.project_name || data.project_name.trim() === "") {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Nome progetto richiesto", path: ["project_name"] });
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Project name required", path: ["project_name"] });
     }
     if (!data.pm_id) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "PM richiesto", path: ["pm_id"] });
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "PM required", path: ["pm_id"] });
     }
     if (data.cert_type && CERT_LEVELS[data.cert_type]) {
       if (data.cert_level && !CERT_LEVELS[data.cert_type].includes(data.cert_level)) {
-         ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Livello non valido per ${data.cert_type}`, path: ["cert_level"] });
+         ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Invalid level for ${data.cert_type}`, path: ["cert_level"] });
       }
     }
   }
@@ -130,8 +130,6 @@ export function SiteProjectOnboardingForm() {
         if (projectError) throw projectError;
 
         if (values.cert_type) {
-          // FIX CHIRURGICO: Non passiamo project_id perché la colonna non esiste.
-          // Impostiamo level al cert_rating affinché il motore di fallback trovi la correlazione.
           const { data: certData, error: certError } = await supabase
             .from("certifications")
             .insert({
@@ -166,56 +164,56 @@ export function SiteProjectOnboardingForm() {
               for (let i = 0; i < milestoneRows.length; i += 50) {
                 const batch = milestoneRows.slice(i, i + 50);
                 const { error: mErr } = await supabase.from("certification_milestones").insert(batch as any);
-                if (mErr) console.error("Errore inserimento milestone:", mErr);
+                if (mErr) console.error("Error inserting milestones:", mErr);
               }
             }
           }
         }
       }
 
-      toast({ title: "Operazione completata", description: "Sito e Progetto configurati con successo." });
+      toast({ title: "Operation completed", description: "Site and Project configured successfully." });
       queryClient.invalidateQueries({ queryKey: ["projects"] });
       queryClient.invalidateQueries({ queryKey: ["sites"] });
       form.reset();
       setOpen(false);
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Errore di salvataggio", description: error.message });
+      toast({ variant: "destructive", title: "Save error", description: error.message });
     }
   };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild><Button><Plus className="mr-2 h-4 w-4" />Onboarding Sito</Button></DialogTrigger>
+      <DialogTrigger asChild><Button><Plus className="mr-2 h-4 w-4" />Site Onboarding</Button></DialogTrigger>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader><DialogTitle>Creazione Sito & Progetto</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>Create Site & Project</DialogTitle></DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <Card><CardHeader className="pb-3"><CardTitle className="text-base">Dati Sito Fisico</CardTitle></CardHeader>
+            <Card><CardHeader className="pb-3"><CardTitle className="text-base">Physical Site Data</CardTitle></CardHeader>
               <CardContent className="space-y-4">
                 <FormField control={form.control} name="brand_id" render={({ field }) => (
-                  <FormItem><FormLabel>Brand</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder={brandsLoading ? "Caricamento..." : "Seleziona brand"} /></SelectTrigger></FormControl><SelectContent>{brands.map((b) => (<SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>
+                  <FormItem><FormLabel>Brand</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder={brandsLoading ? "Loading..." : "Select brand"} /></SelectTrigger></FormControl><SelectContent>{brands.map((b) => (<SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>
                 )} />
                 <div className="grid grid-cols-2 gap-4">
-                  <FormField control={form.control} name="site_name" render={({ field }) => (<FormItem><FormLabel>Nome Sito</FormLabel><FormControl><Input placeholder="Es. Sede Milano" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                  <FormField control={form.control} name="city" render={({ field }) => (<FormItem><FormLabel>Città</FormLabel><FormControl><Input placeholder="Milano" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                  <FormField control={form.control} name="site_name" render={({ field }) => (<FormItem><FormLabel>Site Name</FormLabel><FormControl><Input placeholder="e.g. Milan HQ" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                  <FormField control={form.control} name="city" render={({ field }) => (<FormItem><FormLabel>City</FormLabel><FormControl><Input placeholder="Milan" {...field} /></FormControl><FormMessage /></FormItem>)} />
                 </div>
-                <FormField control={form.control} name="address" render={({ field }) => (<FormItem><FormLabel>Indirizzo</FormLabel><FormControl><Input placeholder="Via Roma 1" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="address" render={({ field }) => (<FormItem><FormLabel>Address</FormLabel><FormControl><Input placeholder="Via Roma 1" {...field} /></FormControl><FormMessage /></FormItem>)} />
                 <div className="grid grid-cols-2 gap-4">
-                  <FormField control={form.control} name="country" render={({ field }) => (<FormItem><FormLabel>Paese</FormLabel><FormControl><Input placeholder="Italia" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                  <FormField control={form.control} name="country" render={({ field }) => (<FormItem><FormLabel>Country</FormLabel><FormControl><Input placeholder="Italy" {...field} /></FormControl><FormMessage /></FormItem>)} />
                   <FormField control={form.control} name="region" render={({ field }) => (
-                    <FormItem><FormLabel>Regione</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="Europe">Europe</SelectItem><SelectItem value="America">America</SelectItem><SelectItem value="APAC">APAC</SelectItem><SelectItem value="ME">ME</SelectItem></SelectContent></Select><FormMessage /></FormItem>
+                    <FormItem><FormLabel>Region</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="Europe">Europe</SelectItem><SelectItem value="America">America</SelectItem><SelectItem value="APAC">APAC</SelectItem><SelectItem value="ME">ME</SelectItem></SelectContent></Select><FormMessage /></FormItem>
                   )} />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <FormField control={form.control} name="lat" render={({ field }) => (<FormItem><FormLabel>Latitudine</FormLabel><FormControl><Input type="number" step="any" placeholder="45.464" {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>)} />
-                  <FormField control={form.control} name="lng" render={({ field }) => (<FormItem><FormLabel>Longitudine</FormLabel><FormControl><Input type="number" step="any" placeholder="9.190" {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>)} />
+                  <FormField control={form.control} name="lat" render={({ field }) => (<FormItem><FormLabel>Latitude</FormLabel><FormControl><Input type="number" step="any" placeholder="45.464" {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>)} />
+                  <FormField control={form.control} name="lng" render={({ field }) => (<FormItem><FormLabel>Longitude</FormLabel><FormControl><Input type="number" step="any" placeholder="9.190" {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>)} />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <FormField control={form.control} name="area_m2" render={({ field }) => (<FormItem><FormLabel>Area (m²)</FormLabel><FormControl><Input type="number" placeholder="1500" {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>)} />
                   <FormField control={form.control} name="timezone" render={({ field }) => (<FormItem><FormLabel>Timezone</FormLabel><FormControl><Input placeholder="Europe/Rome" {...field} /></FormControl><FormMessage /></FormItem>)} />
                 </div>
                 <Separator />
-                <p className="text-sm font-medium text-muted-foreground">Moduli Attivi</p>
+                <p className="text-sm font-medium text-muted-foreground">Active Modules</p>
                 <div className="flex flex-wrap gap-6">
                   {(["module_energy_enabled", "module_air_enabled", "module_water_enabled"] as const).map((mod) => (
                     <FormField key={mod} control={form.control} name={mod} render={({ field }) => (
@@ -228,28 +226,28 @@ export function SiteProjectOnboardingForm() {
 
             <div className="flex items-center gap-4 rounded-lg border border-primary/30 bg-primary/5 p-4">
               <FormField control={form.control} name="create_project" render={({ field }) => (
-                <FormItem className="flex items-center gap-3"><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} className="scale-125" /></FormControl><FormLabel className="!mt-0 text-base font-semibold">Avvia Progetto di Certificazione su questo Sito</FormLabel></FormItem>
+                <FormItem className="flex items-center gap-3"><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} className="scale-125" /></FormControl><FormLabel className="!mt-0 text-base font-semibold">Launch Certification Project on this Site</FormLabel></FormItem>
               )} />
             </div>
 
             {createProject && (
-              <Card><CardHeader className="pb-3"><CardTitle className="text-base">Impostazioni Progetto</CardTitle></CardHeader>
+              <Card><CardHeader className="pb-3"><CardTitle className="text-base">Project Settings</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
-                  <FormField control={form.control} name="project_name" render={({ field }) => (<FormItem><FormLabel>Nome Progetto</FormLabel><FormControl><Input placeholder="LEED Gold – Sede Milano" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                  <FormField control={form.control} name="pm_id" render={({ field }) => (<FormItem><FormLabel>Project Manager</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder={pmsLoading ? "Caricamento..." : "Seleziona PM"} /></SelectTrigger></FormControl><SelectContent>{pms.map((pm: any) => (<SelectItem key={pm.id} value={pm.id}>{pm.full_name}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                  <FormField control={form.control} name="project_name" render={({ field }) => (<FormItem><FormLabel>Project Name</FormLabel><FormControl><Input placeholder="LEED Gold – Milan HQ" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                  <FormField control={form.control} name="pm_id" render={({ field }) => (<FormItem><FormLabel>Project Manager</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder={pmsLoading ? "Loading..." : "Select PM"} /></SelectTrigger></FormControl><SelectContent>{pms.map((pm: any) => (<SelectItem key={pm.id} value={pm.id}>{pm.full_name}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
                   <div className="grid grid-cols-2 gap-4">
-                    <FormField control={form.control} name="cert_type" render={({ field }) => (<FormItem><FormLabel>Tipo Certificazione</FormLabel><Select onValueChange={(v: any) => handleCertTypeChange(v, field.onChange)} value={field.value || ""}><FormControl><SelectTrigger><SelectValue placeholder="Seleziona" /></SelectTrigger></FormControl><SelectContent>{["LEED", "WELL", "BREEAM", "CO2"].map((v) => (<SelectItem key={v} value={v}>{v}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
-                    <FormField control={form.control} name="cert_level" render={({ field }) => (<FormItem><FormLabel>Certificate Level</FormLabel><Select onValueChange={field.onChange} value={field.value || ""} disabled={availableLevels.length === 0}><FormControl><SelectTrigger><SelectValue placeholder={availableLevels.length === 0 ? "Non applicabile" : "Seleziona livello"} /></SelectTrigger></FormControl><SelectContent>{availableLevels.map((v) => (<SelectItem key={v} value={v}>{v}</SelectItem>))}</SelectContent></Select><FormDescription className="text-[10px] leading-tight">Le opzioni cambiano in base al tipo selezionato.</FormDescription><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="cert_type" render={({ field }) => (<FormItem><FormLabel>Certification Type</FormLabel><Select onValueChange={(v: any) => handleCertTypeChange(v, field.onChange)} value={field.value || ""}><FormControl><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger></FormControl><SelectContent>{["LEED", "WELL", "BREEAM", "CO2"].map((v) => (<SelectItem key={v} value={v}>{v}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="cert_level" render={({ field }) => (<FormItem><FormLabel>Certificate Level</FormLabel><Select onValueChange={field.onChange} value={field.value || ""} disabled={availableLevels.length === 0}><FormControl><SelectTrigger><SelectValue placeholder={availableLevels.length === 0 ? "Not applicable" : "Select level"} /></SelectTrigger></FormControl><SelectContent>{availableLevels.map((v) => (<SelectItem key={v} value={v}>{v}</SelectItem>))}</SelectContent></Select><FormDescription className="text-[10px] leading-tight">Options change based on selected type.</FormDescription><FormMessage /></FormItem>)} />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
-                    <FormField control={form.control} name="cert_rating" render={({ field }) => (<FormItem><FormLabel>Rating System</FormLabel><Select onValueChange={(v) => handleRatingChange(v, field.onChange)} value={field.value || ""}><FormControl><SelectTrigger><SelectValue placeholder="Seleziona Rating" /></SelectTrigger></FormControl><SelectContent>{RATING_SYSTEMS.map((v) => (<SelectItem key={v} value={v}>{v}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
-                    <FormField control={form.control} name="project_subtype" render={({ field }) => (<FormItem><FormLabel>Sottotipologia</FormLabel><Select onValueChange={field.onChange} value={field.value || ""} disabled={availableSubtypes.length === 0}><FormControl><SelectTrigger><SelectValue placeholder={availableSubtypes.length === 0 ? "Seleziona Rating" : "Seleziona sottotipologia"} /></SelectTrigger></FormControl><SelectContent>{availableSubtypes.map((v) => (<SelectItem key={v} value={v}>{v}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="cert_rating" render={({ field }) => (<FormItem><FormLabel>Rating System</FormLabel><Select onValueChange={(v) => handleRatingChange(v, field.onChange)} value={field.value || ""}><FormControl><SelectTrigger><SelectValue placeholder="Select Rating" /></SelectTrigger></FormControl><SelectContent>{RATING_SYSTEMS.map((v) => (<SelectItem key={v} value={v}>{v}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="project_subtype" render={({ field }) => (<FormItem><FormLabel>Subtype</FormLabel><Select onValueChange={field.onChange} value={field.value || ""} disabled={availableSubtypes.length === 0}><FormControl><SelectTrigger><SelectValue placeholder={availableSubtypes.length === 0 ? "Select Rating first" : "Select subtype"} /></SelectTrigger></FormControl><SelectContent>{availableSubtypes.map((v) => (<SelectItem key={v} value={v}>{v}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
                   </div>
                   <FormField control={form.control} name="is_commissioning" render={({ field }) => (<FormItem className="flex items-center gap-2"><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl><FormLabel className="!mt-0">Commissioning</FormLabel></FormItem>)} />
                 </CardContent>
               </Card>
             )}
-            <Button type="submit" disabled={isSubmitting} className="w-full">{isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Salva</Button>
+            <Button type="submit" disabled={isSubmitting} className="w-full">{isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Save</Button>
           </form>
         </Form>
       </DialogContent>
