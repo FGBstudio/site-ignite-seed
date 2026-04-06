@@ -57,7 +57,7 @@ export default function Inventory() {
         .select("*")
         .order("name");
       if (error) {
-        toast({ title: "Errore", description: error.message, variant: "destructive" });
+        toast({ title: "Error", description: error.message, variant: "destructive" });
       }
       setProducts((data || []) as any);
       setLoading(false);
@@ -85,7 +85,7 @@ export default function Inventory() {
       .eq("product_id", product.id);
 
     if (error) {
-      toast({ title: "Errore", description: error.message, variant: "destructive" });
+      toast({ title: "Error", description: error.message, variant: "destructive" });
       setBreakdown({
         total_stock: product.quantity_in_stock,
         total_allocated: 0,
@@ -180,10 +180,10 @@ export default function Inventory() {
                 </div>
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <Package className="h-3.5 w-3.5" />
-                  Lead time: {product.supplier_lead_time_days} giorni
+                  Lead time: {product.supplier_lead_time_days} days
                 </div>
                 <div className="flex items-center gap-1 text-xs text-primary opacity-0 group-hover:opacity-100 transition-opacity">
-                  Clicca per dettagli <ArrowRight className="h-3 w-3" />
+                  Click for details <ArrowRight className="h-3 w-3" />
                 </div>
               </CardContent>
             </Card>
@@ -219,32 +219,30 @@ export default function Inventory() {
                 </div>
               ) : breakdown ? (
                 <div className="space-y-6 mt-2">
-                  {/* Summary Cards */}
                   <div className="grid grid-cols-3 gap-3">
                     <div className="rounded-lg border bg-card p-4 text-center">
                       <Layers className="h-5 w-5 mx-auto text-muted-foreground mb-1" />
                       <p className="text-2xl font-bold text-foreground">{breakdown.total_stock}</p>
-                      <p className="text-xs text-muted-foreground">Stock Totale</p>
+                      <p className="text-xs text-muted-foreground">Total Stock</p>
                     </div>
                     <div className="rounded-lg border bg-warning/5 border-warning/20 p-4 text-center">
                       <BoxSelect className="h-5 w-5 mx-auto text-warning mb-1" />
                       <p className="text-2xl font-bold text-warning">{breakdown.total_allocated}</p>
-                      <p className="text-xs text-muted-foreground">Impegnati</p>
+                      <p className="text-xs text-muted-foreground">Committed</p>
                     </div>
                     <div className="rounded-lg border bg-success/5 border-success/20 p-4 text-center">
                       <Package className="h-5 w-5 mx-auto text-success mb-1" />
                       <p className="text-2xl font-bold text-success">{breakdown.free_stock}</p>
-                      <p className="text-xs text-muted-foreground">Disponibili</p>
+                      <p className="text-xs text-muted-foreground">Available</p>
                     </div>
                   </div>
 
-                  {/* Allocation Status Breakdown */}
                   {breakdown.total_allocated > 0 && (
                     <div className="grid grid-cols-3 gap-3">
                       <div className="rounded-lg border p-3 text-center">
                         <div className="flex items-center justify-center gap-1.5 mb-1">
                           <ShoppingCart className="h-4 w-4 text-warning" />
-                          <span className="text-xs font-medium text-muted-foreground">In Attesa</span>
+                          <span className="text-xs font-medium text-muted-foreground">Pending</span>
                         </div>
                         <p className="text-xl font-bold text-warning">{breakdown.requested}</p>
                         <p className="text-[10px] text-muted-foreground">Requested</p>
@@ -252,7 +250,7 @@ export default function Inventory() {
                       <div className="rounded-lg border p-3 text-center">
                         <div className="flex items-center justify-center gap-1.5 mb-1">
                           <Clock className="h-4 w-4 text-primary" />
-                          <span className="text-xs font-medium text-muted-foreground">Riservato</span>
+                          <span className="text-xs font-medium text-muted-foreground">Reserved</span>
                         </div>
                         <p className="text-xl font-bold text-primary">{breakdown.allocated}</p>
                         <p className="text-[10px] text-muted-foreground">Allocated</p>
@@ -260,7 +258,7 @@ export default function Inventory() {
                       <div className="rounded-lg border p-3 text-center">
                         <div className="flex items-center justify-center gap-1.5 mb-1">
                           <Truck className="h-4 w-4 text-accent-foreground" />
-                          <span className="text-xs font-medium text-muted-foreground">In Viaggio</span>
+                          <span className="text-xs font-medium text-muted-foreground">In Transit</span>
                         </div>
                         <p className="text-xl font-bold text-accent-foreground">{breakdown.shipped}</p>
                         <p className="text-[10px] text-muted-foreground">Shipped</p>
@@ -268,10 +266,9 @@ export default function Inventory() {
                     </div>
                   )}
 
-                  {/* Progress bar */}
                   <div className="space-y-1.5">
                     <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>Utilizzo stock</span>
+                      <span>Stock utilization</span>
                       <span>
                         {breakdown.total_stock > 0
                           ? Math.round((breakdown.total_allocated / breakdown.total_stock) * 100)
@@ -289,24 +286,23 @@ export default function Inventory() {
 
                   <Separator />
 
-                  {/* Allocations table */}
                   <div>
                     <h4 className="text-sm font-semibold text-foreground mb-3">
-                      Progetti con allocazioni ({breakdown.allocations.length})
+                      Projects with allocations ({breakdown.allocations.length})
                     </h4>
                     {breakdown.allocations.length === 0 ? (
                       <p className="text-sm text-muted-foreground py-4 text-center">
-                        Nessuna allocazione per questo prodotto.
+                        No allocations for this product.
                       </p>
                     ) : (
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead>Progetto</TableHead>
-                            <TableHead>Cliente</TableHead>
-                            <TableHead>Regione</TableHead>
-                            <TableHead className="text-right">Qtà</TableHead>
-                            <TableHead>Stato</TableHead>
+                            <TableHead>Project</TableHead>
+                            <TableHead>Client</TableHead>
+                            <TableHead>Region</TableHead>
+                            <TableHead className="text-right">Qty</TableHead>
+                            <TableHead>Status</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>

@@ -10,12 +10,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Plus, Loader2, CheckCircle, Clock, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 
 const STATUS_LABELS: Record<string, string> = {
-  pending: "In attesa",
-  invoiced: "Fatturato",
-  paid: "Pagato",
+  pending: "Pending",
+  invoiced: "Invoiced",
+  paid: "Paid",
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -73,20 +72,20 @@ export function ProjectPayments({ projectId }: Props) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="font-semibold text-foreground">Piano Pagamenti</h3>
+          <h3 className="font-semibold text-foreground">Payment Plan</h3>
           <p className="text-xs text-muted-foreground">
-            Incassato: €{paidAmount.toLocaleString("it-IT", { minimumFractionDigits: 2 })} / €{totalAmount.toLocaleString("it-IT", { minimumFractionDigits: 2 })}
+            Collected: €{paidAmount.toLocaleString("en-US", { minimumFractionDigits: 2 })} / €{totalAmount.toLocaleString("en-US", { minimumFractionDigits: 2 })}
           </p>
         </div>
         <Button size="sm" onClick={() => setShowNew(true)} className="gap-1">
-          <Plus className="h-4 w-4" /> Nuova Tranche
+          <Plus className="h-4 w-4" /> New Milestone
         </Button>
       </div>
 
       {payments.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
-            Nessuna tranche di pagamento. Clicca "Nuova Tranche" per inserire.
+            No payment milestones. Click "New Milestone" to add one.
           </CardContent>
         </Card>
       ) : (
@@ -94,11 +93,11 @@ export function ProjectPayments({ projectId }: Props) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b">
-                <th className="text-left p-3 font-medium text-muted-foreground">Tranche</th>
-                <th className="text-right p-3 font-medium text-muted-foreground">Importo</th>
-                <th className="text-left p-3 font-medium text-muted-foreground">Scadenza</th>
-                <th className="text-left p-3 font-medium text-muted-foreground">Stato</th>
-                <th className="p-3 font-medium text-muted-foreground">Azione</th>
+                <th className="text-left p-3 font-medium text-muted-foreground">Milestone</th>
+                <th className="text-right p-3 font-medium text-muted-foreground">Amount</th>
+                <th className="text-left p-3 font-medium text-muted-foreground">Due Date</th>
+                <th className="text-left p-3 font-medium text-muted-foreground">Status</th>
+                <th className="p-3 font-medium text-muted-foreground">Action</th>
               </tr>
             </thead>
             <tbody>
@@ -108,11 +107,11 @@ export function ProjectPayments({ projectId }: Props) {
                 return (
                   <tr key={p.id} className={cn("border-b last:border-b-0", isOverdue && "bg-destructive/5")}>
                     <td className="p-3 font-medium text-foreground">{p.milestone_name}</td>
-                    <td className="p-3 text-right font-mono text-foreground">€{Number(p.amount).toLocaleString("it-IT", { minimumFractionDigits: 2 })}</td>
+                    <td className="p-3 text-right font-mono text-foreground">€{Number(p.amount).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
                     <td className="p-3">
                       {p.due_date ? (
                         <span className={cn(isOverdue && "text-destructive font-medium")}>
-                          {format(new Date(p.due_date), "dd MMM yyyy", { locale: it })}
+                          {format(new Date(p.due_date), "dd MMM yyyy")}
                         </span>
                       ) : "—"}
                     </td>
@@ -126,9 +125,9 @@ export function ProjectPayments({ projectId }: Props) {
                       <Select value={p.status} onValueChange={(val) => handleStatusChange(p, val)}>
                         <SelectTrigger className="w-32 h-8"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="pending">In attesa</SelectItem>
-                          <SelectItem value="invoiced">Fatturato</SelectItem>
-                          <SelectItem value="paid">Pagato</SelectItem>
+                          <SelectItem value="pending">Pending</SelectItem>
+                          <SelectItem value="invoiced">Invoiced</SelectItem>
+                          <SelectItem value="paid">Paid</SelectItem>
                         </SelectContent>
                       </Select>
                     </td>
@@ -140,31 +139,30 @@ export function ProjectPayments({ projectId }: Props) {
         </div>
       )}
 
-      {/* New Payment Dialog */}
       <Dialog open={showNew} onOpenChange={setShowNew}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Nuova Tranche di Pagamento</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>New Payment Milestone</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Nome Tranche *</Label>
-              <Input value={newPayment.milestone_name} onChange={(e) => setNewPayment({ ...newPayment, milestone_name: e.target.value })} placeholder="es. Acconto 30%, SAL 1, Saldo finale" />
+              <Label>Milestone Name *</Label>
+              <Input value={newPayment.milestone_name} onChange={(e) => setNewPayment({ ...newPayment, milestone_name: e.target.value })} placeholder="e.g. 30% Advance, Progress 1, Final Balance" />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Importo (€) *</Label>
+                <Label>Amount (€) *</Label>
                 <Input type="number" min="0" step="0.01" value={newPayment.amount} onChange={(e) => setNewPayment({ ...newPayment, amount: e.target.value })} placeholder="0.00" />
               </div>
               <div className="space-y-2">
-                <Label>Scadenza</Label>
+                <Label>Due Date</Label>
                 <Input type="date" value={newPayment.due_date} onChange={(e) => setNewPayment({ ...newPayment, due_date: e.target.value })} />
               </div>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowNew(false)}>Annulla</Button>
+            <Button variant="outline" onClick={() => setShowNew(false)}>Cancel</Button>
             <Button onClick={handleCreate} disabled={createPayment.isPending || !newPayment.milestone_name.trim() || !newPayment.amount}>
               {createPayment.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Crea Tranche
+              Create Milestone
             </Button>
           </DialogFooter>
         </DialogContent>

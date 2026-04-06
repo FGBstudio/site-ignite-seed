@@ -22,33 +22,28 @@ import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LabelList,
 } from "recharts";
 import { format, differenceInDays } from "date-fns";
-import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 
-// Chart color tokens (HSL from design system) - AGGIORNATI PER I NUOVI STATUS
 const COLORS = {
-  late: "hsl(0, 84%, 60%)",          // destructive (Rosso - In Ritardo)
-  inProgress: "hsl(217, 91%, 50%)",  // primary (Blu - In Corso)
-  toConfigure: "hsl(220, 14%, 71%)", // muted (Grigio - Da Configurare)
-  certified: "hsl(142, 71%, 45%)",   // success (Verde - Certificati)
+  late: "hsl(0, 84%, 60%)",
+  inProgress: "hsl(217, 91%, 50%)",
+  toConfigure: "hsl(220, 14%, 71%)",
+  certified: "hsl(142, 71%, 45%)",
   overdue: "hsl(0, 84%, 60%)",
   paid: "hsl(142, 71%, 45%)",
   blocked: "hsl(38, 92%, 50%)",
 };
 
-// ============================================================
-// KPI Strip
-// ============================================================
 function KpiStrip({ tasks, payments, projects }: { tasks: CertTaskRow[]; payments: CertPaymentRow[]; projects: ProjectRow[] }) {
   const { inRitardo, inCorso, daConfigurare, certificati, lateProjects } = useMemo(() => computeProjectStatus(projects, tasks), [projects, tasks]);
   const overdueByProject = useMemo(() => computeOverduePayments(payments), [payments]);
 
   const pieData = [
-    { name: "In Ritardo", value: inRitardo, color: COLORS.late },
-    { name: "In Corso", value: inCorso, color: COLORS.inProgress },
-    { name: "Da Configurare", value: daConfigurare, color: COLORS.toConfigure },
-    { name: "Certificati", value: certificati, color: COLORS.certified },
+    { name: "Late", value: inRitardo, color: COLORS.late },
+    { name: "In Progress", value: inCorso, color: COLORS.inProgress },
+    { name: "To Configure", value: daConfigurare, color: COLORS.toConfigure },
+    { name: "Certified", value: certificati, color: COLORS.certified },
   ].filter(d => d.value > 0);
 
   const sortedLate = [...lateProjects].sort((a, b) => b.daysLate - a.daysLate).slice(0, 8);
@@ -56,14 +51,13 @@ function KpiStrip({ tasks, payments, projects }: { tasks: CertTaskRow[]; payment
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-      {/* Pie */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">Status Progetti</CardTitle>
+          <CardTitle className="text-sm font-medium text-muted-foreground">Project Status</CardTitle>
         </CardHeader>
         <CardContent className="h-[220px]">
           {pieData.length === 0 ? (
-            <div className="flex items-center justify-center h-full text-sm text-muted-foreground">Nessun dato</div>
+            <div className="flex items-center justify-center h-full text-sm text-muted-foreground">No data</div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -79,21 +73,20 @@ function KpiStrip({ tasks, payments, projects }: { tasks: CertTaskRow[]; payment
         </CardContent>
       </Card>
 
-      {/* Bar: Late projects */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">Progetti in Ritardo (giorni)</CardTitle>
+          <CardTitle className="text-sm font-medium text-muted-foreground">Late Projects (days)</CardTitle>
         </CardHeader>
         <CardContent className="h-[220px]">
           {sortedLate.length === 0 ? (
-            <div className="flex items-center justify-center h-full text-sm text-muted-foreground">Nessun ritardo 🎉</div>
+            <div className="flex items-center justify-center h-full text-sm text-muted-foreground">No delays 🎉</div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={sortedLate} layout="vertical" margin={{ left: 10, right: 20, top: 5, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                 <XAxis type="number" tick={{ fontSize: 11 }} />
                 <YAxis dataKey="name" type="category" tick={{ fontSize: 10 }} width={100} />
-                <Tooltip formatter={(v: number) => [`${v} gg`, "Ritardo"]} />
+                <Tooltip formatter={(v: number) => [`${v} days`, "Delay"]} />
                 <Bar dataKey="daysLate" fill={COLORS.late} radius={[0, 4, 4, 0]} barSize={18} />
               </BarChart>
             </ResponsiveContainer>
@@ -101,14 +94,13 @@ function KpiStrip({ tasks, payments, projects }: { tasks: CertTaskRow[]; payment
         </CardContent>
       </Card>
 
-      {/* Bar: Financial */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">Criticità Finanziarie</CardTitle>
+          <CardTitle className="text-sm font-medium text-muted-foreground">Financial Issues</CardTitle>
         </CardHeader>
         <CardContent className="h-[220px]">
           {sortedOverdue.length === 0 ? (
-            <div className="flex items-center justify-center h-full text-sm text-muted-foreground">Nessuno scaduto 🎉</div>
+            <div className="flex items-center justify-center h-full text-sm text-muted-foreground">None overdue 🎉</div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={sortedOverdue} layout="vertical" margin={{ left: 10, right: 30, top: 5, bottom: 5 }}>
@@ -116,14 +108,14 @@ function KpiStrip({ tasks, payments, projects }: { tasks: CertTaskRow[]; payment
                 <XAxis type="number" tick={{ fontSize: 11 }} />
                 <YAxis dataKey="name" type="category" tick={{ fontSize: 10 }} width={100} />
                 <Tooltip formatter={(v: number, name: string) => {
-                  if (name === "daysOverdue") return [`${v} gg`, "Ritardo"];
-                  return [`€${v.toLocaleString("it-IT")}`, "Importo"];
+                  if (name === "daysOverdue") return [`${v} days`, "Delay"];
+                  return [`€${v.toLocaleString("en-US")}`, "Amount"];
                 }} />
                 <Bar dataKey="daysOverdue" fill={COLORS.overdue} radius={[0, 4, 4, 0]} barSize={18}>
                   <LabelList
                     dataKey="amount"
                     position="right"
-                    formatter={(v: number) => `€${v.toLocaleString("it-IT")}`}
+                    formatter={(v: number) => `€${v.toLocaleString("en-US")}`}
                     style={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
                   />
                 </Bar>
@@ -136,30 +128,22 @@ function KpiStrip({ tasks, payments, projects }: { tasks: CertTaskRow[]; payment
   );
 }
 
-// ============================================================
-// Tab: Risorse
-// ============================================================
 function TabRisorse({ tasks, projects }: { tasks: CertTaskRow[]; projects: ProjectRow[] }) {
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
 
-  // Build user map from BOTH cert_tasks assignees AND project PMs
   const userMap = useMemo(() => {
     const map = new Map<string, { name: string; tasks: CertTaskRow[]; projectCount: number }>();
-
-    // 1. Add all PMs from projects
     for (const p of projects) {
       if (!p.pm_id) continue;
       if (!map.has(p.pm_id)) {
-        map.set(p.pm_id, { name: p.pm_display_name || "PM senza nome", tasks: [], projectCount: 0 });
+        map.set(p.pm_id, { name: p.pm_display_name || "Unnamed PM", tasks: [], projectCount: 0 });
       }
       map.get(p.pm_id)!.projectCount++;
     }
-
-    // 2. Add cert_tasks assignees and their tasks
     for (const t of tasks) {
       if (!t.assignee_id) continue;
       if (!map.has(t.assignee_id)) {
-        map.set(t.assignee_id, { name: t.profiles?.full_name || "Senza nome", tasks: [], projectCount: 0 });
+        map.set(t.assignee_id, { name: t.profiles?.full_name || "Unnamed", tasks: [], projectCount: 0 });
       }
       map.get(t.assignee_id)!.tasks.push(t);
     }
@@ -212,12 +196,12 @@ function TabRisorse({ tasks, projects }: { tasks: CertTaskRow[]; projects: Proje
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
       <Card className="md:col-span-1">
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm">PM / DM / Specialisti</CardTitle>
+          <CardTitle className="text-sm">PM / DM / Specialists</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <div className="max-h-[450px] overflow-y-auto">
             {users.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">Nessuna risorsa assegnata</p>
+              <p className="text-sm text-muted-foreground text-center py-8">No resources assigned</p>
             ) : users.map(u => {
               const sat = computeSaturation(u.tasks);
               const pCount = getUserProjectCount(u.id);
@@ -234,17 +218,17 @@ function TabRisorse({ tasks, projects }: { tasks: CertTaskRow[]; projects: Proje
                   <div>
                     <p className="font-medium text-sm text-foreground">{u.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {pCount} progett{pCount === 1 ? "o" : "i"} · {u.tasks.filter(t => t.status !== "Completed").length} task attive
+                      {pCount} project{pCount === 1 ? "" : "s"} · {u.tasks.filter(t => t.status !== "Completed").length} active tasks
                     </p>
                   </div>
                   <div className="text-right">
                     {u.tasks.length > 0 ? (
                       <Badge variant="outline" className={cn("text-xs", satColor)}>
-                        Saturazione: {sat}x
+                        Saturation: {sat}x
                       </Badge>
                     ) : (
                       <Badge variant="outline" className="text-xs text-muted-foreground">
-                        Nessuna task
+                        No tasks
                       </Badge>
                     )}
                   </div>
@@ -258,18 +242,18 @@ function TabRisorse({ tasks, projects }: { tasks: CertTaskRow[]; projects: Proje
       <Card className="md:col-span-2">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">
-            {selectedUser ? `Task di ${userMap.get(selectedUser)?.name}` : "Seleziona una risorsa"}
+            {selectedUser ? `Tasks for ${userMap.get(selectedUser)?.name}` : "Select a resource"}
           </CardTitle>
         </CardHeader>
         <CardContent>
           {!selectedUser ? (
-            <p className="text-sm text-muted-foreground text-center py-12">Clicca su un nome a sinistra per vedere le task assegnate</p>
+            <p className="text-sm text-muted-foreground text-center py-12">Click a name on the left to see assigned tasks</p>
           ) : tasksByProject.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-sm text-muted-foreground">Nessuna task operativa assegnata</p>
+              <p className="text-sm text-muted-foreground">No operational tasks assigned</p>
               {getUserProjectCount(selectedUser) > 0 && (
                 <p className="text-xs text-muted-foreground mt-1">
-                  Questa risorsa è PM di {getUserProjectCount(selectedUser)} progett{getUserProjectCount(selectedUser) === 1 ? "o" : "i"}
+                  This resource is PM of {getUserProjectCount(selectedUser)} project{getUserProjectCount(selectedUser) === 1 ? "" : "s"}
                 </p>
               )}
             </div>
@@ -288,7 +272,7 @@ function TabRisorse({ tasks, projects }: { tasks: CertTaskRow[]; projects: Proje
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-foreground truncate">{t.title}</p>
                             <p className="text-xs text-muted-foreground">
-                              {t.start_date ? format(new Date(t.start_date), "dd MMM", { locale: it }) : "—"} → {t.end_date ? format(new Date(t.end_date), "dd MMM", { locale: it }) : "—"}
+                              {t.start_date ? format(new Date(t.start_date), "dd MMM") : "—"} → {t.end_date ? format(new Date(t.end_date), "dd MMM") : "—"}
                             </p>
                           </div>
                           <Badge variant="outline" className={cn("text-xs ml-2 shrink-0", statusColor)}>{t.status.replace("_", " ")}</Badge>
@@ -306,9 +290,6 @@ function TabRisorse({ tasks, projects }: { tasks: CertTaskRow[]; projects: Proje
   );
 }
 
-// ============================================================
-// Tab: Progetti
-// ============================================================
 function TabProgetti({ tasks, projects }: { tasks: CertTaskRow[]; projects: any[] }) {
   const navigate = useNavigate();
 
@@ -341,19 +322,19 @@ function TabProgetti({ tasks, projects }: { tasks: CertTaskRow[]; projects: any[
             <TableHeader>
               <TableRow>
                 <TableHead className="w-[60px]">ID</TableHead>
-                <TableHead>Nome</TableHead>
-                <TableHead>Cliente</TableHead>
-                <TableHead>Stato</TableHead>
-                <TableHead>Data Inizio</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Client</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Start Date</TableHead>
                 <TableHead>Handover</TableHead>
                 <TableHead>PM</TableHead>
-                <TableHead className="w-[180px]">Avanzamento</TableHead>
+                <TableHead className="w-[180px]">Progress</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {projectData.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center text-muted-foreground py-8">Nessun progetto attivo</TableCell>
+                  <TableCell colSpan={8} className="text-center text-muted-foreground py-8">No active projects</TableCell>
                 </TableRow>
               ) : projectData.map(p => (
                 <TableRow
@@ -373,8 +354,8 @@ function TabProgetti({ tasks, projects }: { tasks: CertTaskRow[]; projects: any[
                       {p.status || "da_configurare"}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-sm">{p.minStart ? format(new Date(p.minStart), "dd MMM yy", { locale: it }) : "—"}</TableCell>
-                  <TableCell className="text-sm">{p.handover_date ? format(new Date(p.handover_date), "dd MMM yy", { locale: it }) : "—"}</TableCell>
+                  <TableCell className="text-sm">{p.minStart ? format(new Date(p.minStart), "dd MMM yy") : "—"}</TableCell>
+                  <TableCell className="text-sm">{p.handover_date ? format(new Date(p.handover_date), "dd MMM yy") : "—"}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">{p.pm_display_name || "—"}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
@@ -392,9 +373,6 @@ function TabProgetti({ tasks, projects }: { tasks: CertTaskRow[]; projects: any[
   );
 }
 
-// ============================================================
-// Tab: Pagamenti
-// ============================================================
 function TabPagamenti({ payments, projects }: { payments: CertPaymentRow[]; projects: any[] }) {
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
 
@@ -416,22 +394,21 @@ function TabPagamenti({ payments, projects }: { payments: CertPaymentRow[]; proj
   };
 
   const getBarLabel = (payment: CertPaymentRow) => {
-    if (payment.status === "Paid") return "Pagato";
-    if (payment.status === "Overdue") return "Scaduto";
-    if (payment.trigger_task_id && payment.trigger_task?.status === "Blocked") return "Task Bloccata";
+    if (payment.status === "Paid") return "Paid";
+    if (payment.status === "Overdue") return "Overdue";
+    if (payment.trigger_task_id && payment.trigger_task?.status === "Blocked") return "Task Blocked";
     return payment.status;
   };
 
   return (
     <div className="space-y-4">
-      {/* Project filter */}
       <div className="flex flex-wrap gap-2">
         <Badge
           variant={selectedProject === null ? "default" : "outline"}
           className="cursor-pointer"
           onClick={() => setSelectedProject(null)}
         >
-          Tutti
+          All
         </Badge>
         {projectsWithPayments.map(p => (
           <Badge
@@ -445,11 +422,10 @@ function TabPagamenti({ payments, projects }: { payments: CertPaymentRow[]; proj
         ))}
       </div>
 
-      {/* Timeline Payments */}
       <Card>
         <CardContent className="pt-4">
           {filteredPayments.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-12">Nessuna milestone di pagamento</p>
+            <p className="text-sm text-muted-foreground text-center py-12">No payment milestones</p>
           ) : (
             <div className="space-y-3">
               {filteredPayments.map(p => {
@@ -466,22 +442,21 @@ function TabPagamenti({ payments, projects }: { payments: CertPaymentRow[]; proj
                       <div>
                         <p className="text-sm font-medium text-foreground">{p.name}</p>
                         <p className="text-xs text-muted-foreground">
-                          {p.projects?.name || "—"} • {p.due_date ? format(new Date(p.due_date), "dd MMM yyyy", { locale: it }) : "—"}
+                          {p.projects?.name || "—"} • {p.due_date ? format(new Date(p.due_date), "dd MMM yyyy") : "—"}
                           {daysInfo !== null && (
                             <span className={cn("ml-1", daysInfo < 0 ? "text-destructive" : "text-muted-foreground")}>
-                              ({daysInfo < 0 ? `${Math.abs(daysInfo)}gg scaduto` : `${daysInfo}gg rimasti`})
+                              ({daysInfo < 0 ? `${Math.abs(daysInfo)}d overdue` : `${daysInfo}d left`})
                             </span>
                           )}
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="font-bold text-foreground">€{Number(p.amount).toLocaleString("it-IT", { minimumFractionDigits: 2 })}</p>
+                        <p className="font-bold text-foreground">€{Number(p.amount).toLocaleString("en-US", { minimumFractionDigits: 2 })}</p>
                         <Badge variant="outline" className="text-xs" style={{ borderColor: barColor, color: barColor }}>
                           {barLabel}
                         </Badge>
                       </div>
                     </div>
-                    {/* Visual bar */}
                     <div className="w-full h-3 rounded-full bg-muted overflow-hidden">
                       <div
                         className="h-full rounded-full transition-all"
@@ -493,7 +468,7 @@ function TabPagamenti({ payments, projects }: { payments: CertPaymentRow[]; proj
                     </div>
                     {p.trigger_task && (
                       <p className="text-xs text-muted-foreground mt-1">
-                        Task collegata: <span className="font-medium text-foreground">{p.trigger_task.title}</span> ({p.trigger_task.status.replace("_", " ")})
+                        Linked task: <span className="font-medium text-foreground">{p.trigger_task.title}</span> ({p.trigger_task.status.replace("_", " ")})
                       </p>
                     )}
                   </div>
@@ -507,9 +482,6 @@ function TabPagamenti({ payments, projects }: { payments: CertPaymentRow[]; proj
   );
 }
 
-// ============================================================
-// Main Dashboard
-// ============================================================
 export default function CeoDashboard() {
   const { data: tasks = [], isLoading: loadingTasks } = useCertTasks();
   const { data: payments = [], isLoading: loadingPayments } = useCertPayments();
@@ -518,7 +490,6 @@ export default function CeoDashboard() {
 
   const isLoading = loadingTasks || loadingPayments || loadingProjects;
 
-  // Build pm names map for the calendar filter
   const pmNames = useMemo(() => {
     const map = new Map<string, string>();
     for (const p of calendarProjects) {
@@ -530,7 +501,7 @@ export default function CeoDashboard() {
   }, [calendarProjects]);
 
   return (
-    <MainLayout title="CEO Dashboard" subtitle="Hub di controllo direzionale — Certificazioni & Portfolio">
+    <MainLayout title="CEO Dashboard" subtitle="Executive control hub — Certifications & Portfolio">
       {isLoading ? (
         <div className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -546,22 +517,22 @@ export default function CeoDashboard() {
 
           <PMCalendar projects={calendarProjects} adminMode pmNames={pmNames} />
 
-          <Tabs defaultValue="progetti" className="space-y-4">
+          <Tabs defaultValue="projects" className="space-y-4">
             <TabsList>
-              <TabsTrigger value="risorse">Risorse</TabsTrigger>
-              <TabsTrigger value="progetti">Progetti</TabsTrigger>
-              <TabsTrigger value="pagamenti">Pagamenti</TabsTrigger>
+              <TabsTrigger value="resources">Resources</TabsTrigger>
+              <TabsTrigger value="projects">Projects</TabsTrigger>
+              <TabsTrigger value="payments">Payments</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="risorse">
+            <TabsContent value="resources">
               <TabRisorse tasks={tasks} projects={projects} />
             </TabsContent>
 
-            <TabsContent value="progetti">
+            <TabsContent value="projects">
               <TabProgetti tasks={tasks} projects={projects} />
             </TabsContent>
 
-            <TabsContent value="pagamenti">
+            <TabsContent value="payments">
               <TabPagamenti payments={payments} projects={projects} />
             </TabsContent>
           </Tabs>

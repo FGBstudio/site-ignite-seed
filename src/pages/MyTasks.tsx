@@ -14,7 +14,6 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFo
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowRight, CheckCircle, Clock, AlertTriangle, CalendarDays, FolderKanban, Upload, Lock } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
-import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 
 interface TaskRow {
@@ -28,7 +27,6 @@ interface TaskRow {
   blocking_payment_id: string | null;
   dependency_id: string | null;
   created_at: string;
-  // joined
   project_name?: string;
   project_client?: string;
   blocking_payment_status?: string;
@@ -56,7 +54,6 @@ export default function MyTasks() {
         .order("end_date", { ascending: true });
       if (error) throw error;
 
-      // Enrich with blocking payment info
       const enriched: TaskRow[] = [];
       for (const t of (data || []) as any[]) {
         const row: TaskRow = {
@@ -95,11 +92,11 @@ export default function MyTasks() {
       queryClient.invalidateQueries({ queryKey: ["my-tasks"] });
       queryClient.invalidateQueries({ queryKey: ["resource-saturation"] });
       queryClient.invalidateQueries({ queryKey: ["project-tasks"] });
-      toast({ title: "Stato aggiornato" });
+      toast({ title: "Status updated" });
       setSelectedTask(null);
     },
     onError: (err: any) => {
-      toast({ title: "Errore", description: err.message, variant: "destructive" });
+      toast({ title: "Error", description: err.message, variant: "destructive" });
     },
   });
 
@@ -107,10 +104,10 @@ export default function MyTasks() {
     task.blocking_payment_id && task.blocking_payment_status !== "paid";
 
   const STATUS_LABELS: Record<string, string> = {
-    todo: "Da fare",
-    in_progress: "In corso",
-    review: "In revisione",
-    done: "Completato",
+    todo: "To Do",
+    in_progress: "In Progress",
+    review: "In Review",
+    done: "Completed",
   };
 
   const STATUS_COLORS: Record<string, string> = {
@@ -130,8 +127,8 @@ export default function MyTasks() {
         project_id: project.id,
         task_name:
           project.setup_status === "da_configurare"
-            ? `Configura il progetto ${project.name}`
-            : `Completa il setup del progetto ${project.name}`,
+            ? `Configure project ${project.name}`
+            : `Complete setup for project ${project.name}`,
         assigned_to: user?.id ?? null,
         start_date: null,
         end_date: project.handover_date,
@@ -183,7 +180,7 @@ export default function MyTasks() {
               {blocked && task.blocking_payment_name && (
                 <p className="text-xs text-destructive mt-1 flex items-center gap-1">
                   <AlertTriangle className="h-3 w-3" />
-                  Bloccato: "{task.blocking_payment_name}"
+                  Blocked: "{task.blocking_payment_name}"
                 </p>
               )}
             </div>
@@ -191,12 +188,12 @@ export default function MyTasks() {
               {task.end_date && (
                 <div className={cn("flex items-center gap-1 text-xs", overdue ? "text-destructive font-medium" : "text-muted-foreground")}>
                   <CalendarDays className="h-3 w-3" />
-                  {format(new Date(task.end_date), "dd MMM", { locale: it })}
+                  {format(new Date(task.end_date), "dd MMM")}
                 </div>
               )}
               {daysLeft !== null && (
                 <p className={cn("text-xs mt-0.5", daysLeft < 0 ? "text-destructive" : daysLeft <= 3 ? "text-warning" : "text-muted-foreground")}>
-                  {daysLeft < 0 ? `${Math.abs(daysLeft)}gg ritardo` : `${daysLeft}gg rimasti`}
+                  {daysLeft < 0 ? `${Math.abs(daysLeft)}d overdue` : `${daysLeft}d left`}
                 </p>
               )}
             </div>
@@ -207,7 +204,7 @@ export default function MyTasks() {
   };
 
   return (
-    <MainLayout title="I Miei Task" subtitle="La tua inbox operativa">
+    <MainLayout title="My Tasks" subtitle="Your operational inbox">
       {pageIsLoading ? (
         <div className="space-y-3">
           {[...Array(5)].map((_, i) => (
@@ -217,47 +214,44 @@ export default function MyTasks() {
       ) : isError ? (
         <Card>
           <CardContent className="py-12 text-center text-destructive">
-            Errore nel caricamento dei task. Riprova più tardi.
+            Error loading tasks. Please try again later.
           </CardContent>
         </Card>
       ) : tasks.length === 0 ? (
         <Card>
           <CardContent className="py-16 text-center">
             <CheckCircle className="h-12 w-12 text-success mx-auto mb-3" />
-            <p className="text-lg font-medium text-foreground">Tutto fatto! 🎉</p>
-            <p className="text-sm text-muted-foreground mt-1">Non hai task attivi al momento.</p>
+            <p className="text-lg font-medium text-foreground">All done! 🎉</p>
+            <p className="text-sm text-muted-foreground mt-1">You have no active tasks at the moment.</p>
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-6">
-          {/* In Progress */}
           {inProgressTasks.length > 0 && (
             <div className="space-y-2">
               <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
                 <Clock className="h-4 w-4 text-primary" />
-                In Corso ({inProgressTasks.length})
+                In Progress ({inProgressTasks.length})
               </h3>
               <div className="space-y-2">{inProgressTasks.map(renderTaskCard)}</div>
             </div>
           )}
 
-          {/* To Do */}
           {todoTasks.length > 0 && (
             <div className="space-y-2">
               <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
                 <Clock className="h-4 w-4 text-muted-foreground" />
-                Da Fare ({todoTasks.length})
+                To Do ({todoTasks.length})
               </h3>
               <div className="space-y-2">{todoTasks.map(renderTaskCard)}</div>
             </div>
           )}
 
-          {/* Review */}
           {reviewTasks.length > 0 && (
             <div className="space-y-2">
               <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4 text-warning" />
-                In Revisione ({reviewTasks.length})
+                In Review ({reviewTasks.length})
               </h3>
               <div className="space-y-2">{reviewTasks.map(renderTaskCard)}</div>
             </div>
@@ -265,7 +259,6 @@ export default function MyTasks() {
         </div>
       )}
 
-      {/* Task Detail Sheet */}
       <Sheet open={!!selectedTask} onOpenChange={(open) => !open && setSelectedTask(null)}>
         <SheetContent className="sm:max-w-md">
           {selectedTask && (
@@ -278,66 +271,62 @@ export default function MyTasks() {
               </SheetHeader>
 
               <div className="space-y-4 py-6">
-                {/* Status */}
                 <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground">Stato</p>
+                  <p className="text-xs font-medium text-muted-foreground">Status</p>
                   <Badge variant="outline" className={cn("text-xs", STATUS_COLORS[selectedTask.status])}>
                     {STATUS_LABELS[selectedTask.status]}
                   </Badge>
                 </div>
 
-                {/* Dates */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
-                    <p className="text-xs font-medium text-muted-foreground">Inizio</p>
+                    <p className="text-xs font-medium text-muted-foreground">Start</p>
                     <p className="text-sm text-foreground">
-                      {selectedTask.start_date ? format(new Date(selectedTask.start_date), "dd MMM yyyy", { locale: it }) : "—"}
+                      {selectedTask.start_date ? format(new Date(selectedTask.start_date), "dd MMM yyyy") : "—"}
                     </p>
                   </div>
                   <div className="space-y-1">
-                    <p className="text-xs font-medium text-muted-foreground">Scadenza</p>
+                    <p className="text-xs font-medium text-muted-foreground">Deadline</p>
                     <p className="text-sm text-foreground">
-                      {selectedTask.end_date ? format(new Date(selectedTask.end_date), "dd MMM yyyy", { locale: it }) : "—"}
+                      {selectedTask.end_date ? format(new Date(selectedTask.end_date), "dd MMM yyyy") : "—"}
                     </p>
                   </div>
                 </div>
 
-                {/* Blocking info */}
                 {isBlocked(selectedTask) && (
                   <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3">
                     <div className="flex items-center gap-2">
                       <Lock className="h-4 w-4 text-destructive" />
-                      <p className="text-sm font-medium text-destructive">Task Bloccato</p>
+                      <p className="text-sm font-medium text-destructive">Task Blocked</p>
                     </div>
                     <p className="text-xs text-destructive/80 mt-1">
-                      In attesa del pagamento: "{selectedTask.blocking_payment_name}"
+                      Waiting for payment: "{selectedTask.blocking_payment_name}"
                     </p>
                   </div>
                 )}
 
                 {selectedTask.isSynthetic && (
                   <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
-                    <p className="text-sm font-medium text-foreground">Task generato automaticamente</p>
+                    <p className="text-sm font-medium text-foreground">Auto-generated task</p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Questo progetto non ha ancora milestone operative assegnate: completa il setup da “I Miei Cantieri”.
+                      This project has no operational milestones assigned yet: complete the setup from "My Projects".
                     </p>
                   </div>
                 )}
 
-                {/* Change status */}
                 {!isBlocked(selectedTask) && !selectedTask.isSynthetic && (
                   <div className="space-y-2">
-                    <p className="text-xs font-medium text-muted-foreground">Cambia Stato</p>
+                    <p className="text-xs font-medium text-muted-foreground">Change Status</p>
                     <Select
                       value={selectedTask.status}
                       onValueChange={(val) => updateStatus.mutate({ taskId: selectedTask.id, newStatus: val })}
                     >
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="todo">Da fare</SelectItem>
-                        <SelectItem value="in_progress">In corso</SelectItem>
-                        <SelectItem value="review">In revisione</SelectItem>
-                        <SelectItem value="done">Completato</SelectItem>
+                        <SelectItem value="todo">To Do</SelectItem>
+                        <SelectItem value="in_progress">In Progress</SelectItem>
+                        <SelectItem value="review">In Review</SelectItem>
+                        <SelectItem value="done">Completed</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -353,7 +342,7 @@ export default function MyTasks() {
                       navigate("/projects");
                     }}
                   >
-                    Apri I Miei Cantieri
+                    Open My Projects
                     <ArrowRight className="h-4 w-4" />
                   </Button>
                 ) : (
@@ -363,12 +352,12 @@ export default function MyTasks() {
                     onClick={() => updateStatus.mutate({ taskId: selectedTask.id, newStatus: "review" })}
                   >
                     <Upload className="h-4 w-4" />
-                    Carica Documento ed Esegui
+                    Upload Document & Execute
                   </Button>
                 )}
                 {isBlocked(selectedTask) && !selectedTask.isSynthetic && (
                   <p className="text-xs text-center text-destructive">
-                    Non puoi completare questo task finché il pagamento non è stato saldato.
+                    You cannot complete this task until the payment has been settled.
                   </p>
                 )}
               </SheetFooter>

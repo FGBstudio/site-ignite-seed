@@ -86,7 +86,7 @@ function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChan
   const [saving, setSaving] = useState(false);
 
   const handleInitialize = async () => {
-    if (!certId) return toast({ variant: "destructive", title: "Manca la certificazione base nel database." });
+    if (!certId) return toast({ variant: "destructive", title: "Missing base certification in database." });
     setSaving(true);
     try {
       const rows = template.timeline.map((step) => ({
@@ -107,9 +107,9 @@ function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChan
       await supabase.from("certification_milestones").insert(rows as any);
       refetch();
       qc.invalidateQueries({ queryKey: ["pm-dashboard"] });
-      toast({ title: "Timeline inizializzata con successo" });
+      toast({ title: "Timeline initialized successfully" });
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Errore", description: e.message });
+      toast({ variant: "destructive", title: "Error", description: e.message });
     } finally {
       setSaving(false);
     }
@@ -179,11 +179,11 @@ function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChan
       qc.invalidateQueries({ queryKey: ["timeline-milestones"] });
 
       toast({ 
-        title: "Progetto Avviato", 
-        description: "Timeline salvata con successo. Il cantiere è ora 'In Corso'." 
+        title: "Project Started", 
+        description: "Timeline saved successfully. The project is now 'In Progress'." 
       });
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Errore di Salvataggio", description: e.message });
+      toast({ variant: "destructive", title: "Save Error", description: e.message });
     } finally {
       setSaving(false);
     }
@@ -191,7 +191,7 @@ function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChan
 
   // --- Dichiara il progetto Certificato ---
   const handleMarkAsCertified = async () => {
-    if (!confirm("Sei sicuro di voler chiudere questo progetto? Verrà spostato nei Certificati e la Timeline sarà bloccata.")) return;
+    if (!confirm("Are you sure you want to close this project? It will be moved to Certified and the Timeline will be locked.")) return;
     
     setSaving(true);
     try {
@@ -214,15 +214,15 @@ function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChan
       qc.invalidateQueries({ queryKey: ["projects"] });
       
       toast({ 
-        title: "Traguardo Raggiunto! 🏆", 
-        description: "Il cantiere è stato ufficialmente certificato e chiuso." 
+        title: "Milestone Achieved! 🏆", 
+        description: "The project has been officially certified and closed." 
       });
       
       // 4. Chiude il modale in automatico
       onOpenChange(false);
 
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Errore", description: e.message });
+      toast({ variant: "destructive", title: "Error", description: e.message });
     } finally {
       setSaving(false);
     }
@@ -231,7 +231,7 @@ function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChan
   if (!certId) {
     return (
       <p className="text-sm text-muted-foreground text-center py-8">
-        Nessuna certificazione associata. L'admin deve configurare il tipo di progetto.
+        No certification associated. The admin must configure the project type.
       </p>
     );
   }
@@ -240,7 +240,7 @@ function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChan
     return (
       <div className="text-center py-8 space-y-4 border rounded-lg bg-muted/30">
         <p className="text-sm text-muted-foreground">
-          La timeline per questo progetto non è ancora stata inizializzata.
+          The timeline for this project has not been initialized yet.
         </p>
         {isGeneric && (
           <Badge variant="outline" className="text-amber-600 border-amber-300">
@@ -250,7 +250,7 @@ function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChan
         <div>
           <Button onClick={handleInitialize} disabled={saving}>
             {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-            Inizializza Timeline ({template.label})
+            Initialize Timeline ({template.label})
           </Button>
         </div>
       </div>
@@ -315,18 +315,18 @@ function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChan
       <div className="flex justify-end">
         <Button variant="ghost" size="sm" onClick={() => setWizardMode(true)} className="text-xs text-muted-foreground">
           <Wand2 className="w-3.5 h-3.5 mr-1.5" />
-          Modalità Guidata
+          Guided Mode
         </Button>
       </div>
       
       {/* Header */}
       <div className="grid grid-cols-[1fr_80px_120px_120px_120px_100px] gap-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
         <span>Step</span>
-        <span>Ruolo</span>
-        <span>Data Inizio</span>
-        <span>Data Fine</span>
-        <span>Completato</span>
-        <span>Stato</span>
+        <span>Role</span>
+        <span>Start Date</span>
+        <span>End Date</span>
+        <span>Completed</span>
+        <span>Status</span>
       </div>
 
       <div className="border rounded-lg divide-y max-h-[400px] overflow-y-auto">
@@ -385,9 +385,9 @@ function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChan
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="pending">In Attesa</SelectItem>
-                  <SelectItem value="in_progress">In Corso</SelectItem>
-                  <SelectItem value="achieved">Completato</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="in_progress">In Progress</SelectItem>
+                  <SelectItem value="achieved">Completed</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -404,7 +404,7 @@ function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChan
           className={!isReadyToCertify ? "bg-emerald-600 hover:bg-emerald-700 text-white" : ""}
         >
           {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-          Salva Modifiche
+          Save Changes
         </Button>
 
         {isReadyToCertify && (
@@ -414,7 +414,7 @@ function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChan
             className="bg-yellow-600 hover:bg-yellow-700 text-white shadow-lg shadow-yellow-600/20"
           >
             {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Award className="w-4 h-4 mr-2" />}
-            Dichiara Progetto Certificato
+            Declare Project Certified
           </Button>
         )}
       </div>
@@ -465,7 +465,7 @@ function HardwareTab({ project }: { project: PMProject }) {
       setQty(1);
       refetch();
       qc.invalidateQueries({ queryKey: ["pm-dashboard"] });
-      toast({ title: "Hardware richiesto con successo" });
+      toast({ title: "Hardware requested successfully" });
     } finally {
       setSaving(false);
     }
@@ -481,10 +481,10 @@ function HardwareTab({ project }: { project: PMProject }) {
     <div className="space-y-4">
       <div className="flex items-end gap-3 p-4 bg-muted/30 rounded-lg border">
         <div className="flex-1">
-          <Label className="text-xs">Seleziona Sensore / Dispositivo</Label>
+          <Label className="text-xs">Select Sensor / Device</Label>
           <Select value={newProductId} onValueChange={setNewProductId}>
             <SelectTrigger className="bg-background">
-              <SelectValue placeholder="Scegli dal catalogo..." />
+              <SelectValue placeholder="Choose from catalog..." />
             </SelectTrigger>
             <SelectContent>
               {products.map((p: any) => (
@@ -496,7 +496,7 @@ function HardwareTab({ project }: { project: PMProject }) {
           </Select>
         </div>
         <div className="w-24">
-          <Label className="text-xs">Quantità</Label>
+          <Label className="text-xs">Quantity</Label>
           <Input
             type="number"
             min={1}
@@ -506,13 +506,13 @@ function HardwareTab({ project }: { project: PMProject }) {
           />
         </div>
         <Button onClick={handleAdd} disabled={saving || !newProductId}>
-          <Plus className="h-4 w-4 mr-2" /> Aggiungi
+          <Plus className="h-4 w-4 mr-2" /> Add
         </Button>
       </div>
 
       {allocations.length === 0 ? (
         <p className="text-sm text-muted-foreground text-center py-6">
-          Nessun hardware richiesto attualmente.
+          No hardware requested currently.
         </p>
       ) : (
         <div className="border rounded-lg divide-y">
@@ -523,7 +523,7 @@ function HardwareTab({ project }: { project: PMProject }) {
                 <span className="text-xs text-muted-foreground ml-2">SKU: {a.products?.sku}</span>
               </div>
               <div className="flex items-center gap-3">
-                <Badge variant="outline">Quantità: {a.quantity}</Badge>
+                <Badge variant="outline">Qty: {a.quantity}</Badge>
                 <Badge>{a.status}</Badge>
                 <Button
                   size="sm"
@@ -610,7 +610,7 @@ function ScorecardTab({ project }: { project: PMProject }) {
   if (!certId) {
     return (
       <p className="text-sm text-muted-foreground text-center py-8">
-        Nessuna certificazione associata.
+        No certification associated.
       </p>
     );
   }
@@ -619,10 +619,10 @@ function ScorecardTab({ project }: { project: PMProject }) {
     return (
       <div className="text-center py-8 space-y-2 border rounded-lg bg-muted/30">
         <p className="text-sm text-muted-foreground">
-          Nessuna scorecard predefinita per il template "{template.label}".
+          No predefined scorecard for template "{template.label}".
         </p>
         <p className="text-xs text-muted-foreground">
-          La scorecard BREEAM / WELL sarà disponibile a breve.
+          BREEAM / WELL scorecard will be available soon.
         </p>
       </div>
     );
@@ -632,11 +632,11 @@ function ScorecardTab({ project }: { project: PMProject }) {
     return (
       <div className="text-center py-8 space-y-4 border rounded-lg bg-muted/30">
         <p className="text-sm text-muted-foreground">
-          La Scorecard per questo progetto non è ancora stata inizializzata.
+          The Scorecard for this project has not been initialized yet.
         </p>
         <Button onClick={handleInitialize} disabled={saving}>
           {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-          Genera Griglia Scorecard ({template.label})
+          Generate Scorecard Grid ({template.label})
         </Button>
       </div>
     );
@@ -657,7 +657,7 @@ function ScorecardTab({ project }: { project: PMProject }) {
           <CardContent className="px-4 py-3">
             <div className="flex items-center gap-4">
               <div className="flex-1 space-y-1">
-                <Label className="text-[10px] text-muted-foreground uppercase">Punti Ottenuti</Label>
+                <Label className="text-[10px] text-muted-foreground uppercase">Points Earned</Label>
                 <Input
                   type="number"
                   min={0}
@@ -694,10 +694,10 @@ export function PMProjectConfigModal({ project, open, onOpenChange }: Props) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader className="pb-4 border-b">
-          <DialogTitle className="text-xl">Configura Progetto: {project.name}</DialogTitle>
+          <DialogTitle className="text-xl">Configure Project: {project.name}</DialogTitle>
           <DialogDescription>
-            Template: <Badge variant="secondary">{template.label}</Badge> — Compila tutti i dati
-            nei tab sottostanti.
+            Template: <Badge variant="secondary">{template.label}</Badge> — Fill in all data
+            in the tabs below.
           </DialogDescription>
         </DialogHeader>
 

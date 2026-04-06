@@ -11,16 +11,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Plus, Trash2, Lock, AlertTriangle, Loader2, Package } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import type { ProjectAllocation, Product } from "@/types/custom-tables";
 
 const TASK_STATUS_LABELS: Record<string, string> = {
-  todo: "Da fare",
-  in_progress: "In corso",
-  review: "In revisione",
-  done: "Completato",
+  todo: "To Do",
+  in_progress: "In Progress",
+  review: "In Review",
+  done: "Completed",
 };
 
 const TASK_STATUS_COLORS: Record<string, string> = {
@@ -52,7 +51,6 @@ export function ProjectWBS({ projectId }: Props) {
     allocation_id: "",
   });
 
-  // Fetch staff list
   const { data: staff = [] } = useQuery({
     queryKey: ["staff-list"],
     queryFn: async () => {
@@ -61,7 +59,6 @@ export function ProjectWBS({ projectId }: Props) {
     },
   });
 
-  // Fetch project allocations with product info
   const { data: allocations = [] } = useQuery({
     queryKey: ["project-allocations", projectId],
     queryFn: async () => {
@@ -83,18 +80,15 @@ export function ProjectWBS({ projectId }: Props) {
     },
   });
 
-  // Build maps for O(1) lookups
   const paymentMap = new Map<string, PaymentMilestone>(payments.map((p) => [p.id, p]));
   const allocationMap = new Map<string, ProjectAllocation>(allocations.map((a) => [a.id, a]));
   const productMap = new Map<string, Product>(products.map((p) => [p.id, p]));
 
   const isBlocked = (task: ProjectTask): boolean => {
-    // 1. Financial block
     if (task.blocking_payment_id) {
       const payment = paymentMap.get(task.blocking_payment_id);
       if (payment && payment.status !== "paid") return true;
     }
-    // 2. Logistics block
     if (task.allocation_id) {
       const allocation = allocationMap.get(task.allocation_id);
       if (allocation && !["Shipped", "Installed_Online"].includes(allocation.status)) {
@@ -155,16 +149,16 @@ export function ProjectWBS({ projectId }: Props) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="font-semibold text-foreground">Cronoprogramma (WBS)</h3>
+        <h3 className="font-semibold text-foreground">Schedule (WBS)</h3>
         <Button size="sm" onClick={() => setShowNewTask(true)} className="gap-1">
-          <Plus className="h-4 w-4" /> Nuovo Task
+          <Plus className="h-4 w-4" /> New Task
         </Button>
       </div>
 
       {tasks.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
-            Nessun task nel cronoprogramma. Clicca "Nuovo Task" per iniziare.
+            No tasks in the schedule. Click "New Task" to start.
           </CardContent>
         </Card>
       ) : (
@@ -177,7 +171,6 @@ export function ProjectWBS({ projectId }: Props) {
               <Card key={task.id} className={cn(blocked && "border-destructive/40 bg-destructive/5")}>
                 <CardContent className="py-3 px-4">
                   <div className="flex items-center gap-4">
-                    {/* Task name + blocking indicators */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         {blocked && <Lock className="h-4 w-4 text-destructive shrink-0" />}
@@ -186,19 +179,19 @@ export function ProjectWBS({ projectId }: Props) {
                       {blocked && blockingName && (
                         <p className="text-xs text-destructive flex items-center gap-1 mt-0.5">
                           <AlertTriangle className="h-3 w-3" />
-                          Bloccato da pagamento: &quot;{blockingName}&quot;
+                          Blocked by payment: &quot;{blockingName}&quot;
                         </p>
                       )}
                       {blocked && blockingAlloc && (
                         <p className="text-xs text-destructive flex items-center gap-1 mt-0.5">
                           <Package className="h-3 w-3" />
-                          Bloccato da logistica (Stato attuale: {blockingAlloc.status})
+                          Blocked by logistics (Current status: {blockingAlloc.status})
                         </p>
                       )}
                       <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
                         {task.assigned_to && <span>👤 {staffMap.get(task.assigned_to) || "—"}</span>}
-                        {task.start_date && <span>📅 {format(new Date(task.start_date), "dd MMM", { locale: it })}</span>}
-                        {task.end_date && <span>→ {format(new Date(task.end_date), "dd MMM", { locale: it })}</span>}
+                        {task.start_date && <span>📅 {format(new Date(task.start_date), "dd MMM")}</span>}
+                        {task.end_date && <span>→ {format(new Date(task.end_date), "dd MMM")}</span>}
                         {task.allocation_id && (() => {
                           const alloc = allocationMap.get(task.allocation_id);
                           const prod = alloc ? productMap.get(alloc.product_id) : null;
@@ -207,7 +200,6 @@ export function ProjectWBS({ projectId }: Props) {
                       </div>
                     </div>
 
-                    {/* Status select */}
                     <Select
                       value={task.status}
                       onValueChange={(val) => handleStatusChange(task, val)}
@@ -229,12 +221,10 @@ export function ProjectWBS({ projectId }: Props) {
                       </SelectContent>
                     </Select>
 
-                    {/* Badge */}
                     <Badge variant="outline" className={cn("shrink-0 text-xs", TASK_STATUS_COLORS[task.status])}>
                       {TASK_STATUS_LABELS[task.status]}
                     </Badge>
 
-                    {/* Delete */}
                     <Button variant="ghost" size="icon" onClick={() => deleteTask.mutate(task.id)} className="text-destructive hover:text-destructive shrink-0">
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -246,29 +236,28 @@ export function ProjectWBS({ projectId }: Props) {
         </div>
       )}
 
-      {/* New Task Dialog */}
       <Dialog open={showNewTask} onOpenChange={setShowNewTask}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Nuovo Task</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>New Task</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Nome Task *</Label>
-              <Input value={newTask.task_name} onChange={(e) => setNewTask({ ...newTask, task_name: e.target.value })} placeholder="es. Installazione sensori piano 3" />
+              <Label>Task Name *</Label>
+              <Input value={newTask.task_name} onChange={(e) => setNewTask({ ...newTask, task_name: e.target.value })} placeholder="e.g. Install sensors floor 3" />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Data Inizio</Label>
+                <Label>Start Date</Label>
                 <Input type="date" value={newTask.start_date} onChange={(e) => setNewTask({ ...newTask, start_date: e.target.value })} />
               </div>
               <div className="space-y-2">
-                <Label>Data Fine</Label>
+                <Label>End Date</Label>
                 <Input type="date" value={newTask.end_date} onChange={(e) => setNewTask({ ...newTask, end_date: e.target.value })} />
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Assegnato a</Label>
+              <Label>Assigned To</Label>
               <Select value={newTask.assigned_to} onValueChange={(val) => setNewTask({ ...newTask, assigned_to: val })}>
-                <SelectTrigger><SelectValue placeholder="Seleziona risorsa" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Select resource" /></SelectTrigger>
                 <SelectContent>
                   {staff.map((s: any) => (
                     <SelectItem key={s.id} value={s.id}>{s.full_name}</SelectItem>
@@ -277,16 +266,16 @@ export function ProjectWBS({ projectId }: Props) {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Collega Hardware (Opzionale)</Label>
+              <Label>Link Hardware (Optional)</Label>
               <Select value={newTask.allocation_id} onValueChange={(val) => setNewTask({ ...newTask, allocation_id: val })}>
-                <SelectTrigger><SelectValue placeholder="Nessun hardware collegato" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="No hardware linked" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Nessun hardware collegato</SelectItem>
+                  <SelectItem value="">No hardware linked</SelectItem>
                   {allocations.map((a) => {
                     const prod = productMap.get(a.product_id);
                     return (
                       <SelectItem key={a.id} value={a.id}>
-                        {prod?.name || "Prodotto"} — Qty: {a.quantity} ({a.status})
+                        {prod?.name || "Product"} — Qty: {a.quantity} ({a.status})
                       </SelectItem>
                     );
                   })}
@@ -294,23 +283,23 @@ export function ProjectWBS({ projectId }: Props) {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Bloccato da Pagamento</Label>
+              <Label>Blocked by Payment</Label>
               <Select value={newTask.blocking_payment_id} onValueChange={(val) => setNewTask({ ...newTask, blocking_payment_id: val })}>
-                <SelectTrigger><SelectValue placeholder="Nessun blocco" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="No block" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Nessun blocco</SelectItem>
+                  <SelectItem value="">No block</SelectItem>
                   {payments.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>{p.milestone_name} — €{Number(p.amount).toLocaleString("it-IT")}</SelectItem>
+                    <SelectItem key={p.id} value={p.id}>{p.milestone_name} — €{Number(p.amount).toLocaleString("en-US")}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Task Propedeutico</Label>
+              <Label>Prerequisite Task</Label>
               <Select value={newTask.dependency_id} onValueChange={(val) => setNewTask({ ...newTask, dependency_id: val })}>
-                <SelectTrigger><SelectValue placeholder="Nessuna dipendenza" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="No dependency" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Nessuna dipendenza</SelectItem>
+                  <SelectItem value="">No dependency</SelectItem>
                   {tasks.map((t) => (
                     <SelectItem key={t.id} value={t.id}>{t.task_name}</SelectItem>
                   ))}
@@ -319,10 +308,10 @@ export function ProjectWBS({ projectId }: Props) {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowNewTask(false)}>Annulla</Button>
+            <Button variant="outline" onClick={() => setShowNewTask(false)}>Cancel</Button>
             <Button onClick={handleCreateTask} disabled={createTask.isPending || !newTask.task_name.trim()}>
               {createTask.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Crea Task
+              Create Task
             </Button>
           </DialogFooter>
         </DialogContent>
