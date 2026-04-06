@@ -14,7 +14,6 @@ import {
   differenceInCalendarDays,
   parseISO,
 } from "date-fns";
-import { it } from "date-fns/locale";
 import { ChevronLeft, ChevronRight, Filter } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { PMProject } from "@/hooks/usePMDashboard";
@@ -101,7 +100,7 @@ function buildEvents(projects: PMProject[]): CalendarEvent[] {
     .filter(Boolean) as CalendarEvent[];
 }
 
-const WEEKDAYS = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
+const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 function MonthGrid({
   month,
@@ -133,7 +132,7 @@ function MonthGrid({
   return (
     <div className="flex-1 min-w-0">
       <h3 className="mb-3 text-center text-sm font-semibold capitalize text-foreground">
-        {format(month, "MMMM yyyy", { locale: it })}
+        {format(month, "MMMM yyyy")}
       </h3>
 
       <div className="grid grid-cols-7 mb-1">
@@ -226,12 +225,9 @@ function MonthGrid({
   );
 }
 
-// ─── Shared props ────────────────────────────────────────────
 export interface PMCalendarProps {
   projects: PMProject[];
-  /** Admin mode: show PM filter + project filter */
   adminMode?: boolean;
-  /** Map of pm_id → pm display name (only needed for adminMode) */
   pmNames?: Map<string, string>;
 }
 
@@ -243,7 +239,6 @@ export function PMCalendar({ projects, adminMode, pmNames }: PMCalendarProps) {
   const [selectedPm, setSelectedPm] = useState<string>("all");
   const [selectedProject, setSelectedProject] = useState<string>("all");
 
-  // Derive unique PM list
   const pmList = useMemo(() => {
     if (!adminMode || !pmNames) return [];
     const entries: { id: string; name: string }[] = [];
@@ -273,7 +268,6 @@ export function PMCalendar({ projects, adminMode, pmNames }: PMCalendarProps) {
   const prevMonth = subMonths(centerMonth, 1);
   const nextMonth = addMonths(centerMonth, 1);
 
-  // Project list for filter (after PM filter)
   const projectOptions = useMemo(() => {
     let base = projects;
     if (adminMode && selectedPm !== "all") {
@@ -285,10 +279,9 @@ export function PMCalendar({ projects, adminMode, pmNames }: PMCalendarProps) {
   return (
     <Card>
       <CardHeader className="flex flex-col gap-3 pb-2 sm:flex-row sm:items-center sm:justify-between">
-        {/* Left: navigation */}
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => setCenterMonth(new Date())} className="text-xs">
-            Oggi
+            Today
           </Button>
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setCenterMonth((m) => subMonths(m, 1))}>
             <ChevronLeft className="h-4 w-4" />
@@ -297,19 +290,18 @@ export function PMCalendar({ projects, adminMode, pmNames }: PMCalendarProps) {
             <ChevronRight className="h-4 w-4" />
           </Button>
           <span className="text-sm font-semibold capitalize text-foreground">
-            {format(centerMonth, "MMMM yyyy", { locale: it })}
+            {format(centerMonth, "MMMM yyyy")}
           </span>
         </div>
 
-        {/* Right: filters */}
         <div className="flex flex-wrap items-center gap-2">
           {adminMode && pmList.length > 0 && (
             <Select value={selectedPm} onValueChange={(v) => { setSelectedPm(v); setSelectedProject("all"); }}>
               <SelectTrigger className="h-8 w-40 text-xs">
-                <SelectValue placeholder="Tutti i PM" />
+                <SelectValue placeholder="All PMs" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tutti i PM</SelectItem>
+                <SelectItem value="all">All PMs</SelectItem>
                 {pmList.map((pm) => (
                   <SelectItem key={pm.id} value={pm.id}>{pm.name}</SelectItem>
                 ))}
@@ -320,10 +312,10 @@ export function PMCalendar({ projects, adminMode, pmNames }: PMCalendarProps) {
           {projectOptions.length > 1 && (
             <Select value={selectedProject} onValueChange={setSelectedProject}>
               <SelectTrigger className="h-8 w-44 text-xs">
-                <SelectValue placeholder="Tutti i progetti" />
+                <SelectValue placeholder="All projects" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tutti i progetti</SelectItem>
+                <SelectItem value="all">All projects</SelectItem>
                 {projectOptions.map((p) => (
                   <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                 ))}
@@ -335,20 +327,20 @@ export function PMCalendar({ projects, adminMode, pmNames }: PMCalendarProps) {
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="gap-2 text-xs h-8">
                 <Filter className="h-3.5 w-3.5" />
-                Stato
+                Status
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>Stato cantiere</DropdownMenuLabel>
+              <DropdownMenuLabel>Project status</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuCheckboxItem checked={showDaConfigurare} onCheckedChange={setShowDaConfigurare}>
-                Da Configurare
+                To Configure
               </DropdownMenuCheckboxItem>
               <DropdownMenuCheckboxItem checked={showInCorso} onCheckedChange={setShowInCorso}>
-                In Corso
+                In Progress
               </DropdownMenuCheckboxItem>
               <DropdownMenuCheckboxItem checked={showCertificati} onCheckedChange={setShowCertificati}>
-                Certificati
+                Certified
               </DropdownMenuCheckboxItem>
             </DropdownMenuContent>
           </DropdownMenu>

@@ -13,7 +13,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Search, Plus, Pencil, BarChart3, FileUp, Eye, GanttChartSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { ProcurementForecasting } from "@/components/dashboard/ProcurementForecasting";
 import { DataImporter } from "@/components/admin/DataImporter";
 import { PMProjectsBoard } from "@/components/projects/PMProjectsBoard";
@@ -50,7 +49,6 @@ export default function Projects() {
       .select("*, project_allocations(quantity, products(name, certification))")
       .order("handover_date", { ascending: true });
 
-    // Fetch PM names separately (no FK between projects.pm_id and profiles.id)
     const pmIds = [...new Set((data || []).map((p: any) => p.pm_id).filter(Boolean))] as string[];
     let pmMap: Record<string, string> = {};
     if (pmIds.length > 0 && isAdmin) {
@@ -99,7 +97,7 @@ export default function Projects() {
 
   if (!isAdmin) {
     return (
-      <MainLayout title="I Miei Cantieri" subtitle="Dashboard operativa dei progetti assegnati">
+      <MainLayout title="My Projects" subtitle="Operational dashboard of assigned projects">
         <PMProjectsBoard />
       </MainLayout>
     );
@@ -118,16 +116,15 @@ export default function Projects() {
   );
 
   return (
-    <MainLayout title="Tutti i Cantieri" subtitle="Gestione progetti e allocazioni hardware">
+    <MainLayout title="All Projects" subtitle="Project management and hardware allocations">
       <Tabs defaultValue="timeline" className="space-y-6">
         <TabsList>
-          {/* TAB TIMELINE (aggiunto prima di Cantieri) */}
           <TabsTrigger value="timeline" className="gap-2">
             <GanttChartSquare className="h-4 w-4" /> Timeline
           </TabsTrigger>
-          <TabsTrigger value="projects">Cantieri</TabsTrigger>
+          <TabsTrigger value="projects">Projects</TabsTrigger>
           <TabsTrigger value="forecast" className="gap-2">
-            <BarChart3 className="h-4 w-4" /> Analisi Fabbisogno
+            <BarChart3 className="h-4 w-4" /> Demand Analysis
           </TabsTrigger>
           <TabsTrigger value="import" className="gap-2">
             <FileUp className="h-4 w-4" /> Import CSV
@@ -177,12 +174,12 @@ function renderFiltersAndTableContent(
         <div className="flex flex-col sm:flex-row gap-3 flex-1">
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="Cerca progetto o cliente..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+            <Input placeholder="Search project or client..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
           </div>
           <Select value={regionFilter} onValueChange={setRegionFilter}>
             <SelectTrigger className="w-40"><SelectValue placeholder="Region" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Tutte le Region</SelectItem>
+              <SelectItem value="all">All Regions</SelectItem>
               <SelectItem value="Europe">Europe</SelectItem>
               <SelectItem value="America">America</SelectItem>
               <SelectItem value="APAC">APAC</SelectItem>
@@ -191,9 +188,9 @@ function renderFiltersAndTableContent(
           </Select>
           {isAdmin && (
             <Select value={pmFilter} onValueChange={setPmFilter}>
-              <SelectTrigger className="w-48"><SelectValue placeholder="Filtra per PM" /></SelectTrigger>
+              <SelectTrigger className="w-48"><SelectValue placeholder="Filter by PM" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tutti i PM</SelectItem>
+                <SelectItem value="all">All PMs</SelectItem>
                 {pmList.map((pm) => (
                   <SelectItem key={pm.id} value={pm.id}>{pm.full_name}</SelectItem>
                 ))}
@@ -204,7 +201,7 @@ function renderFiltersAndTableContent(
         <div className="flex gap-2 shrink-0">
           {isAdmin && <SiteProjectOnboardingForm />}
           <Button onClick={openNew} className="gap-2" variant="outline">
-            <Plus className="h-4 w-4" /> Nuovo Progetto
+            <Plus className="h-4 w-4" /> New Project
           </Button>
         </div>
       </div>
@@ -214,21 +211,21 @@ function renderFiltersAndTableContent(
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
         </div>
       ) : filtered.length === 0 ? (
-        <div className="table-container p-12 text-center text-muted-foreground">Nessun progetto trovato.</div>
+        <div className="table-container p-12 text-center text-muted-foreground">No projects found.</div>
       ) : (
         <div className="table-container overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b">
-                <th className="text-left p-4 font-medium text-muted-foreground">Progetto</th>
-                <th className="text-left p-4 font-medium text-muted-foreground">Cliente</th>
+                <th className="text-left p-4 font-medium text-muted-foreground">Project</th>
+                <th className="text-left p-4 font-medium text-muted-foreground">Client</th>
                 <th className="text-left p-4 font-medium text-muted-foreground">Region</th>
-                <th className="text-left p-4 font-medium text-muted-foreground">Certificazione</th>
+                <th className="text-left p-4 font-medium text-muted-foreground">Certification</th>
                 <th className="text-left p-4 font-medium text-muted-foreground">Rating</th>
-                <th className="text-left p-4 font-medium text-muted-foreground">Sottotipologia</th>
+                <th className="text-left p-4 font-medium text-muted-foreground">Subtype</th>
                 {isAdmin && <th className="text-left p-4 font-medium text-muted-foreground">PM</th>}
                 <th className="text-left p-4 font-medium text-muted-foreground">Handover</th>
-                <th className="text-left p-4 font-medium text-muted-foreground">Stato</th>
+                <th className="text-left p-4 font-medium text-muted-foreground">Status</th>
                 <th className="text-left p-4 font-medium text-muted-foreground">Hardware</th>
                 <th className="p-4"></th>
               </tr>
@@ -265,9 +262,9 @@ function renderFiltersAndTableContent(
                     {isAdmin && <td className="p-4 text-foreground">{project.pm_name}</td>}
                     <td className="p-4">
                       <span className={cn("font-medium", daysLeft <= 30 ? "text-warning" : "text-foreground")}>
-                        {format(new Date(project.handover_date), "dd MMM yyyy", { locale: it })}
+                        {format(new Date(project.handover_date), "dd MMM yyyy")}
                       </span>
-                      <span className="text-xs text-muted-foreground ml-1">({daysLeft}gg)</span>
+                      <span className="text-xs text-muted-foreground ml-1">({daysLeft}d)</span>
                     </td>
                     <td className="p-4">
                       <Badge variant="outline" className={cn("border", statusColors[project.status])}>
@@ -276,7 +273,7 @@ function renderFiltersAndTableContent(
                     </td>
                     <td className="p-4">
                       {(project.allocations_summary || []).length === 0 ? (
-                        <span className="text-muted-foreground text-xs">Nessuno</span>
+                        <span className="text-muted-foreground text-xs">None</span>
                       ) : (
                         <div className="flex flex-wrap gap-1">
                           {(project.allocations_summary || []).map((a: any, i: number) => (
@@ -289,10 +286,10 @@ function renderFiltersAndTableContent(
                     </td>
                     <td className="p-4 flex gap-2">
                       <Button size="sm" variant="outline" onClick={() => navigate(`/projects/${project.id}`)} className="gap-1">
-                        <Eye className="h-3 w-3" /> Dettaglio
+                        <Eye className="h-3 w-3" /> Details
                       </Button>
                       <Button size="sm" variant="ghost" onClick={() => openEdit(project)} className="gap-1">
-                        <Pencil className="h-3 w-3" /> Modifica
+                        <Pencil className="h-3 w-3" /> Edit
                       </Button>
                     </td>
                   </tr>

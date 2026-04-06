@@ -10,10 +10,8 @@ import { ProjectWBS } from "@/components/projects/ProjectWBS";
 import { ProjectPayments } from "@/components/projects/ProjectPayments";
 import { ArrowLeft, MapPin, Calendar, User, Cpu } from "lucide-react";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 
-// --- IMPORT PER IL PLANNER ---
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -34,9 +32,6 @@ export default function ProjectDetail() {
   const { data: certification } = useCertification(projectId, project?.site_id);
   const { data: allocations } = useProjectAllocations(projectId);
 
-  // =======================================================================
-  // FETCH: Scarichiamo le righe della timeline per questo progetto specifico
-  // =======================================================================
   const { data: timelineMilestones = [] } = useQuery({
     queryKey: ["project-timeline", certification?.id],
     enabled: !!certification?.id,
@@ -52,22 +47,15 @@ export default function ProjectDetail() {
     },
   });
 
-  // =======================================================================
-  // MAP: Trasformiamo le righe del DB in dati compatibili col Motore Gantt
-  // =======================================================================
   const plannerData: GanttRowData[] = useMemo(() => {
     if (!project || timelineMilestones.length === 0) return [];
 
     const today = new Date().toISOString().slice(0, 10);
-    // Data di lancio globale del progetto
     const projectLaunchDate = project.created_at.slice(0, 10);
-
-    // Costruiamo i "Segmenti" per la riga master riassuntiva
     const projectSegments: GanttSegment[] = [];
 
-    // Mappatura delle singole fasi (Gantt a cascata)
     const phases: GanttRowData[] = timelineMilestones.map((m: any) => {
-      let role = "Specialista";
+      let role = "Specialist";
       try {
         const meta = JSON.parse(m.notes || "{}");
         if (meta.assigned_to_role) role = meta.assigned_to_role;
@@ -75,14 +63,13 @@ export default function ProjectDetail() {
 
       let displayStatus = m.status;
       if (m.status !== "achieved" && m.due_date && m.due_date < today) {
-        displayStatus = "late"; // Diventa Rosso
+        displayStatus = "late";
       } else if (m.status === "achieved") {
-        displayStatus = "achieved"; // Diventa Verde
+        displayStatus = "achieved";
       } else if (m.status === "in_progress") {
-        displayStatus = "in_progress"; // Diventa Blu (o Verde FGB tratteggiato)
+        displayStatus = "in_progress";
       }
 
-      // Popoliamo i segmenti per la riga TOTALE CANTIERE
       if (m.start_date && m.due_date) {
         projectSegments.push({
           id: m.id,
@@ -96,8 +83,8 @@ export default function ProjectDetail() {
       return {
         id: m.id,
         label: m.requirement,
-        subLabel: `Ruolo: ${role}`,
-        currentActivity: m.status === "in_progress" ? m.requirement : (m.status === "achieved" ? "Completato" : "In attesa"),
+        subLabel: `Role: ${role}`,
+        currentActivity: m.status === "in_progress" ? m.requirement : (m.status === "achieved" ? "Completed" : "Pending"),
         launchDate: projectLaunchDate, 
         planStart: m.start_date,
         planEnd: m.due_date,
@@ -108,19 +95,18 @@ export default function ProjectDetail() {
       };
     });
 
-    // RIGA RIASSUNTIVA DEL PROGETTO (Macro-Avanzamento con i Segmenti)
     const totalAchieved = timelineMilestones.filter((m: any) => m.status === 'achieved').length;
     const overallProgress = timelineMilestones.length > 0 ? Math.round((totalAchieved / timelineMilestones.length) * 100) : 0;
     
     const firstStartDate = timelineMilestones.map((m: any) => m.start_date).filter(Boolean).sort()[0] || projectLaunchDate;
 
     const activeMilestone = timelineMilestones.find((m: any) => m.status === "in_progress");
-    const summaryActivity = activeMilestone ? activeMilestone.requirement : (project.status === "certificato" ? "Completato" : "In attesa");
+    const summaryActivity = activeMilestone ? activeMilestone.requirement : (project.status === "certificato" ? "Completed" : "Pending");
 
     const summaryRow: GanttRowData = {
       id: "summary",
-      label: "TOTALE CANTIERE",
-      subLabel: "Avanzamento Globale",
+      label: "PROJECT TOTAL",
+      subLabel: "Overall Progress",
       currentActivity: summaryActivity,
       launchDate: projectLaunchDate,
       planStart: firstStartDate,
@@ -137,7 +123,7 @@ export default function ProjectDetail() {
 
   if (isLoading) {
     return (
-      <MainLayout title="Caricamento...">
+      <MainLayout title="Loading...">
         <div className="flex justify-center py-20">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
         </div>
@@ -147,10 +133,10 @@ export default function ProjectDetail() {
 
   if (!project) {
     return (
-      <MainLayout title="Progetto non trovato">
+      <MainLayout title="Project not found">
         <div className="text-center py-20 text-muted-foreground">
-          Progetto non trovato.
-          <Button variant="link" onClick={() => navigate("/projects")}>Torna ai cantieri</Button>
+          Project not found.
+          <Button variant="link" onClick={() => navigate("/projects")}>Back to projects</Button>
         </div>
       </MainLayout>
     );
@@ -168,17 +154,16 @@ export default function ProjectDetail() {
       subtitle={`${project.client} — ${project.region}`}
     >
       <Button variant="ghost" size="sm" onClick={() => navigate("/projects")} className="gap-2 mb-4">
-        <ArrowLeft className="h-4 w-4" /> Torna ai Cantieri
+        <ArrowLeft className="h-4 w-4" /> Back to Projects
       </Button>
 
-      {/* Project header cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <Card>
           <CardContent className="pt-4 pb-4 flex items-center gap-3">
             <MapPin className="h-5 w-5 text-muted-foreground" />
             <div>
-              <p className="text-xs text-muted-foreground">Sito</p>
-              <p className="font-medium text-sm text-foreground">{siteName || "Non assegnato"}</p>
+              <p className="text-xs text-muted-foreground">Site</p>
+              <p className="font-medium text-sm text-foreground">{siteName || "Not assigned"}</p>
               {siteCity && <p className="text-xs text-muted-foreground">{siteCity}{siteCountry ? `, ${siteCountry}` : ""}</p>}
             </div>
           </CardContent>
@@ -188,7 +173,7 @@ export default function ProjectDetail() {
             <Calendar className="h-5 w-5 text-muted-foreground" />
             <div>
               <p className="text-xs text-muted-foreground">Handover</p>
-              <p className="font-medium text-sm text-foreground">{format(new Date(project.handover_date), "dd MMM yyyy", { locale: it })}</p>
+              <p className="font-medium text-sm text-foreground">{format(new Date(project.handover_date), "dd MMM yyyy")}</p>
             </div>
           </CardContent>
         </Card>
@@ -205,7 +190,7 @@ export default function ProjectDetail() {
           <CardContent className="pt-4 pb-4 flex items-center gap-3">
             <Cpu className="h-5 w-5 text-muted-foreground" />
             <div>
-              <p className="text-xs text-muted-foreground">Stato / Tipo</p>
+              <p className="text-xs text-muted-foreground">Status / Type</p>
               <div className="flex items-center gap-2 mt-0.5">
                 <Badge variant="outline" className={cn("border text-xs", statusColors[project.status])}>{project.status}</Badge>
                 {(project as any).project_type && <Badge variant="secondary" className="text-xs">{(project as any).project_type}</Badge>}
@@ -215,23 +200,21 @@ export default function ProjectDetail() {
         </Card>
       </div>
 
-      {/* Tabs */}
       <Tabs defaultValue="planner" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="planner">Planner (Fasi)</TabsTrigger>
+          <TabsTrigger value="planner">Planner (Phases)</TabsTrigger>
           {hasCert && <TabsTrigger value="scorecard">Scorecard {(project as any).project_type}</TabsTrigger>}
-          <TabsTrigger value="wbs">Cronoprogramma</TabsTrigger>
+          <TabsTrigger value="wbs">Schedule</TabsTrigger>
           <TabsTrigger value="hardware">Hardware</TabsTrigger>
-          <TabsTrigger value="payments">Pagamenti</TabsTrigger>
+          <TabsTrigger value="payments">Payments</TabsTrigger>
         </TabsList>
 
-        {/* TAB PLANNER: MICRO-VISTA CON LA DATA GRID E RIGA TOTALE */}
         <TabsContent value="planner">
           <Card>
             <CardContent className="p-0 border-none">
               {plannerData.length === 0 ? (
                 <div className="py-12 text-center text-muted-foreground">
-                  Nessuna timeline inizializzata. Configura il progetto dalla dashboard PM.
+                  No timeline initialized. Configure the project from the PM dashboard.
                 </div>
               ) : (
                 <div className="h-[600px] flex flex-col">
@@ -246,7 +229,7 @@ export default function ProjectDetail() {
           {!allocations || allocations.length === 0 ? (
             <Card>
               <CardContent className="py-12 text-center text-muted-foreground">
-                Nessun hardware allocato a questo progetto.
+                No hardware allocated to this project.
               </CardContent>
             </Card>
           ) : (
@@ -255,11 +238,11 @@ export default function ProjectDetail() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b">
-                      <th className="text-left p-3 font-medium text-muted-foreground">Prodotto</th>
+                      <th className="text-left p-3 font-medium text-muted-foreground">Product</th>
                       <th className="text-left p-3 font-medium text-muted-foreground">SKU</th>
-                      <th className="text-left p-3 font-medium text-muted-foreground">Certificazione</th>
-                      <th className="text-center p-3 font-medium text-muted-foreground">Quantità</th>
-                      <th className="text-center p-3 font-medium text-muted-foreground">Stato</th>
+                      <th className="text-left p-3 font-medium text-muted-foreground">Certification</th>
+                      <th className="text-center p-3 font-medium text-muted-foreground">Quantity</th>
+                      <th className="text-center p-3 font-medium text-muted-foreground">Status</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -290,7 +273,7 @@ export default function ProjectDetail() {
             ) : (
               <Card>
                 <CardContent className="py-12 text-center text-muted-foreground">
-                  Nessuna scorecard trovata per questo progetto.
+                  No scorecard found for this project.
                 </CardContent>
               </Card>
             )}

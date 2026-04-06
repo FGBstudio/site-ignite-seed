@@ -6,7 +6,6 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { toast } from "@/hooks/use-toast";
 import type { Product, SupplierOrder } from "@/types/custom-tables";
 
@@ -30,8 +29,8 @@ export default function SupplierOrders() {
       supabase.from("supplier_orders" as any).select("*").order("expected_delivery_date"),
       supabase.from("products" as any).select("*"),
     ]);
-    if (ordRes.error) toast({ title: "Errore", description: ordRes.error.message, variant: "destructive" });
-    if (prodRes.error) toast({ title: "Errore", description: prodRes.error.message, variant: "destructive" });
+    if (ordRes.error) toast({ title: "Error", description: ordRes.error.message, variant: "destructive" });
+    if (prodRes.error) toast({ title: "Error", description: prodRes.error.message, variant: "destructive" });
     setOrders((ordRes.data || []) as any);
     setProducts((prodRes.data || []) as any);
     setLoading(false);
@@ -46,13 +45,12 @@ export default function SupplierOrders() {
       .eq("id", orderId);
 
     if (error) {
-      toast({ title: "Errore aggiornamento", description: error.message, variant: "destructive" });
+      toast({ title: "Update error", description: error.message, variant: "destructive" });
       return;
     }
 
-    toast({ title: "Stato aggiornato", description: `Ordine aggiornato a "${newStatus.replace("_", " ")}"` });
+    toast({ title: "Status updated", description: `Order updated to "${newStatus.replace("_", " ")}"` });
 
-    // If status changed to Shipped, update related allocations
     if (newStatus === "In_Transit") {
       const order = orders.find(o => o.id === orderId);
       if (order) {
@@ -94,7 +92,7 @@ export default function SupplierOrders() {
                     <td className="p-4 text-foreground">{product?.name ?? order.product_id}</td>
                     <td className="p-4 text-foreground">{order.quantity_requested}</td>
                     <td className="p-4 text-foreground">
-                      {format(new Date(order.expected_delivery_date), "dd MMM yyyy", { locale: it })}
+                      {format(new Date(order.expected_delivery_date), "dd MMM yyyy")}
                     </td>
                     <td className="p-4">
                       {isAdmin ? (

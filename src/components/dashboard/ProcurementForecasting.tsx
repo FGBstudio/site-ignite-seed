@@ -48,9 +48,9 @@ export function ProcurementForecasting() {
       supabase.from("project_allocations" as any).select("*").eq("status", "Requested"),
       supabase.from("profiles").select("id, full_name"),
     ]);
-    if (prodRes.error) toast({ title: "Errore", description: prodRes.error.message, variant: "destructive" });
-    if (projRes.error) toast({ title: "Errore", description: projRes.error.message, variant: "destructive" });
-    if (allocRes.error) toast({ title: "Errore", description: allocRes.error.message, variant: "destructive" });
+    if (prodRes.error) toast({ title: "Error", description: prodRes.error.message, variant: "destructive" });
+    if (projRes.error) toast({ title: "Error", description: projRes.error.message, variant: "destructive" });
+    if (allocRes.error) toast({ title: "Error", description: allocRes.error.message, variant: "destructive" });
     setProducts((prodRes.data || []) as any);
     setProjects((projRes.data || []) as any);
     setAllocations((allocRes.data || []) as any);
@@ -128,21 +128,19 @@ export function ProcurementForecasting() {
     try {
       const expectedDate = format(addDays(new Date(), item.product.supplier_lead_time_days), "yyyy-MM-dd");
 
-      // 1. Insert supplier order
       const { error: orderError } = await supabase.from("supplier_orders" as any).insert({
         product_id: item.product.id,
         quantity_requested: item.shortfallToOrder,
-        supplier_name: "Da assegnare",
+        supplier_name: "To be assigned",
         expected_delivery_date: expectedDate,
         status: "Draft",
       } as any);
 
       if (orderError) {
-        toast({ title: "Errore creazione ordine", description: orderError.message, variant: "destructive" });
+        toast({ title: "Error creating order", description: orderError.message, variant: "destructive" });
         return;
       }
 
-      // 2. Update all related allocations from Requested -> Allocated
       if (item.allocationIds.length > 0) {
         const { error: allocError } = await supabase
           .from("project_allocations" as any)
@@ -150,17 +148,16 @@ export function ProcurementForecasting() {
           .in("id", item.allocationIds);
 
         if (allocError) {
-          toast({ title: "Errore aggiornamento allocazioni", description: allocError.message, variant: "destructive" });
+          toast({ title: "Error updating allocations", description: allocError.message, variant: "destructive" });
           return;
         }
       }
 
-      toast({ title: "Ordine creato", description: `Ordine per ${item.shortfallToOrder}× ${item.product.name}. Allocazioni aggiornate a "Allocated".` });
+      toast({ title: "Order created", description: `Order for ${item.shortfallToOrder}× ${item.product.name}. Allocations updated to "Allocated".` });
       
-      // Refetch to update the view
       await fetchAll();
     } catch (err: any) {
-      toast({ title: "Errore", description: err.message, variant: "destructive" });
+      toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setGeneratingOrder(null);
     }
@@ -177,20 +174,20 @@ export function ProcurementForecasting() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap gap-3 items-center p-4 rounded-xl bg-card border border-border/50">
-        <span className="text-sm font-medium text-muted-foreground mr-1">Filtri:</span>
+        <span className="text-sm font-medium text-muted-foreground mr-1">Filters:</span>
         <Select value={horizon} onValueChange={setHorizon}>
           <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="30">30 Giorni</SelectItem>
-            <SelectItem value="90">90 Giorni</SelectItem>
-            <SelectItem value="180">180 Giorni</SelectItem>
-            <SelectItem value="all">Tutto l'anno</SelectItem>
+            <SelectItem value="30">30 Days</SelectItem>
+            <SelectItem value="90">90 Days</SelectItem>
+            <SelectItem value="180">180 Days</SelectItem>
+            <SelectItem value="all">Full Year</SelectItem>
           </SelectContent>
         </Select>
         <Select value={region} onValueChange={setRegion}>
           <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Tutte le Region</SelectItem>
+            <SelectItem value="all">All Regions</SelectItem>
             <SelectItem value="Europe">Europe</SelectItem>
             <SelectItem value="America">America</SelectItem>
             <SelectItem value="APAC">APAC</SelectItem>
@@ -200,7 +197,7 @@ export function ProcurementForecasting() {
         <Select value={pmFilter} onValueChange={setPmFilter}>
           <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Tutti i PM</SelectItem>
+            <SelectItem value="all">All PMs</SelectItem>
             {pmList.map((pm) => (
               <SelectItem key={pm.id} value={pm.id}>{pm.full_name}</SelectItem>
             ))}
@@ -213,28 +210,28 @@ export function ProcurementForecasting() {
           <Package className="h-5 w-5 text-primary" />
           <div>
             <p className="text-2xl font-bold text-foreground">{forecast.length}</p>
-            <p className="text-xs text-muted-foreground">Prodotti con domanda</p>
+            <p className="text-xs text-muted-foreground">Products with demand</p>
           </div>
         </div>
         <div className="stat-card flex items-center gap-3">
           <CheckCircle className="h-5 w-5 text-success" />
           <div>
             <p className="text-2xl font-bold text-foreground">{forecast.filter((f) => f.shortfallToOrder === 0).length}</p>
-            <p className="text-xs text-muted-foreground">Coperti dallo stock</p>
+            <p className="text-xs text-muted-foreground">Covered by stock</p>
           </div>
         </div>
         <div className="stat-card flex items-center gap-3">
           <AlertTriangle className="h-5 w-5 text-destructive" />
           <div>
             <p className="text-2xl font-bold text-foreground">{forecast.filter((f) => f.shortfallToOrder > 0).length}</p>
-            <p className="text-xs text-muted-foreground">Da riordinare</p>
+            <p className="text-xs text-muted-foreground">To reorder</p>
           </div>
         </div>
       </div>
 
       {forecast.length === 0 ? (
         <div className="table-container p-12 text-center text-muted-foreground">
-          Nessun fabbisogno nel periodo selezionato.
+          No demand in the selected period.
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -258,7 +255,7 @@ export function ProcurementForecasting() {
                         <CollapsibleTrigger asChild>
                           <button className="flex items-center gap-1 mt-2 text-xs text-primary hover:text-primary/80 transition-colors">
                             <ChevronDown className="h-3 w-3" />
-                            {item.projectBreakdown.length} cantier{item.projectBreakdown.length === 1 ? "e" : "i"} associat{item.projectBreakdown.length === 1 ? "o" : "i"}
+                            {item.projectBreakdown.length} associated project{item.projectBreakdown.length === 1 ? "" : "s"}
                           </button>
                         </CollapsibleTrigger>
                         <CollapsibleContent>
@@ -283,15 +280,15 @@ export function ProcurementForecasting() {
                 <CardContent className="space-y-4">
                   <div className="flex gap-4 text-sm">
                     <div>
-                      <span className="text-muted-foreground">Domanda: </span>
+                      <span className="text-muted-foreground">Demand: </span>
                       <span className="font-semibold text-foreground">{item.totalDemand}</span>
                     </div>
                     <div>
-                      <span className="text-muted-foreground">In Magazzino: </span>
+                      <span className="text-muted-foreground">In Stock: </span>
                       <span className="font-semibold text-foreground">{item.currentStock}</span>
                     </div>
                     <div>
-                      <span className="text-muted-foreground">Da Ordinare: </span>
+                      <span className="text-muted-foreground">To Order: </span>
                       <span className={`font-semibold ${hasShortfall ? "text-destructive" : "text-success"}`}>
                         {item.shortfallToOrder}
                       </span>
@@ -300,7 +297,7 @@ export function ProcurementForecasting() {
 
                   <div className="space-y-1">
                     <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>Copertura stock</span>
+                      <span>Stock coverage</span>
                       <span>{Math.round(coveredPct)}%</span>
                     </div>
                     <div className="relative h-4 w-full rounded-full overflow-hidden bg-muted">
@@ -330,7 +327,7 @@ export function ProcurementForecasting() {
                       disabled={isGenerating}
                     >
                       {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingCart className="h-4 w-4" />}
-                      Genera Ordine Fornitore ({item.shortfallToOrder} unità)
+                      Generate Supplier Order ({item.shortfallToOrder} units)
                     </Button>
                   )}
                 </CardContent>
