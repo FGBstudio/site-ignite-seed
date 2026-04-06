@@ -86,7 +86,7 @@ function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChan
   const [saving, setSaving] = useState(false);
 
   const handleInitialize = async () => {
-    if (!certId) return toast({ variant: "destructive", title: "Manca la certificazione base nel database." });
+    if (!certId) return toast({ variant: "destructive", title: "Missing base certification in database." });
     setSaving(true);
     try {
       const rows = template.timeline.map((step) => ({
@@ -109,7 +109,7 @@ function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChan
       qc.invalidateQueries({ queryKey: ["pm-dashboard"] });
       toast({ title: "Timeline initialized successfully" });
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Errore", description: e.message });
+      toast({ variant: "destructive", title: "Error", description: e.message });
     } finally {
       setSaving(false);
     }
