@@ -120,7 +120,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
           full_name: p.full_name || p.display_name || [p.first_name, p.last_name].filter(Boolean).join(" ") || p.email || "PM",
         })));
       } catch (err) {
-        console.error("Errore nel fetch dei PM:", err);
+        console.error("Error fetching PMs:", err);
       } finally {
         setLoadingPMs(false);
       }
@@ -302,11 +302,11 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
         }
       }
 
-      toast({ title: project ? "Progetto aggiornato" : "Progetto creato" });
+      toast({ title: project ? "Project updated" : "Project created" });
       onOpenChange(false);
       onSaved();
     } catch (err: any) {
-      toast({ title: "Errore", description: err.message, variant: "destructive" });
+      toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setSaving(false);
     }
@@ -316,14 +316,14 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{project ? "Modifica Progetto" : "Nuovo Progetto"}</DialogTitle>
-          <DialogDescription className="hidden">Modulo creazione e modifica progetto</DialogDescription>
+          <DialogTitle>{project ? "Edit Project" : "New Project"}</DialogTitle>
+          <DialogDescription className="hidden">Project creation and edit form</DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           {/* Section A: Localizzazione (Gerarchia) */}
           <div className="space-y-4">
-            <h3 className="font-semibold text-foreground border-b pb-2">Localizzazione</h3>
+            <h3 className="font-semibold text-foreground border-b pb-2">Location</h3>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {/* Holding */}
               <div className="space-y-2">
@@ -420,28 +420,28 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
 
           {/* Section B: Dettagli Progetto */}
           <div className="space-y-4">
-            <h3 className="font-semibold text-foreground border-b pb-2">Dettagli Progetto</h3>
+            <h3 className="font-semibold text-foreground border-b pb-2">Project Details</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Nome Progetto *</Label>
-                <Input {...register("name", { required: true })} placeholder="es. Prada Milano" />
-                {errors.name && <p className="text-xs text-destructive">Campo obbligatorio</p>}
+                <Label>Project Name *</Label>
+                <Input {...register("name", { required: true })} placeholder="e.g. Prada Milan" />
+                {errors.name && <p className="text-xs text-destructive">Required field</p>}
               </div>
               <div className="space-y-2">
-                <Label>Cliente *</Label>
-                <Input {...register("client", { required: true })} placeholder="es. Prada" />
-                {errors.client && <p className="text-xs text-destructive">Campo obbligatorio</p>}
+                <Label>Client *</Label>
+                <Input {...register("client", { required: true })} placeholder="e.g. Prada" />
+                {errors.client && <p className="text-xs text-destructive">Required field</p>}
               </div>
 
               {/* Project Type */}
               <div className="space-y-2">
-                <Label>Tipo Progetto</Label>
+                <Label>Project Type</Label>
                 <Controller
                   control={control}
                   name="project_type"
                   render={({ field }) => (
                     <Select value={field.value || ""} onValueChange={field.onChange}>
-                      <SelectTrigger><SelectValue placeholder="Seleziona tipo" /></SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
                       <SelectContent>
                         {PROJECT_TYPES.map((t) => (
                           <SelectItem key={t} value={t}>{t}</SelectItem>
@@ -472,7 +472,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
                     <PopoverTrigger asChild>
                       <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !field.value && "text-muted-foreground")}>
                         <CalendarIcon className="mr-2 h-4 w-4" />
-                        {field.value ? format(field.value, "dd MMM yyyy", { locale: it }) : "Seleziona data"}
+                        {field.value ? format(field.value, "dd MMM yyyy") : "Select date"}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
@@ -482,7 +482,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
                 )} />
               </div>
               <div className="space-y-2">
-                <Label>Stato</Label>
+                <Label>Status</Label>
                 <Controller control={control} name="status" render={({ field }) => (
                   <Select value={field.value || ""} onValueChange={field.onChange}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
@@ -496,21 +496,21 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
               </div>
               {isAdmin && (
                 <div className="space-y-2">
-                  <Label>Assegna PM</Label>
+                  <Label>Assign PM</Label>
                   <Controller control={control} name="pm_id" render={({ field }) => (
                     <Select value={field.value} onValueChange={field.onChange} disabled={loadingPMs}>
                       <SelectTrigger>
                         {loadingPMs ? (
                           <span className="flex items-center gap-2 text-muted-foreground">
-                            <Loader2 className="h-3 w-3 animate-spin" /> Caricamento...
+                            <Loader2 className="h-3 w-3 animate-spin" /> Loading...
                           </span>
                         ) : (
-                          <SelectValue placeholder="Seleziona PM" />
+                          <SelectValue placeholder="Select PM" />
                         )}
                       </SelectTrigger>
                       <SelectContent>
                         {pmList.length === 0 && !loadingPMs ? (
-                           <SelectItem value="empty" disabled>Nessun PM trovato</SelectItem>
+                           <SelectItem value="empty" disabled>No PM found</SelectItem>
                         ) : (
                           pmList.map((pm) => (
                             <SelectItem key={pm.id} value={pm.id}>{pm.full_name}</SelectItem>
@@ -527,23 +527,23 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
           {/* Section 3: Allocations */}
           <div className="space-y-4">
             <div className="flex items-center justify-between border-b pb-2">
-              <h3 className="font-semibold text-foreground">Articoli (Allocazioni Hardware)</h3>
+              <h3 className="font-semibold text-foreground">Items (Hardware Allocations)</h3>
               <Button type="button" variant="outline" size="sm" onClick={() => append({ product_id: "", quantity: 1, status: "Draft" })} className="gap-1">
-                <Plus className="h-4 w-4" /> Aggiungi Articolo
+                <Plus className="h-4 w-4" /> Add Item
               </Button>
             </div>
 
             {fields.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">Nessun articolo aggiunto.</p>
+              <p className="text-sm text-muted-foreground text-center py-4">No items added.</p>
             ) : (
               <div className="space-y-3">
                 {fields.map((field, index) => (
                   <div key={field.id} className="flex items-end gap-3 rounded-lg border p-3">
                     <div className="flex-1 space-y-1">
-                      <Label className="text-xs text-muted-foreground">Prodotto</Label>
+                      <Label className="text-xs text-muted-foreground">Product</Label>
                       <Controller control={control} name={`allocations.${index}.product_id`} rules={{ required: true }} render={({ field: f }) => (
                         <Select value={f.value} onValueChange={f.onChange}>
-                          <SelectTrigger><SelectValue placeholder="Seleziona prodotto" /></SelectTrigger>
+                          <SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger>
                           <SelectContent>
                             {Object.entries(
                               products.reduce((acc, p) => {
@@ -593,10 +593,10 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
             <Button type="submit" disabled={saving}>
               {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {project ? "Salva Modifiche" : "Crea Progetto"}
+              {project ? "Save Changes" : "Create Project"}
             </Button>
           </DialogFooter>
         </form>
