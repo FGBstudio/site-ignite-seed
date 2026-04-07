@@ -111,7 +111,7 @@ export default function Projects() {
 
   const filtersAndTable = renderFiltersAndTableContent(
     search, setSearch, regionFilter, setRegionFilter, pmFilter, setPmFilter,
-    pmList, isAdmin, openNew, loading, filtered, openEdit, navigate,
+    pmList, isAdmin, loading, filtered, openEdit, navigate,
   );
 
   return (
