@@ -163,7 +163,7 @@ function renderFiltersAndTableContent(
   regionFilter: string, setRegionFilter: (v: string) => void,
   pmFilter: string, setPmFilter: (v: string) => void,
   pmList: { id: string; full_name: string }[],
-  isAdmin: boolean, openNew: () => void,
+  isAdmin: boolean,
   loading: boolean, filtered: any[], openEdit: (p: any) => void,
   navigate: (path: string) => void,
 ) {
