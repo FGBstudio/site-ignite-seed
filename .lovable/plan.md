@@ -1,52 +1,35 @@
+## Full-Page Project Creation Wizard
 
+### Problem
+The current project onboarding uses oversized modals (`SiteProjectOnboardingForm` and `ProjectFormModal`) that cause data loss on accidental clicks, poor mobile UX, and cognitive overload.
 
-## Timeline Setup Wizard
-
-### Summary
-Replace the current Excel-style grid in the Timeline tab with a full-screen step-by-step wizard that guides PMs through one milestone at a time, reducing cognitive load and improving data quality.
+### Solution
+Create a dedicated full-page wizard at `/projects/new` with 4 steps and localStorage draft persistence.
 
 ### Architecture
 
-**New component**: `src/components/projects/TimelineSetupWizard.tsx`
+**New files:**
+- `src/pages/ProjectCreateWizard.tsx` — Full-page wizard with 4 steps
+- `src/hooks/useWizardDraft.ts` — localStorage persistence hook
 
-A full-screen overlay (split-screen layout) that replaces the current `TimelineTab` grid when milestones have unset dates.
+**Modified files:**
+- `src/App.tsx` — Add `/projects/new` route
+- `src/pages/Projects.tsx` — Replace "Site Onboarding" and "New Project" buttons with a single link to `/projects/new`
+- `src/components/projects/ProjectFormModal.tsx` — Keep only for **edit mode** (remove creation logic, simplify)
 
-### Data Layer
+### Wizard Steps
 
-1. **Add `description` field to `TimelineStep` interface** in `certificationTemplates.ts` -- this provides the educational/help text shown in the wizard's left panel. Each timeline step gets a human-readable description explaining what the PM needs to do (e.g., "Inserisci la data in cui prevedi di fare la prima call ufficiale con il cliente per validare i crediti").
+1. **Site** — Brand (from holdings cascade), Site name, City, Country, Region, optional coords/area/timezone, modules toggles
+2. **Project** — Project name, Client, PM assignment, Handover date, Status, Project type
+3. **Certification** — Cert type, Rating system, Subtype, Cert level, Commissioning toggle (conditional on cert type)
+4. **Review & Submit** — Summary of all data, submit button
 
-2. **No database migration needed** -- the help text lives in the static template file (`certificationTemplates.ts`), not in `certification_milestones`. The existing `certification_milestones` table already has `start_date`, `due_date`, `order_index`, and `status` which is all we need.
+### Key Features
+- **localStorage draft**: Auto-save on every field change with key `project-wizard-draft`. On mount, restore draft with a banner "Draft found — Resume or Discard?"
+- **Step validation**: Each step validates before allowing navigation to next
+- **Progress bar**: Visual stepper showing current step
+- **Back navigation**: Can go back to any previous step without losing data
+- **No accidental data loss**: Full page, no click-outside dismiss
 
-### Component Design
-
-**TimelineSetupWizard.tsx** -- Split-screen wizard:
-
-- **State**: `currentIndex` (0-based), `milestones[]` (from DB query), `templateSteps[]` (from template).
-- **Header**: Progress bar (`Step {n} di {total}`) + project name.
-- **Left column (60%)**: Large card with:
-  - Milestone name as title
-  - Educational panel (light blue bg) with `description` from template
-  - Role badge (PM/GC/Client/Assessor)
-  - Two date pickers (Start Date, End Date) -- disabled if `calculated_deadline` (auto-computed, shown as read-only with explanation)
-- **Right column (40%)**: Next milestone card preview, greyed out (`opacity-40`, `pointer-events-none`).
-- **Footer (sticky)**:
-  - Left: "Indietro" button (disabled on step 0)
-  - Right: "Salta per ora" ghost button + "Salva e Continua" primary button (disabled until dates are filled for `manual_input` steps; always enabled for `calculated_deadline` steps since dates are auto-computed)
-
-**Save logic**:
-- "Salva e Continua": calls `supabase.from("certification_milestones").update({start_date, due_date}).eq("id", milestone.id)`, then increments `currentIndex`. For `calculated_deadline` steps, auto-computes dates from the previous manual step using existing `computeCalculatedDate` logic.
-- "Salta per ora": just increments `currentIndex`, no DB call.
-- **Completion screen**: when `currentIndex === milestones.length`, show celebration card with "Pianificazione Completata!" and a button to close the wizard / return to dashboard.
-
-### Integration Points
-
-1. **PMProjectConfigModal.tsx** -- In the `TimelineTab`, after milestones are initialized (line ~237-256), check if most dates are still `null`. If so, render `<TimelineSetupWizard>` instead of the grid. Add a toggle/button to switch between wizard and grid view for PMs who prefer the table.
-
-2. **certificationTemplates.ts** -- Add optional `description?: string` to `TimelineStep` interface and populate it for all timeline definitions (LEED_BDC, LEED_IDC, BREEAM, WELL, GENERIC). The `toTimeline` helper gets an optional `description` field.
-
-### Steps
-
-1. Update `TimelineStep` interface and all timeline definitions in `certificationTemplates.ts` with `description` field
-2. Create `TimelineSetupWizard.tsx` component with split-screen layout, progress bar, date pickers, navigation, and incremental save logic
-3. Integrate wizard into `TimelineTab` in `PMProjectConfigModal.tsx` -- show wizard when dates are mostly empty, with option to switch to grid view
-
+### What stays as modal
+- `ProjectFormModal` remains as a modal but ONLY for editing existing projects (no creation path)
