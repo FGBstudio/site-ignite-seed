@@ -8,6 +8,7 @@ import { ProtectedRoute, getDefaultRoute } from "@/components/ProtectedRoute";
 import type { AppRole } from "@/types/custom-tables";
 import Index from "./pages/Index";
 import Projects from "./pages/Projects";
+import ProjectCreateWizard from "./pages/ProjectCreateWizard";
 import ProjectDetail from "./pages/ProjectDetail";
 import Inventory from "./pages/Inventory";
 import SupplierOrders from "./pages/SupplierOrders";
