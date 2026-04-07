@@ -51,6 +51,7 @@ function AppRoutes() {
       
       {/* Shared: Admin + PM */}
       <Route path="/projects" element={<ProtectedRoute allowedRoles={R("ADMIN", "PM")}><Projects /></ProtectedRoute>} />
+      <Route path="/projects/new" element={<ProtectedRoute allowedRoles={R("ADMIN")}><ProjectCreateWizard /></ProtectedRoute>} />
       <Route path="/projects/:projectId" element={<ProtectedRoute allowedRoles={R("ADMIN", "PM")}><ProjectDetail /></ProtectedRoute>} />
       
       {/* PM Dashboard */}
