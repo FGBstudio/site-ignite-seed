@@ -198,8 +198,7 @@ function renderFiltersAndTableContent(
           )}
         </div>
         <div className="flex gap-2 shrink-0">
-          {isAdmin && <SiteProjectOnboardingForm />}
-          <Button onClick={openNew} className="gap-2" variant="outline">
+          <Button onClick={() => navigate("/projects/new")} className="gap-2">
             <Plus className="h-4 w-4" /> New Project
           </Button>
         </div>
