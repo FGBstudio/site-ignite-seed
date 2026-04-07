@@ -8,6 +8,7 @@ import { ProtectedRoute, getDefaultRoute } from "@/components/ProtectedRoute";
 import type { AppRole } from "@/types/custom-tables";
 import Index from "./pages/Index";
 import Projects from "./pages/Projects";
+import ProjectCreateWizard from "./pages/ProjectCreateWizard";
 import ProjectDetail from "./pages/ProjectDetail";
 import Inventory from "./pages/Inventory";
 import SupplierOrders from "./pages/SupplierOrders";
@@ -50,6 +51,7 @@ function AppRoutes() {
       
       {/* Shared: Admin + PM */}
       <Route path="/projects" element={<ProtectedRoute allowedRoles={R("ADMIN", "PM")}><Projects /></ProtectedRoute>} />
+      <Route path="/projects/new" element={<ProtectedRoute allowedRoles={R("ADMIN")}><ProjectCreateWizard /></ProtectedRoute>} />
       <Route path="/projects/:projectId" element={<ProtectedRoute allowedRoles={R("ADMIN", "PM")}><ProjectDetail /></ProtectedRoute>} />
       
       {/* PM Dashboard */}

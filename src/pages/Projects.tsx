@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { SiteProjectOnboardingForm } from "@/components/projects/SiteProjectOnboardingForm";
 import { useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { supabase } from "@/integrations/supabase/client";
@@ -112,7 +111,7 @@ export default function Projects() {
 
   const filtersAndTable = renderFiltersAndTableContent(
     search, setSearch, regionFilter, setRegionFilter, pmFilter, setPmFilter,
-    pmList, isAdmin, openNew, loading, filtered, openEdit, navigate,
+    pmList, isAdmin, loading, filtered, openEdit, navigate,
   );
 
   return (
@@ -164,7 +163,7 @@ function renderFiltersAndTableContent(
   regionFilter: string, setRegionFilter: (v: string) => void,
   pmFilter: string, setPmFilter: (v: string) => void,
   pmList: { id: string; full_name: string }[],
-  isAdmin: boolean, openNew: () => void,
+  isAdmin: boolean,
   loading: boolean, filtered: any[], openEdit: (p: any) => void,
   navigate: (path: string) => void,
 ) {
@@ -199,8 +198,7 @@ function renderFiltersAndTableContent(
           )}
         </div>
         <div className="flex gap-2 shrink-0">
-          {isAdmin && <SiteProjectOnboardingForm />}
-          <Button onClick={openNew} className="gap-2" variant="outline">
+          <Button onClick={() => navigate("/projects/new")} className="gap-2">
             <Plus className="h-4 w-4" /> New Project
           </Button>
         </div>
