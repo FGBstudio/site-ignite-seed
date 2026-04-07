@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { SiteProjectOnboardingForm } from "@/components/projects/SiteProjectOnboardingForm";
 import { useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { supabase } from "@/integrations/supabase/client";
