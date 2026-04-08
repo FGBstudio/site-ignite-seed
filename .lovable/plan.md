@@ -1,52 +1,63 @@
 
 
-## Merge Kanban Board into Projects Table & Simplify Timeline
+## Multi-Certification Wizard: Support Multiple Certifications Per Site
 
-### Problem
-Three places show nearly identical project data:
-1. **CEO Dashboard > Projects tab** — simple table with progress bars
-2. **Projects page > Timeline > Kanban Board** — cards grouped by setup_status (To Configure / In Progress / Certified)
-3. **Projects page > Projects tab** — flat table with filters
+### Summary
+Replace the single certification selector in Step 3 of the Project Create Wizard with a multi-select system. The admin toggles which certifications apply (e.g. LEED + WELL), then configures each one independently. On submit, one project row is created per certification, all linked to the same site, each with its own milestones.
 
-The Kanban Board in AdminTimeline is redundant with the Projects table. The CEO Dashboard Projects tab also overlaps.
+### Architecture Change
 
-### Plan
+**Current**: `WizardDraft` has single `cert_type`, `cert_rating`, `cert_level`, `project_subtype`, `is_commissioning` fields. One project + one certification row are created.
 
-#### 1. Remove Kanban Board from AdminTimeline
-`src/components/admin/AdminTimeline.tsx` — Remove the Kanban/Planner tab toggle. The component becomes **only** the Global Planner (Gantt view) with its existing filters (PM, Status, Cert, Brand). No more Kanban cards.
+**New**: `WizardDraft` gets a `certifications` array replacing the single cert fields. Each entry holds `{ cert_type, cert_rating, cert_level, project_subtype, is_commissioning, pm_id }` -- note the per-certification PM assignment, since different certifications can have different PMs.
 
-#### 2. Evolve the Projects tab with status grouping
-`src/pages/Projects.tsx` — The existing Projects table gets status-category tabs (like the Kanban had), showing:
-- **To Configure (n)** / **In Progress (n)** / **Certified (n)**
+### Data Model Impact
 
-This requires the Projects page to know each project's `setup_status`. Currently it fetches raw `projects` with a simple query. Two options:
-
-**Chosen approach**: Reuse `useAdminPlannerData` (already computes `setup_status`, `missing`, `pm_name`, `brand_name`, `plannerData`) instead of the manual `fetchProjects` in Projects.tsx. This eliminates the duplicate fetch and gives us all enriched data in one place.
-
-The table keeps all its current columns (Project, Client, Region, Certification, Rating, Subtype, PM, Handover, Hardware) plus adds a **Status** column showing the computed setup_status badge. Rows are filtered by the active status tab.
-
-#### 3. Simplify CEO Dashboard Projects tab
-`src/pages/CeoDashboard.tsx` — The `TabProgetti` component stays as-is (it shows WBS task progress, which is different from setup_status). No changes needed here since it serves a different purpose (operational task tracking vs. configuration status).
+No DB changes needed. The wizard simply creates **N projects** (one per certification) all pointing to the same `site_id`. Each project gets its own `certifications` + `certification_milestones` rows. This is already how the PM portal works -- it shows projects individually, so the PM sees separate timeline/scorecard workflows per certification.
 
 ### Files Changed
 
 | File | Change |
 |------|--------|
-| `src/components/admin/AdminTimeline.tsx` | Remove Kanban tab, render only Global Planner with filters |
-| `src/pages/Projects.tsx` | Replace manual fetch with `useAdminPlannerData`; add status-category sub-tabs above the table; keep filters and "New Project" button |
-| `src/hooks/useAdminPlannerData.ts` | No changes needed (already provides all required data) |
+| `src/hooks/useWizardDraft.ts` | Replace single cert fields with `certifications: CertEntry[]` array. Keep backward compat for draft loading. |
+| `src/pages/ProjectCreateWizard.tsx` | **Step 2**: Remove single PM selector -- PM assignment moves to Step 3 (per-certification). **Step 3**: Checkbox toggles for cert types; dynamic config cards per selected cert (rating, level, subtype, commissioning, PM). **Step 4 (Review)**: Show each certification as a separate review card. **Submit**: Loop over `certifications[]`, create one project per cert with `Promise.all`. |
+| `src/data/certificationTemplates.ts` | No changes (already exports `CERT_TYPES`, `CERT_RATINGS`, `CERT_LEVELS`). |
 
-### Technical Details
+### Step 3 UX (Certification)
 
-**AdminTimeline.tsx simplification:**
-- Remove `AdminProjectCard` component entirely
-- Remove Kanban `<Tabs>` wrapper, keep only the Planner `<div>` with `<FGBPlanner>`
-- Keep all 4 filter dropdowns (they apply to the Gantt)
+```text
+┌──────────────────────────────────────────────┐
+│  Select Certifications                       │
+│  [x] LEED   [x] WELL   [ ] BREEAM   [ ] CO2 │
+├──────────────────────────────────────────────┤
+│  ┌─ LEED ──────────────────────────────────┐ │
+│  │  Rating: [BD+C v]  Level: [Gold v]      │ │
+│  │  Subtype: [New Construction v]          │ │
+│  │  PM: [Mario Rossi v]                   │ │
+│  │  [x] Commissioning required             │ │
+│  └─────────────────────────────────────────┘ │
+│  ┌─ WELL ──────────────────────────────────┐ │
+│  │  Rating: [New & Existing v]  Level: ... │ │
+│  │  PM: [Giulia Bianchi v]                │ │
+│  │  [ ] Commissioning required             │ │
+│  └─────────────────────────────────────────┘ │
+└──────────────────────────────────────────────┘
+```
 
-**Projects.tsx evolution:**
-- Replace `useState` + `fetchProjects` with `useAdminPlannerData()` hook
-- Add inner `<Tabs>` with 3 triggers: "To Configure (n)", "In Progress (n)", "Certified (n)" + an "All" option
-- Each tab filters the table rows by `setup_status`
-- Table columns adapted to use enriched data (`pm_name` from hook, `setup_status` badge, `missing` badges)
-- Keep existing search, region, PM filters (they stack with the status tab)
+### Submit Logic (per certification)
+
+For each entry in `certifications[]`:
+1. Insert `projects` row with `{ site_id, cert_type, cert_rating, cert_level, project_subtype, is_commissioning, pm_id, name: "${project_name} – ${cert_type}" }`
+2. Insert `certifications` row linked to `site_id`
+3. Resolve template via `getCertificationTemplate()` and bulk-insert `certification_milestones`
+
+All wrapped in `Promise.all` for atomicity.
+
+### Step 2 Adjustment
+
+The PM field moves from Step 2 to Step 3 (inside each certification card), since different certs can have different PMs. Step 2 keeps: Project Name, Client, Region, Handover Date, Status, Project Type. The project name becomes a base name -- each created project appends the cert type suffix.
+
+### Draft Migration
+
+When loading an old draft that has `cert_type` as a string (not array), auto-migrate it to `certifications: [{ cert_type, cert_rating, ... }]` so existing drafts are not lost.
 
