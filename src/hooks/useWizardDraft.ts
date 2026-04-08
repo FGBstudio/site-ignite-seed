@@ -1,6 +1,15 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 
 const STORAGE_KEY = "project-wizard-draft";
+
+export interface CertEntry {
+  cert_type: string;
+  cert_rating: string;
+  cert_level: string;
+  project_subtype: string;
+  is_commissioning: boolean;
+  pm_id: string;
+}
 
 export interface WizardDraft {
   // Step 1: Site
@@ -21,21 +30,33 @@ export interface WizardDraft {
   create_new_site: boolean;
   holding_id: string;
 
-  // Step 2: Project
+  // Step 2: Project (no PM here — it's per-certification now)
   project_name: string;
   client: string;
-  pm_id: string;
   handover_date: string;
   status: string;
   project_type: string;
 
-  // Step 3: Certification
-  cert_type: string;
-  cert_rating: string;
-  cert_level: string;
-  project_subtype: string;
-  is_commissioning: boolean;
+  // Step 3: Certifications (multi)
+  certifications: CertEntry[];
+
+  // Legacy single-cert fields kept for migration only
+  pm_id?: string;
+  cert_type?: string;
+  cert_rating?: string;
+  cert_level?: string;
+  project_subtype?: string;
+  is_commissioning?: boolean;
 }
+
+export const EMPTY_CERT: CertEntry = {
+  cert_type: "",
+  cert_rating: "",
+  cert_level: "",
+  project_subtype: "",
+  is_commissioning: false,
+  pm_id: "",
+};
 
 export const EMPTY_DRAFT: WizardDraft = {
   brand_id: "",
@@ -56,22 +77,44 @@ export const EMPTY_DRAFT: WizardDraft = {
   holding_id: "",
   project_name: "",
   client: "",
-  pm_id: "",
   handover_date: "",
   status: "Design",
   project_type: "",
-  cert_type: "",
-  cert_rating: "",
-  cert_level: "",
-  project_subtype: "",
-  is_commissioning: false,
+  certifications: [],
 };
+
+/** Migrate old single-cert drafts to the new multi-cert array format */
+function migrateDraft(raw: any): WizardDraft {
+  if (raw.certifications && Array.isArray(raw.certifications)) {
+    // Already new format
+    return raw as WizardDraft;
+  }
+
+  // Old format — convert single cert fields to certifications array
+  const certifications: CertEntry[] = [];
+  if (raw.cert_type) {
+    certifications.push({
+      cert_type: raw.cert_type || "",
+      cert_rating: raw.cert_rating || "",
+      cert_level: raw.cert_level || "",
+      project_subtype: raw.project_subtype || "",
+      is_commissioning: raw.is_commissioning || false,
+      pm_id: raw.pm_id || "",
+    });
+  }
+
+  return {
+    ...EMPTY_DRAFT,
+    ...raw,
+    certifications,
+  };
+}
 
 function loadDraft(): WizardDraft | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
-    return JSON.parse(raw) as WizardDraft;
+    return migrateDraft(JSON.parse(raw));
   } catch {
     return null;
   }
