@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useQueryClient } from "@tanstack/react-query";
@@ -13,17 +13,22 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDes
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Plus } from "lucide-react";
+import { Loader2, Plus, Trash2 } from "lucide-react";
 import { RATING_SYSTEMS, RATING_SUBTYPES, type RatingSystem } from "@/data/ratingSubtypes";
 import { getCertificationTemplate } from "@/data/certificationTemplates";
+
+const AVAILABLE_CERTS = ["LEED", "WELL", "BREEAM", "ESG", "GRESB"] as const;
 
 const CERT_LEVELS: Record<string, string[]> = {
   LEED: ["Certified", "Silver", "Gold", "Platinum"],
   WELL: ["Bronze", "Silver", "Gold", "Platinum"],
   BREEAM: ["Pass", "Good", "Very Good", "Excellent", "Outstanding"],
+  ESG: [],
+  GRESB: [],
 };
 
 const formSchema = z.object({
@@ -43,11 +48,14 @@ const formSchema = z.object({
   create_project: z.boolean().default(false),
   project_name: z.string().optional(),
   pm_id: z.string().optional(),
-  cert_type: z.enum(["LEED", "WELL", "BREEAM", "CO2"]).optional(),
-  cert_rating: z.string().optional(),
-  cert_level: z.string().optional(),
-  project_subtype: z.string().optional(),
   is_commissioning: z.boolean().default(false),
+  // NEW: Dynamic array of certifications
+  certifications: z.array(z.object({
+    cert_type: z.enum(["LEED", "WELL", "BREEAM", "ESG", "GRESB"]),
+    cert_rating: z.string().optional(),
+    cert_level: z.string().optional(),
+    project_subtype: z.string().optional(),
+  })).default([]),
 }).superRefine((data, ctx) => {
   if (data.create_project) {
     if (!data.project_name || data.project_name.trim() === "") {
@@ -56,11 +64,18 @@ const formSchema = z.object({
     if (!data.pm_id) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "PM required", path: ["pm_id"] });
     }
-    if (data.cert_type && CERT_LEVELS[data.cert_type]) {
-      if (data.cert_level && !CERT_LEVELS[data.cert_type].includes(data.cert_level)) {
-         ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Invalid level for ${data.cert_type}`, path: ["cert_level"] });
+    // Validate levels for each selected certification
+    data.certifications.forEach((cert, index) => {
+      if (CERT_LEVELS[cert.cert_type] && CERT_LEVELS[cert.cert_type].length > 0) {
+        if (cert.cert_level && !CERT_LEVELS[cert.cert_type].includes(cert.cert_level)) {
+           ctx.addIssue({ 
+             code: z.ZodIssueCode.custom, 
+             message: `Invalid level for ${cert.cert_type}`, 
+             path: ["certifications", index, "cert_level"] 
+           });
+        }
       }
-    }
+    });
   }
 });
 
@@ -78,28 +93,21 @@ export function SiteProjectOnboardingForm() {
       site_name: "", address: "", city: "", country: "", region: "Europe", timezone: "UTC",
       module_energy_enabled: false, module_air_enabled: false, module_water_enabled: false,
       create_project: false, project_name: "", is_commissioning: false,
+      certifications: [], // Start with zero schemas
     },
   });
 
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: "certifications"
+  });
+
   const createProject = form.watch("create_project");
-  const watchedCertType = form.watch("cert_type");
-  const watchedCertRating = form.watch("cert_rating");
   const isSubmitting = form.formState.isSubmitting;
-
-  const availableSubtypes = watchedCertRating && RATING_SUBTYPES[watchedCertRating as RatingSystem] ? RATING_SUBTYPES[watchedCertRating as RatingSystem] : [];
-  const availableLevels = watchedCertType && CERT_LEVELS[watchedCertType] ? CERT_LEVELS[watchedCertType] : [];
-
-  const handleRatingChange = (value: string, fieldOnChange: (v: string) => void) => {
-    fieldOnChange(value);
-    form.setValue("project_subtype", undefined);
-  };
-  const handleCertTypeChange = (value: "LEED" | "WELL" | "BREEAM" | "CO2", fieldOnChange: (v: string) => void) => {
-    fieldOnChange(value);
-    form.setValue("cert_level", undefined);
-  };
 
   const onSubmit = async (values: FormValues) => {
     try {
+      // 1. Create Site
       const { data: siteData, error: siteError } = await supabase
         .from("sites")
         .insert({
@@ -113,29 +121,35 @@ export function SiteProjectOnboardingForm() {
         .single();
       if (siteError) throw siteError;
 
+      // 2. Create Project + Multi-Certifications
       if (values.create_project && siteData?.id) {
-        const finalCertLevel = (values.cert_type && CERT_LEVELS[values.cert_type]) ? values.cert_level || null : null;
+        
+        // Save old fields by concatenating for visual fallback (e.g., "LEED, WELL")
+        const legacyCertTypes = values.certifications.map(c => c.cert_type).join(", ") || null;
 
         const { data: projectData, error: projectError } = await supabase
           .from("projects")
           .insert({
             name: values.project_name!, site_id: siteData.id, pm_id: values.pm_id!,
             client: "", region: values.region, status: "Design",
-            cert_type: values.cert_type || null, cert_rating: values.cert_rating || null,
-            project_subtype: values.project_subtype || null, cert_level: finalCertLevel, 
+            cert_type: legacyCertTypes, // Descriptive string
             is_commissioning: values.is_commissioning,
           } as any)
           .select("id")
           .single();
         if (projectError) throw projectError;
 
-        if (values.cert_type) {
+        // 3. LOOP THROUGH CERTIFICATIONS
+        for (const certConf of values.certifications) {
+          // const finalCertLevel = CERT_LEVELS[certConf.cert_type]?.length ? certConf.cert_level || null : null; // Not needed to save to certifications table, but kept for logic if needed
+
+          // Insert the row for the specific schema
           const { data: certData, error: certError } = await supabase
             .from("certifications")
             .insert({
               site_id: siteData.id,
-              cert_type: values.cert_type,
-              level: values.cert_rating || null, 
+              cert_type: certConf.cert_type,
+              level: certConf.cert_rating || null, // rating system (e.g., LEED v4)
               status: "in_progress",
               score: 0,
             })
@@ -143,7 +157,8 @@ export function SiteProjectOnboardingForm() {
             .single();
           if (certError) throw certError;
 
-          const templateInfo = getCertificationTemplate(values.cert_type, values.cert_rating, values.project_subtype);
+          // Generate the template for this specific schema
+          const templateInfo = getCertificationTemplate(certConf.cert_type, certConf.cert_rating, certConf.project_subtype);
 
           if (templateInfo) {
             const milestoneRows: any[] = [];
@@ -164,93 +179,11 @@ export function SiteProjectOnboardingForm() {
               for (let i = 0; i < milestoneRows.length; i += 50) {
                 const batch = milestoneRows.slice(i, i + 50);
                 const { error: mErr } = await supabase.from("certification_milestones").insert(batch as any);
-                if (mErr) console.error("Error inserting milestones:", mErr);
+                if (mErr) console.error(`Error inserting milestones for ${certConf.cert_type}:`, mErr);
               }
             }
           }
         }
       }
 
-      toast({ title: "Operation completed", description: "Site and Project configured successfully." });
-      queryClient.invalidateQueries({ queryKey: ["projects"] });
-      queryClient.invalidateQueries({ queryKey: ["sites"] });
-      form.reset();
-      setOpen(false);
-    } catch (error: any) {
-      toast({ variant: "destructive", title: "Save error", description: error.message });
-    }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild><Button><Plus className="mr-2 h-4 w-4" />Site Onboarding</Button></DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader><DialogTitle>Create Site & Project</DialogTitle></DialogHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <Card><CardHeader className="pb-3"><CardTitle className="text-base">Physical Site Data</CardTitle></CardHeader>
-              <CardContent className="space-y-4">
-                <FormField control={form.control} name="brand_id" render={({ field }) => (
-                  <FormItem><FormLabel>Brand</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder={brandsLoading ? "Loading..." : "Select brand"} /></SelectTrigger></FormControl><SelectContent>{brands.map((b) => (<SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>
-                )} />
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField control={form.control} name="site_name" render={({ field }) => (<FormItem><FormLabel>Site Name</FormLabel><FormControl><Input placeholder="e.g. Milan HQ" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                  <FormField control={form.control} name="city" render={({ field }) => (<FormItem><FormLabel>City</FormLabel><FormControl><Input placeholder="Milan" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                </div>
-                <FormField control={form.control} name="address" render={({ field }) => (<FormItem><FormLabel>Address</FormLabel><FormControl><Input placeholder="Via Roma 1" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField control={form.control} name="country" render={({ field }) => (<FormItem><FormLabel>Country</FormLabel><FormControl><Input placeholder="Italy" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                  <FormField control={form.control} name="region" render={({ field }) => (
-                    <FormItem><FormLabel>Region</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="Europe">Europe</SelectItem><SelectItem value="America">America</SelectItem><SelectItem value="APAC">APAC</SelectItem><SelectItem value="ME">ME</SelectItem></SelectContent></Select><FormMessage /></FormItem>
-                  )} />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField control={form.control} name="lat" render={({ field }) => (<FormItem><FormLabel>Latitude</FormLabel><FormControl><Input type="number" step="any" placeholder="45.464" {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>)} />
-                  <FormField control={form.control} name="lng" render={({ field }) => (<FormItem><FormLabel>Longitude</FormLabel><FormControl><Input type="number" step="any" placeholder="9.190" {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>)} />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField control={form.control} name="area_m2" render={({ field }) => (<FormItem><FormLabel>Area (m²)</FormLabel><FormControl><Input type="number" placeholder="1500" {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>)} />
-                  <FormField control={form.control} name="timezone" render={({ field }) => (<FormItem><FormLabel>Timezone</FormLabel><FormControl><Input placeholder="Europe/Rome" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                </div>
-                <Separator />
-                <p className="text-sm font-medium text-muted-foreground">Active Modules</p>
-                <div className="flex flex-wrap gap-6">
-                  {(["module_energy_enabled", "module_air_enabled", "module_water_enabled"] as const).map((mod) => (
-                    <FormField key={mod} control={form.control} name={mod} render={({ field }) => (
-                      <FormItem className="flex items-center gap-2"><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl><FormLabel className="!mt-0 capitalize">{mod.replace("module_", "").replace("_enabled", "")}</FormLabel></FormItem>
-                    )} />
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            <div className="flex items-center gap-4 rounded-lg border border-primary/30 bg-primary/5 p-4">
-              <FormField control={form.control} name="create_project" render={({ field }) => (
-                <FormItem className="flex items-center gap-3"><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} className="scale-125" /></FormControl><FormLabel className="!mt-0 text-base font-semibold">Launch Certification Project on this Site</FormLabel></FormItem>
-              )} />
-            </div>
-
-            {createProject && (
-              <Card><CardHeader className="pb-3"><CardTitle className="text-base">Project Settings</CardTitle></CardHeader>
-                <CardContent className="space-y-4">
-                  <FormField control={form.control} name="project_name" render={({ field }) => (<FormItem><FormLabel>Project Name</FormLabel><FormControl><Input placeholder="LEED Gold – Milan HQ" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                  <FormField control={form.control} name="pm_id" render={({ field }) => (<FormItem><FormLabel>Project Manager</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder={pmsLoading ? "Loading..." : "Select PM"} /></SelectTrigger></FormControl><SelectContent>{pms.map((pm: any) => (<SelectItem key={pm.id} value={pm.id}>{pm.full_name}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField control={form.control} name="cert_type" render={({ field }) => (<FormItem><FormLabel>Certification Type</FormLabel><Select onValueChange={(v: any) => handleCertTypeChange(v, field.onChange)} value={field.value || ""}><FormControl><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger></FormControl><SelectContent>{["LEED", "WELL", "BREEAM", "CO2"].map((v) => (<SelectItem key={v} value={v}>{v}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
-                    <FormField control={form.control} name="cert_level" render={({ field }) => (<FormItem><FormLabel>Certificate Level</FormLabel><Select onValueChange={field.onChange} value={field.value || ""} disabled={availableLevels.length === 0}><FormControl><SelectTrigger><SelectValue placeholder={availableLevels.length === 0 ? "Not applicable" : "Select level"} /></SelectTrigger></FormControl><SelectContent>{availableLevels.map((v) => (<SelectItem key={v} value={v}>{v}</SelectItem>))}</SelectContent></Select><FormDescription className="text-[10px] leading-tight">Options change based on selected type.</FormDescription><FormMessage /></FormItem>)} />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField control={form.control} name="cert_rating" render={({ field }) => (<FormItem><FormLabel>Rating System</FormLabel><Select onValueChange={(v) => handleRatingChange(v, field.onChange)} value={field.value || ""}><FormControl><SelectTrigger><SelectValue placeholder="Select Rating" /></SelectTrigger></FormControl><SelectContent>{RATING_SYSTEMS.map((v) => (<SelectItem key={v} value={v}>{v}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
-                    <FormField control={form.control} name="project_subtype" render={({ field }) => (<FormItem><FormLabel>Subtype</FormLabel><Select onValueChange={field.onChange} value={field.value || ""} disabled={availableSubtypes.length === 0}><FormControl><SelectTrigger><SelectValue placeholder={availableSubtypes.length === 0 ? "Select Rating first" : "Select subtype"} /></SelectTrigger></FormControl><SelectContent>{availableSubtypes.map((v) => (<SelectItem key={v} value={v}>{v}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
-                  </div>
-                  <FormField control={form.control} name="is_commissioning" render={({ field }) => (<FormItem className="flex items-center gap-2"><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl><FormLabel className="!mt-0">Commissioning</FormLabel></FormItem>)} />
-                </CardContent>
-              </Card>
-            )}
-            <Button type="submit" disabled={isSubmitting} className="w-full">{isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Save</Button>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
-  );
-}
+      toast({ title: "Operation completed", description
