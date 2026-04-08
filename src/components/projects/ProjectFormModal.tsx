@@ -30,7 +30,6 @@ const REGIONS = ["Europe", "America", "APAC", "ME"] as const;
 const PROJECT_STATUSES = ["Design", "Construction", "Completed", "Cancelled"] as const;
 const ALLOCATION_STATUSES = ["Draft", "Allocated", "Requested", "Shipped", "Installed_Online"] as const;
 
-// Aggiornato con i nuovi schemi
 const AVAILABLE_CERTS = ["LEED", "WELL", "BREEAM", "ESG", "GRESB"] as const;
 
 const CERT_LEVELS: Record<string, string[]> = {
@@ -41,13 +40,13 @@ const CERT_LEVELS: Record<string, string[]> = {
   GRESB: [],
 };
 
+// ZOD SCHEMA AGGIORNATO: pm_id spostato nelle certificazioni
 const formSchema = z.object({
   name: z.string().min(2, "Name required"),
   client: z.string().min(2, "Client required"),
   region: z.enum(["Europe", "America", "APAC", "ME"]),
   handover_date: z.date(),
   status: z.string(),
-  pm_id: z.string().min(1, "PM required"),
   site_id: z.string().min(1, "Site required"),
   allocations: z.array(z.object({
     id: z.string().optional(),
@@ -57,10 +56,12 @@ const formSchema = z.object({
   })).default([]),
   certifications: z.array(z.object({
     id: z.string().optional(), 
+    project_id: z.string().optional(), // Riferimento al project "figlio"
     cert_type: z.enum(["LEED", "WELL", "BREEAM", "ESG", "GRESB"]),
     cert_rating: z.string().optional(),
     cert_level: z.string().optional(),
     project_subtype: z.string().optional(),
+    pm_id: z.string().optional(), // PM granulare
   })).default([]),
 });
 
@@ -96,14 +97,13 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
     resolver: zodResolver(formSchema),
     defaultValues: { 
       name: "", client: "", region: "Europe", handover_date: new Date(), 
-      status: "Design", pm_id: "", site_id: "", allocations: [], certifications: [] 
+      status: "Design", site_id: "", allocations: [], certifications: [] 
     },
   });
 
   const { fields: allocFields, append: appendAlloc, remove: removeAlloc } = useFieldArray({ control: form.control, name: "allocations" });
   const { fields: certFields, append: appendCert, remove: removeCert } = useFieldArray({ control: form.control, name: "certifications" });
 
-  // Questa variabile osserva l'array delle certificazioni in tempo reale per far reagire le checkbox
   const watchedCerts = form.watch("certifications") || [];
 
   useEffect(() => {
@@ -137,21 +137,41 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
     
     const loadProjectData = async () => {
       if (project) {
+        // Recupera le certificazioni attive sul sito
         const { data: existingCerts, error: certErr } = await supabase
           .from("certifications")
           .select("*")
           .eq("site_id", project.site_id);
           
-        if (certErr) console.error("Error loading certifications:", certErr);
+        // Recupera TUTTI i progetti associati a questo sito per matchare i PM e i Subtype
+        const { data: siteProjects, error: projErr } = await supabase
+          .from("projects")
+          .select("id, cert_type, pm_id, project_subtype")
+          .eq("site_id", project.site_id);
 
-        const mappedCerts = (existingCerts || []).map((c: any) => ({
-          id: c.id, cert_type: c.cert_type, cert_rating: c.level, 
-        }));
+        if (certErr) console.error("Error loading certifications:", certErr);
+        if (projErr) console.error("Error loading site projects:", projErr);
+
+        // Mappa i dati incrociando certifications e projects
+        const mappedCerts = (existingCerts || []).map((c: any) => {
+          const matchedProj = (siteProjects || []).find((p: any) => p.cert_type === c.cert_type);
+          return {
+            id: c.id, 
+            project_id: matchedProj?.id, // Associa l'ID del record in tabella `projects`
+            cert_type: c.cert_type, 
+            cert_rating: c.level,
+            pm_id: matchedProj?.pm_id || "", // Recupera il PM assegnato a questa cert
+            project_subtype: matchedProj?.project_subtype || "",
+          };
+        });
+
+        // Pulisce il nome togliendo la sigla della cert in caso di edit
+        const baseName = project.name.includes(" - ") ? project.name.split(" - ")[0] : project.name;
 
         form.reset({
-          name: project.name, client: project.client, region: project.region as any,
+          name: baseName, client: project.client, region: project.region as any,
           handover_date: new Date(project.handover_date), status: project.status,
-          pm_id: project.pm_id || "", site_id: project.site_id || "",
+          site_id: project.site_id || "",
           allocations: existingAllocations.map((a) => ({ id: a.id, product_id: a.product_id, quantity: a.quantity, status: a.status })),
           certifications: mappedCerts as any,
         });
@@ -160,7 +180,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
       } else {
         form.reset({ 
           name: "", client: "", region: "Europe", handover_date: new Date(), 
-          status: "Design", pm_id: isAdmin ? "" : user?.id || "", site_id: "", 
+          status: "Design", site_id: "", 
           allocations: [], certifications: [] 
         });
         setSelectedHoldingId(""); setSelectedBrandId(""); setShowNewSite(false); setNewSiteName("");
@@ -177,7 +197,6 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
   const onSubmit = async (data: ProjectFormData) => {
     setSaving(true);
     try {
-      const pmId = isAdmin ? data.pm_id : user?.id;
       const handoverStr = format(data.handover_date, "yyyy-MM-dd");
 
       // 1. Creazione / Associazione Sito
@@ -189,38 +208,55 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
         siteId = newSite.id;
       }
 
-      let projectId = project?.id;
-      const legacyCertTypes = data.certifications.map(c => c.cert_type).join(", ") || null;
-
-      const projectPayload = {
-        name: data.name, client: data.client, region: data.region, handover_date: handoverStr,
-        status: data.status, pm_id: pmId || null, site_id: siteId, cert_type: legacyCertTypes, 
-      };
-
-      // 2. Creazione / Aggiornamento Progetto
-      if (project) {
-        const { error } = await supabase.from("projects").update(projectPayload as any).eq("id", project.id);
-        if (error) throw error;
-      } else {
-        const { data: newProject, error } = await supabase.from("projects").insert(projectPayload as any).select("id").single();
-        if (error) throw error;
-        projectId = newProject.id;
-      }
-
-      if (!projectId) throw new Error("Critical Error: Missing Project ID.");
-
-      // 3. LOGICA MULTI-CERTIFICAZIONE (Aggiunta, Modifica, Rimozione)
+      // 2. Identifica e rimuovi le certificazioni deselezionate
       const originalCertIds = project ? (form.formState.defaultValues?.certifications?.map(c => c.id).filter(Boolean) as string[]) : [];
       const currentCertIds = data.certifications.map(c => c.id).filter(Boolean) as string[];
       
-      // Identifica gli schemi deselezionati e rimuovili
       const certsToDelete = originalCertIds.filter(id => !currentCertIds.includes(id));
       if (certsToDelete.length > 0) {
          await supabase.from("certifications").delete().in("id", certsToDelete);
       }
 
-      // Ciclo Iterativo sulle certificazioni selezionate nel form
+      let firstProjectId = project?.id; // Usato come fallback per le allocazioni se serve
+
+      // 3. LOGICA MULTI-CERTIFICAZIONE ARCHITETTURA "1:1"
       for (const certConf of data.certifications) {
+        const pmId = isAdmin ? certConf.pm_id : user?.id;
+        
+        // Formatta il nome progetto dinamicamente
+        const projectName = data.certifications.length > 1 
+          ? `${data.name} - ${certConf.cert_type}` 
+          : data.name;
+
+        const projectPayload = {
+          name: projectName, 
+          client: data.client, 
+          region: data.region, 
+          handover_date: handoverStr,
+          status: data.status, 
+          pm_id: pmId || null, 
+          site_id: siteId, 
+          cert_type: certConf.cert_type,
+          cert_rating: certConf.cert_rating || null,
+          cert_level: certConf.cert_level || null,
+          project_subtype: certConf.project_subtype || null,
+        };
+
+        let currentProjectId = certConf.project_id;
+
+        // Upsert sulla tabella projects
+        if (currentProjectId) {
+          const { error } = await supabase.from("projects").update(projectPayload as any).eq("id", currentProjectId);
+          if (error) throw error;
+        } else {
+          const { data: newProj, error } = await supabase.from("projects").insert(projectPayload as any).select("id").single();
+          if (error) throw error;
+          currentProjectId = newProj.id;
+        }
+
+        if (!firstProjectId) firstProjectId = currentProjectId;
+
+        // Upsert sulla tabella certifications
         const certPayload = {
           site_id: siteId, 
           cert_type: certConf.cert_type, 
@@ -246,7 +282,6 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
           if (templateInfo) {
             const milestoneRows: any[] = [];
             
-            // Popolamento Timeline
             templateInfo.timeline.forEach((t) => {
               milestoneRows.push({ 
                 certification_id: newCert.id, category: "Timeline", requirement: t.name, 
@@ -254,7 +289,6 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
               });
             });
             
-            // Popolamento Scorecard
             templateInfo.scorecard.forEach((s) => {
               milestoneRows.push({ 
                 certification_id: newCert.id, category: s.category, requirement: s.requirement, 
@@ -262,7 +296,6 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
               });
             });
 
-            // Inserimento massivo in lotti da 50
             if (milestoneRows.length > 0) {
               for (let i = 0; i < milestoneRows.length; i += 50) {
                 const batch = milestoneRows.slice(i, i + 50);
@@ -284,7 +317,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
         if (alloc.id) {
           await supabase.from("project_allocations" as any).update({ product_id: alloc.product_id, quantity: alloc.quantity, status: alloc.status } as any).eq("id", alloc.id);
         } else {
-          await supabase.from("project_allocations" as any).insert({ project_id: projectId, product_id: alloc.product_id, quantity: alloc.quantity, status: (alloc.status || "Draft") as any, target_date: targetDate });
+          await supabase.from("project_allocations" as any).insert({ project_id: firstProjectId, product_id: alloc.product_id, quantity: alloc.quantity, status: (alloc.status || "Draft") as any, target_date: targetDate });
         }
       }
 
@@ -358,16 +391,10 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
                     <FormMessage /></FormItem>
                   )} />
                   <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Status</FormLabel><Select value={field.value} onValueChange={field.onChange}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent>{PROJECT_STATUSES.map((s) => (<SelectItem key={s} value={s}>{s}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
-                  {isAdmin && (
-                    <FormField control={form.control} name="pm_id" render={({ field }) => (
-                      <FormItem><FormLabel>Assigned PM</FormLabel><Select value={field.value} onValueChange={field.onChange} disabled={loadingPMs}><FormControl><SelectTrigger>{loadingPMs ? "Loading..." : <SelectValue placeholder="Select PM" />}</SelectTrigger></FormControl><SelectContent>{pmList.map((pm) => (<SelectItem key={pm.id} value={pm.id}>{pm.full_name}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>
-                    )} />
-                  )}
                 </div>
               </CardContent>
             </Card>
 
-            {/* SEZIONE 3: CERTIFICATION SCHEMAS (Multi-Selezione Dinamica) */}
             <Card className="border-primary/20 shadow-md">
               <CardHeader className="bg-primary/5 pb-4 border-b border-primary/10">
                 <CardTitle className="text-lg text-primary flex items-center justify-between">
@@ -377,7 +404,6 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
               </CardHeader>
               <CardContent className="space-y-6 pt-6 bg-white">
                 
-                {/* Gruppo di Checkbox per abilitare le schede */}
                 <div className="p-4 bg-slate-50 border rounded-lg">
                   <h4 className="text-sm font-semibold mb-3 text-slate-700">Toggle Schemas:</h4>
                   <div className="flex flex-wrap gap-3">
@@ -405,7 +431,6 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
                   </div>
                 </div>
 
-                {/* Renderizzazione Dinamica dei blocchi di configurazione */}
                 {certFields.length > 0 && (
                   <div className="space-y-5">
                     {certFields.map((field, index) => {
@@ -423,7 +448,8 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
                             </div>
                           )}
                           <h5 className="font-bold text-lg text-slate-800 mb-4 border-b pb-2">{certType} Configuration</h5>
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                          {/* Modificata Griglia da 3 a 4 colonne */}
+                          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                             <FormField control={form.control} name={`certifications.${index}.cert_rating`} render={({ field: f }) => (
                               <FormItem>
                                 <FormLabel>Rating System</FormLabel>
@@ -454,6 +480,26 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
                                 <FormMessage />
                               </FormItem>
                             )} />
+                            
+                            {/* PM INSERITO DENTRO LA SINGOLA CERTIFICAZIONE */}
+                            {isAdmin && (
+                              <FormField control={form.control} name={`certifications.${index}.pm_id`} render={({ field: f }) => (
+                                <FormItem>
+                                  <FormLabel>Project Manager</FormLabel>
+                                  <Select onValueChange={f.onChange} value={f.value || ""} disabled={loadingPMs}>
+                                    <FormControl>
+                                      <SelectTrigger>
+                                        <SelectValue placeholder={loadingPMs ? "Loading..." : "Select PM"} />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                      {pmList.map((pm) => (<SelectItem key={pm.id} value={pm.id}>{pm.full_name}</SelectItem>))}
+                                    </SelectContent>
+                                  </Select>
+                                  <FormMessage />
+                                </FormItem>
+                              )} />
+                            )}
                           </div>
                         </div>
                       );
