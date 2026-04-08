@@ -17,6 +17,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import { CalendarIcon, Plus, Trash2, Loader2, Edit3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -28,19 +29,18 @@ import type { Product, Project, ProjectAllocation } from "@/types/custom-tables"
 const REGIONS = ["Europe", "America", "APAC", "ME"] as const;
 const PROJECT_STATUSES = ["Design", "Construction", "Completed", "Cancelled"] as const;
 const ALLOCATION_STATUSES = ["Draft", "Allocated", "Requested", "Shipped", "Installed_Online"] as const;
-const AVAILABLE_CERTS = ["LEED", "WELL", "BREEAM", "CO2", "Commissioning"] as const;
+
+// Aggiornato con i nuovi schemi
+const AVAILABLE_CERTS = ["LEED", "WELL", "BREEAM", "ESG", "GRESB"] as const;
 
 const CERT_LEVELS: Record<string, string[]> = {
   LEED: ["Certified", "Silver", "Gold", "Platinum"],
   WELL: ["Bronze", "Silver", "Gold", "Platinum"],
   BREEAM: ["Pass", "Good", "Very Good", "Excellent", "Outstanding"],
-  CO2: [],
-  Commissioning: [],
+  ESG: [],
+  GRESB: [],
 };
 
-// ============================================================================
-// ZOD SCHEMA: Multi-Certification integrated
-// ============================================================================
 const formSchema = z.object({
   name: z.string().min(2, "Name required"),
   client: z.string().min(2, "Client required"),
@@ -56,8 +56,8 @@ const formSchema = z.object({
     status: z.string(),
   })).default([]),
   certifications: z.array(z.object({
-    id: z.string().optional(), // Used to track existing DB records
-    cert_type: z.enum(["LEED", "WELL", "BREEAM", "CO2", "Commissioning"]),
+    id: z.string().optional(), 
+    cert_type: z.enum(["LEED", "WELL", "BREEAM", "ESG", "GRESB"]),
     cert_rating: z.string().optional(),
     cert_level: z.string().optional(),
     project_subtype: z.string().optional(),
@@ -103,7 +103,9 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
   const { fields: allocFields, append: appendAlloc, remove: removeAlloc } = useFieldArray({ control: form.control, name: "allocations" });
   const { fields: certFields, append: appendCert, remove: removeCert } = useFieldArray({ control: form.control, name: "certifications" });
 
-  // 1. Fetch General Data (Products & PMs)
+  // Questa variabile osserva l'array delle certificazioni in tempo reale per far reagire le checkbox
+  const watchedCerts = form.watch("certifications") || [];
+
   useEffect(() => {
     if (!open) return;
     supabase.from("products" as any).select("*").then(({ data }) => setProducts((data || []) as any));
@@ -130,15 +132,11 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
     fetchPMs();
   }, [open, isAdmin]);
 
-  // 2. Populate Form (Review/Edit Logic)
   useEffect(() => {
     if (!open) return;
     
     const loadProjectData = async () => {
       if (project) {
-        // If editing, fetch the actual certifications for this project's site_id
-        // NOTE: Currently, certifications link to site_id. We fetch certs matching this site.
-        // In the future, if you added project_id, you'd filter by project.id.
         const { data: existingCerts, error: certErr } = await supabase
           .from("certifications")
           .select("*")
@@ -147,9 +145,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
         if (certErr) console.error("Error loading certifications:", certErr);
 
         const mappedCerts = (existingCerts || []).map((c: any) => ({
-          id: c.id,
-          cert_type: c.cert_type,
-          cert_rating: c.level, 
+          id: c.id, cert_type: c.cert_type, cert_rating: c.level, 
         }));
 
         form.reset({
@@ -162,7 +158,6 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
         
         setSelectedHoldingId(""); setSelectedBrandId(""); 
       } else {
-        // New Creation Mode
         form.reset({ 
           name: "", client: "", region: "Europe", handover_date: new Date(), 
           status: "Design", pm_id: isAdmin ? "" : user?.id || "", site_id: "", 
@@ -179,14 +174,13 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
   const handleHoldingChange = (val: string) => { setSelectedHoldingId(val); setSelectedBrandId(""); form.setValue("site_id", ""); setShowNewSite(false); setNewSiteName(""); };
   const handleBrandChange = (val: string) => { setSelectedBrandId(val); form.setValue("site_id", ""); setShowNewSite(false); setNewSiteName(""); };
 
-  // 3. Submit Logic (Diffing for Create vs Update)
   const onSubmit = async (data: ProjectFormData) => {
     setSaving(true);
     try {
       const pmId = isAdmin ? data.pm_id : user?.id;
       const handoverStr = format(data.handover_date, "yyyy-MM-dd");
 
-      // A. Handle Site (New or Existing)
+      // 1. Creazione / Associazione Sito
       let siteId = data.site_id || null;
       if (showNewSite && newSiteName.trim()) {
         if (!selectedBrandId) throw new Error("Select a Brand before creating a new Site.");
@@ -200,11 +194,10 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
 
       const projectPayload = {
         name: data.name, client: data.client, region: data.region, handover_date: handoverStr,
-        status: data.status, pm_id: pmId || null, site_id: siteId, 
-        cert_type: legacyCertTypes, 
+        status: data.status, pm_id: pmId || null, site_id: siteId, cert_type: legacyCertTypes, 
       };
 
-      // B. Save Project
+      // 2. Creazione / Aggiornamento Progetto
       if (project) {
         const { error } = await supabase.from("projects").update(projectPayload as any).eq("id", project.id);
         if (error) throw error;
@@ -216,39 +209,60 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
 
       if (!projectId) throw new Error("Critical Error: Missing Project ID.");
 
-      // C. Handle Multi-Certification (The Core Update)
+      // 3. LOGICA MULTI-CERTIFICAZIONE (Aggiunta, Modifica, Rimozione)
       const originalCertIds = project ? (form.formState.defaultValues?.certifications?.map(c => c.id).filter(Boolean) as string[]) : [];
       const currentCertIds = data.certifications.map(c => c.id).filter(Boolean) as string[];
-      const certsToDelete = originalCertIds?.filter(id => !currentCertIds.includes(id)) || [];
-
-      // 1. Delete removed schemas
+      
+      // Identifica gli schemi deselezionati e rimuovili
+      const certsToDelete = originalCertIds.filter(id => !currentCertIds.includes(id));
       if (certsToDelete.length > 0) {
          await supabase.from("certifications").delete().in("id", certsToDelete);
       }
 
-      // 2. Update or Create schemas
+      // Ciclo Iterativo sulle certificazioni selezionate nel form
       for (const certConf of data.certifications) {
         const certPayload = {
-          site_id: siteId,
-          cert_type: certConf.cert_type,
+          site_id: siteId, 
+          cert_type: certConf.cert_type, 
           level: certConf.cert_rating || null,
         };
 
         if (certConf.id) {
-          // UPDATE: Update rating/level only, DO NOT touch milestones!
+          // Schema esistente: aggiorniamo solo i metadati
           const { error: updErr } = await supabase.from("certifications").update(certPayload as any).eq("id", certConf.id);
           if (updErr) throw updErr;
         } else {
-          // INSERT: New schema added to this project. Create and generate Milestones.
-          const { data: newCert, error: insErr } = await supabase.from("certifications").insert({ ...certPayload, status: "in_progress", score: 0 } as any).select("id").single();
+          // Nuovo schema: Inserimento in certifications e generazione milestones
+          const { data: newCert, error: insErr } = await supabase
+            .from("certifications")
+            .insert({ ...certPayload, status: "in_progress", score: 0 } as any)
+            .select("id")
+            .single();
+            
           if (insErr) throw insErr;
 
           const templateInfo = getCertificationTemplate(certConf.cert_type, certConf.cert_rating, certConf.project_subtype);
+          
           if (templateInfo) {
             const milestoneRows: any[] = [];
-            templateInfo.timeline.forEach((t) => milestoneRows.push({ certification_id: newCert.id, category: "Timeline", requirement: t.name, milestone_type: "timeline", status: "pending" }));
-            templateInfo.scorecard.forEach((s) => milestoneRows.push({ certification_id: newCert.id, category: s.category, requirement: s.requirement, milestone_type: "scorecard", max_score: s.max_score, score: 0, status: "pending" }));
+            
+            // Popolamento Timeline
+            templateInfo.timeline.forEach((t) => {
+              milestoneRows.push({ 
+                certification_id: newCert.id, category: "Timeline", requirement: t.name, 
+                milestone_type: "timeline", status: "pending" 
+              });
+            });
+            
+            // Popolamento Scorecard
+            templateInfo.scorecard.forEach((s) => {
+              milestoneRows.push({ 
+                certification_id: newCert.id, category: s.category, requirement: s.requirement, 
+                milestone_type: "scorecard", max_score: s.max_score, score: 0, status: "pending" 
+              });
+            });
 
+            // Inserimento massivo in lotti da 50
             if (milestoneRows.length > 0) {
               for (let i = 0; i < milestoneRows.length; i += 50) {
                 const batch = milestoneRows.slice(i, i + 50);
@@ -259,7 +273,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
         }
       }
 
-      // D. Handle Allocations (Hardware)
+      // 4. Gestione Allocazioni (Hardware)
       const existingAllocIds = existingAllocations.map((a) => a.id);
       const currentAllocIds = data.allocations.filter((a) => a.id).map((a) => a.id!);
       const allocsToDelete = existingAllocIds.filter((id) => !currentAllocIds.includes(id));
@@ -274,7 +288,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
         }
       }
 
-      toast({ title: project ? "Project updated" : "Project created", description: "Sync completed." });
+      toast({ title: project ? "Project updated" : "Project created", description: "Operation completed successfully." });
       onOpenChange(false);
       onSaved();
     } catch (err: any) {
@@ -299,7 +313,6 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8 mt-4">
             
-            {/* --- SECTION 1: SITE & BASE DATA --- */}
             <Card className="border-primary/10 shadow-sm">
               <CardHeader className="bg-white pb-4 border-b">
                 <CardTitle className="text-lg flex items-center gap-2">
@@ -307,8 +320,6 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6 pt-6 bg-white">
-                
-                {/* Show Site selectors only on creation. In edit, site is fixed. */}
                 {!project && (
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6 p-4 bg-slate-50 rounded-lg border border-slate-100">
                     <div className="space-y-2">
@@ -339,18 +350,14 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <FormField control={form.control} name="name" render={({ field }) => (<FormItem><FormLabel>Project Name *</FormLabel><FormControl><Input placeholder="e.g. Prada Milan" {...field} /></FormControl><FormMessage /></FormItem>)} />
                   <FormField control={form.control} name="client" render={({ field }) => (<FormItem><FormLabel>Client *</FormLabel><FormControl><Input placeholder="e.g. Prada" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                  
                   <FormField control={form.control} name="region" render={({ field }) => (<FormItem><FormLabel>Region</FormLabel><Select value={field.value} onValueChange={field.onChange}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent>{REGIONS.map((r) => (<SelectItem key={r} value={r}>{r}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
-                  
                   <FormField control={form.control} name="handover_date" render={({ field }) => (
                     <FormItem className="flex flex-col"><FormLabel>Handover Date *</FormLabel>
                       <Popover><PopoverTrigger asChild><Button variant="outline" className={cn("w-full justify-start text-left font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{field.value ? format(field.value, "dd MMM yyyy") : "Select date"}</Button></PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus className="p-3" /></PopoverContent></Popover>
                     <FormMessage /></FormItem>
                   )} />
-
                   <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Status</FormLabel><Select value={field.value} onValueChange={field.onChange}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent>{PROJECT_STATUSES.map((s) => (<SelectItem key={s} value={s}>{s}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
-                  
                   {isAdmin && (
                     <FormField control={form.control} name="pm_id" render={({ field }) => (
                       <FormItem><FormLabel>Assigned PM</FormLabel><Select value={field.value} onValueChange={field.onChange} disabled={loadingPMs}><FormControl><SelectTrigger>{loadingPMs ? "Loading..." : <SelectValue placeholder="Select PM" />}</SelectTrigger></FormControl><SelectContent>{pmList.map((pm) => (<SelectItem key={pm.id} value={pm.id}>{pm.full_name}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>
@@ -360,29 +367,33 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
               </CardContent>
             </Card>
 
-            {/* --- SECTION 2: MULTIPLE SCHEMAS --- */}
+            {/* SEZIONE 3: CERTIFICATION SCHEMAS (Multi-Selezione Dinamica) */}
             <Card className="border-primary/20 shadow-md">
               <CardHeader className="bg-primary/5 pb-4 border-b border-primary/10">
                 <CardTitle className="text-lg text-primary flex items-center justify-between">
-                  <span>🏆 Certification Schemas (Scope of Work)</span>
+                  <span>🏆 Certification Schemas</span>
                 </CardTitle>
                 <DialogDescription>Select or edit schemas for this project. Each will generate its own Gantt.</DialogDescription>
               </CardHeader>
               <CardContent className="space-y-6 pt-6 bg-white">
                 
-                {/* Checkbox Selector */}
+                {/* Gruppo di Checkbox per abilitare le schede */}
                 <div className="p-4 bg-slate-50 border rounded-lg">
                   <h4 className="text-sm font-semibold mb-3 text-slate-700">Toggle Schemas:</h4>
                   <div className="flex flex-wrap gap-3">
                     {AVAILABLE_CERTS.map((type) => {
-                      const isSelected = certFields.some(f => f.cert_type === type);
+                      const isSelected = watchedCerts.some(c => c.cert_type === type);
                       return (
-                        <div key={type} className={cn("flex items-center space-x-2 border rounded-full px-4 py-2 transition-colors", isSelected ? "bg-primary text-white border-primary" : "bg-white text-slate-600 hover:bg-slate-100")}>
-                          <Checkbox id={`cert-${type}`} checked={isSelected} className={cn(isSelected && "border-white data-[state=checked]:bg-white data-[state=checked]:text-primary")}
+                        <div key={type} className={cn("flex items-center space-x-2 border rounded-full px-4 py-2 transition-colors", isSelected ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground hover:bg-muted")}>
+                          <Checkbox 
+                            id={`cert-${type}`} 
+                            checked={isSelected} 
+                            className={cn(isSelected && "border-white data-[state=checked]:bg-white data-[state=checked]:text-primary")}
                             onCheckedChange={(checked) => {
-                              if (checked) appendCert({ cert_type: type });
-                              else {
-                                const index = certFields.findIndex(f => f.cert_type === type);
+                              if (checked) {
+                                appendCert({ cert_type: type });
+                              } else {
+                                const index = watchedCerts.findIndex(c => c.cert_type === type);
                                 if(index !== -1) removeCert(index);
                               }
                             }}
@@ -394,7 +405,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
                   </div>
                 </div>
 
-                {/* Dynamic Configuration Areas (Review-style) */}
+                {/* Renderizzazione Dinamica dei blocchi di configurazione */}
                 {certFields.length > 0 && (
                   <div className="space-y-5">
                     {certFields.map((field, index) => {
@@ -406,24 +417,42 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
 
                       return (
                         <div key={field.id} className="p-5 border-2 border-slate-100 rounded-xl bg-white shadow-sm relative group hover:border-primary/30 transition-colors">
-                          {field.id && (
+                          {field.id && !field.id.includes("-") && (
                             <div className="absolute top-0 right-0 bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-1 rounded-bl-lg rounded-tr-xl">
                               ACTIVE IN DATABASE
                             </div>
                           )}
                           <h5 className="font-bold text-lg text-slate-800 mb-4 border-b pb-2">{certType} Configuration</h5>
-                          
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <FormField control={form.control} name={`certifications.${index}.cert_rating`} render={({ field: f }) => (
-                              <FormItem><FormLabel>Rating System</FormLabel><Select onValueChange={(v) => { f.onChange(v); form.setValue(`certifications.${index}.project_subtype`, undefined); }} value={f.value || ""}><FormControl><SelectTrigger><SelectValue placeholder="Select Rating" /></SelectTrigger></FormControl><SelectContent>{RATING_SYSTEMS.map((v) => (<SelectItem key={v} value={v}>{v}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>
+                              <FormItem>
+                                <FormLabel>Rating System</FormLabel>
+                                <Select onValueChange={(v) => { f.onChange(v); form.setValue(`certifications.${index}.project_subtype`, undefined); }} value={f.value || ""}>
+                                  <FormControl><SelectTrigger><SelectValue placeholder="Select Rating" /></SelectTrigger></FormControl>
+                                  <SelectContent>{RATING_SYSTEMS.map((v) => (<SelectItem key={v} value={v}>{v}</SelectItem>))}</SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
                             )} />
-                            
                             <FormField control={form.control} name={`certifications.${index}.cert_level`} render={({ field: f }) => (
-                              <FormItem><FormLabel>Target Level (Medal)</FormLabel><Select onValueChange={f.onChange} value={f.value || ""} disabled={availableLevels.length === 0}><FormControl><SelectTrigger><SelectValue placeholder={availableLevels.length === 0 ? "N/A" : "Select level"} /></SelectTrigger></FormControl><SelectContent>{availableLevels.map((v) => (<SelectItem key={v} value={v}>{v}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>
+                              <FormItem>
+                                <FormLabel>Target Level (Medal)</FormLabel>
+                                <Select onValueChange={f.onChange} value={f.value || ""} disabled={availableLevels.length === 0}>
+                                  <FormControl><SelectTrigger><SelectValue placeholder={availableLevels.length === 0 ? "N/A" : "Select level"} /></SelectTrigger></FormControl>
+                                  <SelectContent>{availableLevels.map((v) => (<SelectItem key={v} value={v}>{v}</SelectItem>))}</SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
                             )} />
-
                             <FormField control={form.control} name={`certifications.${index}.project_subtype`} render={({ field: f }) => (
-                              <FormItem><FormLabel>Subtype</FormLabel><Select onValueChange={f.onChange} value={f.value || ""} disabled={availableSubtypes.length === 0}><FormControl><SelectTrigger><SelectValue placeholder={availableSubtypes.length === 0 ? "N/A" : "Select subtype"} /></SelectTrigger></FormControl><SelectContent>{availableSubtypes.map((v) => (<SelectItem key={v} value={v}>{v}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>
+                              <FormItem>
+                                <FormLabel>Subtype</FormLabel>
+                                <Select onValueChange={f.onChange} value={f.value || ""} disabled={availableSubtypes.length === 0}>
+                                  <FormControl><SelectTrigger><SelectValue placeholder={availableSubtypes.length === 0 ? "Select Rating first" : "Select subtype"} /></SelectTrigger></FormControl>
+                                  <SelectContent>{availableSubtypes.map((v) => (<SelectItem key={v} value={v}>{v}</SelectItem>))}</SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
                             )} />
                           </div>
                         </div>
@@ -434,7 +463,6 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
               </CardContent>
             </Card>
 
-            {/* --- SECTION 3: HARDWARE ALLOCATIONS --- */}
             <Card className="border-slate-200 shadow-sm">
               <CardHeader className="bg-white pb-3 border-b">
                 <div className="flex items-center justify-between">
