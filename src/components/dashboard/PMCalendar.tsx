@@ -11,10 +11,9 @@ import {
   isSameMonth,
   isSameDay,
   isWithinInterval,
-  differenceInCalendarDays,
   parseISO,
 } from "date-fns";
-import { ChevronLeft, ChevronRight, Filter } from "lucide-react";
+import { ChevronLeft, ChevronRight, Filter, CalendarIcon, AlignLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { PMProject } from "@/hooks/usePMDashboard";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -34,44 +33,36 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Input } from "@/components/ui/input";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { FGBPlanner } from "@/components/dashboard/FGBPlanner";
 
 const BAR_COLORS = [
-  "hsl(211 100% 50%)",
-  "hsl(142 71% 45%)",
-  "hsl(25 95% 53%)",
-  "hsl(280 65% 55%)",
-  "hsl(340 75% 55%)",
-  "hsl(180 60% 40%)",
-  "hsl(50 90% 45%)",
-  "hsl(0 72% 51%)",
-  "hsl(200 80% 50%)",
-  "hsl(160 70% 40%)",
-  "hsl(300 60% 50%)",
-  "hsl(30 80% 50%)",
+  "hsl(211 100% 50%)", "hsl(142 71% 45%)", "hsl(25 95% 53%)",
+  "hsl(280 65% 55%)", "hsl(340 75% 55%)", "hsl(180 60% 40%)",
+  "hsl(50 90% 45%)", "hsl(0 72% 51%)", "hsl(200 80% 50%)",
 ];
 
-interface CalendarEvent {
+interface ProjectSpan {
   id: string;
+  projectId: string;
   projectName: string;
   start: Date;
   end: Date;
   color: string;
-  projectId: string;
 }
 
-function getProjectPhase(project: PMProject, date: Date): string {
-  const milestones = (project.certification_milestones || [])
-    .filter((m: any) => m.milestone_type === "timeline" && m.start_date && m.due_date)
-    .sort((a: any, b: any) => (a.order_index ?? 0) - (b.order_index ?? 0));
-
-  for (const m of milestones) {
-    const start = parseISO(m.start_date);
-    const end = parseISO(m.due_date);
-    if (isWithinInterval(date, { start, end })) {
-      return m.category || m.requirement || "";
-    }
-  }
-  return "";
+interface MilestoneEvent {
+  id: string;
+  projectId: string;
+  projectName: string;
+  title: string;
+  date: Date;
+  color: string;
 }
 
 function getProjectDateRange(project: PMProject): { start: Date; end: Date } | null {
@@ -83,34 +74,48 @@ function getProjectDateRange(project: PMProject): { start: Date; end: Date } | n
   return { start: new Date(Math.min(...starts)), end: new Date(Math.max(...ends)) };
 }
 
-function buildEvents(projects: PMProject[]): CalendarEvent[] {
-  return projects
-    .map((p, idx) => {
-      const range = getProjectDateRange(p);
-      if (!range) return null;
-      return {
-        id: p.id,
-        projectName: p.name,
-        start: range.start,
-        end: range.end,
-        color: BAR_COLORS[idx % BAR_COLORS.length],
-        projectId: p.id,
-      };
-    })
-    .filter(Boolean) as CalendarEvent[];
+function buildCalendarData(projects: PMProject[]) {
+  const spans: ProjectSpan[] = [];
+  const milestones: MilestoneEvent[] = [];
+
+  projects.forEach((p, idx) => {
+    const color = BAR_COLORS[idx % BAR_COLORS.length];
+    
+    // 1. Spans (Durata progetto)
+    const range = getProjectDateRange(p);
+    if (range) {
+      spans.push({ id: `span-${p.id}`, projectId: p.id, projectName: p.name, start: range.start, end: range.end, color });
+    }
+
+    // 2. Milestones (Pills)
+    (p.certification_milestones || []).forEach((m: any, mIdx: number) => {
+      if (m.due_date) {
+        milestones.push({
+          id: `m-${p.id}-${mIdx}`,
+          projectId: p.id,
+          projectName: p.name,
+          title: m.requirement || m.category || "Milestone",
+          date: parseISO(m.due_date),
+          color,
+        });
+      }
+    });
+  });
+
+  return { spans, milestones };
 }
 
-const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const WEEKDAYS = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
 
-function MonthGrid({
-  month,
-  events,
-  projects,
-}: {
+interface MonthGridProps {
   month: Date;
-  events: CalendarEvent[];
-  projects: PMProject[];
-}) {
+  spans: ProjectSpan[];
+  milestones: MilestoneEvent[];
+  isCenter?: boolean;
+  onDayClick?: (date: Date) => void;
+}
+
+function MonthGrid({ month, spans, milestones, isCenter, onDayClick }: MonthGridProps) {
   const monthStart = startOfMonth(month);
   const monthEnd = endOfMonth(month);
   const calStart = startOfWeek(monthStart, { weekStartsOn: 1 });
@@ -118,109 +123,100 @@ function MonthGrid({
   const days = eachDayOfInterval({ start: calStart, end: calEnd });
   const today = new Date();
 
-  const weeks: Date[][] = [];
-  for (let i = 0; i < days.length; i += 7) {
-    weeks.push(days.slice(i, i + 7));
-  }
-
-  function getWeekEvents(week: Date[]) {
-    const weekStart = week[0];
-    const weekEnd = week[6];
-    return events.filter((ev) => ev.start <= weekEnd && ev.end >= weekStart);
-  }
-
   return (
-    <div className="flex-1 min-w-0">
-      <h3 className="mb-3 text-center text-sm font-semibold capitalize text-foreground">
-        {format(month, "MMMM yyyy")}
-      </h3>
-
-      <div className="grid grid-cols-7 mb-1">
-        {WEEKDAYS.map((d) => (
-          <div key={d} className="text-center text-[10px] font-medium uppercase tracking-wide text-muted-foreground py-1">
-            {d}
+    <div className="flex-1 min-w-0 flex flex-col h-full bg-card rounded-md border shadow-sm overflow-hidden">
+      <div className="bg-muted/30 py-2 border-b">
+        <h3 className="text-center text-sm font-semibold capitalize text-foreground">
+          {format(month, "MMMM yyyy")}
+        </h3>
+        {isCenter && (
+          <div className="grid grid-cols-7 mt-2">
+            {WEEKDAYS.map((d) => (
+              <div key={d} className="text-center text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                {d}
+              </div>
+            ))}
           </div>
-        ))}
+        )}
       </div>
 
-      {weeks.map((week, wi) => {
-        const weekEvents = getWeekEvents(week);
-        return (
-          <div key={wi} className="relative">
-            <div className="grid grid-cols-7">
-              {week.map((day, di) => {
-                const inMonth = isSameMonth(day, month);
-                const isToday = isSameDay(day, today);
-                return (
-                  <div
-                    key={di}
-                    className={cn(
-                      "h-8 flex items-start justify-center pt-1 text-[11px] border-b border-r border-border/40",
-                      di === 0 && "border-l",
-                      wi === 0 && "border-t",
-                      !inMonth && "text-muted-foreground/40",
-                      inMonth && "text-foreground",
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "h-5 w-5 flex items-center justify-center rounded-full text-[11px]",
-                        isToday && "bg-primary text-primary-foreground font-bold"
-                      )}
-                    >
-                      {format(day, "d")}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
+      <div className="grid grid-cols-7 flex-1">
+        {days.map((day, di) => {
+          const inMonth = isSameMonth(day, month);
+          const isToday = isSameDay(day, today);
+          
+          // Trova progetti in corso (Ribbons) e milestone del giorno (Pills)
+          const daySpans = spans.filter(s => isWithinInterval(day, { start: s.start, end: s.end }));
+          const dayMilestones = milestones.filter(m => isSameDay(m.date, day));
 
-            {weekEvents.length > 0 && (
-              <div className="relative -mt-3 mb-1 space-y-0.5 px-0.5 pointer-events-none">
-                {weekEvents.map((ev) => {
-                  const weekStart = week[0];
-                  const weekEnd = week[6];
-                  const barStart = ev.start > weekStart ? ev.start : weekStart;
-                  const barEnd = ev.end < weekEnd ? ev.end : weekEnd;
-                  const startCol = differenceInCalendarDays(barStart, weekStart);
-                  const span = differenceInCalendarDays(barEnd, barStart) + 1;
-
-                  const midDate = new Date(barStart.getTime() + (barEnd.getTime() - barStart.getTime()) / 2);
-                  const proj = projects.find((p) => p.id === ev.projectId);
-                  const phaseName = proj ? getProjectPhase(proj, midDate) : "";
-
-                  const leftPct = (startCol / 7) * 100;
-                  const widthPct = (span / 7) * 100;
-                  const isStart = ev.start >= weekStart && ev.start <= weekEnd;
-                  const isEnd = ev.end >= weekStart && ev.end <= weekEnd;
-
-                  return (
-                    <div
-                      key={ev.id}
-                      className={cn(
-                        "h-4 flex items-center overflow-hidden text-[9px] font-medium text-white pointer-events-auto",
-                        isStart && "rounded-l-sm",
-                        isEnd && "rounded-r-sm",
-                        !isStart && !isEnd && "rounded-none"
-                      )}
-                      style={{
-                        marginLeft: `${leftPct}%`,
-                        width: `${widthPct}%`,
-                        backgroundColor: ev.color,
-                      }}
-                      title={`${ev.projectName}${phaseName ? ` — ${phaseName}` : ""}`}
-                    >
-                      <span className="truncate px-1">
-                        {span >= 2 ? (phaseName || ev.projectName) : ""}
-                      </span>
-                    </div>
-                  );
-                })}
+          return (
+            <div
+              key={day.toISOString()}
+              onClick={() => isCenter && onDayClick && onDayClick(day)}
+              className={cn(
+                "relative flex flex-col border-b border-r border-border/40 transition-colors",
+                !inMonth && "bg-muted/10 opacity-50",
+                isCenter ? "min-h-[100px] p-1 hover:bg-accent/30 cursor-pointer" : "min-h-[40px] p-0.5 pointer-events-none",
+                di % 7 === 0 && "border-l"
+              )}
+            >
+              {/* Header Giorno */}
+              <div className="flex justify-between items-start mb-1">
+                <span className={cn(
+                  "flex items-center justify-center rounded-full text-[11px] h-5 w-5",
+                  isToday ? "bg-primary text-primary-foreground font-bold" : "text-muted-foreground",
+                  inMonth && !isToday && "text-foreground"
+                )}>
+                  {format(day, "d")}
+                </span>
               </div>
-            )}
-          </div>
-        );
-      })}
+
+              {/* Spans / Ribbons (Progetti in corso) */}
+              <div className="flex flex-col gap-[1px] mb-1 opacity-70">
+                {daySpans.map(span => (
+                  <div key={span.id} className="h-[2px] w-full rounded-full" style={{ backgroundColor: span.color }} title={span.projectName} />
+                ))}
+              </div>
+
+              {/* Milestones / Task Pills */}
+              {isCenter && (
+                <div className="flex flex-col gap-1 mt-auto overflow-hidden">
+                  {dayMilestones.slice(0, 2).map((m) => (
+                    <div 
+                      key={m.id} 
+                      className="text-[9px] px-1.5 py-0.5 rounded-sm truncate text-white shadow-sm flex items-center gap-1"
+                      style={{ backgroundColor: m.color }}
+                    >
+                      <span>🎯</span> {m.title}
+                    </div>
+                  ))}
+                  
+                  {dayMilestones.length > 2 && (
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <div className="text-[10px] text-muted-foreground font-medium cursor-pointer hover:text-foreground hover:underline text-center">
+                          +{dayMilestones.length - 2} eventi
+                        </div>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-64 p-2 shadow-lg" align="center">
+                        <div className="space-y-1">
+                          <p className="text-xs font-semibold mb-2">Eventi del {format(day, "dd/MM/yyyy")}</p>
+                          {dayMilestones.map(m => (
+                            <div key={`pop-${m.id}`} className="text-xs flex items-center gap-2 p-1 rounded-sm border">
+                              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: m.color }} />
+                              <span className="truncate">{m.title} <span className="text-muted-foreground">({m.projectName})</span></span>
+                            </div>
+                          ))}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -233,24 +229,16 @@ export interface PMCalendarProps {
 
 export function PMCalendar({ projects, adminMode, pmNames }: PMCalendarProps) {
   const [centerMonth, setCenterMonth] = useState(() => new Date());
+  const [view, setView] = useState<"calendar" | "timeline">("calendar");
   const [showCertificati, setShowCertificati] = useState(true);
   const [showInCorso, setShowInCorso] = useState(true);
   const [showDaConfigurare, setShowDaConfigurare] = useState(true);
   const [selectedPm, setSelectedPm] = useState<string>("all");
   const [selectedProject, setSelectedProject] = useState<string>("all");
 
-  const pmList = useMemo(() => {
-    if (!adminMode || !pmNames) return [];
-    const entries: { id: string; name: string }[] = [];
-    const seen = new Set<string>();
-    for (const p of projects) {
-      if (p.pm_id && !seen.has(p.pm_id)) {
-        seen.add(p.pm_id);
-        entries.push({ id: p.pm_id, name: pmNames.get(p.pm_id) || p.pm_id });
-      }
-    }
-    return entries.sort((a, b) => a.name.localeCompare(b.name));
-  }, [projects, adminMode, pmNames]);
+  // Stato per la creazione Task (Sheet)
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
   const filteredProjects = useMemo(() => {
     return projects.filter((p) => {
@@ -263,108 +251,147 @@ export function PMCalendar({ projects, adminMode, pmNames }: PMCalendarProps) {
     });
   }, [projects, showCertificati, showInCorso, showDaConfigurare, selectedPm, selectedProject, adminMode]);
 
-  const events = useMemo(() => buildEvents(filteredProjects), [filteredProjects]);
+  const { spans, milestones } = useMemo(() => buildCalendarData(filteredProjects), [filteredProjects]);
 
-  const prevMonth = subMonths(centerMonth, 1);
-  const nextMonth = addMonths(centerMonth, 1);
+  const handleDayClick = (day: Date) => {
+    setSelectedDate(day);
+    setIsSheetOpen(true);
+  };
 
-  const projectOptions = useMemo(() => {
-    let base = projects;
-    if (adminMode && selectedPm !== "all") {
-      base = projects.filter((p) => p.pm_id === selectedPm);
-    }
-    return base.map((p) => ({ id: p.id, name: p.name })).sort((a, b) => a.name.localeCompare(b.name));
-  }, [projects, adminMode, selectedPm]);
+  const projectOptions = projects.map((p) => ({ id: p.id, name: p.name })).sort((a, b) => a.name.localeCompare(b.name));
 
   return (
-    <Card>
-      <CardHeader className="flex flex-col gap-3 pb-2 sm:flex-row sm:items-center sm:justify-between">
+    <Card className="flex flex-col h-full border-none shadow-none bg-transparent">
+      <CardHeader className="flex flex-col gap-4 pb-4 sm:flex-row sm:items-center sm:justify-between px-0">
+        
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setCenterMonth(new Date())} className="text-xs">
-            Today
-          </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setCenterMonth((m) => subMonths(m, 1))}>
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setCenterMonth((m) => addMonths(m, 1))}>
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-          <span className="text-sm font-semibold capitalize text-foreground">
-            {format(centerMonth, "MMMM yyyy")}
-          </span>
+          <Tabs value={view} onValueChange={(v) => setView(v as "calendar" | "timeline")} className="w-[200px]">
+            <TabsList className="grid w-full grid-cols-2 h-9">
+              <TabsTrigger value="calendar" className="text-xs gap-1"><CalendarIcon className="w-3.5 h-3.5"/> Mese</TabsTrigger>
+              <TabsTrigger value="timeline" className="text-xs gap-1"><AlignLeft className="w-3.5 h-3.5"/> Timeline</TabsTrigger>
+            </TabsList>
+          </Tabs>
         </div>
 
+        {view === "calendar" && (
+          <div className="flex items-center gap-2 bg-background p-1 rounded-md border shadow-sm">
+            <Button variant="ghost" size="sm" onClick={() => setCenterMonth(new Date())} className="text-xs h-7">Oggi</Button>
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setCenterMonth((m) => subMonths(m, 1))}>
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="text-sm font-semibold capitalize min-w-[120px] text-center">
+              {format(centerMonth, "MMMM yyyy")}
+            </span>
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setCenterMonth((m) => addMonths(m, 1))}>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
+
         <div className="flex flex-wrap items-center gap-2">
-          {adminMode && pmList.length > 0 && (
-            <Select value={selectedPm} onValueChange={(v) => { setSelectedPm(v); setSelectedProject("all"); }}>
-              <SelectTrigger className="h-8 w-40 text-xs">
-                <SelectValue placeholder="All PMs" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All PMs</SelectItem>
-                {pmList.map((pm) => (
-                  <SelectItem key={pm.id} value={pm.id}>{pm.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-
-          {projectOptions.length > 1 && (
-            <Select value={selectedProject} onValueChange={setSelectedProject}>
-              <SelectTrigger className="h-8 w-44 text-xs">
-                <SelectValue placeholder="All projects" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All projects</SelectItem>
-                {projectOptions.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-2 text-xs h-8">
-                <Filter className="h-3.5 w-3.5" />
-                Status
+              <Button variant="outline" size="sm" className="gap-2 text-xs h-9">
+                <Filter className="h-3.5 w-3.5" /> Stato
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>Project status</DropdownMenuLabel>
+              <DropdownMenuLabel>Filtra per Stato</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuCheckboxItem checked={showDaConfigurare} onCheckedChange={setShowDaConfigurare}>
-                To Configure
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem checked={showInCorso} onCheckedChange={setShowInCorso}>
-                In Progress
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem checked={showCertificati} onCheckedChange={setShowCertificati}>
-                Certified
-              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem checked={showDaConfigurare} onCheckedChange={setShowDaConfigurare}>Da Configurare</DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem checked={showInCorso} onCheckedChange={setShowInCorso}>In Corso</DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem checked={showCertificati} onCheckedChange={setShowCertificati}>Certificati</DropdownMenuCheckboxItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
       </CardHeader>
 
-      <CardContent className="pt-0">
-        {events.length > 0 && (
-          <div className="mb-3 flex flex-wrap gap-3">
-            {events.map((ev) => (
-              <div key={ev.id} className="flex items-center gap-1.5">
-                <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: ev.color }} />
-                <span className="text-[11px] text-muted-foreground">{ev.projectName}</span>
-              </div>
-            ))}
+      <CardContent className="px-0 flex-1 flex flex-col min-h-[600px]">
+        {view === "timeline" ? (
+          <div className="flex-1 border rounded-lg shadow-sm bg-background p-4 min-h-[500px]">
+             {/* Nota: castiamo `filteredProjects` ad any in quanto FGBPlanner si aspetta i dati plannerData formattati. 
+                 Questo assicura la compatibilità con il tuo hook useAdminPlannerData o una mappatura simile */}
+            <FGBPlanner data={filteredProjects.map(p => (p as any).plannerData || p)} />
+          </div>
+        ) : (
+          <div className="flex gap-4 flex-1 h-full">
+            {/* Mese Precedente (Ridotto, senza interattività) */}
+            <div className="hidden lg:block w-[18%] opacity-60 hover:opacity-100 transition-opacity">
+              <MonthGrid month={subMonths(centerMonth, 1)} spans={spans} milestones={milestones} />
+            </div>
+            
+            {/* Mese Centrale (Dominante, interattivo) */}
+            <div className="w-full lg:w-[64%] h-full">
+              <MonthGrid 
+                month={centerMonth} 
+                spans={spans} 
+                milestones={milestones} 
+                isCenter={true} 
+                onDayClick={handleDayClick} 
+              />
+            </div>
+
+            {/* Mese Successivo (Ridotto, senza interattività) */}
+            <div className="hidden lg:block w-[18%] opacity-60 hover:opacity-100 transition-opacity">
+              <MonthGrid month={addMonths(centerMonth, 1)} spans={spans} milestones={milestones} />
+            </div>
           </div>
         )}
-
-        <div className="flex gap-4">
-          <MonthGrid month={prevMonth} events={events} projects={filteredProjects} />
-          <MonthGrid month={centerMonth} events={events} projects={filteredProjects} />
-          <MonthGrid month={nextMonth} events={events} projects={filteredProjects} />
-        </div>
       </CardContent>
+
+      {/* Sheet Creazione Task / Milestone */}
+      <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+        <SheetContent side="right" className="w-[400px] sm:w-[540px]">
+          <SheetHeader>
+            <SheetTitle>Nuova Task o Milestone</SheetTitle>
+            <SheetDescription>
+              Stai pianificando per il giorno <strong className="text-foreground">{selectedDate ? format(selectedDate, "dd MMMM yyyy") : ""}</strong>
+            </SheetDescription>
+          </SheetHeader>
+          
+          <div className="py-6 space-y-6">
+            <div className="space-y-2">
+              <Label>Progetto di riferimento *</Label>
+              <Select>
+                <SelectTrigger><SelectValue placeholder="Seleziona un progetto..." /></SelectTrigger>
+                <SelectContent>
+                  {projectOptions.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Titolo Task / Milestone *</Label>
+              <Input placeholder="Es. Revisione documenti energetici..." />
+            </div>
+
+            <div className="space-y-3">
+              <Label>Tipologia Evento</Label>
+              <RadioGroup defaultValue="task" className="flex flex-col gap-3">
+                <div className="flex items-start space-x-3 border p-3 rounded-md bg-muted/20">
+                  <RadioGroupItem value="task" id="r1" className="mt-1" />
+                  <div>
+                    <Label htmlFor="r1" className="font-semibold cursor-pointer">Task Operativa</Label>
+                    <p className="text-xs text-muted-foreground mt-0.5">Visibile solo nella tua To-Do list come PM. Non impatta la timeline pubblica.</p>
+                  </div>
+                </div>
+                <div className="flex items-start space-x-3 border p-3 rounded-md bg-muted/20">
+                  <RadioGroupItem value="milestone" id="r2" className="mt-1" />
+                  <div>
+                    <Label htmlFor="r2" className="font-semibold cursor-pointer">Milestone di Progetto</Label>
+                    <p className="text-xs text-muted-foreground mt-0.5">Scadenza chiave. Aggiorna la vista Timeline e avvisa l'Admin/Cliente.</p>
+                  </div>
+                </div>
+              </RadioGroup>
+            </div>
+
+            <div className="pt-4 border-t flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setIsSheetOpen(false)}>Annulla</Button>
+              <Button>Crea ed Assegna</Button>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
     </Card>
   );
 }
