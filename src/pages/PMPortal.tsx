@@ -5,10 +5,14 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { format } from "date-fns";
+import { format, differenceInDays } from "date-fns";
 import { cn } from "@/lib/utils";
-import { AlertTriangle, ArrowRight, Building2, CalendarIcon, CheckCircle2, Clock3, FolderKanban } from "lucide-react";
+import { 
+  AlertTriangle, ArrowRight, Building2, CalendarIcon, CheckCircle2, 
+  Clock3, FolderKanban, FileWarning, AlertCircle, CircleDollarSign 
+} from "lucide-react";
 import { PMCalendar } from "@/components/dashboard/PMCalendar";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 type PMProjectView = PMProject & { project_subtype?: string | null };
 
@@ -45,6 +49,62 @@ export default function PMPortal() {
     [projects],
   );
 
+  // --- CALCOLO ALLARMI E RITARDI ---
+  const alerts = useMemo(() => {
+    const late: { project: PMProjectView; days: number }[] = [];
+    const tasks: { project: PMProjectView; taskName: string; daysLeft: number }[] = [];
+    const financial: { project: PMProjectView; issue: string }[] = [];
+
+    const today = new Date();
+
+    projects.forEach((p) => {
+      // Analizziamo solo i progetti non ancora chiusi/certificati
+      if (p.setup_status !== "certificato") {
+        
+        // 1. Late Projects (Calcolato dalla data di Handover)
+        if (p.handover_date) {
+          const handoverDate = new Date(p.handover_date);
+          const delay = differenceInDays(today, handoverDate);
+          if (delay > 0) {
+            late.push({ project: p as PMProjectView, days: delay });
+          }
+        }
+
+        // 2. Task Alerts (Milestone non completate e in scadenza o scadute)
+        const activeTasks = (p.certification_milestones || []).filter(
+          (m) => m.status !== "achieved" && m.due_date
+        );
+
+        activeTasks.forEach((m) => {
+          const dueDate = new Date(m.due_date);
+          const daysLeft = differenceInDays(dueDate, today);
+          // Avvisa se il task è scaduto (< 0) o scade nei prossimi 14 giorni
+          if (daysLeft <= 14) {
+            tasks.push({
+              project: p as PMProjectView,
+              taskName: m.requirement || m.category || m.name || "Task",
+              daysLeft,
+            });
+          }
+        });
+
+        // 3. Financial Issues (Es. Manca l'allocazione hardware che blocca i ricavi)
+        if (p.missing && p.missing.includes("Hardware")) {
+          financial.push({ 
+            project: p as PMProjectView, 
+            issue: "Hardware non allocato (Impatto su costi/fatturazione)" 
+          });
+        }
+      }
+    });
+
+    return {
+      late: late.sort((a, b) => b.days - a.days),
+      tasks: tasks.sort((a, b) => a.daysLeft - b.daysLeft),
+      financial: financial,
+    };
+  }, [projects]);
+
   return (
     <MainLayout title="PM Dashboard" subtitle="Operational overview of assigned projects">
       {isLoading ? (
@@ -63,6 +123,7 @@ export default function PMPortal() {
         </Card>
       ) : (
         <div className="space-y-6">
+          {/* KPI PRINCIPALI */}
           <div className="grid gap-4 md:grid-cols-3">
             <Card className="border-warning/30 bg-card">
               <CardContent className="flex items-center gap-3 p-4">
@@ -99,8 +160,104 @@ export default function PMPortal() {
             </Card>
           </div>
 
+          {/* SEZIONE ALERTS (NUOVA) */}
+          <div className="grid gap-4 md:grid-cols-3">
+            {/* LATE PROJECTS */}
+            <Card className="border-destructive/30 shadow-sm">
+              <CardHeader className="bg-destructive/5 py-3 border-b border-destructive/10">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2 text-destructive">
+                  <FileWarning className="w-4 h-4" /> Late Projects (days)
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <ScrollArea className="h-[180px] p-4">
+                  {alerts.late.length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center mt-12">Nessun progetto in ritardo sulla Handover.</p>
+                  ) : (
+                    <div className="space-y-4">
+                      {alerts.late.map((alert, i) => (
+                        <div key={i} className="flex flex-col gap-1 border-b border-border/50 pb-2 last:border-0 last:pb-0">
+                          <div className="flex justify-between items-start">
+                            <span className="text-sm font-medium leading-tight truncate pr-2">{alert.project.name}</span>
+                            <Badge variant="destructive" className="text-[10px] whitespace-nowrap">
+                              +{alert.days} days
+                            </Badge>
+                          </div>
+                          <span className="text-xs text-muted-foreground">{alert.project.client}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </ScrollArea>
+              </CardContent>
+            </Card>
+
+            {/* TASK ALERTS */}
+            <Card className="border-warning/30 shadow-sm">
+              <CardHeader className="bg-warning/5 py-3 border-b border-warning/10">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2 text-warning-foreground">
+                  <AlertCircle className="w-4 h-4 text-warning" /> Task Alerts
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <ScrollArea className="h-[180px] p-4">
+                  {alerts.tasks.length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center mt-12">Nessun task in scadenza a breve.</p>
+                  ) : (
+                    <div className="space-y-4">
+                      {alerts.tasks.map((task, i) => (
+                        <div key={i} className="flex flex-col gap-1 border-b border-border/50 pb-2 last:border-0 last:pb-0">
+                          <div className="flex justify-between items-start gap-2">
+                            <span className="text-sm font-medium leading-tight line-clamp-1" title={task.taskName}>
+                              {task.taskName}
+                            </span>
+                            <Badge 
+                              variant={task.daysLeft < 0 ? "destructive" : "outline"} 
+                              className={cn("text-[10px] whitespace-nowrap", task.daysLeft >= 0 && task.daysLeft <= 3 && "border-warning text-warning")}
+                            >
+                              {task.daysLeft < 0 ? `Scaduto da ${Math.abs(task.daysLeft)}gg` : `${task.daysLeft}gg rimasti`}
+                            </Badge>
+                          </div>
+                          <span className="text-xs text-muted-foreground">{task.project.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </ScrollArea>
+              </CardContent>
+            </Card>
+
+            {/* FINANCIAL ISSUES */}
+            <Card className="border-amber-500/30 shadow-sm">
+              <CardHeader className="bg-amber-500/5 py-3 border-b border-amber-500/10">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2 text-amber-600">
+                  <CircleDollarSign className="w-4 h-4" /> Financial Issues
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <ScrollArea className="h-[180px] p-4">
+                  {alerts.financial.length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center mt-12">Nessuna criticità finanziaria rilevata.</p>
+                  ) : (
+                    <div className="space-y-4">
+                      {alerts.financial.map((fin, i) => (
+                        <div key={i} className="flex flex-col gap-1 border-b border-border/50 pb-2 last:border-0 last:pb-0">
+                          <div className="flex justify-between items-start">
+                            <span className="text-sm font-medium leading-tight truncate pr-2">{fin.project.name}</span>
+                          </div>
+                          <span className="text-xs text-destructive/80 font-medium">{fin.issue}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          </div>
+
           <PMCalendar projects={projects} />
 
+          {/* LISTA PROGETTI RECENTI */}
           <Card>
             <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
