@@ -142,18 +142,19 @@ export default function ProjectCreateWizard() {
       if (certs.length === 0) {
         // No certifications — create a single project without cert
         const pmId = isAdmin ? (user?.id || null) : user?.id;
-        const { error: projErr } = await supabase
-          .from("projects")
+        const { error: certErr } = await supabase
+          .from("certifications")
           .insert({
             name: draft.project_name.trim(),
             client: draft.client.trim(),
             region: draft.region,
             handover_date: draft.handover_date,
-            status: draft.status || "Design",
+            status: "in_progress",
             pm_id: pmId,
-            site_id: siteId || null,
+            site_id: siteId!,
+            cert_type: "none",
           } as any);
-        if (projErr) throw projErr;
+        if (certErr) throw certErr;
       } else {
         // Create one project per certification
         await Promise.all(certs.map(async (cert) => {
