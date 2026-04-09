@@ -4,7 +4,7 @@ import { useToast } from "@/hooks/use-toast";
 
 export interface ProjectTask {
   id: string;
-  project_id: string;
+  certification_id: string;
   task_name: string;
   assigned_to: string | null;
   start_date: string | null;
@@ -12,28 +12,27 @@ export interface ProjectTask {
   status: "todo" | "in_progress" | "review" | "done";
   dependency_id: string | null;
   blocking_payment_id: string | null;
-  allocation_id: string | null;
   created_at: string;
 }
 
-export function useProjectTasks(projectId: string | undefined) {
+export function useProjectTasks(certificationId: string | undefined) {
   return useQuery({
-    queryKey: ["project-tasks", projectId],
+    queryKey: ["certification-tasks", certificationId],
     queryFn: async () => {
-      if (!projectId) throw new Error("No project ID");
+      if (!certificationId) throw new Error("No certification ID");
       const { data, error } = await supabase
         .from("project_tasks" as any)
         .select("*")
-        .eq("project_id", projectId)
+        .eq("certification_id", certificationId)
         .order("start_date", { ascending: true });
       if (error) throw error;
       return (data || []) as unknown as ProjectTask[];
     },
-    enabled: !!projectId,
+    enabled: !!certificationId,
   });
 }
 
-export function useCreateTask(projectId: string | undefined) {
+export function useCreateTask(certificationId: string | undefined) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -41,14 +40,14 @@ export function useCreateTask(projectId: string | undefined) {
     mutationFn: async (task: Partial<ProjectTask>) => {
       const { data, error } = await supabase
         .from("project_tasks" as any)
-        .insert({ ...task, project_id: projectId } as any)
+        .insert({ ...task, certification_id: certificationId } as any)
         .select()
         .single();
       if (error) throw error;
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["project-tasks", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["certification-tasks", certificationId] });
       queryClient.invalidateQueries({ queryKey: ["resource-saturation"] });
       toast({ title: "Task creato" });
     },
@@ -58,7 +57,7 @@ export function useCreateTask(projectId: string | undefined) {
   });
 }
 
-export function useUpdateTask(projectId: string | undefined) {
+export function useUpdateTask(certificationId: string | undefined) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -71,7 +70,7 @@ export function useUpdateTask(projectId: string | undefined) {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["project-tasks", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["certification-tasks", certificationId] });
       queryClient.invalidateQueries({ queryKey: ["resource-saturation"] });
       toast({ title: "Task aggiornato" });
     },
@@ -81,7 +80,7 @@ export function useUpdateTask(projectId: string | undefined) {
   });
 }
 
-export function useDeleteTask(projectId: string | undefined) {
+export function useDeleteTask(certificationId: string | undefined) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -94,7 +93,7 @@ export function useDeleteTask(projectId: string | undefined) {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["project-tasks", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["certification-tasks", certificationId] });
       queryClient.invalidateQueries({ queryKey: ["resource-saturation"] });
       toast({ title: "Task eliminato" });
     },

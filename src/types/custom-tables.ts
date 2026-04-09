@@ -11,6 +11,7 @@ export interface Product {
   created_at: string;
 }
 
+/** @deprecated Use Certification as root entity instead */
 export interface Project {
   id: string;
   name: string;
@@ -31,7 +32,7 @@ export interface Project {
 
 export interface ProjectAllocation {
   id: string;
-  project_id: string;
+  certification_id: string;
   product_id: string;
   quantity: number;
   status: string;
@@ -58,7 +59,7 @@ export type CertPaymentStatus = "Pending" | "Invoiced" | "Paid" | "Overdue";
 
 export interface CertWbsPhase {
   id: string;
-  project_id: string;
+  certification_id: string;
   name: string;
   order_index: number;
   created_at: string;
@@ -67,7 +68,7 @@ export interface CertWbsPhase {
 
 export interface CertTask {
   id: string;
-  project_id: string;
+  certification_id: string;
   phase_id: string | null;
   title: string;
   description: string | null;
@@ -89,7 +90,7 @@ export interface CertTaskChecklist {
 
 export interface CertPaymentMilestone {
   id: string;
-  project_id: string;
+  certification_id: string;
   name: string;
   amount: number;
   due_date: string | null;

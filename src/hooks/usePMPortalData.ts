@@ -2,15 +2,15 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { CertWbsPhase, CertTask, CertTaskStatus } from "@/types/custom-tables";
 
-// ─── PM's projects ───
+// ─── PM's certifications (root entity) ───
 export function usePMProjects(userId: string | undefined) {
   return useQuery({
     queryKey: ["pm-projects", userId],
     enabled: !!userId,
     queryFn: async () => {
       const { data, error } = await (supabase as any)
-        .from("projects")
-        .select("*, profiles!projects_pm_id_fkey(full_name), sites!projects_site_id_fkey(name, city)")
+        .from("certifications")
+        .select("*, profiles!certifications_pm_id_fkey(full_name), sites!certifications_site_id_fkey(name, city)")
         .eq("pm_id", userId)
         .order("handover_date", { ascending: true });
       if (error) throw error;
@@ -19,16 +19,16 @@ export function usePMProjects(userId: string | undefined) {
   });
 }
 
-// ─── Cert WBS Phases for a project ───
-export function useCertPhases(projectId: string | undefined) {
+// ─── Cert WBS Phases for a certification ───
+export function useCertPhases(certificationId: string | undefined) {
   return useQuery({
-    queryKey: ["cert-phases", projectId],
-    enabled: !!projectId,
+    queryKey: ["cert-phases", certificationId],
+    enabled: !!certificationId,
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("cert_wbs_phases")
         .select("*")
-        .eq("project_id", projectId)
+        .eq("certification_id", certificationId)
         .order("order_index", { ascending: true });
       if (error) throw error;
       return (data || []) as CertWbsPhase[];
@@ -36,16 +36,16 @@ export function useCertPhases(projectId: string | undefined) {
   });
 }
 
-// ─── Cert Tasks for a project ───
-export function useCertTasksByProject(projectId: string | undefined) {
+// ─── Cert Tasks for a certification ───
+export function useCertTasksByProject(certificationId: string | undefined) {
   return useQuery({
-    queryKey: ["cert-tasks-project", projectId],
-    enabled: !!projectId,
+    queryKey: ["cert-tasks-project", certificationId],
+    enabled: !!certificationId,
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("cert_tasks")
         .select("*, profiles!cert_tasks_assignee_id_fkey(id, full_name)")
-        .eq("project_id", projectId)
+        .eq("certification_id", certificationId)
         .order("start_date", { ascending: true });
       if (error) throw error;
       return (data || []) as (CertTask & { profiles?: { id: string; full_name: string | null } })[];
@@ -53,16 +53,16 @@ export function useCertTasksByProject(projectId: string | undefined) {
   });
 }
 
-// ─── All cert tasks for all PM projects ───
-export function useAllPMCertTasks(projectIds: string[]) {
+// ─── All cert tasks for all PM certifications ───
+export function useAllPMCertTasks(certificationIds: string[]) {
   return useQuery({
-    queryKey: ["cert-tasks-all-pm", projectIds],
-    enabled: projectIds.length > 0,
+    queryKey: ["cert-tasks-all-pm", certificationIds],
+    enabled: certificationIds.length > 0,
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("cert_tasks")
-        .select("*, profiles!cert_tasks_assignee_id_fkey(id, full_name), projects!cert_tasks_project_id_fkey(id, name)")
-        .in("project_id", projectIds)
+        .select("*, profiles!cert_tasks_assignee_id_fkey(id, full_name), certifications!cert_tasks_certification_id_fkey(id, name)")
+        .in("certification_id", certificationIds)
         .order("start_date", { ascending: true });
       if (error) throw error;
       return (data || []) as any[];
@@ -87,7 +87,6 @@ export function useOperationalProfiles() {
         .select("id, full_name, email")
         .in("id", userIds);
       if (pErr) throw pErr;
-      // Attach roles
       return (profiles || []).map((p: any) => ({
         ...p,
         roles: (data || []).filter((r: any) => r.user_id === p.id).map((r: any) => r.role),
@@ -104,7 +103,7 @@ export function useCertTasksByAssignee(assigneeId: string | undefined) {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("cert_tasks")
-        .select("*, projects!cert_tasks_project_id_fkey(id, name), cert_wbs_phases!cert_tasks_phase_id_fkey(id, name)")
+        .select("*, certifications!cert_tasks_certification_id_fkey(id, name), cert_wbs_phases!cert_tasks_phase_id_fkey(id, name)")
         .eq("assignee_id", assigneeId)
         .order("start_date", { ascending: true });
       if (error) throw error;
@@ -120,7 +119,7 @@ export function useAddPhase() {
     mutationFn: async ({ projectId, name, orderIndex }: { projectId: string; name: string; orderIndex: number }) => {
       const { data, error } = await (supabase as any)
         .from("cert_wbs_phases")
-        .insert({ project_id: projectId, name, order_index: orderIndex })
+        .insert({ certification_id: projectId, name, order_index: orderIndex })
         .select()
         .single();
       if (error) throw error;
@@ -136,7 +135,7 @@ export function useAddCertTask() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (task: {
-      project_id: string;
+      certification_id: string;
       phase_id?: string | null;
       title: string;
       description?: string;
@@ -155,7 +154,7 @@ export function useAddCertTask() {
       return data;
     },
     onSuccess: (_, vars) => {
-      qc.invalidateQueries({ queryKey: ["cert-tasks-project", vars.project_id] });
+      qc.invalidateQueries({ queryKey: ["cert-tasks-project", vars.certification_id] });
       qc.invalidateQueries({ queryKey: ["cert-tasks-all-pm"] });
       qc.invalidateQueries({ queryKey: ["cert-tasks-assignee"] });
     },

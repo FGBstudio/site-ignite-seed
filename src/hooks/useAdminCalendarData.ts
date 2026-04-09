@@ -2,28 +2,24 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { PMProject, SetupStatus } from "@/hooks/usePMDashboard";
 
-/**
- * Fetches ALL projects with their certification milestones for the admin calendar.
- * Includes PM profile info for filtering.
- */
 export interface AdminCalendarProject extends PMProject {
   pm_name: string | null;
 }
 
 export function useAdminCalendarData() {
   return useQuery({
-    queryKey: ["admin-calendar-projects"],
+    queryKey: ["admin-calendar-certifications"],
     queryFn: async () => {
-      // 1. Fetch all projects with site info and allocations
-      const { data: projects, error } = await (supabase as any)
-        .from("projects")
-        .select("*, sites!projects_site_id_fkey(name, city, country), project_allocations(*)")
+      // 1. Fetch all certifications with site info and allocations
+      const { data: certs, error } = await (supabase as any)
+        .from("certifications")
+        .select("*, sites!certifications_site_id_fkey(name, city, country), project_allocations!project_allocations_certification_id_fkey(*)")
         .order("handover_date", { ascending: true });
       if (error) throw error;
-      if (!projects || projects.length === 0) return [] as AdminCalendarProject[];
+      if (!certs || certs.length === 0) return [] as AdminCalendarProject[];
 
       // 2. Fetch PM profiles
-      const pmIds = [...new Set((projects as any[]).map((p) => p.pm_id).filter(Boolean))] as string[];
+      const pmIds = [...new Set((certs as any[]).map((c) => c.pm_id).filter(Boolean))] as string[];
       let profilesMap = new Map<string, string>();
       if (pmIds.length > 0) {
         const { data: profiles } = await supabase
@@ -37,20 +33,8 @@ export function useAdminCalendarData() {
         }
       }
 
-      // 3. Fetch certifications for all project sites
-      const siteIds = [...new Set((projects as any[]).map((p) => p.site_id).filter(Boolean))] as string[];
-      let certifications: any[] = [];
-      if (siteIds.length > 0) {
-        const { data, error: certErr } = await supabase
-          .from("certifications")
-          .select("*")
-          .in("site_id", siteIds);
-        if (certErr) throw certErr;
-        certifications = data || [];
-      }
-
-      // 4. Fetch milestones
-      const certIds = certifications.map((c) => c.id);
+      // 3. Fetch milestones
+      const certIds = (certs as any[]).map((c) => c.id);
       let milestones: any[] = [];
       if (certIds.length > 0) {
         const { data, error: mErr } = await supabase
@@ -61,27 +45,17 @@ export function useAdminCalendarData() {
         milestones = data || [];
       }
 
-      // 5. Merge and classify (same logic as usePMDashboard)
-      return (projects as any[]).map((p): AdminCalendarProject => {
-        const projectCerts = certifications.filter((c) =>
-          c.site_id === p.site_id &&
-          c.cert_type === p.cert_type &&
-          (c.level === p.cert_rating || (!c.level && !p.cert_rating))
-        );
-        const fallbackCerts = projectCerts.length > 0
-          ? projectCerts
-          : certifications.filter((c) => c.site_id === p.site_id && c.cert_type === p.cert_type);
-        const projectMilestones = milestones.filter((m) =>
-          fallbackCerts.some((c: any) => c.id === m.certification_id)
-        );
+      // 4. Build result
+      const today = new Date().toISOString().slice(0, 10);
+      return (certs as any[]).map((c): AdminCalendarProject => {
+        const certMilestones = milestones.filter((m) => m.certification_id === c.id);
 
-        const today = new Date().toISOString().slice(0, 10);
-        const isCertified = projectCerts.some(
-          (c: any) => c.status === "active" && c.issued_date && c.issued_date <= today
-        );
-        const timelineMilestones = projectMilestones.filter((m: any) => m.milestone_type === "timeline");
+        const isCertified = c.status === "certificato" ||
+          (c.status === "active" && c.issued_date && c.issued_date <= today);
+
+        const timelineMilestones = certMilestones.filter((m: any) => m.milestone_type === "timeline");
         const hasTimeline = timelineMilestones.length > 0;
-        const hasScorecard = projectMilestones.some((m: any) => m.milestone_type === "scorecard");
+        const hasScorecard = certMilestones.some((m: any) => m.milestone_type === "scorecard");
 
         const missing: string[] = [];
         if (!isCertified) {
@@ -95,12 +69,14 @@ export function useAdminCalendarData() {
         else setup_status = "da_configurare";
 
         return {
-          ...p,
-          certifications: fallbackCerts,
-          certification_milestones: projectMilestones,
+          ...c,
+          name: c.name || c.cert_type || "Unnamed",
+          certifications: [c],
+          certification_milestones: certMilestones,
+          project_allocations: c.project_allocations || [],
           setup_status,
           missing,
-          pm_name: p.pm_id ? profilesMap.get(p.pm_id) || null : null,
+          pm_name: c.pm_id ? profilesMap.get(c.pm_id) || null : null,
         };
       });
     },

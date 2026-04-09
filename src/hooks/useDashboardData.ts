@@ -88,7 +88,7 @@ export function useDashboardData(productFilter: string) {
       );
       let earliestHandover: Date | null = null;
       for (const alloc of activeAllocs) {
-        const proj = projects.find((p) => p.id === alloc.project_id);
+        const proj = projects.find((p) => p.id === (alloc as any).certification_id);
         if (proj) {
           const d = new Date(proj.handover_date);
           if (!earliestHandover || d < earliestHandover) earliestHandover = d;
@@ -114,7 +114,7 @@ export function useDashboardData(productFilter: string) {
 
       const allocsWithDate = prodAllocs
         .map((a) => {
-          const proj = projects.find((p) => p.id === a.project_id);
+          const proj = projects.find((p) => p.id === (a as any).certification_id);
           return { ...a, handoverDate: proj?.handover_date || "9999-12-31", project: proj };
         })
         .sort((a, b) => a.handoverDate.localeCompare(b.handoverDate));

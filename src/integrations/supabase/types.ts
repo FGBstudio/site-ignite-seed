@@ -500,13 +500,21 @@ export type Database = {
       certifications: {
         Row: {
           categories: Json | null
+          cert_level: string | null
+          cert_rating: string | null
           cert_type: string
+          client: string
           created_at: string | null
           expiry_date: string | null
+          handover_date: string
           id: string
+          is_commissioning: boolean | null
           issued_date: string | null
           level: string | null
+          name: string | null
           pm_id: string | null
+          project_subtype: string | null
+          region: string
           score: number | null
           site_id: string
           status: string | null
@@ -515,13 +523,21 @@ export type Database = {
         }
         Insert: {
           categories?: Json | null
+          cert_level?: string | null
+          cert_rating?: string | null
           cert_type: string
+          client?: string
           created_at?: string | null
           expiry_date?: string | null
+          handover_date?: string
           id?: string
+          is_commissioning?: boolean | null
           issued_date?: string | null
           level?: string | null
+          name?: string | null
           pm_id?: string | null
+          project_subtype?: string | null
+          region?: string
           score?: number | null
           site_id: string
           status?: string | null
@@ -530,13 +546,21 @@ export type Database = {
         }
         Update: {
           categories?: Json | null
+          cert_level?: string | null
+          cert_rating?: string | null
           cert_type?: string
+          client?: string
           created_at?: string | null
           expiry_date?: string | null
+          handover_date?: string
           id?: string
+          is_commissioning?: boolean | null
           issued_date?: string | null
           level?: string | null
+          name?: string | null
           pm_id?: string | null
+          project_subtype?: string | null
+          region?: string
           score?: number | null
           site_id?: string
           status?: string | null

@@ -167,10 +167,10 @@ function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChan
           .eq("id", certId);
       }
       
-      // 2. Aggiorna anche lo stato del progetto master per sicurezza
-      await supabase
-        .from("projects")
-        .update({ status: "in_corso" } as any)
+      // 2. Also update the certification status
+      await (supabase as any)
+        .from("certifications")
+        .update({ status: "in_corso" })
         .eq("id", project.id);
 
       // 3. Ricarica la dashboard per far sparire il "Manca Timeline"
@@ -195,10 +195,10 @@ function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChan
     
     setSaving(true);
     try {
-      // 1. Aggiorna lo stato del progetto master
-      await supabase
-        .from("projects")
-        .update({ status: "certificato" } as any) 
+      // 1. Update certification status
+      await (supabase as any)
+        .from("certifications")
+        .update({ status: "certificato" })
         .eq("id", project.id);
 
       // 2. Aggiorna la certificazione base
@@ -439,10 +439,10 @@ function HardwareTab({ project }: { project: PMProject }) {
   const { data: allocations = [], refetch } = useQuery({
     queryKey: ["project-allocations", project.id],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data } = await (supabase as any)
         .from("project_allocations")
         .select("*, products(name, sku)")
-        .eq("project_id", project.id);
+        .eq("certification_id", project.id);
       return data || [];
     },
   });
@@ -455,12 +455,12 @@ function HardwareTab({ project }: { project: PMProject }) {
     if (!newProductId) return;
     setSaving(true);
     try {
-      await supabase.from("project_allocations").insert({
-        project_id: project.id,
+      await (supabase as any).from("project_allocations").insert({
+        certification_id: project.id,
         product_id: newProductId,
         quantity: newQty,
         status: "Requested",
-      } as any);
+      });
       setNewProductId("");
       setQty(1);
       refetch();
