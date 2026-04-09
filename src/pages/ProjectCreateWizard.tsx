@@ -142,18 +142,19 @@ export default function ProjectCreateWizard() {
       if (certs.length === 0) {
         // No certifications — create a single project without cert
         const pmId = isAdmin ? (user?.id || null) : user?.id;
-        const { error: projErr } = await supabase
-          .from("projects")
+        const { error: certErr } = await supabase
+          .from("certifications")
           .insert({
             name: draft.project_name.trim(),
             client: draft.client.trim(),
             region: draft.region,
             handover_date: draft.handover_date,
-            status: draft.status || "Design",
+            status: "in_progress",
             pm_id: pmId,
-            site_id: siteId || null,
+            site_id: siteId!,
+            cert_type: "none",
           } as any);
-        if (projErr) throw projErr;
+        if (certErr) throw certErr;
       } else {
         // Create one project per certification
         await Promise.all(certs.map(async (cert) => {
@@ -162,40 +163,29 @@ export default function ProjectCreateWizard() {
             ? draft.project_name.trim()
             : `${draft.project_name.trim()} – ${cert.cert_type}`;
 
-          const { data: projectData, error: projErr } = await supabase
-            .from("projects")
+          const { data: certData, error: certErr } = await supabase
+            .from("certifications")
             .insert({
               name: projectName,
               client: draft.client.trim(),
               region: draft.region,
               handover_date: draft.handover_date,
-              status: draft.status || "Design",
+              status: "in_progress",
               pm_id: pmId || null,
-              site_id: siteId || null,
-              cert_type: cert.cert_type || null,
+              site_id: siteId!,
+              cert_type: cert.cert_type,
               cert_rating: cert.cert_rating || null,
               cert_level: cert.cert_level || null,
               project_subtype: cert.project_subtype || null,
               is_commissioning: cert.is_commissioning,
+              score: 0,
             } as any)
             .select("id")
             .single();
-          if (projErr) throw projErr;
+          if (certErr) throw certErr;
 
-          // Create certification + milestones
+          // Create milestones
           if (cert.cert_type && siteId) {
-            const { data: certData, error: certErr } = await supabase
-              .from("certifications")
-              .insert({
-                site_id: siteId,
-                cert_type: cert.cert_type,
-                level: cert.cert_rating || null,
-                status: "in_progress",
-                score: 0,
-              })
-              .select("id")
-              .single();
-            if (certErr) throw certErr;
 
             const templateInfo = getCertificationTemplate(
               cert.cert_type, cert.cert_rating || null, cert.project_subtype || null

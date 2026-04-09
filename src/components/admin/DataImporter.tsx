@@ -202,9 +202,9 @@ export function DataImporter() {
             const firstRow = rows[0];
             const pmId = emailToId[firstRow.pmEmail.toLowerCase()] || user.id;
 
-            // Phase B: Upsert project
-            const { data: projectData, error: projectError } = await supabase
-              .from("projects" as any)
+            // Phase B: Upsert certification (root entity)
+            const { data: certData, error: certError } = await supabase
+              .from("certifications" as any)
               .upsert(
                 {
                   name: projectName,
@@ -212,16 +212,18 @@ export function DataImporter() {
                   region: firstRow.region as any,
                   pm_id: pmId,
                   handover_date: firstRow.handoverDate,
-                  status: "Design" as const,
+                  status: "in_progress",
+                  cert_type: "imported",
+                  site_id: null as any,
                 },
                 { onConflict: "name" }
               )
               .select("id")
               .single();
 
-            if (projectError || !projectData) {
+            if (certError || !certData) {
               rows.forEach((r) =>
-                importErrors.push({ row: r.rowIndex, message: `Errore progetto "${projectName}": ${projectError?.message || "unknown"}` })
+                importErrors.push({ row: r.rowIndex, message: `Errore certificazione "${projectName}": ${certError?.message || "unknown"}` })
               );
               completed++;
               setProgress(Math.round((completed / totalSteps) * 100));
@@ -239,7 +241,7 @@ export function DataImporter() {
               }
 
               const { error: allocError } = await supabase.from("project_allocations" as any).insert({
-                project_id: (projectData as any).id,
+                certification_id: (certData as any).id,
                 product_id: productId,
                 quantity: row.quantity,
                 status: "Requested" as const,

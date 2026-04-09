@@ -68,7 +68,7 @@ export default function Projects() {
     const { data } = await supabase
       .from("project_allocations" as any)
       .select("*")
-      .eq("project_id", project.id);
+      .eq("certification_id", project.id);
     setEditProject(project as any);
     setEditAllocations((data || []) as any);
     setModalOpen(true);

@@ -80,7 +80,7 @@ export function ProjectWBS({ projectId }: Props) {
       const { data, error } = await supabase
         .from("project_allocations" as any)
         .select("*")
-        .eq("project_id", projectId);
+        .eq("certification_id", projectId);
       if (error) throw error;
       return (data || []) as unknown as ProjectAllocation[];
     },

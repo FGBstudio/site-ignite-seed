@@ -142,28 +142,17 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
           .from("certifications")
           .select("*")
           .eq("site_id", project.site_id);
-          
-        // Recupera TUTTI i progetti associati a questo sito per matchare i PM e i Subtype
-        const { data: siteProjects, error: projErr } = await supabase
-          .from("projects")
-          .select("id, cert_type, pm_id, project_subtype")
-          .eq("site_id", project.site_id);
 
         if (certErr) console.error("Error loading certifications:", certErr);
-        if (projErr) console.error("Error loading site projects:", projErr);
 
-        // Mappa i dati incrociando certifications e projects
-        const mappedCerts = (existingCerts || []).map((c: any) => {
-          const matchedProj = (siteProjects || []).find((p: any) => p.cert_type === c.cert_type);
-          return {
-            id: c.id, 
-            project_id: matchedProj?.id, // Associa l'ID del record in tabella `projects`
-            cert_type: c.cert_type, 
-            cert_rating: c.level,
-            pm_id: matchedProj?.pm_id || "", // Recupera il PM assegnato a questa cert
-            project_subtype: matchedProj?.project_subtype || "",
-          };
-        });
+        // Map certifications directly — no need to cross-reference projects
+        const mappedCerts = (existingCerts || []).map((c: any) => ({
+          id: c.id,
+          cert_type: c.cert_type,
+          cert_rating: c.level || c.cert_rating,
+          pm_id: c.pm_id || "",
+          project_subtype: c.project_subtype || "",
+        }));
 
         // Pulisce il nome togliendo la sigla della cert in caso di edit
         const baseName = project.name.includes(" - ") ? project.name.split(" - ")[0] : project.name;
@@ -217,65 +206,43 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
          await supabase.from("certifications").delete().in("id", certsToDelete);
       }
 
-      let firstProjectId = project?.id; // Usato come fallback per le allocazioni se serve
+      let firstCertId = project?.id; // Usato come fallback per le allocazioni
 
-      // 3. LOGICA MULTI-CERTIFICAZIONE ARCHITETTURA "1:1"
+      // 3. LOGICA MULTI-CERTIFICAZIONE — certifications è l'entità root
       for (const certConf of data.certifications) {
         const pmId = isAdmin ? certConf.pm_id : user?.id;
         
-        // Formatta il nome progetto dinamicamente
         const projectName = data.certifications.length > 1 
           ? `${data.name} - ${certConf.cert_type}` 
           : data.name;
 
-        const projectPayload = {
+        const certPayload = {
           name: projectName, 
           client: data.client, 
           region: data.region, 
           handover_date: handoverStr,
-          status: data.status, 
+          status: data.status || "in_progress", 
           pm_id: pmId || null, 
           site_id: siteId, 
           cert_type: certConf.cert_type,
           cert_rating: certConf.cert_rating || null,
           cert_level: certConf.cert_level || null,
           project_subtype: certConf.project_subtype || null,
-        };
-
-        let currentProjectId = certConf.project_id;
-
-        // Upsert sulla tabella projects
-        if (currentProjectId) {
-          const { error } = await supabase.from("projects").update(projectPayload as any).eq("id", currentProjectId);
-          if (error) throw error;
-        } else {
-          const { data: newProj, error } = await supabase.from("projects").insert(projectPayload as any).select("id").single();
-          if (error) throw error;
-          currentProjectId = newProj.id;
-        }
-
-        if (!firstProjectId) firstProjectId = currentProjectId;
-
-        // Upsert sulla tabella certifications
-        const certPayload = {
-          site_id: siteId, 
-          cert_type: certConf.cert_type, 
           level: certConf.cert_rating || null,
         };
 
         if (certConf.id) {
-          // Schema esistente: aggiorniamo solo i metadati
           const { error: updErr } = await supabase.from("certifications").update(certPayload as any).eq("id", certConf.id);
           if (updErr) throw updErr;
+          if (!firstCertId) firstCertId = certConf.id;
         } else {
-          // Nuovo schema: Inserimento in certifications e generazione milestones
           const { data: newCert, error: insErr } = await supabase
             .from("certifications")
-            .insert({ ...certPayload, status: "in_progress", score: 0 } as any)
+            .insert({ ...certPayload, score: 0 } as any)
             .select("id")
             .single();
-            
           if (insErr) throw insErr;
+          if (!firstCertId) firstCertId = newCert.id;
 
           const templateInfo = getCertificationTemplate(certConf.cert_type, certConf.cert_rating, certConf.project_subtype);
           
@@ -317,7 +284,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
         if (alloc.id) {
           await supabase.from("project_allocations" as any).update({ product_id: alloc.product_id, quantity: alloc.quantity, status: alloc.status } as any).eq("id", alloc.id);
         } else {
-          await supabase.from("project_allocations" as any).insert({ project_id: firstProjectId, product_id: alloc.product_id, quantity: alloc.quantity, status: (alloc.status || "Draft") as any, target_date: targetDate });
+          await supabase.from("project_allocations" as any).insert({ certification_id: firstCertId, product_id: alloc.product_id, quantity: alloc.quantity, status: (alloc.status || "Draft") as any, target_date: targetDate });
         }
       }
 

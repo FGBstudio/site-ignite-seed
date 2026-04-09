@@ -186,24 +186,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
         siteId = newSite.id;
       }
 
-      let projectId = project?.id;
-      const legacyCertTypes = data.certifications.map(c => c.cert_type).join(", ") || null;
-
-      const projectPayload = {
-        name: data.name, client: data.client, region: data.region, handover_date: handoverStr,
-        status: data.status, pm_id: pmId || null, site_id: siteId, cert_type: legacyCertTypes, 
-      };
-
-      if (project) {
-        const { error } = await supabase.from("projects").update(projectPayload as any).eq("id", project.id);
-        if (error) throw error;
-      } else {
-        const { data: newProject, error } = await supabase.from("projects").insert(projectPayload as any).select("id").single();
-        if (error) throw error;
-        projectId = newProject.id;
-      }
-
-      if (!projectId) throw new Error("Critical Error: Missing Project ID.");
+      // Business fields are now stored directly on each certification row (no projects table).
 
       const originalCertIds = project ? (form.formState.defaultValues?.certifications?.map(c => c.id).filter(Boolean) as string[]) : [];
       const currentCertIds = data.certifications.map(c => c.id).filter(Boolean) as string[];
@@ -218,11 +201,22 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
           site_id: siteId, cert_type: certConf.cert_type, level: certConf.cert_rating || null,
         };
 
+        const fullCertPayload = {
+          ...certPayload,
+          name: data.certifications.length > 1 ? `${data.name} - ${certConf.cert_type}` : data.name,
+          client: data.client,
+          region: data.region,
+          handover_date: handoverStr,
+          status: data.status || "in_progress",
+          pm_id: pmId || null,
+          project_subtype: certConf.project_subtype || null,
+        };
+
         if (certConf.id) {
-          const { error: updErr } = await supabase.from("certifications").update(certPayload as any).eq("id", certConf.id);
+          const { error: updErr } = await supabase.from("certifications").update(fullCertPayload as any).eq("id", certConf.id);
           if (updErr) throw updErr;
         } else {
-          const { data: newCert, error: insErr } = await supabase.from("certifications").insert({ ...certPayload, status: "in_progress", score: 0 } as any).select("id").single();
+          const { data: newCert, error: insErr } = await supabase.from("certifications").insert({ ...fullCertPayload, score: 0 } as any).select("id").single();
           if (insErr) throw insErr;
 
           const templateInfo = getCertificationTemplate(certConf.cert_type, certConf.cert_rating, certConf.project_subtype);
@@ -251,7 +245,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
         if (alloc.id) {
           await supabase.from("project_allocations" as any).update({ product_id: alloc.product_id, quantity: alloc.quantity, status: alloc.status } as any).eq("id", alloc.id);
         } else {
-          await supabase.from("project_allocations" as any).insert({ project_id: projectId, product_id: alloc.product_id, quantity: alloc.quantity, status: (alloc.status || "Draft") as any, target_date: targetDate });
+          await supabase.from("project_allocations" as any).insert({ certification_id: data.certifications[0]?.id || project?.id, product_id: alloc.product_id, quantity: alloc.quantity, status: (alloc.status || "Draft") as any, target_date: targetDate });
         }
       }
 
