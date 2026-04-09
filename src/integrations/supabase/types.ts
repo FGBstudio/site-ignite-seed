@@ -64,38 +64,38 @@ export type Database = {
       }
       audit_logs: {
         Row: {
+          certification_id: string | null
           changed_field: string
           created_at: string
           id: string
           new_value: string | null
           old_value: string | null
-          project_id: string | null
           user_id: string | null
         }
         Insert: {
+          certification_id?: string | null
           changed_field: string
           created_at?: string
           id?: string
           new_value?: string | null
           old_value?: string | null
-          project_id?: string | null
           user_id?: string | null
         }
         Update: {
+          certification_id?: string | null
           changed_field?: string
           created_at?: string
           id?: string
           new_value?: string | null
           old_value?: string | null
-          project_id?: string | null
           user_id?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "audit_logs_project_id_fkey"
-            columns: ["project_id"]
+            foreignKeyName: "audit_logs_certification_id_fkey"
+            columns: ["certification_id"]
             isOneToOne: false
-            referencedRelation: "projects"
+            referencedRelation: "certifications"
             referencedColumns: ["id"]
           },
         ]
@@ -253,40 +253,40 @@ export type Database = {
       cert_payment_milestones: {
         Row: {
           amount: number
+          certification_id: string
           created_at: string
           due_date: string | null
           id: string
           name: string
-          project_id: string
           status: string
           trigger_task_id: string | null
         }
         Insert: {
           amount?: number
+          certification_id: string
           created_at?: string
           due_date?: string | null
           id?: string
           name: string
-          project_id: string
           status?: string
           trigger_task_id?: string | null
         }
         Update: {
           amount?: number
+          certification_id?: string
           created_at?: string
           due_date?: string | null
           id?: string
           name?: string
-          project_id?: string
           status?: string
           trigger_task_id?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "cert_payment_milestones_project_id_fkey"
-            columns: ["project_id"]
+            foreignKeyName: "cert_payment_milestones_certification_id_fkey"
+            columns: ["certification_id"]
             isOneToOne: false
-            referencedRelation: "projects"
+            referencedRelation: "certifications"
             referencedColumns: ["id"]
           },
           {
@@ -330,13 +330,13 @@ export type Database = {
       cert_tasks: {
         Row: {
           assignee_id: string | null
+          certification_id: string
           created_at: string
           dependencies: string[] | null
           description: string | null
           end_date: string | null
           id: string
           phase_id: string | null
-          project_id: string
           start_date: string | null
           status: string
           title: string
@@ -344,13 +344,13 @@ export type Database = {
         }
         Insert: {
           assignee_id?: string | null
+          certification_id: string
           created_at?: string
           dependencies?: string[] | null
           description?: string | null
           end_date?: string | null
           id?: string
           phase_id?: string | null
-          project_id: string
           start_date?: string | null
           status?: string
           title: string
@@ -358,13 +358,13 @@ export type Database = {
         }
         Update: {
           assignee_id?: string | null
+          certification_id?: string
           created_at?: string
           dependencies?: string[] | null
           description?: string | null
           end_date?: string | null
           id?: string
           phase_id?: string | null
-          project_id?: string
           start_date?: string | null
           status?: string
           title?: string
@@ -379,52 +379,52 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "cert_tasks_certification_id_fkey"
+            columns: ["certification_id"]
+            isOneToOne: false
+            referencedRelation: "certifications"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "cert_tasks_phase_id_fkey"
             columns: ["phase_id"]
             isOneToOne: false
             referencedRelation: "cert_wbs_phases"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "cert_tasks_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "projects"
-            referencedColumns: ["id"]
-          },
         ]
       }
       cert_wbs_phases: {
         Row: {
+          certification_id: string
           created_at: string
           id: string
           name: string
           order_index: number
-          project_id: string
           updated_at: string
         }
         Insert: {
+          certification_id: string
           created_at?: string
           id?: string
           name: string
           order_index?: number
-          project_id: string
           updated_at?: string
         }
         Update: {
+          certification_id?: string
           created_at?: string
           id?: string
           name?: string
           order_index?: number
-          project_id?: string
           updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "cert_wbs_phases_project_id_fkey"
-            columns: ["project_id"]
+            foreignKeyName: "cert_wbs_phases_certification_id_fkey"
+            columns: ["certification_id"]
             isOneToOne: false
-            referencedRelation: "projects"
+            referencedRelation: "certifications"
             referencedColumns: ["id"]
           },
         ]
@@ -506,6 +506,7 @@ export type Database = {
           id: string
           issued_date: string | null
           level: string | null
+          pm_id: string | null
           score: number | null
           site_id: string
           status: string | null
@@ -520,6 +521,7 @@ export type Database = {
           id?: string
           issued_date?: string | null
           level?: string | null
+          pm_id?: string | null
           score?: number | null
           site_id: string
           status?: string | null
@@ -534,6 +536,7 @@ export type Database = {
           id?: string
           issued_date?: string | null
           level?: string | null
+          pm_id?: string | null
           score?: number | null
           site_id?: string
           status?: string | null
@@ -541,6 +544,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "certifications_pm_id_fkey"
+            columns: ["pm_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "certifications_site_id_fkey"
             columns: ["site_id"]
@@ -1384,37 +1394,37 @@ export type Database = {
       payment_milestones: {
         Row: {
           amount: number
+          certification_id: string
           created_at: string
           due_date: string | null
           id: string
           milestone_name: string
-          project_id: string
           status: string
         }
         Insert: {
           amount?: number
+          certification_id: string
           created_at?: string
           due_date?: string | null
           id?: string
           milestone_name?: string
-          project_id: string
           status?: string
         }
         Update: {
           amount?: number
+          certification_id?: string
           created_at?: string
           due_date?: string | null
           id?: string
           milestone_name?: string
-          project_id?: string
           status?: string
         }
         Relationships: [
           {
-            foreignKeyName: "payment_milestones_project_id_fkey"
-            columns: ["project_id"]
+            foreignKeyName: "payment_milestones_certification_id_fkey"
+            columns: ["certification_id"]
             isOneToOne: false
-            referencedRelation: "projects"
+            referencedRelation: "certifications"
             referencedColumns: ["id"]
           },
         ]
@@ -1496,45 +1506,45 @@ export type Database = {
       }
       project_allocations: {
         Row: {
+          certification_id: string
           created_at: string
           id: string
           product_id: string
-          project_id: string
           quantity: number
           status: string
           target_date: string | null
         }
         Insert: {
+          certification_id: string
           created_at?: string
           id?: string
           product_id: string
-          project_id: string
           quantity?: number
           status?: string
           target_date?: string | null
         }
         Update: {
+          certification_id?: string
           created_at?: string
           id?: string
           product_id?: string
-          project_id?: string
           quantity?: number
           status?: string
           target_date?: string | null
         }
         Relationships: [
           {
+            foreignKeyName: "project_allocations_certification_id_fkey"
+            columns: ["certification_id"]
+            isOneToOne: false
+            referencedRelation: "certifications"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "project_allocations_product_id_fkey"
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "project_allocations_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
         ]
@@ -1543,11 +1553,11 @@ export type Database = {
         Row: {
           assigned_to: string | null
           blocking_payment_id: string | null
+          certification_id: string
           created_at: string
           dependency_id: string | null
           end_date: string | null
           id: string
-          project_id: string
           start_date: string | null
           status: string
           task_name: string
@@ -1555,11 +1565,11 @@ export type Database = {
         Insert: {
           assigned_to?: string | null
           blocking_payment_id?: string | null
+          certification_id: string
           created_at?: string
           dependency_id?: string | null
           end_date?: string | null
           id?: string
-          project_id: string
           start_date?: string | null
           status?: string
           task_name?: string
@@ -1567,11 +1577,11 @@ export type Database = {
         Update: {
           assigned_to?: string | null
           blocking_payment_id?: string | null
+          certification_id?: string
           created_at?: string
           dependency_id?: string | null
           end_date?: string | null
           id?: string
-          project_id?: string
           start_date?: string | null
           status?: string
           task_name?: string
@@ -1585,17 +1595,17 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "project_tasks_certification_id_fkey"
+            columns: ["certification_id"]
+            isOneToOne: false
+            referencedRelation: "certifications"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "project_tasks_dependency_id_fkey"
             columns: ["dependency_id"]
             isOneToOne: false
             referencedRelation: "project_tasks"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "project_tasks_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
         ]
@@ -1605,6 +1615,7 @@ export type Database = {
           cert_level: string | null
           cert_rating: string | null
           cert_type: string | null
+          certification_id: string | null
           client: string
           created_at: string
           handover_date: string
@@ -1622,6 +1633,7 @@ export type Database = {
           cert_level?: string | null
           cert_rating?: string | null
           cert_type?: string | null
+          certification_id?: string | null
           client?: string
           created_at?: string
           handover_date?: string
@@ -1639,6 +1651,7 @@ export type Database = {
           cert_level?: string | null
           cert_rating?: string | null
           cert_type?: string | null
+          certification_id?: string | null
           client?: string
           created_at?: string
           handover_date?: string
@@ -1653,6 +1666,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "projects_certification_id_fkey"
+            columns: ["certification_id"]
+            isOneToOne: false
+            referencedRelation: "certifications"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "projects_site_id_fkey"
             columns: ["site_id"]
