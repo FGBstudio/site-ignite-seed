@@ -74,7 +74,7 @@ export function ProcurementForecasting() {
     });
 
     const projectIds = new Set(filteredProjects.map((p) => p.id));
-    const filteredAllocations = allocations.filter((a) => projectIds.has((a as any).certification_id || (a as any).project_id));
+    const filteredAllocations = allocations.filter((a) => projectIds.has((a as any).certification_id));
 
     const demandMap = new Map<string, number>();
     const breakdownMap = new Map<string, Map<string, number>>();
@@ -83,7 +83,7 @@ export function ProcurementForecasting() {
       demandMap.set(a.product_id, (demandMap.get(a.product_id) || 0) + a.quantity);
       if (!breakdownMap.has(a.product_id)) breakdownMap.set(a.product_id, new Map());
       const pMap = breakdownMap.get(a.product_id)!;
-      const aId = (a as any).certification_id || (a as any).project_id;
+      const aId = (a as any).certification_id;
       pMap.set(aId, (pMap.get(aId) || 0) + a.quantity);
       if (!allocIdMap.has(a.product_id)) allocIdMap.set(a.product_id, []);
       allocIdMap.get(a.product_id)!.push(a.id);

@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 
 interface TaskRow {
   id: string;
-  project_id: string;
+  certification_id: string;
   task_name: string;
   assigned_to: string | null;
   start_date: string | null;
@@ -48,7 +48,7 @@ export default function MyTasks() {
       if (!user?.id) return [];
       const { data, error } = await supabase
         .from("project_tasks" as any)
-        .select("*, projects!project_tasks_project_id_fkey(name, client)")
+        .select("*, certifications!project_tasks_certification_id_fkey(name, client)")
         .eq("assigned_to", user.id)
         .neq("status", "done")
         .order("end_date", { ascending: true });
@@ -58,8 +58,8 @@ export default function MyTasks() {
       for (const t of (data || []) as any[]) {
         const row: TaskRow = {
           ...t,
-          project_name: t.projects?.name || "—",
-          project_client: t.projects?.client || "",
+          project_name: t.certifications?.name || "—",
+          project_client: t.certifications?.client || "",
         };
 
         if (t.blocking_payment_id) {
@@ -124,7 +124,7 @@ export default function MyTasks() {
       .filter((project) => project.setup_status !== "certificato")
       .map((project) => ({
         id: `setup-${project.id}`,
-        project_id: project.id,
+        certification_id: project.id,
         task_name:
           project.setup_status === "da_configurare"
             ? `Configure project ${project.name}`
