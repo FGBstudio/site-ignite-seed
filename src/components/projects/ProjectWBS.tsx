@@ -12,7 +12,7 @@ export interface ProjectTask {
   status: "todo" | "in_progress" | "review" | "done";
   dependency_id: string | null;
   blocking_payment_id: string | null;
-  allocation_id?: string | null;
+  allocation_id: string | null;
   created_at: string;
 }
 

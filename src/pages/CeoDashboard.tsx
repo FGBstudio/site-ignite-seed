@@ -163,10 +163,10 @@ function TabRisorse({ tasks, projects }: { tasks: CertTaskRow[]; projects: Proje
   const tasksByProject = useMemo(() => {
     const map = new Map<string, { projectName: string; tasks: CertTaskRow[] }>();
     for (const t of selectedTasks) {
-      if (!map.has(t.project_id)) {
-        map.set(t.project_id, { projectName: t.projects?.name || "—", tasks: [] });
+      if (!map.has(t.certification_id)) {
+        map.set(t.certification_id, { projectName: t.certifications?.name || "—", tasks: [] });
       }
-      map.get(t.project_id)!.tasks.push(t);
+      map.get(t.certification_id)!.tasks.push(t);
     }
     return Array.from(map.values());
   }, [selectedTasks]);
@@ -296,8 +296,8 @@ function TabProgetti({ tasks, projects }: { tasks: CertTaskRow[]; projects: any[
   const projectData = useMemo(() => {
     const tasksByProject = new Map<string, CertTaskRow[]>();
     for (const t of tasks) {
-      if (!tasksByProject.has(t.project_id)) tasksByProject.set(t.project_id, []);
-      tasksByProject.get(t.project_id)!.push(t);
+      if (!tasksByProject.has(t.certification_id)) tasksByProject.set(t.certification_id, []);
+      tasksByProject.get(t.certification_id)!.push(t);
     }
 
     return projects.map(p => {
@@ -377,13 +377,13 @@ function TabPagamenti({ payments, projects }: { payments: CertPaymentRow[]; proj
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
 
   const projectsWithPayments = useMemo(() => {
-    const pIds = new Set(payments.map(p => p.project_id));
+    const pIds = new Set(payments.map(p => p.certification_id));
     return projects.filter(p => pIds.has(p.id));
   }, [payments, projects]);
 
   const filteredPayments = useMemo(() => {
     if (!selectedProject) return payments;
-    return payments.filter(p => p.project_id === selectedProject);
+    return payments.filter(p => p.certification_id === selectedProject);
   }, [payments, selectedProject]);
 
   const getBarColor = (payment: CertPaymentRow) => {
@@ -442,7 +442,7 @@ function TabPagamenti({ payments, projects }: { payments: CertPaymentRow[]; proj
                       <div>
                         <p className="text-sm font-medium text-foreground">{p.name}</p>
                         <p className="text-xs text-muted-foreground">
-                          {p.projects?.name || "—"} • {p.due_date ? format(new Date(p.due_date), "dd MMM yyyy") : "—"}
+                          {p.certifications?.name || "—"} • {p.due_date ? format(new Date(p.due_date), "dd MMM yyyy") : "—"}
                           {daysInfo !== null && (
                             <span className={cn("ml-1", daysInfo < 0 ? "text-destructive" : "text-muted-foreground")}>
                               ({daysInfo < 0 ? `${Math.abs(daysInfo)}d overdue` : `${daysInfo}d left`})
