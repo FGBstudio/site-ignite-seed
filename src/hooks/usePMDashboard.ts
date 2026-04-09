@@ -27,54 +27,34 @@ export interface PMProject {
   setup_status: SetupStatus;
   missing: string[];
   certification_milestones: any[];
-  plannerData?: any; // <--- AGGIUNTO PER IL MOTORE GANTT
+  plannerData?: any;
 }
 
 export function usePMDashboard() {
-  const { user, role } = useAuth(); // Aggiunto 'role' per gestire l'Admin
+  const { user, role } = useAuth();
   const userId = user?.id;
 
   return useQuery({
     queryKey: ["pm-dashboard", userId, role],
     enabled: !!userId,
     queryFn: async () => {
-      console.log("🚀 [PM Dashboard] Avvio sincronizzazione dati...");
-
-      // 1. Fetch projects with relations
+      // 1. Fetch certifications (root entity) with site + allocations
       let query = (supabase as any)
-        .from("projects")
-        .select("*, sites!projects_site_id_fkey(name, city, country), project_allocations(*)")
+        .from("certifications")
+        .select("*, sites!certifications_site_id_fkey(name, city, country), project_allocations!project_allocations_certification_id_fkey(*)")
         .order("handover_date", { ascending: true });
 
-      // Se NON è admin, filtra solo i suoi progetti
+      // If not admin, filter by PM
       if (role !== "ADMIN") {
-         query = query.eq("pm_id", userId);
+        query = query.eq("pm_id", userId);
       }
-      
-      const { data: projects, error } = await query;
+
+      const { data: certs, error } = await query;
       if (error) throw error;
-      if (!projects || projects.length === 0) return [] as PMProject[];
+      if (!certs || certs.length === 0) return [] as PMProject[];
 
-      console.log(`📦 [PM Dashboard] Trovati ${projects.length} progetti per l'utente ${userId}.`);
-
-      // 2. Fetch certifications for project sites
-      const siteIds = [...new Set(
-        (projects as any[]).map((p) => p.site_id).filter(Boolean)
-      )] as string[];
-
-      let certifications: any[] = [];
-      if (siteIds.length > 0) {
-        const { data, error: certErr } = await supabase
-          .from("certifications")
-          .select("*")
-          .in("site_id", siteIds);
-        if (certErr) throw certErr;
-        certifications = data || [];
-        console.log(`📜 [PM Dashboard] Trovate ${certifications.length} certificazioni legate ai siti.`);
-      }
-
-      // 3. Fetch milestones for those certifications
-      const certIds = certifications.map((c) => c.id);
+      // 2. Fetch milestones for all certifications
+      const certIds = (certs as any[]).map((c) => c.id);
       let milestones: any[] = [];
       if (certIds.length > 0) {
         const { data, error: mErr } = await supabase
@@ -83,66 +63,22 @@ export function usePMDashboard() {
           .in("certification_id", certIds);
         if (mErr) throw mErr;
         milestones = data || [];
-        console.log(`🎯 [PM Dashboard] Trovate ${milestones.length} milestone totali nel DB.`);
       }
 
-      // 4. Merge and classify
-      return (projects as any[]).map((p): PMProject => {
-        
-        // FIX CRITICO MOTORE DI RICERCA: 
-        // Cerchiamo la certificazione tramite site_id e cert_type
-        let projectCerts = certifications.filter((c) => 
-          c.site_id === p.site_id && c.cert_type === p.cert_type
-        );
-        
-        // Affinamento per progetti legacy se ci sono match multipli
-        if (projectCerts.length > 1 && p.cert_rating) {
-           const exactMatch = projectCerts.filter(c => c.level === p.cert_rating);
-           if (exactMatch.length > 0) projectCerts = exactMatch;
-        }
-          
-        const projectMilestones = milestones.filter((m) =>
-          projectCerts.some((c: any) => c.id === m.certification_id)
-        );
-
-        // --- DEBUG CHIRURGICO ---
-        if (projectMilestones.length === 0) {
-           console.warn(`⚠️ [Mancanza Dati] Il progetto "${p.name}" (ID: ${p.id}) NON ha milestone collegate! Certificazioni trovate: ${projectCerts.length}`);
-           if (projectCerts.length > 0) {
-              console.warn(`👉 La certificazione esiste (ID: ${projectCerts[0].id}, Level: ${projectCerts[0].level}), ma il DB non le ha assegnato milestone.`);
-           } else {
-              console.warn(`👉 La certificazione NON è stata trovata. Match fallito per site_id: ${p.site_id}, cert_type: ${p.cert_type}`);
-           }
-        }
-        // ------------------------
-
-        const allocations = p.project_allocations || [];
-
-        // Classification logic
+      // 3. Build result
+      return (certs as any[]).map((c): PMProject => {
+        const certMilestones = milestones.filter((m) => m.certification_id === c.id);
+        const allocations = c.project_allocations || [];
         const today = new Date().toISOString().slice(0, 10);
-        
-        // FIX CRITICO: Controlla se il DB (tabella projects) ha lo status "certificato"
-        // OPPURE se la certificazione è "active" e la sua data (troncata) è <= a oggi.
-        const isCertified = 
-          p.status === "certificato" || 
-          projectCerts.some(
-            (c: any) => c.status === "active" && c.issued_date && c.issued_date.slice(0, 10) <= today
-          );
 
-        // Timeline: Check if timeline milestones EXIST
-        const timelineMilestones = projectMilestones.filter(
-          (m: any) => m.milestone_type === "timeline"
-        );
+        const isCertified =
+          c.status === "certificato" ||
+          (c.status === "active" && c.issued_date && c.issued_date.slice(0, 10) <= today);
+
+        const timelineMilestones = certMilestones.filter((m: any) => m.milestone_type === "timeline");
         const hasTimeline = timelineMilestones.length > 0;
+        const hasScorecard = certMilestones.some((m: any) => m.milestone_type === "scorecard");
 
-        // Scorecard: at least one scorecard row exists
-        const hasScorecard = projectMilestones.some(
-          (m: any) => m.milestone_type === "scorecard"
-        );
-
-        // =====================================================================
-        // FIX 2.0: La timeline è "configurata" solo se il PM ha inserito delle date
-        // =====================================================================
         const isTimelineConfigured = timelineMilestones.some(
           (m: any) => m.start_date !== null || m.due_date !== null
         );
@@ -150,7 +86,7 @@ export function usePMDashboard() {
         const missing: string[] = [];
         if (!isCertified) {
           if (!hasTimeline) missing.push("Timeline");
-          else if (!isTimelineConfigured) missing.push("Pianifica Date"); // Extra info UI per il PM
+          else if (!isTimelineConfigured) missing.push("Pianifica Date");
           if (!hasScorecard) missing.push("Scorecard");
           if (allocations.length === 0) missing.push("Hardware");
         }
@@ -159,92 +95,89 @@ export function usePMDashboard() {
         if (isCertified) {
           setup_status = "certificato";
         } else if (hasTimeline && hasScorecard && isTimelineConfigured) {
-          // Passa a "in_corso" SOLO se sono state popolate le date
           setup_status = "in_corso";
         } else {
           setup_status = "da_configurare";
         }
 
-        // =========================================================
-        // CALCOLO DATI MACRO-PLANNER (Il Motore Gantt a Segmenti)
-        // =========================================================
-        const projectLaunchDate = p.created_at.slice(0, 10); // Launch date
-        let planStart = projectLaunchDate; // Default
+        // Planner data
+        const launchDate = c.created_at.slice(0, 10);
+        let planStart = launchDate;
         let achievedCount = 0;
-        
-        const segments: any[] = []; // I "vagoni" del nostro treno di progetto
-        
-        // Calcola segmenti solo se la timeline è stata configurata dal PM
+        const segments: any[] = [];
+
         if (hasTimeline && isTimelineConfigured) {
-          // Trova la prima data ufficiale per l'inizio del progetto globale
           const startDates = timelineMilestones.map((m: any) => m.start_date).filter(Boolean).sort();
           if (startDates.length > 0) planStart = startDates[0];
-          
           achievedCount = timelineMilestones.filter((m: any) => m.status === "achieved").length;
 
-          // Popoliamo i segmenti iterando sulle milestone di questo progetto
           timelineMilestones.forEach((m: any) => {
-            if (m.start_date && m.due_date) { // Includiamo solo le fasi con date valide
-              // Logica colore rosso per i segmenti in ritardo
+            if (m.start_date && m.due_date) {
               let displayStatus = m.status;
               if (m.status !== "achieved" && m.due_date < today) displayStatus = "late";
-
               segments.push({
-                start: m.start_date,
-                end: m.due_date,
-                status: displayStatus,
+                start: m.start_date, end: m.due_date, status: displayStatus,
                 progress: m.status === "achieved" ? 100 : m.status === "in_progress" ? 50 : 0
               });
             }
           });
         }
-        
-        // Calcolo saturazione 0-100% globale del progetto
-        const progress = (hasTimeline && isTimelineConfigured) ? Math.round((achievedCount / timelineMilestones.length) * 100) : 0;
-        
-        // --- AGGIUNTA PER TROVARE L'ATTIVITA' IN CORSO ---
-        const activeMilestone = timelineMilestones.find((m: any) => m.status === "in_progress");
-        const currentActivity = activeMilestone 
-          ? activeMilestone.requirement 
-          : (setup_status === "certificato" ? "Completato" : "In attesa");
-        // -------------------------------------------------
 
-        // Logica visiva per la riga master del Progetto
+        const progress = (hasTimeline && isTimelineConfigured) ? Math.round((achievedCount / timelineMilestones.length) * 100) : 0;
+
+        const activeMilestone = timelineMilestones.find((m: any) => m.status === "in_progress");
+        const currentActivity = activeMilestone
+          ? activeMilestone.requirement
+          : (setup_status === "certificato" ? "Completato" : "In attesa");
+
         let plannerStatus = "pending";
         if (setup_status === "certificato") {
           plannerStatus = "achieved";
         } else if (hasTimeline && isTimelineConfigured) {
-          // Se almeno una attività è iniziata o completata, il progetto è "in corso"
           const hasActive = timelineMilestones.some((m: any) => m.status === "in_progress" || m.status === "achieved");
           if (hasActive) {
-            plannerStatus = p.handover_date < today ? "late" : "in_progress";
+            plannerStatus = c.handover_date < today ? "late" : "in_progress";
           }
         }
 
         const plannerData = {
-          id: p.id,
-          label: p.name,
-          subLabel: p.client,
-          launchDate: projectLaunchDate, // Iniettato
-          currentActivity: currentActivity, // <--- AGGIUNTA QUI
-          planStart: planStart,
-          planEnd: p.handover_date,
+          id: c.id,
+          label: c.name || c.cert_type || "Unnamed",
+          subLabel: c.client,
+          launchDate,
+          currentActivity,
+          planStart,
+          planEnd: c.handover_date,
           actualStart: plannerStatus !== "pending" ? planStart : null,
           actualEnd: setup_status === "certificato" ? today : null,
-          progress: progress,
+          progress,
           status: plannerStatus,
-          segments: segments // Iniettiamo l'array dei segmenti
+          segments
         };
-        // =========================================================
 
         return {
-          ...p,
-          certifications: projectCerts,
-          certification_milestones: projectMilestones,
+          id: c.id,
+          name: c.name || c.cert_type || "Unnamed",
+          client: c.client,
+          region: c.region,
+          status: c.status,
+          handover_date: c.handover_date,
+          site_id: c.site_id,
+          cert_type: c.cert_type,
+          cert_rating: c.cert_rating || c.level,
+          pm_id: c.pm_id,
+          created_at: c.created_at,
+          updated_at: c.updated_at,
+          is_commissioning: c.is_commissioning,
+          project_subtype: c.project_subtype,
+          sites: c.sites || null,
+          certifications: [c], // The cert itself
+          project_allocations: allocations,
           setup_status,
           missing,
-          plannerData, // Injectiamo i dati preparati
-        };
+          certification_milestones: certMilestones,
+          plannerData,
+        } as PMProject;
       });
     },
   });

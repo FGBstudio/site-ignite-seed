@@ -4,7 +4,7 @@ import { differenceInDays } from "date-fns";
 
 export interface CertTaskRow {
   id: string;
-  project_id: string;
+  certification_id: string;
   phase_id: string | null;
   title: string;
   status: string;
@@ -13,19 +13,19 @@ export interface CertTaskRow {
   assignee_id: string | null;
   dependencies: string[];
   created_at: string;
-  projects?: { id: string; name: string; client: string; region: string; pm_id: string | null; handover_date: string; status: string; site_id: string | null };
+  certifications?: { id: string; name: string; client: string; region: string; pm_id: string | null; handover_date: string; status: string; site_id: string | null };
   profiles?: { id: string; full_name: string | null };
 }
 
 export interface CertPaymentRow {
   id: string;
-  project_id: string;
+  certification_id: string;
   name: string;
   amount: number;
   due_date: string | null;
   status: string;
   trigger_task_id: string | null;
-  projects?: { id: string; name: string; client: string };
+  certifications?: { id: string; name: string; client: string };
   trigger_task?: { id: string; title: string; status: string } | null;
 }
 
@@ -49,7 +49,7 @@ export function useCertTasks() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("cert_tasks")
-        .select("*, projects!cert_tasks_project_id_fkey(id, name, client, region, pm_id, handover_date, status, site_id), profiles!cert_tasks_assignee_id_fkey(id, full_name)")
+        .select("*, certifications!cert_tasks_certification_id_fkey(id, name, client, region, pm_id, handover_date, status, site_id), profiles!cert_tasks_assignee_id_fkey(id, full_name)")
         .order("end_date", { ascending: true });
       if (error) throw error;
       return (data || []) as CertTaskRow[];
@@ -63,7 +63,7 @@ export function useCertPayments() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("cert_payment_milestones")
-        .select("*, projects!cert_payment_milestones_project_id_fkey(id, name, client), trigger_task:cert_tasks!cert_payment_milestones_trigger_task_id_fkey(id, title, status)")
+        .select("*, certifications!cert_payment_milestones_certification_id_fkey(id, name, client), trigger_task:cert_tasks!cert_payment_milestones_trigger_task_id_fkey(id, title, status)")
         .order("due_date", { ascending: true });
       if (error) throw error;
       return (data || []) as CertPaymentRow[];
@@ -73,17 +73,17 @@ export function useCertPayments() {
 
 export function useActiveProjects() {
   return useQuery({
-    queryKey: ["ceo-all-projects-v4"],
+    queryKey: ["ceo-all-certifications"],
     queryFn: async () => {
       const { data, error } = await (supabase as any)
-        .from("projects")
+        .from("certifications")
         .select("*")
         .order("handover_date", { ascending: true });
       if (error) throw error;
-      const projects = (data || []) as any[];
+      const certs = (data || []) as any[];
 
-      // Fetch PM profiles separately (no FK between projects and profiles)
-      const pmIds = [...new Set(projects.map((p) => p.pm_id).filter(Boolean))] as string[];
+      // Fetch PM profiles separately
+      const pmIds = [...new Set(certs.map((c) => c.pm_id).filter(Boolean))] as string[];
       let profileMap = new Map<string, string>();
       if (pmIds.length > 0) {
         const { data: profiles } = await supabase
@@ -97,32 +97,32 @@ export function useActiveProjects() {
         }
       }
 
-      return projects.map((p): ProjectRow => ({
-        id: p.id,
-        name: p.name,
-        client: p.client,
-        region: p.region,
-        pm_id: p.pm_id,
-        handover_date: p.handover_date,
-        status: p.status,
-        site_id: p.site_id,
-        cert_type: p.cert_type,
-        cert_rating: p.cert_rating,
-        pm_display_name: p.pm_id ? profileMap.get(p.pm_id) || null : null,
+      return certs.map((c): ProjectRow => ({
+        id: c.id,
+        name: c.name || c.cert_type || "Unnamed",
+        client: c.client,
+        region: c.region,
+        pm_id: c.pm_id,
+        handover_date: c.handover_date,
+        status: c.status,
+        site_id: c.site_id,
+        cert_type: c.cert_type,
+        cert_rating: c.cert_rating || c.level,
+        pm_display_name: c.pm_id ? profileMap.get(c.pm_id) || null : null,
       }));
     },
   });
 }
 
-// Derived computations (Nuova logica connessa agli status del PM)
+// Derived computations
 export function computeProjectStatus(projects: ProjectRow[], tasks: CertTaskRow[]) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
   const tasksByProject = new Map<string, CertTaskRow[]>();
   for (const t of tasks) {
-    if (!tasksByProject.has(t.project_id)) tasksByProject.set(t.project_id, []);
-    tasksByProject.get(t.project_id)!.push(t);
+    if (!tasksByProject.has(t.certification_id)) tasksByProject.set(t.certification_id, []);
+    tasksByProject.get(t.certification_id)!.push(t);
   }
 
   let inRitardo = 0;
@@ -132,23 +132,23 @@ export function computeProjectStatus(projects: ProjectRow[], tasks: CertTaskRow[
   const lateProjects: { name: string; daysLate: number }[] = [];
 
   for (const p of projects) {
-    // 1. Certificati (Stato definitivo chiuso dal PM)
-    if (p.status === "certificato" || p.status === "certified") {
+    if (p.status === "certificato" || p.status === "certified" || p.status === "active") {
       certificati++;
       continue;
     }
 
-    // 2. Da Configurare (Progetti nuovi appena assegnati o non inizializzati)
-    if (!p.status || p.status === "pending" || p.status === "da_configurare") {
-      daConfigurare++;
-      continue;
+    if (!p.status || p.status === "pending" || p.status === "da_configurare" || p.status === "in_progress") {
+      // Check if it's actually configured
+      const pTasks = tasksByProject.get(p.id) || [];
+      if (pTasks.length === 0 && (!p.status || p.status === "pending" || p.status === "da_configurare")) {
+        daConfigurare++;
+        continue;
+      }
     }
 
-    // 3. In Corso vs In Ritardo (Se non è certificato né da configurare, è attivo)
     let isLate = false;
     let maxDaysLate = 0;
 
-    // A. Controllo sul ritardo del progetto generale (Handover Date)
     if (p.handover_date) {
       const handover = new Date(p.handover_date);
       if (handover < today) {
@@ -157,7 +157,6 @@ export function computeProjectStatus(projects: ProjectRow[], tasks: CertTaskRow[
       }
     }
 
-    // B. Controllo sulle singole Task operative assegnate (Gantt)
     const pTasks = tasksByProject.get(p.id) || [];
     const incompleteTasks = pTasks.filter(t => t.status !== "Completed");
     for (const t of incompleteTasks) {
@@ -170,12 +169,11 @@ export function computeProjectStatus(projects: ProjectRow[], tasks: CertTaskRow[
       }
     }
 
-    // Smistamento finale
     if (isLate) {
       inRitardo++;
       lateProjects.push({ name: p.name, daysLate: maxDaysLate });
     } else {
-      inCorso++; // Il cantiere è attivo e le scadenze (task e handover) sono in regola
+      inCorso++;
     }
   }
 
@@ -189,11 +187,11 @@ export function computeOverduePayments(payments: CertPaymentRow[]) {
   const byProject = new Map<string, { name: string; daysOverdue: number; amount: number }>();
   for (const p of overdue) {
     const days = differenceInDays(today, new Date(p.due_date!));
-    const key = p.project_id;
+    const key = p.certification_id;
     const existing = byProject.get(key);
     if (!existing || days > existing.daysOverdue) {
       byProject.set(key, {
-        name: p.projects?.name || key,
+        name: p.certifications?.name || key,
         daysOverdue: days,
         amount: (existing?.amount || 0) + Number(p.amount),
       });

@@ -27,18 +27,18 @@ export interface AdminPlannerProject {
 
 export function useAdminPlannerData() {
   return useQuery({
-    queryKey: ["admin-planner-all-projects"],
+    queryKey: ["admin-planner-all-certifications"],
     queryFn: async () => {
-      // 1. Fetch ALL projects
-      const { data: projects, error } = await (supabase as any)
-        .from("projects")
-        .select("*, sites!projects_site_id_fkey(name, city, country, brand_id), project_allocations(*)")
+      // 1. Fetch ALL certifications (root entity) with site + allocations
+      const { data: certs, error } = await (supabase as any)
+        .from("certifications")
+        .select("*, sites!certifications_site_id_fkey(name, city, country, brand_id), project_allocations!project_allocations_certification_id_fkey(*)")
         .order("handover_date", { ascending: true });
       if (error) throw error;
-      if (!projects || projects.length === 0) return [] as AdminPlannerProject[];
+      if (!certs || certs.length === 0) return [] as AdminPlannerProject[];
 
       // 2. PM profiles
-      const pmIds = [...new Set((projects as any[]).map((p) => p.pm_id).filter(Boolean))] as string[];
+      const pmIds = [...new Set((certs as any[]).map((c) => c.pm_id).filter(Boolean))] as string[];
       const profilesMap = new Map<string, string>();
       if (pmIds.length > 0) {
         const { data: profiles } = await supabase
@@ -53,7 +53,7 @@ export function useAdminPlannerData() {
       }
 
       // 3. Brand names
-      const brandIds = [...new Set((projects as any[]).map((p) => p.sites?.brand_id).filter(Boolean))] as string[];
+      const brandIds = [...new Set((certs as any[]).map((c) => c.sites?.brand_id).filter(Boolean))] as string[];
       const brandsMap = new Map<string, string>();
       if (brandIds.length > 0) {
         const { data: brands } = await supabase
@@ -65,17 +65,8 @@ export function useAdminPlannerData() {
         }
       }
 
-      // 4. Certifications
-      const siteIds = [...new Set((projects as any[]).map((p) => p.site_id).filter(Boolean))] as string[];
-      let certifications: any[] = [];
-      if (siteIds.length > 0) {
-        const { data, error: certErr } = await supabase.from("certifications").select("*").in("site_id", siteIds);
-        if (certErr) throw certErr;
-        certifications = data || [];
-      }
-
-      // 5. Milestones
-      const certIds = certifications.map((c) => c.id);
+      // 4. Milestones for all certifications
+      const certIds = (certs as any[]).map((c) => c.id);
       let milestones: any[] = [];
       if (certIds.length > 0) {
         const { data, error: mErr } = await supabase.from("certification_milestones").select("*").in("certification_id", certIds);
@@ -83,28 +74,19 @@ export function useAdminPlannerData() {
         milestones = data || [];
       }
 
-      // 6. Merge (same logic as usePMDashboard)
+      // 5. Build result
       const today = new Date().toISOString().slice(0, 10);
 
-      return (projects as any[]).map((p): AdminPlannerProject => {
-        const projectCerts = certifications.filter((c) =>
-          c.site_id === p.site_id && c.cert_type === p.cert_type &&
-          (c.level === p.cert_rating || (!c.level && !p.cert_rating))
-        );
-        const fallbackCerts = projectCerts.length > 0
-          ? projectCerts
-          : certifications.filter((c) => c.site_id === p.site_id && c.cert_type === p.cert_type);
-        const projectMilestones = milestones.filter((m) =>
-          fallbackCerts.some((c: any) => c.id === m.certification_id)
-        );
-        const allocations = p.project_allocations || [];
+      return (certs as any[]).map((c): AdminPlannerProject => {
+        const certMilestones = milestones.filter((m) => m.certification_id === c.id);
+        const allocations = c.project_allocations || [];
 
-        const isCertified = p.status === "certificato" ||
-          projectCerts.some((c: any) => c.status === "active" && c.issued_date && c.issued_date.slice(0, 10) <= today);
+        const isCertified = c.status === "certificato" ||
+          (c.status === "active" && c.issued_date && c.issued_date.slice(0, 10) <= today);
 
-        const timelineMilestones = projectMilestones.filter((m: any) => m.milestone_type === "timeline");
+        const timelineMilestones = certMilestones.filter((m: any) => m.milestone_type === "timeline");
         const hasTimeline = timelineMilestones.length > 0;
-        const hasScorecard = projectMilestones.some((m: any) => m.milestone_type === "scorecard");
+        const hasScorecard = certMilestones.some((m: any) => m.milestone_type === "scorecard");
 
         const missing: string[] = [];
         if (!isCertified) {
@@ -118,9 +100,9 @@ export function useAdminPlannerData() {
         else if (hasTimeline && hasScorecard) setup_status = "in_corso";
         else setup_status = "da_configurare";
 
-        // Planner data computation
-        const projectLaunchDate = p.created_at.slice(0, 10);
-        let planStart = projectLaunchDate;
+        // Planner data
+        const launchDate = c.created_at.slice(0, 10);
+        let planStart = launchDate;
         let achievedCount = 0;
         const segments: any[] = [];
 
@@ -134,9 +116,7 @@ export function useAdminPlannerData() {
               let displayStatus = m.status;
               if (m.status !== "achieved" && m.due_date < today) displayStatus = "late";
               segments.push({
-                start: m.start_date,
-                end: m.due_date,
-                status: displayStatus,
+                start: m.start_date, end: m.due_date, status: displayStatus,
                 progress: m.status === "achieved" ? 100 : m.status === "in_progress" ? 50 : 0,
               });
             }
@@ -153,46 +133,46 @@ export function useAdminPlannerData() {
         if (setup_status === "certificato") plannerStatus = "achieved";
         else if (hasTimeline) {
           const hasActive = timelineMilestones.some((m: any) => m.status === "in_progress" || m.status === "achieved");
-          if (hasActive) plannerStatus = p.handover_date < today ? "late" : "in_progress";
+          if (hasActive) plannerStatus = c.handover_date < today ? "late" : "in_progress";
         }
 
-        const pmName = p.pm_id ? profilesMap.get(p.pm_id) || null : null;
+        const pmName = c.pm_id ? profilesMap.get(c.pm_id) || null : null;
 
         const plannerData: GanttRowData = {
-          id: p.id,
-          label: p.name,
-          subLabel: pmName ? `${p.client} · PM: ${pmName}` : p.client,
-          launchDate: projectLaunchDate,
+          id: c.id,
+          label: c.name || c.cert_type || "Unnamed",
+          subLabel: pmName ? `${c.client} · PM: ${pmName}` : c.client,
+          launchDate,
           currentActivity,
           planStart,
-          planEnd: p.handover_date,
+          planEnd: c.handover_date,
           actualStart: plannerStatus !== "pending" ? planStart : null,
           actualEnd: setup_status === "certificato" ? today : null,
           progress,
           status: plannerStatus,
           segments,
-          onClickUrl: `/projects/${p.id}`,
+          onClickUrl: `/projects/${c.id}`,
         };
 
         return {
-          id: p.id,
-          name: p.name,
-          client: p.client,
-          region: p.region,
-          status: p.status,
-          handover_date: p.handover_date,
-          site_id: p.site_id,
-          cert_type: p.cert_type,
-          cert_rating: p.cert_rating,
-          pm_id: p.pm_id,
-          created_at: p.created_at,
-          project_subtype: p.project_subtype,
+          id: c.id,
+          name: c.name || c.cert_type || "Unnamed",
+          client: c.client,
+          region: c.region,
+          status: c.status,
+          handover_date: c.handover_date,
+          site_id: c.site_id,
+          cert_type: c.cert_type,
+          cert_rating: c.cert_rating || c.level,
+          pm_id: c.pm_id,
+          created_at: c.created_at,
+          project_subtype: c.project_subtype,
           setup_status,
           missing,
           pm_name: pmName,
-          brand_name: p.sites?.brand_id ? brandsMap.get(p.sites.brand_id) || null : null,
+          brand_name: c.sites?.brand_id ? brandsMap.get(c.sites.brand_id) || null : null,
           project_allocations: allocations,
-          certification_milestones: projectMilestones,
+          certification_milestones: certMilestones,
           plannerData,
         };
       });

@@ -1,93 +1,61 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
-export function useProjectDetails(projectId: string | undefined) {
+/**
+ * Fetches a single certification (the root entity) by ID.
+ * Includes site info and PM profile.
+ */
+export function useProjectDetails(certificationId: string | undefined) {
   return useQuery({
-    queryKey: ["project", projectId],
+    queryKey: ["certification", certificationId],
     queryFn: async () => {
-      if (!projectId) throw new Error("No project ID");
-      
-      // Fetch project without profiles join (FK points to auth.users, not profiles)
-      const { data: project, error } = await (supabase as any)
-        .from("projects")
-        .select("*, sites!projects_site_id_fkey(name, city, country)")
-        .eq("id", projectId)
+      if (!certificationId) throw new Error("No certification ID");
+
+      const { data: cert, error } = await (supabase as any)
+        .from("certifications")
+        .select("*, sites!certifications_site_id_fkey(name, city, country)")
+        .eq("id", certificationId)
         .single();
-        
+
       if (error) {
-        console.error("ERRORE Query Dettaglio Progetto:", error);
+        console.error("ERRORE Query Dettaglio Certificazione:", error);
         throw error;
       }
 
       // Fetch PM profile separately
-      if (project.pm_id) {
+      if (cert.pm_id) {
         const { data: profile } = await supabase
           .from("profiles")
           .select("id, full_name, display_name, email")
-          .eq("id", project.pm_id)
+          .eq("id", cert.pm_id)
           .maybeSingle();
-        project.profiles = profile;
+        cert.profiles = profile;
       }
 
-      return project;
+      return cert;
     },
-    enabled: !!projectId,
+    enabled: !!certificationId,
   });
 }
 
-// FIX: Aggiunta logica avanzata di match (Project_ID -> Fallback Storico)
-export function useCertification(projectId: string | undefined, siteId?: string | null) {
+/**
+ * @deprecated Certification IS now the root entity. Use useProjectDetails directly.
+ * Kept for backward compatibility during transition.
+ */
+export function useCertification(certificationId: string | undefined, _siteId?: string | null) {
   return useQuery({
-    queryKey: ["certification", projectId, siteId],
+    queryKey: ["certification-detail", certificationId],
     queryFn: async () => {
-      if (!projectId) return null; // Abortiamo se non c'è progetto
-      
-      // 1. Cerca usando il nuovo e infallibile project_id
-      let { data, error } = await (supabase as any)
+      if (!certificationId) return null;
+      const { data, error } = await (supabase as any)
         .from("certifications")
         .select("*")
-        .eq("project_id", projectId)
-        .maybeSingle(); 
-        
-      // 2. Fallback per i progetti storici: usa le info del progetto per trovarla
-      if (!data) {
-         // Recupera le informazioni necessarie dal progetto
-         const { data: proj } = await (supabase as any)
-            .from("projects")
-            .select("site_id, cert_type, cert_rating")
-            .eq("id", projectId)
-            .single();
-            
-         // Se ha le info, cerca il match esatto (oppure se è stato passato il siteId come parametro)
-         const targetSiteId = proj?.site_id || siteId;
-         
-         if (targetSiteId) {
-            let fallbackQuery = (supabase as any)
-              .from("certifications")
-              .select("*")
-              .eq("site_id", targetSiteId);
-              
-            if (proj?.cert_type) {
-                fallbackQuery = fallbackQuery.eq("cert_type", proj.cert_type);
-            }
-            if (proj?.cert_rating) {
-                fallbackQuery = fallbackQuery.eq("level", proj.cert_rating);
-            }
-            
-            const { data: fallbackData } = await fallbackQuery.maybeSingle();
-            data = fallbackData;
-         }
-      }
-      
-      if (error) {
-        console.error("ERRORE Query Certificazione:", error);
-        // Non blocchiamo se è solo un "non trovato", ma lanciamo l'errore se è di rete o permessi
-        if (error.code !== "PGRST116") throw error; 
-      }
-      
+        .eq("id", certificationId)
+        .maybeSingle();
+      if (error && error.code !== "PGRST116") throw error;
       return data;
     },
-    enabled: !!projectId, // Attiviamo la query se esiste il projectId
+    enabled: !!certificationId,
   });
 }
 
@@ -109,19 +77,19 @@ export function useMilestones(certificationId: string | undefined) {
   });
 }
 
-export function useProjectAllocations(projectId: string | undefined) {
+export function useProjectAllocations(certificationId: string | undefined) {
   return useQuery({
-    queryKey: ["project-allocations", projectId],
+    queryKey: ["certification-allocations", certificationId],
     queryFn: async () => {
-      if (!projectId) throw new Error("No project ID");
+      if (!certificationId) throw new Error("No certification ID");
       const { data, error } = await (supabase as any)
         .from("project_allocations")
         .select("*, products(name, sku, certification)")
-        .eq("project_id", projectId);
+        .eq("certification_id", certificationId);
       if (error) throw error;
       return data || [];
     },
-    enabled: !!projectId,
+    enabled: !!certificationId,
   });
 }
 
