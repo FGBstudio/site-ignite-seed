@@ -1,6 +1,18 @@
 import { useState } from "react";
-import { useProjectTasks, useCreateTask, useUpdateTask, useDeleteTask, ProjectTask } from "@/hooks/useProjectTasks";
-import { usePaymentMilestones, PaymentMilestone } from "@/hooks/usePaymentMilestones";
+export interface ProjectTask {
+  id: string;
+  certification_id: string;
+  task_name: string;
+  assigned_to: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  status: "todo" | "in_progress" | "review" | "done";
+  dependency_id: string | null;
+  blocking_payment_id: string | null;
+  allocation_id?: string | null;
+  created_at: string;
+}
+
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
