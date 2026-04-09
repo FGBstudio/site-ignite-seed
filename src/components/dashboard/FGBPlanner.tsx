@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef } from "react";
 import { format, differenceInDays, addDays, startOfWeek, endOfWeek } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -17,20 +17,14 @@ export interface GanttRowData {
   label: string;
   subLabel?: string;
   currentActivity?: string;
-  
   launchDate?: string | null;
-  
   planStart: string | null;
   planEnd: string | null;
-  
   actualStart: string | null;
   actualEnd: string | null;
-  
   progress: number;
   status: "pending" | "in_progress" | "achieved" | "late" | string;
-  
   segments?: GanttSegment[];
-  
   onClickUrl?: string;
   onClick?: () => void;
 }
@@ -43,6 +37,26 @@ interface FGBPlannerProps {
 export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
   const navigate = useNavigate();
   const [highlightOffset, setHighlightOffset] = useState<number | null>(null);
+
+  // Scroll Synchronization Refs
+  const leftScrollRef = useRef<HTMLDivElement>(null);
+  const rightScrollRef = useRef<HTMLDivElement>(null);
+
+  const handleLeftScroll = () => {
+    if (leftScrollRef.current && rightScrollRef.current) {
+      if (rightScrollRef.current.scrollTop !== leftScrollRef.current.scrollTop) {
+        rightScrollRef.current.scrollTop = leftScrollRef.current.scrollTop;
+      }
+    }
+  };
+
+  const handleRightScroll = () => {
+    if (leftScrollRef.current && rightScrollRef.current) {
+      if (leftScrollRef.current.scrollTop !== rightScrollRef.current.scrollTop) {
+        leftScrollRef.current.scrollTop = rightScrollRef.current.scrollTop;
+      }
+    }
+  };
 
   const { minDate, maxDate, totalDays } = useMemo(() => {
     let min = new Date("2099-01-01");
@@ -124,26 +138,30 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
       </div>
 
       <div className="flex flex-1 overflow-hidden">
+        
         {/* LEFT PANEL (Data Grid) */}
-        <div className="flex-shrink-0 border-r bg-muted/10 flex flex-col z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] overflow-x-auto custom-scrollbar max-w-[65%]">
-          
-          {/* Header */}
-          <div className="h-12 border-b flex items-center px-3 font-semibold text-[10px] text-muted-foreground uppercase tracking-wide bg-muted/30 w-max">
+        <div 
+          ref={leftScrollRef}
+          onScroll={handleLeftScroll}
+          className="flex-shrink-0 border-r bg-muted/10 relative z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] overflow-auto custom-scrollbar max-w-[65%]"
+        >
+          {/* Header - Reso Sticky per non scomparire scorrendo */}
+          <div className="sticky top-0 z-30 h-12 border-b flex items-center px-3 font-semibold text-[10px] text-muted-foreground uppercase tracking-wide bg-background w-max shadow-sm">
             <div className="w-[160px] shrink-0">Progetto / Fase</div>
-            <div className="w-[120px] shrink-0 border-l border-muted-foreground/20 pl-2">Activity</div>
-            <div className="w-[70px] shrink-0 border-l border-muted-foreground/20 pl-2">Launch</div>
-            <div className="w-[70px] shrink-0 border-l border-muted-foreground/20 pl-2">Start Plan</div>
-            <div className="w-[70px] shrink-0 border-l border-muted-foreground/20 pl-2">End Fcst</div>
-            <div className="w-[70px] shrink-0 border-l border-muted-foreground/20 pl-2">End Act</div>
-            <div className="w-[50px] shrink-0 border-l border-muted-foreground/20 pl-1 text-right pr-1">Plan St</div>
-            <div className="w-[50px] shrink-0 border-l border-muted-foreground/20 pl-1 text-right pr-1">Plan Dur</div>
-            <div className="w-[50px] shrink-0 border-l border-muted-foreground/20 pl-1 text-right pr-1">Act St</div>
-            <div className="w-[50px] shrink-0 border-l border-muted-foreground/20 pl-1 text-right pr-1">Act Dur</div>
-            <div className="w-[50px] shrink-0 border-l border-muted-foreground/20 pl-1 text-right pr-1">% Comp</div>
+            <div className="w-[120px] shrink-0 border-l border-border/50 pl-2">Activity</div>
+            <div className="w-[70px] shrink-0 border-l border-border/50 pl-2">Launch</div>
+            <div className="w-[70px] shrink-0 border-l border-border/50 pl-2">Start Plan</div>
+            <div className="w-[70px] shrink-0 border-l border-border/50 pl-2">End Fcst</div>
+            <div className="w-[70px] shrink-0 border-l border-border/50 pl-2">End Act</div>
+            <div className="w-[50px] shrink-0 border-l border-border/50 pl-1 text-right pr-1">Plan St</div>
+            <div className="w-[50px] shrink-0 border-l border-border/50 pl-1 text-right pr-1">Plan Dur</div>
+            <div className="w-[50px] shrink-0 border-l border-border/50 pl-1 text-right pr-1">Act St</div>
+            <div className="w-[50px] shrink-0 border-l border-border/50 pl-1 text-right pr-1">Act Dur</div>
+            <div className="w-[50px] shrink-0 border-l border-border/50 pl-1 text-right pr-1">% Comp</div>
           </div>
           
-          {/* Rows */}
-          <div className="flex-1 overflow-y-auto w-max custom-scrollbar">
+          {/* Rows - Rimosso il wrapping inutile e il flex-1 per rispettare l'auto scroll del parent */}
+          <div className="w-max">
             {data.map((row) => {
               const pStart = row.planStart ? new Date(row.planStart) : null;
               const pEnd = row.planEnd ? new Date(row.planEnd) : null;
@@ -155,12 +173,10 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
               const planDuration = pStart && pEnd ? Math.max(differenceInDays(pEnd, pStart), 1) : "—";
               const actStartOffset = aStart ? differenceInDays(aStart, minDate) : "—";
               
-              // Act Dur: if completed use actual dates, otherwise compute relative to highlight date
               let actDuration: number | string = "—";
               if (aStart && aEnd) {
                 actDuration = Math.max(differenceInDays(aEnd, aStart), 1);
               } else if (aStart && row.status !== "pending") {
-                // Dynamic: from actual start to the highlight date
                 actDuration = Math.max(differenceInDays(highlightDate, aStart), 0);
               }
 
@@ -208,10 +224,13 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
         </div>
 
         {/* RIGHT PANEL (Timeline) */}
-        <div className="flex-1 overflow-x-auto overflow-y-auto relative custom-scrollbar bg-card">
-          
-          {/* Timeline Header */}
-          <div className="h-12 border-b bg-muted/30 relative" style={{ width: totalDays * dayWidth }}>
+        <div 
+          ref={rightScrollRef}
+          onScroll={handleRightScroll}
+          className="flex-1 overflow-auto relative custom-scrollbar bg-card"
+        >
+          {/* Timeline Header - Spostato allo stesso livello delle righe e reso Sticky */}
+          <div className="sticky top-0 z-30 h-12 border-b bg-background" style={{ width: totalDays * dayWidth }}>
             <div className="absolute top-0 left-0 h-6 flex items-center text-[10px] font-bold text-muted-foreground uppercase px-2">Timeline</div>
             <div className="absolute bottom-0 left-0 h-6 flex">
               {days.map((d, i) => {
@@ -227,12 +246,10 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
 
           {/* Timeline Grid */}
           <div className="relative" style={{ width: totalDays * dayWidth }}>
-            {/* Grid lines */}
             <div className="absolute inset-0 flex pointer-events-none opacity-20">
               {days.map((_, i) => <div key={i} className="h-full border-l flex-shrink-0" style={{ width: dayWidth }} />)}
             </div>
 
-            {/* Highlight Line (Red) */}
             {activeOffset >= 0 && activeOffset <= totalDays && (
               <div 
                 className="absolute top-0 bottom-0 border-l-2 border-red-500/80 z-30 pointer-events-none shadow-[0_0_8px_rgba(239,68,68,0.5)] transition-all duration-75" 
@@ -240,15 +257,11 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
               />
             )}
 
-            {/* Rows Rendering */}
             {data.map((row) => (
               <div key={row.id} className={cn("h-14 border-b relative group hover:bg-muted/10 transition-colors", row.id === "summary" && "bg-primary/5")}>
-                
-                {/* SEGMENTS VIEW (Macro or summary row) */}
                 {row.segments && row.segments.length > 0 ? (
                   row.segments.map((seg, idx) => {
                     if (!seg.start || !seg.end) return null;
-                    
                     const segStartDay = differenceInDays(new Date(seg.start), minDate);
                     const segDurationDays = Math.max(differenceInDays(new Date(seg.end), new Date(seg.start)), 1);
 
@@ -256,9 +269,7 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
                     let fillClass = "bg-[#009293]";
                     let fillPercent = 0;
 
-                    if (seg.status === "pending") {
-                      // Gray dashed, no fill
-                    } else if (seg.status === "in_progress") {
+                    if (seg.status === "in_progress") {
                       baseClass = "border-2 border-dashed border-[#009293]/60 bg-[#009293]/10";
                       fillPercent = seg.progress ?? 50;
                     } else if (seg.status === "achieved") {
@@ -282,7 +293,6 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
                     );
                   })
                 ) : (
-                  /* SINGLE BAR VIEW (Micro phases) */
                   (() => {
                     const pStartDay = row.planStart ? differenceInDays(new Date(row.planStart), minDate) : null;
                     const pEndDay = row.planEnd ? differenceInDays(new Date(row.planEnd), minDate) : null;
@@ -292,9 +302,7 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
                     let fillClass = "bg-[#009293]";
                     let fillPercent = 0;
 
-                    if (row.status === "pending") {
-                      // Gray dashed only
-                    } else if (row.status === "in_progress") {
+                    if (row.status === "in_progress") {
                       baseClass = "border-2 border-dashed border-[#009293]/60 bg-[#009293]/10";
                       fillPercent = row.progress;
                     } else if (row.status === "achieved") {
