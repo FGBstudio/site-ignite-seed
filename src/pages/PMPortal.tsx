@@ -5,14 +5,10 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { format, differenceInDays } from "date-fns";
+import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { 
-  AlertTriangle, ArrowRight, Building2, CalendarIcon, CheckCircle2, 
-  Clock3, FolderKanban, FileWarning, CircleDollarSign, Activity 
-} from "lucide-react";
+import { AlertTriangle, ArrowRight, Building2, CalendarIcon, CheckCircle2, Clock3, FolderKanban } from "lucide-react";
 import { PMCalendar } from "@/components/dashboard/PMCalendar";
-import { ScrollArea } from "@/components/ui/scroll-area";
 
 type PMProjectView = PMProject & { project_subtype?: string | null };
 
@@ -41,7 +37,6 @@ export default function PMPortal() {
   const daConfigurare = projects.filter((p) => p.setup_status === "da_configurare");
   const inCorso = projects.filter((p) => p.setup_status === "in_corso");
   const certificati = projects.filter((p) => p.setup_status === "certificato");
-  
   const recentProjects = useMemo(
     () =>
       [...projects]
@@ -49,72 +44,6 @@ export default function PMPortal() {
         .slice(0, 5) as PMProjectView[],
     [projects],
   );
-
-  // --- CALCOLO ALLARMI E RITARDI (Sincronizzato con logiche CEO) ---
-  const alerts = useMemo(() => {
-    const late: { project: PMProjectView; days: number }[] = [];
-    const statusList: { project: PMProjectView; currentPhase: string }[] = [];
-    const financial: { project: PMProjectView; issue: string }[] = [];
-
-    const today = new Date();
-
-    projects.forEach((p) => {
-      // Analizziamo solo i progetti non ancora chiusi/certificati
-      if (p.setup_status !== "certificato") {
-        
-        // 1. LATE PROJECTS (Days)
-        // Calcolato dalla data di Handover fino alla Sottomissione
-        const handoverMilestone = p.certification_milestones?.find(m => 
-          m.requirement?.toLowerCase().includes("handover") || 
-          m.category?.toLowerCase().includes("handover")
-        );
-        // Usa la data della milestone se esiste, altrimenti la data handover generale del progetto
-        const baseDateStr = handoverMilestone?.due_date || p.handover_date;
-
-        // Controlla se la submission è già avvenuta (ferma il "ritardo")
-        const submissionMilestone = p.certification_milestones?.find(m => 
-          m.requirement?.toLowerCase().includes("submission") || 
-          m.category?.toLowerCase().includes("submission")
-        );
-        const isSubmitted = submissionMilestone?.status === "achieved";
-
-        if (!isSubmitted && baseDateStr) {
-          const hDate = new Date(baseDateStr);
-          const delay = differenceInDays(today, hDate);
-          
-          // Se i giorni di differenza sono positivi, siamo in ritardo rispetto all'handover
-          if (delay > 0) {
-            late.push({ project: p as PMProjectView, days: delay });
-          }
-        }
-
-        // 2. PROJECT STATUS
-        // Fissiamo l'attività corrente o indichiamo se è da configurare
-        let phase = p.plannerData?.currentActivity || "In attesa di avvio";
-        if (p.setup_status === "da_configurare") phase = "Timeline da Configurare";
-        
-        statusList.push({
-          project: p as PMProjectView,
-          currentPhase: phase,
-        });
-
-        // 3. FINANCIAL ISSUES
-        // Attualmente flaggato tramite la mancanza di hardware o possibili ritardi di pagamento futuri
-        if (p.missing?.includes("Hardware")) {
-          financial.push({ 
-            project: p as PMProjectView, 
-            issue: "Hardware Missing (Impatto Fatturazione)" 
-          });
-        }
-      }
-    });
-
-    return {
-      late: late.sort((a, b) => b.days - a.days), // Ordina per i più in ritardo
-      status: statusList,
-      financial: financial,
-    };
-  }, [projects]);
 
   return (
     <MainLayout title="PM Dashboard" subtitle="Operational overview of assigned projects">
@@ -134,8 +63,6 @@ export default function PMPortal() {
         </Card>
       ) : (
         <div className="space-y-6">
-          
-          {/* 1. KPI PRINCIPALI */}
           <div className="grid gap-4 md:grid-cols-3">
             <Card className="border-warning/30 bg-card">
               <CardContent className="flex items-center gap-3 p-4">
@@ -172,104 +99,8 @@ export default function PMPortal() {
             </Card>
           </div>
 
-          {/* 2. DASHBOARD ALERTS: STATUS, LATE, FINANCIAL */}
-          <div className="grid gap-4 md:grid-cols-3">
-            
-            {/* PROJECT STATUS */}
-            <Card className="border-border/50 shadow-sm bg-card">
-              <CardHeader className="bg-muted/30 py-3 border-b border-border/50">
-                <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                  <Activity className="w-4 h-4 text-primary" /> Project Status
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <ScrollArea className="h-[180px] p-4">
-                  {alerts.status.length === 0 ? (
-                    <p className="text-xs text-muted-foreground text-center mt-12">Nessun progetto in corso.</p>
-                  ) : (
-                    <div className="space-y-4">
-                      {alerts.status.map((item, i) => (
-                        <div key={i} className="flex flex-col gap-1 border-b border-border/50 pb-2 last:border-0 last:pb-0">
-                          <div className="flex justify-between items-start">
-                            <span className="text-sm font-medium leading-tight truncate pr-2" title={item.project.name}>
-                              {item.project.name}
-                            </span>
-                          </div>
-                          <span className="text-xs text-muted-foreground truncate">{item.currentPhase}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </ScrollArea>
-              </CardContent>
-            </Card>
-
-            {/* LATE PROJECTS (DAYS) */}
-            <Card className="border-destructive/30 shadow-sm bg-card">
-              <CardHeader className="bg-destructive/5 py-3 border-b border-destructive/10">
-                <CardTitle className="text-sm font-semibold flex items-center gap-2 text-destructive">
-                  <FileWarning className="w-4 h-4" /> Late Projects (days)
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <ScrollArea className="h-[180px] p-4">
-                  {alerts.late.length === 0 ? (
-                    <p className="text-xs text-muted-foreground text-center mt-12">Nessun ritardo sulla Submission.</p>
-                  ) : (
-                    <div className="space-y-4">
-                      {alerts.late.map((alert, i) => (
-                        <div key={i} className="flex flex-col gap-1 border-b border-border/50 pb-2 last:border-0 last:pb-0">
-                          <div className="flex justify-between items-start">
-                            <span className="text-sm font-medium leading-tight truncate pr-2" title={alert.project.name}>
-                              {alert.project.name}
-                            </span>
-                            <Badge variant="destructive" className="text-[10px] whitespace-nowrap">
-                              {alert.days} days
-                            </Badge>
-                          </div>
-                          <span className="text-xs text-muted-foreground truncate">{alert.project.client}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </ScrollArea>
-              </CardContent>
-            </Card>
-
-            {/* FINANCIAL ISSUES */}
-            <Card className="border-amber-500/30 shadow-sm bg-card">
-              <CardHeader className="bg-amber-500/5 py-3 border-b border-amber-500/10">
-                <CardTitle className="text-sm font-semibold flex items-center gap-2 text-amber-600">
-                  <CircleDollarSign className="w-4 h-4" /> Financial Issues
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <ScrollArea className="h-[180px] p-4">
-                  {alerts.financial.length === 0 ? (
-                    <p className="text-xs text-muted-foreground text-center mt-12">Nessuna criticità rilevata.</p>
-                  ) : (
-                    <div className="space-y-4">
-                      {alerts.financial.map((fin, i) => (
-                        <div key={i} className="flex flex-col gap-1 border-b border-border/50 pb-2 last:border-0 last:pb-0">
-                          <div className="flex justify-between items-start">
-                            <span className="text-sm font-medium leading-tight truncate pr-2" title={fin.project.name}>
-                              {fin.project.name}
-                            </span>
-                          </div>
-                          <span className="text-xs text-destructive/80 font-medium truncate">{fin.issue}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </ScrollArea>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* 3. CALENDARIO PM */}
           <PMCalendar projects={projects} />
 
-          {/* 4. LISTA PROGETTI RECENTI */}
           <Card>
             <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
