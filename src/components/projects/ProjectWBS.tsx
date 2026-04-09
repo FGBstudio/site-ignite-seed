@@ -1,4 +1,7 @@
 import { useState } from "react";
+import { useProjectTasks, useCreateTask, useUpdateTask, useDeleteTask } from "@/hooks/useProjectTasks";
+import { usePaymentMilestones, PaymentMilestone } from "@/hooks/usePaymentMilestones";
+
 export interface ProjectTask {
   id: string;
   certification_id: string;
