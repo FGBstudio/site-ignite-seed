@@ -142,28 +142,17 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
           .from("certifications")
           .select("*")
           .eq("site_id", project.site_id);
-          
-        // Recupera TUTTI i progetti associati a questo sito per matchare i PM e i Subtype
-        const { data: siteProjects, error: projErr } = await supabase
-          .from("projects")
-          .select("id, cert_type, pm_id, project_subtype")
-          .eq("site_id", project.site_id);
 
         if (certErr) console.error("Error loading certifications:", certErr);
-        if (projErr) console.error("Error loading site projects:", projErr);
 
-        // Mappa i dati incrociando certifications e projects
-        const mappedCerts = (existingCerts || []).map((c: any) => {
-          const matchedProj = (siteProjects || []).find((p: any) => p.cert_type === c.cert_type);
-          return {
-            id: c.id, 
-            project_id: matchedProj?.id, // Associa l'ID del record in tabella `projects`
-            cert_type: c.cert_type, 
-            cert_rating: c.level,
-            pm_id: matchedProj?.pm_id || "", // Recupera il PM assegnato a questa cert
-            project_subtype: matchedProj?.project_subtype || "",
-          };
-        });
+        // Map certifications directly — no need to cross-reference projects
+        const mappedCerts = (existingCerts || []).map((c: any) => ({
+          id: c.id,
+          cert_type: c.cert_type,
+          cert_rating: c.level || c.cert_rating,
+          pm_id: c.pm_id || "",
+          project_subtype: c.project_subtype || "",
+        }));
 
         // Pulisce il nome togliendo la sigla della cert in caso di edit
         const baseName = project.name.includes(" - ") ? project.name.split(" - ")[0] : project.name;
