@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { computeMacroPhase, type MacroPhase } from "@/data/certificationTemplates";
 
 export type SetupStatus = "da_configurare" | "in_corso" | "certificato";
 
@@ -28,6 +29,7 @@ export interface PMProject {
   missing: string[];
   certification_milestones: any[];
   plannerData?: any;
+  macro_phase: MacroPhase;
 }
 
 export function usePMDashboard() {
@@ -177,6 +179,7 @@ export function usePMDashboard() {
           missing,
           certification_milestones: certMilestones,
           plannerData,
+          macro_phase: computeMacroPhase(c.status, certMilestones),
         } as PMProject;
       });
     },
