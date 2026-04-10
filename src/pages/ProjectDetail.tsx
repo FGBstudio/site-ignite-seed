@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScorecardEditor } from "@/components/projects/ScorecardEditor";
 import { ProjectWBS } from "@/components/projects/ProjectWBS";
+import { ProjectAlerts } from "@/components/projects/ProjectAlerts";
+import { ProjectOverview } from "@/components/projects/ProjectOverview";
 import { ProjectPayments } from "@/components/projects/ProjectPayments";
 import { ArrowLeft, MapPin, Calendar, User, Cpu } from "lucide-react";
 import { format } from "date-fns";
