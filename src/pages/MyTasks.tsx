@@ -455,6 +455,58 @@ export default function MyTasks() {
           )}
         </SheetContent>
       </Sheet>
+
+      {/* Create Alert Dialog */}
+      <Dialog open={showCreateAlert} onOpenChange={setShowCreateAlert}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create Alert</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Project</Label>
+              <Select value={newAlertCertId} onValueChange={setNewAlertCertId}>
+                <SelectTrigger><SelectValue placeholder="Select project" /></SelectTrigger>
+                <SelectContent>
+                  {pmProjects.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Type</Label>
+              <Select value={newAlertType} onValueChange={(v) => setNewAlertType(v as TaskAlertType)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pm_operational">PM Operational (private)</SelectItem>
+                  <SelectItem value="timeline_to_configure">Timeline to Configure</SelectItem>
+                  <SelectItem value="milestone_deadline">Milestone Deadline</SelectItem>
+                  <SelectItem value="project_on_hold">Project On Hold</SelectItem>
+                  <SelectItem value="other_critical">Other Critical</SelectItem>
+                </SelectContent>
+              </Select>
+              {newAlertType !== "pm_operational" && (
+                <p className="text-xs text-muted-foreground">⚠️ This will be visible to Admin</p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label>Title</Label>
+              <Input value={newAlertTitle} onChange={(e) => setNewAlertTitle(e.target.value)} placeholder="Brief description" />
+            </div>
+            <div className="space-y-2">
+              <Label>Details (optional)</Label>
+              <Textarea value={newAlertDesc} onChange={(e) => setNewAlertDesc(e.target.value)} placeholder="Additional context..." rows={3} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreateAlert(false)}>Cancel</Button>
+            <Button onClick={handleCreateAlert} disabled={!newAlertCertId || !newAlertTitle.trim() || createAlert.isPending}>
+              Create
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }
