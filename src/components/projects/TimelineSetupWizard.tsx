@@ -67,6 +67,7 @@ export function TimelineSetupWizard({
   onSwitchToGrid,
 }: TimelineSetupWizardProps) {
   const { toast } = useToast();
+  const { role } = useAuth();
   const qc = useQueryClient();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -79,6 +80,17 @@ export function TimelineSetupWizard({
   const currentStep = !isComplete ? templateSteps[currentIndex] : null;
   const nextMilestone = currentIndex + 1 < total ? milestones[currentIndex + 1] : null;
   const nextStep = currentIndex + 1 < total ? templateSteps[currentIndex + 1] : null;
+
+  const milestoneName = currentMilestone?.requirement || "";
+  const isSingleDate = SINGLE_DATE_MILESTONES.includes(milestoneName);
+  const isPmLockedAllDates = PM_LOCKED_MILESTONES_ALL_DATES.includes(milestoneName);
+  const isPmLockedEndOnly = PM_LOCKED_END_DATE_ONLY.includes(milestoneName);
+  const isPM = role !== "ADMIN";
+
+  // For PM-locked milestones that already have dates, PM can only flag "Completed"
+  const hasExistingDates = !!(currentMilestone?.start_date || currentMilestone?.due_date);
+  const isDateEditDisabled = isPM && isPmLockedAllDates && hasExistingDates && currentMilestone?.edit_locked_for_pm;
+  const isEndDateDisabledForPM = isPM && isPmLockedEndOnly && hasExistingDates && currentMilestone?.edit_locked_for_pm;
 
   const getStepMeta = (m: any) => {
     try { return JSON.parse(m.notes || "{}"); } catch { return {}; }
@@ -95,15 +107,29 @@ export function TimelineSetupWizard({
 
   const setLocalDate = (field: "start_date" | "due_date", value: string | null) => {
     if (!currentMilestone) return;
-    setLocalDates((prev) => ({
-      ...prev,
-      [currentMilestone.id]: {
-        ...prev[currentMilestone.id],
+    setLocalDates((prev) => {
+      const current = {
         start_date: prev[currentMilestone.id]?.start_date ?? currentMilestone.start_date ?? null,
         due_date: prev[currentMilestone.id]?.due_date ?? currentMilestone.due_date ?? null,
         [field]: value,
-      },
-    }));
+      };
+
+      // Auto-fill: when start_date is set, auto-set due_date to the same value if due_date hasn't been manually changed
+      if (field === "start_date" && value) {
+        const existingDueDate = prev[currentMilestone.id]?.due_date ?? currentMilestone.due_date;
+        if (!existingDueDate || existingDueDate === (prev[currentMilestone.id]?.start_date ?? currentMilestone.start_date)) {
+          current.due_date = value;
+        }
+      }
+
+      // Single-date mode: both dates are always the same
+      if (isSingleDate && value) {
+        current.start_date = value;
+        current.due_date = value;
+      }
+
+      return { ...prev, [currentMilestone.id]: current };
+    });
   };
 
   const isCalculated = currentStep?.type === "calculated_deadline";
