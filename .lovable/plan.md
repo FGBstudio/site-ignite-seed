@@ -1,66 +1,78 @@
-## 1. Add "On Hold" Status + Mandatory Log Note + Red Timeline Visual
 
-### What changes
 
-**A. Status dropdown update** (`PMProjectConfigModal.tsx`, lines 380-392)
+## Calendar & Active Alert System Enhancements
 
-- Add `"on_hold"` option to the milestone status `<Select>`, displayed as "On Hold" with red styling
-- When "on_hold" is selected, show a mandatory `<Textarea>` modal/dialog to collect a log note before saving
-- If no note is provided, block the status change
+### 1. Calendar Modifications
 
-**B. Auto-create task_alert on "On Hold"**
+#### 1A. Collapsible Project Legend
+The calendar currently has no visible legend showing which projects are displayed. Add a collapsible legend panel below the calendar header showing colored dots + project names. Default collapsed when >6 projects, expanded otherwise. Toggle via a small "Legend" button.
 
-- When status is set to `on_hold`, create a `task_alert` with `alert_type = "project_on_hold"` including the log text
-- If the user is a **PM**: set `escalate_to_admin = true` (alert visible to Admin)
-- If the user is an **Admin**: set `escalate_to_admin = false` and target the PM (alert visible to PM via existing query) (alert must be visible to Admin too)
+**File:** `src/components/dashboard/PMCalendar.tsx`
+- Add state `showLegend` 
+- Render a collapsible section with project color dots + names
+- All labels in English
 
-**C. Red timeline visual**
+#### 1B. Hover Tooltip on Calendar Bars/Milestones
+When hovering over project bars (spans) or milestone pills in the calendar grid, show a tooltip with: project name, current milestone in progress, and (in admin mode) the assigned PM name.
 
-- In the grid view (`PMProjectConfigModal.tsx`): if any milestone in the project has `status = "on_hold"`, add a red border/background to the entire timeline container
-- In `FGBPlanner.tsx` / `ProjectDetail.tsx`: if any milestone is "on_hold", show the project row with a red highlight
-- In `AdminTimeline.tsx`: same red visual for on-hold projects in the planner view
+**File:** `src/components/dashboard/PMCalendar.tsx` (MonthGrid component)
+- Wrap span ribbons and milestone pills with `<Tooltip>` from the existing tooltip component
+- Pass `adminMode` and `pmNames` context to MonthGrid
+- Tooltip content: Project name, active milestone, PM name (admin only)
 
-**D. Status display mapping updates**
+#### 1C. Rename "Milestone di Progetto" → Escalation Request
+In the Sheet for creating tasks/milestones, rename the radio option "Milestone di Progetto" to something like **"Escalation Request"** with description: "Critical issue requiring Admin review. This will be flagged in the Admin's Tasks & Alerts dashboard."
 
-- Update `ProjectDetail.tsx` planner logic (line 64-71) to handle `on_hold` as a display status with red color
-- Update `FGBPlanner.tsx` color dictionary to include `on_hold` with red (#ef4444)
+**File:** `src/components/dashboard/PMCalendar.tsx` (lines 378-384)
+
+#### 1D. Translate All Calendar UI to English
+Replace all Italian strings: "Lun/Mar/Mer...", "Oggi", "Filtra per Stato", "Da Configurare", "In Corso", "Certificati", "Mese", "Nuova Task o Milestone", "Progetto di riferimento", "Titolo Task / Milestone", "Tipologia Evento", "Task Operativa", "Annulla", "Crea ed Assegna", etc.
+
+**File:** `src/components/dashboard/PMCalendar.tsx`
 
 ---
 
-## 2. Add/Delete Custom Milestones + Admin Alert
+### 2. Active Alert System — Automated Alerts
 
-### What changes
+#### 2A. "Extra-Fee" Alert (Construction End Extension)
+When the "Construction end (Handover)" milestone date is moved forward (actual > planned), auto-generate a `task_alert` with `alert_type = "other_critical"` and title: "Extension detected — Verify GC support offer" for the Admin.
 
-**A. Add Milestone button** (`PMProjectConfigModal.tsx`)
+**Implementation:** In the milestone update logic inside `PMProjectConfigModal.tsx`, when saving a date change for "Construction end (Handover)" that extends beyond `planned_handover_date`, insert a task_alert.
 
-- Add a `+ Add Milestone` button below the milestone grid
-- On click, show inline form or small dialog: milestone name, start date, end date
-- Insert into `certification_milestones` with `milestone_type = "timeline"`, `order_index` set to position after the selected row (or at end)
-- After insert, auto-create a `task_alert`: "Project: {name} — PM {pm_name} added milestone '{milestone_name}'" with `escalate_to_admin = true`, `alert_type = "pm_operational"`
+**File:** `src/components/projects/PMProjectConfigModal.tsx`
 
-**B. Delete Milestone button** (`PMProjectConfigModal.tsx`)
+#### 2B. 7-Day Confirmation Alert
+7 days before the planned construction end date, generate a `task_alert` for the PM: "Confirm construction end for [Date]? If delayed, indicate issues."
 
-- Add a small trash icon on each milestone row
-- Confirm dialog before deleting
-- After delete, auto-create a `task_alert`: "Project: {name} — PM {pm_name} removed milestone '{milestone_name}'" with `escalate_to_admin = true`, `alert_type = "pm_operational"`
+**Implementation:** Computed client-side in the dashboard hooks (`usePMDashboard.ts`, `useAdminPlannerData.ts`). When `Construction end (Handover)` due_date minus today <= 7 days AND milestone status != "achieved", create/surface an alert. This will be a computed alert inserted on detection.
 
-**C. Reorder `order_index**`
+**Files:** `src/hooks/usePMDashboard.ts`, `src/hooks/useAdminPlannerData.ts`
 
-- After add/delete, recalculate `order_index` for all remaining milestones to maintain correct ordering
+#### 2C. Deadline Red Highlighting (<15 Days)
+For deadline milestones (Submission, Certification Attainment), if less than 15 days remain and the PM hasn't flagged "Completed" (status != "achieved"), color the entire project row RED in the planner.
+
+**Implementation:**
+- In `useAdminPlannerData.ts` and `usePMDashboard.ts`: check if any deadline milestone has `due_date - today < 15 days` AND `status != "achieved"` → set a flag `is_deadline_critical = true`
+- In `FGBPlanner.tsx`: if `is_deadline_critical`, apply red row styling (same as on_hold)
+- The deadline days come from the timeline template's `offset_days` per cert type (already defined in certificationTemplates.ts)
+
+**Files:** 
+- `src/hooks/useAdminPlannerData.ts` — add `is_deadline_critical` computation
+- `src/hooks/usePMDashboard.ts` — same
+- `src/components/dashboard/FGBPlanner.tsx` — add `isDeadlineCritical` to `GanttRowData`, apply red styling
 
 ---
 
 ### Files Modified
 
-
-| File                                               | Change                                                                                                          |
-| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `src/components/projects/PMProjectConfigModal.tsx` | Add "on_hold" status option, mandatory note dialog, add/delete milestone buttons, alert creation on all actions |
-| `src/components/dashboard/FGBPlanner.tsx`          | Add "on_hold" color mapping (red)                                                                               |
-| `src/pages/ProjectDetail.tsx`                      | Handle "on_hold" display status                                                                                 |
-| `src/components/admin/AdminTimeline.tsx`           | Red visual for on-hold projects                                                                                 |
-
+| File | Changes |
+|------|---------|
+| `src/components/dashboard/PMCalendar.tsx` | Collapsible legend, hover tooltips, rename escalation, translate to English |
+| `src/components/projects/PMProjectConfigModal.tsx` | Extra-fee alert on handover date extension |
+| `src/hooks/usePMDashboard.ts` | 7-day confirmation alert, deadline critical flag |
+| `src/hooks/useAdminPlannerData.ts` | 7-day confirmation alert, deadline critical flag |
+| `src/components/dashboard/FGBPlanner.tsx` | Add `isDeadlineCritical` prop, red row styling for critical deadlines |
 
 ### No DB migration needed
+All alerts use the existing `task_alerts` table. Deadline criticality is computed client-side.
 
-The `certification_milestones.status` is a `text` column (not enum), so "on_hold" can be stored directly. The `task_alerts` table already supports the needed alert types.
