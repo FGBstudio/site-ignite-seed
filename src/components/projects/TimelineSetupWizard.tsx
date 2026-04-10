@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +13,13 @@ import { Loader2, ChevronLeft, ChevronRight, SkipForward, CalendarIcon, Lock, Us
 import { format, parseISO, addDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import type { TimelineStep } from "@/data/certificationTemplates";
+
+/** Milestones where PM cannot edit dates after initial setup (admin-only) */
+const PM_LOCKED_MILESTONES_ALL_DATES = ["LEED Project Submission", "LEED Certification Attainment", "WELL Project Submission", "Certification Attainment WELL"];
+const PM_LOCKED_END_DATE_ONLY = ["Construction phase"];
+const SINGLE_DATE_MILESTONES = ["Construction end (Handover)"];
+const CONSTRUCTION_PHASE_NAME = "Construction phase";
+const CONSTRUCTION_END_NAME = "Construction end (Handover)";
 
 interface TimelineSetupWizardProps {
   milestones: any[];
