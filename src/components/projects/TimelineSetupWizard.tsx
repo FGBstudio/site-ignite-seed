@@ -437,10 +437,12 @@ function DatePickerField({
   label,
   value,
   onChange,
+  disabled = false,
 }: {
   label: string;
   value: string | null;
   onChange: (value: string | null) => void;
+  disabled?: boolean;
 }) {
   const dateValue = value ? parseISO(value) : undefined;
 
