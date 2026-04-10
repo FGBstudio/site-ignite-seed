@@ -271,7 +271,41 @@ function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChan
 
   // Auto-recalculate calculated_deadline dates when manual dates change
   const handleManualDateChange = async (milestoneId: string, field: string, value: string) => {
+    const milestone = milestones.find((m: any) => m.id === milestoneId);
     await handleUpdate(milestoneId, { [field]: value || null });
+
+    // Extra-fee alert: if this is a construction end / handover milestone and date is extended
+    if (milestone && field === "due_date" && value) {
+      const name = (milestone.requirement || "").toLowerCase();
+      const isHandover = ["construction end", "handover", "fine lavori"].some(kw => name.includes(kw));
+      const cert = project.certifications?.[0];
+      const plannedHandover = cert?.planned_handover_date || cert?.handover_date;
+      
+      if (isHandover && plannedHandover && value > plannedHandover && certId && user?.id) {
+        // Check if alert already exists
+        const { data: existing } = await (supabase as any)
+          .from("task_alerts")
+          .select("id")
+          .eq("certification_id", certId)
+          .eq("alert_type", "other_critical")
+          .eq("is_resolved", false)
+          .like("title", "%Extension detected%")
+          .limit(1);
+
+        if (!existing || existing.length === 0) {
+          await (supabase as any).from("task_alerts").insert({
+            certification_id: certId,
+            created_by: user.id,
+            alert_type: "other_critical",
+            title: `Extension detected — Verify GC support offer`,
+            description: `Project: ${project.name} — Construction end moved from ${plannedHandover} to ${value}`,
+            escalate_to_admin: true,
+          });
+          qc.invalidateQueries({ queryKey: ["task-alerts"] });
+          toast({ title: "Extension alert sent to Admin", variant: "default" });
+        }
+      }
+    }
 
     setTimeout(async () => {
       const { data: freshMilestones } = await supabase
