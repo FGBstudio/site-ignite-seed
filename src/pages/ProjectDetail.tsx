@@ -204,14 +204,23 @@ export default function ProjectDetail() {
         </Card>
       </div>
 
-      <Tabs defaultValue="planner" className="space-y-4">
+      <Tabs defaultValue="overview" className="space-y-4">
         <TabsList>
+          <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="planner">Planner (Phases)</TabsTrigger>
           {hasCert && <TabsTrigger value="scorecard">Scorecard {(project as any).project_type}</TabsTrigger>}
           <TabsTrigger value="wbs">Schedule</TabsTrigger>
           <TabsTrigger value="hardware">Hardware</TabsTrigger>
           <TabsTrigger value="payments">Payments</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="overview">
+          <ProjectOverview
+            certificationId={projectId!}
+            project={project}
+            timelineMilestones={timelineMilestones}
+          />
+        </TabsContent>
 
         <TabsContent value="planner">
           <Card>
@@ -285,6 +294,7 @@ export default function ProjectDetail() {
         )}
 
         <TabsContent value="wbs">
+          <ProjectAlerts certificationId={projectId!} />
           <ProjectWBS projectId={projectId!} />
         </TabsContent>
 
