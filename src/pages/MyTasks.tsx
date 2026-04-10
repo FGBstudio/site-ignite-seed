@@ -41,11 +41,19 @@ interface TaskRow {
 
 export default function MyTasks() {
   const navigate = useNavigate();
-  const { user, isPM } = useAuth();
+  const { user, isPM, role } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [selectedTask, setSelectedTask] = useState<TaskRow | null>(null);
+  const [showCreateAlert, setShowCreateAlert] = useState(false);
+  const [newAlertTitle, setNewAlertTitle] = useState("");
+  const [newAlertDesc, setNewAlertDesc] = useState("");
+  const [newAlertType, setNewAlertType] = useState<TaskAlertType>("pm_operational");
+  const [newAlertCertId, setNewAlertCertId] = useState("");
   const { data: pmProjects = [], isLoading: isPMProjectsLoading } = usePMDashboard();
+  const { data: alerts = [], isLoading: alertsLoading } = useTaskAlerts(role, user?.id);
+  const resolveAlert = useResolveAlert();
+  const createAlert = useCreateAlert();
 
   const { data: tasks = [], isLoading, isError } = useQuery({
     queryKey: ["my-tasks", user?.id],
