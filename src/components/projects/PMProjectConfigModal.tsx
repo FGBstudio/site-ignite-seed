@@ -2,19 +2,22 @@ import { useState } from "react";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Plus, Trash2, Calendar, Monitor, Award, Lock, User, Save, Wand2 } from "lucide-react";
+import { Loader2, Plus, Trash2, Calendar, Monitor, Award, Lock, User, Save, Wand2, AlertTriangle } from "lucide-react";
 import { addDays, format, parseISO } from "date-fns";
 import { getTemplateOrFallback, type TimelineStep } from "@/data/certificationTemplates";
 import type { PMProject } from "@/hooks/usePMDashboard";
 import { TimelineSetupWizard } from "./TimelineSetupWizard";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Props {
   project: PMProject;
