@@ -13,6 +13,7 @@ export function AdminTimeline() {
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterCert, setFilterCert] = useState("all");
   const [filterBrand, setFilterBrand] = useState("all");
+  const [filterPhase, setFilterPhase] = useState("all");
 
   const { pmOptions, certOptions, brandOptions } = useMemo(() => {
     const pms = new Map<string, string>();
@@ -36,9 +37,10 @@ export function AdminTimeline() {
       if (filterStatus !== "all" && p.setup_status !== filterStatus) return false;
       if (filterCert !== "all" && p.cert_type !== filterCert) return false;
       if (filterBrand !== "all" && p.brand_name !== filterBrand) return false;
+      if (filterPhase !== "all" && p.macro_phase !== filterPhase) return false;
       return true;
     });
-  }, [projects, filterPM, filterStatus, filterCert, filterBrand]);
+  }, [projects, filterPM, filterStatus, filterCert, filterBrand, filterPhase]);
 
   if (isLoading) {
     return (
@@ -95,10 +97,21 @@ export function AdminTimeline() {
           </Select>
         )}
 
-        {(filterPM !== "all" || filterStatus !== "all" || filterCert !== "all" || filterBrand !== "all") && (
+        <Select value={filterPhase} onValueChange={setFilterPhase}>
+          <SelectTrigger className="w-44"><SelectValue placeholder="Phase" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Phases</SelectItem>
+            <SelectItem value="Design">Design</SelectItem>
+            <SelectItem value="Construction">Construction</SelectItem>
+            <SelectItem value="Certification">Certification</SelectItem>
+            <SelectItem value="Certified">Certified</SelectItem>
+          </SelectContent>
+        </Select>
+
+        {(filterPM !== "all" || filterStatus !== "all" || filterCert !== "all" || filterBrand !== "all" || filterPhase !== "all") && (
           <button
             className="text-xs text-muted-foreground hover:text-foreground underline"
-            onClick={() => { setFilterPM("all"); setFilterStatus("all"); setFilterCert("all"); setFilterBrand("all"); }}
+            onClick={() => { setFilterPM("all"); setFilterStatus("all"); setFilterCert("all"); setFilterBrand("all"); setFilterPhase("all"); }}
           >
             Reset filters
           </button>
