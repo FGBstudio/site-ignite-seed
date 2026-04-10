@@ -187,8 +187,8 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
 
               const isClickable = !!(row.onClickUrl || row.onClick);
 
-              return (
-                      <div 
+                return (
+                  <div 
                     key={row.id} 
                     className={cn(
                       "h-14 border-b flex items-center px-3 hover:bg-muted/50 transition-colors",
@@ -197,12 +197,11 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
                       row.status === "on_hold" && "bg-red-50 dark:bg-red-950/30 border-l-4 border-l-red-500",
                       row.isDeadlineCritical && row.status !== "on_hold" && "bg-red-50 dark:bg-red-950/20 border-l-4 border-l-red-400"
                     )}
-                    )}
-                  onClick={() => {
-                    if (row.onClick) row.onClick();
-                    else if (row.onClickUrl) navigate(row.onClickUrl);
-                  }}
-                >
+                    onClick={() => {
+                      if (row.onClick) row.onClick();
+                      else if (row.onClickUrl) navigate(row.onClickUrl);
+                    }}
+                  >
                   <div className="w-[160px] shrink-0 pr-2 flex flex-col justify-center">
                     <span className="text-xs truncate text-foreground font-medium">{row.label}</span>
                     {row.subLabel && <span className="text-[10px] text-muted-foreground truncate">{row.subLabel}</span>}
