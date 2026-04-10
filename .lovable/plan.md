@@ -1,143 +1,66 @@
+## 1. Add "On Hold" Status + Mandatory Log Note + Red Timeline Visual
 
+### What changes
 
-## Enhanced Timeline Management System — Full Specification
+**A. Status dropdown update** (`PMProjectConfigModal.tsx`, lines 380-392)
 
-### Summary
+- Add `"on_hold"` option to the milestone status `<Select>`, displayed as "On Hold" with red styling
+- When "on_hold" is selected, show a mandatory `<Textarea>` modal/dialog to collect a log note before saving
+- If no note is provided, block the status change
 
-Seven interconnected changes: (A) DB migration for new columns, (B) milestone macro-phase mapping, (C) auto-fill end date from start date in wizard, (D) role-based edit permissions on milestones, (E) dual handover tracking for construction projects, (F) internal 30-day PM deadline from "GC Provides Documentation", (G) macro-phase strategic filter as an additional filter alongside the existing status filter.
+**B. Auto-create task_alert on "On Hold"**
 
----
+- When status is set to `on_hold`, create a `task_alert` with `alert_type = "project_on_hold"` including the log text
+- If the user is a **PM**: set `escalate_to_admin = true` (alert visible to Admin)
+- If the user is an **Admin**: set `escalate_to_admin = false` and target the PM (alert visible to PM via existing query) (alert must be visible to Admin too)
 
-### A. DB Migration
+**C. Red timeline visual**
 
-Add columns to `certification_milestones`:
+- In the grid view (`PMProjectConfigModal.tsx`): if any milestone in the project has `status = "on_hold"`, add a red border/background to the entire timeline container
+- In `FGBPlanner.tsx` / `ProjectDetail.tsx`: if any milestone is "on_hold", show the project row with a red highlight
+- In `AdminTimeline.tsx`: same red visual for on-hold projects in the planner view
 
-```sql
-ALTER TABLE certification_milestones
-  ADD COLUMN edit_locked_for_pm boolean NOT NULL DEFAULT false,
-  ADD COLUMN actual_date date;
-```
+**D. Status display mapping updates**
 
-Add columns to `certifications` for dual handover tracking:
-
-```sql
-ALTER TABLE certifications
-  ADD COLUMN planned_handover_date date,
-  ADD COLUMN actual_handover_date date;
-```
-
----
-
-### B. Milestone Macro-Phase Mapping
-
-Add to `src/data/certificationTemplates.ts`:
-
-```typescript
-export const MILESTONE_MACRO_PHASE: Record<string, string> = {
-  "Pre-assessment": "Design",
-  "FGB Design guidelines": "Design",
-  "FGB tendering requirement": "Design",
-  "Construction phase": "Construction",
-  "LEED GC training": "Construction",
-  "Construction end (Handover)": "Construction",
-  "GC Provides Documentation": "Certification",
-  "LEED Project Submission": "Certification",
-  "LEED Certification Attainment": "Certification",
-};
-
-export function computeMacroPhase(certStatus: string, milestones: any[]): string {
-  if (certStatus === "certificato") return "Certified";
-  const achieved = milestones
-    .filter(m => m.status === "achieved" && m.milestone_type === "timeline")
-    .sort((a, b) => (b.order_index ?? 0) - (a.order_index ?? 0));
-  if (achieved.length === 0) return "Design";
-  return MILESTONE_MACRO_PHASE[achieved[0].requirement] || "Design";
-}
-```
-
-Also add `is_single_date` and `pm_locked_after_setup` flags to relevant `TimelineStep` entries:
-- `"Construction end (Handover)"` → `is_single_date: true`
-- `"Construction phase"` → `pm_locked_after_setup: true` (end date only)
-- `"LEED Project Submission"` and `"LEED Certification Attainment"` → `pm_locked_after_setup: true` (all dates)
+- Update `ProjectDetail.tsx` planner logic (line 64-71) to handle `on_hold` as a display status with red color
+- Update `FGBPlanner.tsx` color dictionary to include `on_hold` with red (#ef4444)
 
 ---
 
-### C. TimelineSetupWizard — Auto-Fill End Date
+## 2. Add/Delete Custom Milestones + Admin Alert
 
-In `TimelineSetupWizard.tsx`:
+### What changes
 
-1. When PM sets `start_date`, auto-set `due_date` to the same value if `due_date` is still null or unchanged.
-2. For "Construction end (Handover)": show only one date picker; save both `start_date` and `due_date` as the same value.
-3. When "Construction Phase" end date is set, auto-sync:
-   - "Construction end (Handover)" milestone start/due dates
-   - `certifications.planned_handover_date` and `certifications.actual_handover_date`
+**A. Add Milestone button** (`PMProjectConfigModal.tsx`)
 
----
+- Add a `+ Add Milestone` button below the milestone grid
+- On click, show inline form or small dialog: milestone name, start date, end date
+- Insert into `certification_milestones` with `milestone_type = "timeline"`, `order_index` set to position after the selected row (or at end)
+- After insert, auto-create a `task_alert`: "Project: {name} — PM {pm_name} added milestone '{milestone_name}'" with `escalate_to_admin = true`, `alert_type = "pm_operational"`
 
-### D. Role-Based Edit Permissions
+**B. Delete Milestone button** (`PMProjectConfigModal.tsx`)
 
-| Milestone | PM can edit | Admin can edit |
-|-----------|-------------|----------------|
-| Construction Phase (end date) | Only during initial setup | Always |
-| LEED Project Submission (dates) | Cannot edit dates; can only flag "Completed" (writes `actual_date`) | Always ("Priorita Direzionale") |
-| LEED Certification Attainment (dates) | Cannot edit dates; can only flag "Completed" | Always |
-| Construction end (Handover) | Always (single date) | Always |
-| All others | Always | Always |
+- Add a small trash icon on each milestone row
+- Confirm dialog before deleting
+- After delete, auto-create a `task_alert`: "Project: {name} — PM {pm_name} removed milestone '{milestone_name}'" with `escalate_to_admin = true`, `alert_type = "pm_operational"`
 
-Implementation: check `edit_locked_for_pm` flag + user `role` from `useAuth()`. "Completed" status toggle always available to PM, which writes `actual_date = today` and sets `status = 'achieved'`.
+**C. Reorder `order_index**`
+
+- After add/delete, recalculate `order_index` for all remaining milestones to maintain correct ordering
 
 ---
 
-### E. Dual Handover Tracking (Construction Projects)
+### Files Modified
 
-- `planned_handover_date` = set when Construction Phase end date is first configured (frozen unless Admin edits)
-- `actual_handover_date` = "Construction end (Handover)" milestone date, continuously editable by PM
-- Delta (actual - planned) in months = extra-effort indicator
 
-**Planner visualization** (`FGBPlanner.tsx`): For construction projects, the Construction Phase Gantt segment extends to `actual_handover_date`, with the original planned end shown as a vertical marker/line.
+| File                                               | Change                                                                                                          |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `src/components/projects/PMProjectConfigModal.tsx` | Add "on_hold" status option, mandatory note dialog, add/delete milestone buttons, alert creation on all actions |
+| `src/components/dashboard/FGBPlanner.tsx`          | Add "on_hold" color mapping (red)                                                                               |
+| `src/pages/ProjectDetail.tsx`                      | Handle "on_hold" display status                                                                                 |
+| `src/components/admin/AdminTimeline.tsx`           | Red visual for on-hold projects                                                                                 |
 
----
 
-### F. Internal 30-Day PM Deadline Tracking
+### No DB migration needed
 
-Logic: When "GC Provides Documentation" milestone has `status = 'achieved'` (or `actual_date` is set), start a 30-day countdown. If today > GC_doc_date + 30 days AND "LEED Project Submission" status != 'achieved', the project is flagged as "late" and generates a `task_alert` of type `milestone_deadline`.
-
-Implemented in `usePMDashboard.ts`, `useAdminPlannerData.ts`, and `useCeoDashboardData.ts`.
-
----
-
-### G. Macro-Phase Strategic Filter (Additional, Not Replacing)
-
-The existing `filterStatus` (da_configurare / in_corso / certificato) stays untouched — it tracks activity setup status. A **new** filter is added for certification lifecycle phase.
-
-Add `macro_phase` property to `AdminPlannerProject` and `PMProject` interfaces, computed via `computeMacroPhase()`.
-
-In `AdminTimeline.tsx` and `PMPortal.tsx`: add a new `<Select>` dropdown with options: All Phases | Design | Construction | Certification | Certified. Applied as an additional filter condition alongside the existing ones.
-
----
-
-### Files Modified/Created
-
-| Action | File | What |
-|--------|------|------|
-| Migrate | `supabase/migrations/` | Add `edit_locked_for_pm`, `actual_date` to milestones; `planned_handover_date`, `actual_handover_date` to certifications |
-| Modify | `src/data/certificationTemplates.ts` | Add `MILESTONE_MACRO_PHASE`, `computeMacroPhase()`, `is_single_date`, `pm_locked_after_setup` flags |
-| Modify | `src/components/projects/TimelineSetupWizard.tsx` | Auto-fill end date, single-date mode for Handover, sync Construction Phase → Handover, lock rules |
-| Modify | `src/pages/ProjectDetail.tsx` | Dual handover dates display, delta indicator, respect edit locks |
-| Modify | `src/hooks/usePMDashboard.ts` | Compute `macro_phase`, 30-day deadline check |
-| Modify | `src/hooks/useAdminPlannerData.ts` | Compute `macro_phase`, 30-day deadline check |
-| Modify | `src/hooks/useCeoDashboardData.ts` | 30-day deadline in late projects computation |
-| Modify | `src/components/admin/AdminTimeline.tsx` | Add macro-phase filter dropdown (alongside existing status filter) |
-| Modify | `src/pages/PMPortal.tsx` | Add macro-phase filter to PM planner view |
-| Modify | `src/components/dashboard/FGBPlanner.tsx` | Add planned handover marker on Gantt for construction projects |
-
-### Execution Order
-
-1. DB migration (new columns)
-2. Template updates (macro_phase map, flags)
-3. Wizard auto-fill + single-date + sync logic
-4. Role-based edit locks
-5. Dual handover tracking + planner visualization
-6. 30-day deadline logic + alerts
-7. Macro-phase strategic filters
-
+The `certification_milestones.status` is a `text` column (not enum), so "on_hold" can be stored directly. The `task_alerts` table already supports the needed alert types.
