@@ -219,18 +219,48 @@ export function ProjectWBS({ projectId, role }: Props) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="font-semibold text-foreground">Schedule (WBS)</h3>
-        <Button size="sm" onClick={() => setShowNewTask(true)} className="gap-1">
-          <Plus className="h-4 w-4" /> New Task
+        <Button size="sm" onClick={() => { setNewTaskTab("wbs"); setShowNewTask(true); }} className="gap-1">
+          <Plus className="h-4 w-4" /> New
         </Button>
       </div>
 
-      {tasks.length === 0 ? (
+      {/* Inline Alerts */}
+      {alerts.length > 0 && (
+        <div className="space-y-2">
+          <h4 className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+            <Bell className="h-3.5 w-3.5" /> Active Alerts ({alerts.length})
+          </h4>
+          {alerts.map((alert: any) => (
+            <Card key={alert.id} className="border-l-4" style={{ borderLeftColor: "hsl(var(--destructive))" }}>
+              <CardContent className="py-3 px-4 flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Badge variant="outline" className={cn("text-xs border", ALERT_TYPE_COLORS[alert.alert_type as TaskAlertType])}>
+                      {ALERT_TYPE_LABELS[alert.alert_type as TaskAlertType] || alert.alert_type}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">{format(new Date(alert.created_at), "dd MMM yyyy")}</span>
+                    {alert.escalate_to_admin && <Badge variant="destructive" className="text-[10px]">Escalated</Badge>}
+                  </div>
+                  <p className="text-sm font-medium text-foreground">{alert.title}</p>
+                  {alert.description && <p className="text-xs text-muted-foreground mt-0.5">{alert.description}</p>}
+                  <p className="text-xs text-muted-foreground mt-0.5">PM: {alert.pm_name}</p>
+                </div>
+                <Button variant="ghost" size="sm" className="shrink-0 text-xs gap-1" onClick={() => resolveAlert.mutate(alert.id)} disabled={resolveAlert.isPending}>
+                  <CheckCircle2 className="h-3.5 w-3.5" /> Resolve
+                </Button>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {tasks.length === 0 && alerts.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
-            No tasks in the schedule. Click "New Task" to start.
+            No tasks or alerts. Click "+New" to start.
           </CardContent>
         </Card>
-      ) : (
+      ) : tasks.length === 0 ? null : (
         <div className="space-y-2">
           {tasks.map((task) => {
             const blocked = isBlocked(task);
