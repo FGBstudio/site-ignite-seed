@@ -27,6 +27,8 @@ export interface GanttRowData {
   segments?: GanttSegment[];
   onClickUrl?: string;
   onClick?: () => void;
+  /** For construction projects: original planned handover date (marker on Gantt) */
+  plannedHandoverDate?: string | null;
 }
 
 interface FGBPlannerProps {
