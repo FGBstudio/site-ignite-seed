@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScorecardEditor } from "@/components/projects/ScorecardEditor";
 import { ProjectWBS } from "@/components/projects/ProjectWBS";
+import { ProjectAlerts } from "@/components/projects/ProjectAlerts";
+import { ProjectOverview } from "@/components/projects/ProjectOverview";
 import { ProjectPayments } from "@/components/projects/ProjectPayments";
 import { ArrowLeft, MapPin, Calendar, User, Cpu } from "lucide-react";
 import { format } from "date-fns";
@@ -202,14 +204,23 @@ export default function ProjectDetail() {
         </Card>
       </div>
 
-      <Tabs defaultValue="planner" className="space-y-4">
+      <Tabs defaultValue="overview" className="space-y-4">
         <TabsList>
+          <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="planner">Planner (Phases)</TabsTrigger>
           {hasCert && <TabsTrigger value="scorecard">Scorecard {(project as any).project_type}</TabsTrigger>}
           <TabsTrigger value="wbs">Schedule</TabsTrigger>
           <TabsTrigger value="hardware">Hardware</TabsTrigger>
           <TabsTrigger value="payments">Payments</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="overview">
+          <ProjectOverview
+            certificationId={projectId!}
+            project={project}
+            timelineMilestones={timelineMilestones}
+          />
+        </TabsContent>
 
         <TabsContent value="planner">
           <Card>
@@ -283,6 +294,7 @@ export default function ProjectDetail() {
         )}
 
         <TabsContent value="wbs">
+          <ProjectAlerts certificationId={projectId!} />
           <ProjectWBS projectId={projectId!} />
         </TabsContent>
 
