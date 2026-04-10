@@ -303,7 +303,19 @@ export function TimelineSetupWizard({
                 <p className="text-sm text-foreground/80 leading-relaxed">{description}</p>
               </div>
 
-              {isCalculated ? (
+              {isDateEditDisabled ? (
+                <div className="space-y-3">
+                  <div className="rounded-lg bg-muted/50 p-4 border border-warning/30">
+                    <p className="text-xs text-muted-foreground uppercase font-medium mb-1">🔒 Admin-Only Dates</p>
+                    <p className="text-sm text-foreground">
+                      {dates.start_date ? format(parseISO(dates.start_date), "d MMMM yyyy") : "Not set"} → {dates.due_date ? format(parseISO(dates.due_date), "d MMMM yyyy") : "Not set"}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Solo l'Admin può modificare queste date (Priorità Direzionale). Come PM, puoi solo segnare "Completed" per confermare.
+                    </p>
+                  </div>
+                </div>
+              ) : isCalculated ? (
                 <div className="space-y-3">
                   <div className="rounded-lg bg-muted/50 p-4 border">
                     <p className="text-xs text-muted-foreground uppercase font-medium mb-1">Calculated Date</p>
@@ -313,6 +325,14 @@ export function TimelineSetupWizard({
                         : "⚠️ Fill in the dates for the previous manual step first"}
                     </p>
                   </div>
+                </div>
+              ) : isSingleDate ? (
+                <div className="grid grid-cols-1 gap-4">
+                  <DatePickerField
+                    label="Date"
+                    value={dates.start_date}
+                    onChange={(v) => setLocalDate("start_date", v)}
+                  />
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-4">
@@ -325,6 +345,7 @@ export function TimelineSetupWizard({
                     label="End Date / Deadline"
                     value={dates.due_date}
                     onChange={(v) => setLocalDate("due_date", v)}
+                    disabled={isEndDateDisabledForPM}
                   />
                 </div>
               )}
