@@ -154,6 +154,7 @@ export function useAdminPlannerData() {
           status: plannerStatus,
           segments,
           onClickUrl: `/projects/${c.id}`,
+          plannedHandoverDate: c.planned_handover_date || null,
         };
 
         return {

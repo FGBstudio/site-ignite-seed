@@ -154,7 +154,8 @@ export function usePMDashboard() {
           actualEnd: setup_status === "certificato" ? today : null,
           progress,
           status: plannerStatus,
-          segments
+          segments,
+          plannedHandoverDate: c.planned_handover_date || null,
         };
 
         return {

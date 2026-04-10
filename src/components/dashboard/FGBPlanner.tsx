@@ -71,6 +71,7 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
       if (row.planEnd) dates.push(new Date(row.planEnd));
       if (row.actualStart) dates.push(new Date(row.actualStart));
       if (row.actualEnd) dates.push(new Date(row.actualEnd));
+      if (row.plannedHandoverDate) dates.push(new Date(row.plannedHandoverDate));
       if (row.segments) {
         row.segments.forEach(seg => {
           if (seg.start) dates.push(new Date(seg.start));
