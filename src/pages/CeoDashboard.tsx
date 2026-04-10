@@ -18,6 +18,8 @@ import {
   type CertPaymentRow,
   type ProjectRow,
 } from "@/hooks/useCeoDashboardData";
+import { useTaskAlertCounts, ALERT_TYPE_LABELS, type TaskAlertType } from "@/hooks/useTaskAlerts";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LabelList,
 } from "recharts";
@@ -50,7 +52,7 @@ function KpiStrip({ tasks, payments, projects }: { tasks: CertTaskRow[]; payment
   const sortedOverdue = [...overdueByProject].sort((a, b) => b.daysOverdue - a.daysOverdue).slice(0, 8);
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+    <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium text-muted-foreground">Project Status</CardTitle>
