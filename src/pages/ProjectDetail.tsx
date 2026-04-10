@@ -7,8 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScorecardEditor } from "@/components/projects/ScorecardEditor";
 import { ProjectWBS } from "@/components/projects/ProjectWBS";
-import { ProjectAlerts } from "@/components/projects/ProjectAlerts";
 import { ProjectOverview } from "@/components/projects/ProjectOverview";
+import { useAuth } from "@/contexts/AuthContext";
 import { ProjectPayments } from "@/components/projects/ProjectPayments";
 import { ArrowLeft, MapPin, Calendar, User, Cpu } from "lucide-react";
 import { format } from "date-fns";
@@ -30,6 +30,7 @@ export default function ProjectDetail() {
   const params = useParams();
   const projectId = params.projectId || params.id; 
   const navigate = useNavigate();
+  const { role } = useAuth();
   const { data: project, isLoading } = useProjectDetails(projectId);
   const { data: certification } = useCertification(projectId, project?.site_id);
   const { data: allocations } = useProjectAllocations(projectId);
@@ -294,8 +295,7 @@ export default function ProjectDetail() {
         )}
 
         <TabsContent value="wbs">
-          <ProjectAlerts certificationId={projectId!} />
-          <ProjectWBS projectId={projectId!} />
+          <ProjectWBS projectId={projectId!} role={role} />
         </TabsContent>
 
         <TabsContent value="payments">

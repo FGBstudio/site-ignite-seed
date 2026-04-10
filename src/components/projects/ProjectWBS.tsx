@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { useProjectTasks, useCreateTask, useUpdateTask, useDeleteTask } from "@/hooks/useProjectTasks";
 import { usePaymentMilestones, PaymentMilestone } from "@/hooks/usePaymentMilestones";
+import { useCreateAlert, useResolveAlert, ALERT_TYPE_LABELS, ALERT_TYPE_COLORS, type TaskAlertType } from "@/hooks/useTaskAlerts";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 
 export interface ProjectTask {
   id: string;
@@ -23,12 +26,14 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Plus, Trash2, Lock, AlertTriangle, Loader2, Package } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Plus, Trash2, Lock, AlertTriangle, Loader2, Package, CheckCircle2, Bell } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
-import type { ProjectAllocation, Product } from "@/types/custom-tables";
+import type { ProjectAllocation, Product, AppRole } from "@/types/custom-tables";
 
 const TASK_STATUS_LABELS: Record<string, string> = {
   todo: "To Do",
@@ -46,16 +51,48 @@ const TASK_STATUS_COLORS: Record<string, string> = {
 
 interface Props {
   projectId: string;
+  role?: AppRole | null;
 }
 
-export function ProjectWBS({ projectId }: Props) {
+export function ProjectWBS({ projectId, role }: Props) {
   const { data: tasks = [], isLoading } = useProjectTasks(projectId);
   const { data: payments = [] } = usePaymentMilestones(projectId);
   const createTask = useCreateTask(projectId);
   const updateTask = useUpdateTask(projectId);
   const deleteTask = useDeleteTask(projectId);
+  const { user } = useAuth();
+
+  // Fetch project alerts
+  const { data: alerts = [] } = useQuery({
+    queryKey: ["project-alerts", projectId],
+    enabled: !!projectId,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("task_alerts")
+        .select("*, profiles!task_alerts_created_by_fkey(full_name)")
+        .eq("certification_id", projectId)
+        .eq("is_resolved", false)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      let items = (data || []) as any[];
+      // Admin sees only escalated; PM sees all
+      if (role === "ADMIN") {
+        items = items.filter((a: any) => a.escalate_to_admin);
+      }
+      return items.map((a: any) => ({
+        ...a,
+        pm_name: a.profiles?.full_name || "—",
+      }));
+    },
+  });
+
+  const resolveAlert = useResolveAlert();
+  const createAlert = useCreateAlert();
 
   const [showNewTask, setShowNewTask] = useState(false);
+  const [newTaskTab, setNewTaskTab] = useState<"wbs" | "note" | "escalation">("wbs");
+  const [alertTitle, setAlertTitle] = useState("");
+  const [alertDescription, setAlertDescription] = useState("");
   const [newTask, setNewTask] = useState({
     task_name: "",
     assigned_to: "",
@@ -146,6 +183,23 @@ export function ProjectWBS({ projectId }: Props) {
     setShowNewTask(false);
   };
 
+  const handleCreateAlertItem = async () => {
+    if (!alertTitle.trim() || !user) return;
+    const isEscalation = newTaskTab === "escalation";
+    await createAlert.mutateAsync({
+      certification_id: projectId,
+      created_by: user.id,
+      alert_type: isEscalation ? "other_critical" : "pm_operational",
+      title: alertTitle.trim(),
+      description: alertDescription.trim() || undefined,
+      escalate_to_admin: isEscalation,
+    });
+    toast.success(isEscalation ? "Escalation request created" : "Private note created");
+    setAlertTitle("");
+    setAlertDescription("");
+    setShowNewTask(false);
+  };
+
   const handleStatusChange = (task: ProjectTask, newStatus: string) => {
     if (isBlocked(task) && (newStatus === "done" || newStatus === "review" || newStatus === "in_progress")) return;
     updateTask.mutate({ id: task.id, status: newStatus } as any);
@@ -165,18 +219,48 @@ export function ProjectWBS({ projectId }: Props) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="font-semibold text-foreground">Schedule (WBS)</h3>
-        <Button size="sm" onClick={() => setShowNewTask(true)} className="gap-1">
-          <Plus className="h-4 w-4" /> New Task
+        <Button size="sm" onClick={() => { setNewTaskTab("wbs"); setShowNewTask(true); }} className="gap-1">
+          <Plus className="h-4 w-4" /> New
         </Button>
       </div>
 
-      {tasks.length === 0 ? (
+      {/* Inline Alerts */}
+      {alerts.length > 0 && (
+        <div className="space-y-2">
+          <h4 className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+            <Bell className="h-3.5 w-3.5" /> Active Alerts ({alerts.length})
+          </h4>
+          {alerts.map((alert: any) => (
+            <Card key={alert.id} className="border-l-4" style={{ borderLeftColor: "hsl(var(--destructive))" }}>
+              <CardContent className="py-3 px-4 flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Badge variant="outline" className={cn("text-xs border", ALERT_TYPE_COLORS[alert.alert_type as TaskAlertType])}>
+                      {ALERT_TYPE_LABELS[alert.alert_type as TaskAlertType] || alert.alert_type}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">{format(new Date(alert.created_at), "dd MMM yyyy")}</span>
+                    {alert.escalate_to_admin && <Badge variant="destructive" className="text-[10px]">Escalated</Badge>}
+                  </div>
+                  <p className="text-sm font-medium text-foreground">{alert.title}</p>
+                  {alert.description && <p className="text-xs text-muted-foreground mt-0.5">{alert.description}</p>}
+                  <p className="text-xs text-muted-foreground mt-0.5">PM: {alert.pm_name}</p>
+                </div>
+                <Button variant="ghost" size="sm" className="shrink-0 text-xs gap-1" onClick={() => resolveAlert.mutate(alert.id)} disabled={resolveAlert.isPending}>
+                  <CheckCircle2 className="h-3.5 w-3.5" /> Resolve
+                </Button>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {tasks.length === 0 && alerts.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
-            No tasks in the schedule. Click "New Task" to start.
+            No tasks or alerts. Click "+New" to start.
           </CardContent>
         </Card>
-      ) : (
+      ) : tasks.length === 0 ? null : (
         <div className="space-y-2">
           {tasks.map((task) => {
             const blocked = isBlocked(task);
@@ -252,83 +336,129 @@ export function ProjectWBS({ projectId }: Props) {
       )}
 
       <Dialog open={showNewTask} onOpenChange={setShowNewTask}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>New Task</DialogTitle></DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Task Name *</Label>
-              <Input value={newTask.task_name} onChange={(e) => setNewTask({ ...newTask, task_name: e.target.value })} placeholder="e.g. Install sensors floor 3" />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>New Item</DialogTitle></DialogHeader>
+          <Tabs value={newTaskTab} onValueChange={(v) => setNewTaskTab(v as any)}>
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="wbs" className="text-xs">WBS Task</TabsTrigger>
+              <TabsTrigger value="note" className="text-xs">PM Note</TabsTrigger>
+              <TabsTrigger value="escalation" className="text-xs">Escalation</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="wbs" className="space-y-4 mt-4">
               <div className="space-y-2">
-                <Label>Start Date</Label>
-                <Input type="date" value={newTask.start_date} onChange={(e) => setNewTask({ ...newTask, start_date: e.target.value })} />
+                <Label>Task Name *</Label>
+                <Input value={newTask.task_name} onChange={(e) => setNewTask({ ...newTask, task_name: e.target.value })} placeholder="e.g. Install sensors floor 3" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Start Date</Label>
+                  <Input type="date" value={newTask.start_date} onChange={(e) => setNewTask({ ...newTask, start_date: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>End Date</Label>
+                  <Input type="date" value={newTask.end_date} onChange={(e) => setNewTask({ ...newTask, end_date: e.target.value })} />
+                </div>
               </div>
               <div className="space-y-2">
-                <Label>End Date</Label>
-                <Input type="date" value={newTask.end_date} onChange={(e) => setNewTask({ ...newTask, end_date: e.target.value })} />
+                <Label>Assigned To</Label>
+                <Select value={newTask.assigned_to} onValueChange={(val) => setNewTask({ ...newTask, assigned_to: val })}>
+                  <SelectTrigger><SelectValue placeholder="Select resource" /></SelectTrigger>
+                  <SelectContent>
+                    {staff.map((s: any) => (
+                      <SelectItem key={s.id} value={s.id}>{s.full_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Assigned To</Label>
-              <Select value={newTask.assigned_to} onValueChange={(val) => setNewTask({ ...newTask, assigned_to: val })}>
-                <SelectTrigger><SelectValue placeholder="Select resource" /></SelectTrigger>
-                <SelectContent>
-                  {staff.map((s: any) => (
-                    <SelectItem key={s.id} value={s.id}>{s.full_name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Link Hardware (Optional)</Label>
-              <Select value={newTask.allocation_id} onValueChange={(val) => setNewTask({ ...newTask, allocation_id: val })}>
-                <SelectTrigger><SelectValue placeholder="No hardware linked" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">No hardware linked</SelectItem>
-                  {allocations.map((a) => {
-                    const prod = productMap.get(a.product_id);
-                    return (
-                      <SelectItem key={a.id} value={a.id}>
-                        {prod?.name || "Product"} — Qty: {a.quantity} ({a.status})
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Blocked by Payment</Label>
-              <Select value={newTask.blocking_payment_id} onValueChange={(val) => setNewTask({ ...newTask, blocking_payment_id: val })}>
-                <SelectTrigger><SelectValue placeholder="No block" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">No block</SelectItem>
-                  {payments.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>{p.milestone_name} — €{Number(p.amount).toLocaleString("en-US")}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Prerequisite Task</Label>
-              <Select value={newTask.dependency_id} onValueChange={(val) => setNewTask({ ...newTask, dependency_id: val })}>
-                <SelectTrigger><SelectValue placeholder="No dependency" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">No dependency</SelectItem>
-                  {tasks.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>{t.task_name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowNewTask(false)}>Cancel</Button>
-            <Button onClick={handleCreateTask} disabled={createTask.isPending || !newTask.task_name.trim()}>
-              {createTask.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Create Task
-            </Button>
-          </DialogFooter>
+              <div className="space-y-2">
+                <Label>Link Hardware (Optional)</Label>
+                <Select value={newTask.allocation_id} onValueChange={(val) => setNewTask({ ...newTask, allocation_id: val })}>
+                  <SelectTrigger><SelectValue placeholder="No hardware linked" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">No hardware linked</SelectItem>
+                    {allocations.map((a) => {
+                      const prod = productMap.get(a.product_id);
+                      return (
+                        <SelectItem key={a.id} value={a.id}>
+                          {prod?.name || "Product"} — Qty: {a.quantity} ({a.status})
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Blocked by Payment</Label>
+                <Select value={newTask.blocking_payment_id} onValueChange={(val) => setNewTask({ ...newTask, blocking_payment_id: val })}>
+                  <SelectTrigger><SelectValue placeholder="No block" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">No block</SelectItem>
+                    {payments.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>{p.milestone_name} — €{Number(p.amount).toLocaleString("en-US")}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Prerequisite Task</Label>
+                <Select value={newTask.dependency_id} onValueChange={(val) => setNewTask({ ...newTask, dependency_id: val })}>
+                  <SelectTrigger><SelectValue placeholder="No dependency" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">No dependency</SelectItem>
+                    {tasks.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>{t.task_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowNewTask(false)}>Cancel</Button>
+                <Button onClick={handleCreateTask} disabled={createTask.isPending || !newTask.task_name.trim()}>
+                  {createTask.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Create Task
+                </Button>
+              </DialogFooter>
+            </TabsContent>
+
+            <TabsContent value="note" className="space-y-4 mt-4">
+              <p className="text-xs text-muted-foreground">Private operational note visible only to you (PM). Not shared with Admin.</p>
+              <div className="space-y-2">
+                <Label>Title *</Label>
+                <Input value={alertTitle} onChange={(e) => setAlertTitle(e.target.value)} placeholder="e.g. Check energy docs before submission" />
+              </div>
+              <div className="space-y-2">
+                <Label>Description</Label>
+                <Input value={alertDescription} onChange={(e) => setAlertDescription(e.target.value)} placeholder="Optional details..." />
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowNewTask(false)}>Cancel</Button>
+                <Button onClick={handleCreateAlertItem} disabled={createAlert.isPending || !alertTitle.trim()}>
+                  {createAlert.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Create Note
+                </Button>
+              </DialogFooter>
+            </TabsContent>
+
+            <TabsContent value="escalation" className="space-y-4 mt-4">
+              <p className="text-xs text-destructive">This will create a critical alert visible to the Admin in their Tasks dashboard.</p>
+              <div className="space-y-2">
+                <Label>Title *</Label>
+                <Input value={alertTitle} onChange={(e) => setAlertTitle(e.target.value)} placeholder="e.g. Client unresponsive — project blocked" />
+              </div>
+              <div className="space-y-2">
+                <Label>Description</Label>
+                <Input value={alertDescription} onChange={(e) => setAlertDescription(e.target.value)} placeholder="Explain the issue..." />
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowNewTask(false)}>Cancel</Button>
+                <Button variant="destructive" onClick={handleCreateAlertItem} disabled={createAlert.isPending || !alertTitle.trim()}>
+                  {createAlert.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Send Escalation
+                </Button>
+              </DialogFooter>
+            </TabsContent>
+          </Tabs>
         </DialogContent>
       </Dialog>
     </div>
