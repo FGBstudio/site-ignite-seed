@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { computeMacroPhase, type MacroPhase } from "@/data/certificationTemplates";
+import { differenceInDays, parseISO } from "date-fns";
 
 export type SetupStatus = "da_configurare" | "in_corso" | "certificato";
 
@@ -30,6 +31,49 @@ export interface PMProject {
   certification_milestones: any[];
   plannerData?: any;
   macro_phase: MacroPhase;
+  is_deadline_critical?: boolean;
+}
+
+/** Check if any deadline milestone (Submission, Certification) is < 15 days away and not achieved */
+function checkDeadlineCritical(milestones: any[], todayStr: string): boolean {
+  const deadlineKeywords = ["submission", "certification attainment", "certification", "final review"];
+  const today = parseISO(todayStr);
+
+  for (const m of milestones) {
+    if (m.milestone_type !== "timeline") continue;
+    if (m.status === "achieved") continue;
+    if (!m.due_date) continue;
+
+    const name = (m.requirement || "").toLowerCase();
+    const isDeadline = deadlineKeywords.some(kw => name.includes(kw));
+    if (!isDeadline) continue;
+
+    const daysLeft = differenceInDays(parseISO(m.due_date), today);
+    if (daysLeft >= 0 && daysLeft < 15) return true;
+  }
+  return false;
+}
+
+/** Check 7-day confirmation alert for construction end */
+function check7DayAlert(milestones: any[], todayStr: string): { needed: boolean; dueDate: string | null } {
+  const constructionKeywords = ["construction end", "handover", "fine lavori"];
+  const today = parseISO(todayStr);
+
+  for (const m of milestones) {
+    if (m.milestone_type !== "timeline") continue;
+    if (m.status === "achieved") continue;
+    if (!m.due_date) continue;
+
+    const name = (m.requirement || "").toLowerCase();
+    const isConstruction = constructionKeywords.some(kw => name.includes(kw));
+    if (!isConstruction) continue;
+
+    const daysLeft = differenceInDays(parseISO(m.due_date), today);
+    if (daysLeft >= 0 && daysLeft <= 7) {
+      return { needed: true, dueDate: m.due_date };
+    }
+  }
+  return { needed: false, dueDate: null };
 }
 
 export function usePMDashboard() {
@@ -67,11 +111,40 @@ export function usePMDashboard() {
         milestones = data || [];
       }
 
-      // 3. Build result
+      const today = new Date().toISOString().slice(0, 10);
+
+      // 3. Check for 7-day alerts and auto-insert if needed
+      for (const c of certs as any[]) {
+        const certMilestones = milestones.filter((m) => m.certification_id === c.id);
+        const alert7Day = check7DayAlert(certMilestones, today);
+        if (alert7Day.needed && userId) {
+          // Check if alert already exists for this cert recently
+          const { data: existing } = await (supabase as any)
+            .from("task_alerts")
+            .select("id")
+            .eq("certification_id", c.id)
+            .eq("alert_type", "milestone_deadline")
+            .eq("is_resolved", false)
+            .like("title", "%Confirm construction end%")
+            .limit(1);
+
+          if (!existing || existing.length === 0) {
+            await (supabase as any).from("task_alerts").insert({
+              certification_id: c.id,
+              created_by: userId,
+              alert_type: "milestone_deadline",
+              title: `Confirm construction end for ${alert7Day.dueDate}? If delayed, indicate issues.`,
+              description: `Project: ${c.name || c.cert_type} — Construction end is due in 7 days or less.`,
+              escalate_to_admin: false,
+            });
+          }
+        }
+      }
+
+      // 4. Build result
       return (certs as any[]).map((c): PMProject => {
         const certMilestones = milestones.filter((m) => m.certification_id === c.id);
         const allocations = c.project_allocations || [];
-        const today = new Date().toISOString().slice(0, 10);
 
         const isCertified =
           c.status === "certificato" ||
@@ -102,6 +175,9 @@ export function usePMDashboard() {
           setup_status = "da_configurare";
         }
 
+        // Deadline critical flag
+        const is_deadline_critical = !isCertified && checkDeadlineCritical(certMilestones, today);
+
         // Planner data
         const launchDate = c.created_at.slice(0, 10);
         let planStart = launchDate;
@@ -130,7 +206,7 @@ export function usePMDashboard() {
         const activeMilestone = timelineMilestones.find((m: any) => m.status === "in_progress");
         const currentActivity = activeMilestone
           ? activeMilestone.requirement
-          : (setup_status === "certificato" ? "Completato" : "In attesa");
+          : (setup_status === "certificato" ? "Completed" : "Pending");
 
         let plannerStatus = "pending";
         if (setup_status === "certificato") {
@@ -141,6 +217,10 @@ export function usePMDashboard() {
             plannerStatus = c.handover_date < today ? "late" : "in_progress";
           }
         }
+
+        // Override status for on_hold or deadline critical
+        const hasOnHold = timelineMilestones.some((m: any) => m.status === "on_hold");
+        if (hasOnHold) plannerStatus = "on_hold";
 
         const plannerData = {
           id: c.id,
@@ -156,6 +236,7 @@ export function usePMDashboard() {
           status: plannerStatus,
           segments,
           plannedHandoverDate: c.planned_handover_date || null,
+          isDeadlineCritical: is_deadline_critical,
         };
 
         return {
@@ -174,13 +255,14 @@ export function usePMDashboard() {
           is_commissioning: c.is_commissioning,
           project_subtype: c.project_subtype,
           sites: c.sites || null,
-          certifications: [c], // The cert itself
+          certifications: [c],
           project_allocations: allocations,
           setup_status,
           missing,
           certification_milestones: certMilestones,
           plannerData,
           macro_phase: computeMacroPhase(c.status, certMilestones),
+          is_deadline_critical,
         } as PMProject;
       });
     },

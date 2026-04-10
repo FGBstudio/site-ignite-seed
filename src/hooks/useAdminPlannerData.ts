@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { SetupStatus } from "@/hooks/usePMDashboard";
 import type { GanttRowData } from "@/components/dashboard/FGBPlanner";
 import { computeMacroPhase, type MacroPhase } from "@/data/certificationTemplates";
+import { differenceInDays, parseISO } from "date-fns";
 
 export interface AdminPlannerProject {
   id: string;
@@ -25,6 +26,27 @@ export interface AdminPlannerProject {
   certification_milestones: any[];
   plannerData: GanttRowData;
   macro_phase: MacroPhase;
+  is_deadline_critical?: boolean;
+}
+
+/** Check if any deadline milestone is < 15 days away and not achieved */
+function checkDeadlineCritical(milestones: any[], todayStr: string): boolean {
+  const deadlineKeywords = ["submission", "certification attainment", "certification", "final review"];
+  const today = parseISO(todayStr);
+
+  for (const m of milestones) {
+    if (m.milestone_type !== "timeline") continue;
+    if (m.status === "achieved") continue;
+    if (!m.due_date) continue;
+
+    const name = (m.requirement || "").toLowerCase();
+    const isDeadline = deadlineKeywords.some(kw => name.includes(kw));
+    if (!isDeadline) continue;
+
+    const daysLeft = differenceInDays(parseISO(m.due_date), today);
+    if (daysLeft >= 0 && daysLeft < 15) return true;
+  }
+  return false;
 }
 
 export function useAdminPlannerData() {
@@ -102,6 +124,9 @@ export function useAdminPlannerData() {
         else if (hasTimeline && hasScorecard) setup_status = "in_corso";
         else setup_status = "da_configurare";
 
+        // Deadline critical flag
+        const is_deadline_critical = !isCertified && checkDeadlineCritical(certMilestones, today);
+
         // Planner data
         const launchDate = c.created_at.slice(0, 10);
         let planStart = launchDate;
@@ -129,7 +154,7 @@ export function useAdminPlannerData() {
         const activeMilestone = timelineMilestones.find((m: any) => m.status === "in_progress");
         const currentActivity = activeMilestone
           ? activeMilestone.requirement
-          : (setup_status === "certificato" ? "Completato" : "In attesa");
+          : (setup_status === "certificato" ? "Completed" : "Pending");
 
         let plannerStatus = "pending";
         if (setup_status === "certificato") plannerStatus = "achieved";
@@ -137,6 +162,10 @@ export function useAdminPlannerData() {
           const hasActive = timelineMilestones.some((m: any) => m.status === "in_progress" || m.status === "achieved");
           if (hasActive) plannerStatus = c.handover_date < today ? "late" : "in_progress";
         }
+
+        // Override for on_hold
+        const hasOnHold = timelineMilestones.some((m: any) => m.status === "on_hold");
+        if (hasOnHold) plannerStatus = "on_hold";
 
         const pmName = c.pm_id ? profilesMap.get(c.pm_id) || null : null;
 
@@ -155,6 +184,7 @@ export function useAdminPlannerData() {
           segments,
           onClickUrl: `/projects/${c.id}`,
           plannedHandoverDate: c.planned_handover_date || null,
+          isDeadlineCritical: is_deadline_critical,
         };
 
         return {
@@ -178,6 +208,7 @@ export function useAdminPlannerData() {
           certification_milestones: certMilestones,
           plannerData,
           macro_phase: computeMacroPhase(c.status, certMilestones),
+          is_deadline_critical,
         };
       });
     },
