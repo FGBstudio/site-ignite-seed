@@ -62,7 +62,9 @@ export default function ProjectDetail() {
       } catch (e) {}
 
       let displayStatus = m.status;
-      if (m.status !== "achieved" && m.due_date && m.due_date < today) {
+      if (m.status === "on_hold") {
+        displayStatus = "on_hold";
+      } else if (m.status !== "achieved" && m.due_date && m.due_date < today) {
         displayStatus = "late";
       } else if (m.status === "achieved") {
         displayStatus = "achieved";

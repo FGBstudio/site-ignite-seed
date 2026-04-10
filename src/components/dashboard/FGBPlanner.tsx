@@ -272,7 +272,11 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
                     let fillClass = "bg-[#009293]";
                     let fillPercent = 0;
 
-                    if (seg.status === "in_progress") {
+                    if (seg.status === "on_hold") {
+                      baseClass = "border-2 border-solid border-red-500 bg-red-100/60";
+                      fillClass = "bg-red-500";
+                      fillPercent = seg.progress ?? 50;
+                    } else if (seg.status === "in_progress") {
                       baseClass = "border-2 border-dashed border-[#009293]/60 bg-[#009293]/10";
                       fillPercent = seg.progress ?? 50;
                     } else if (seg.status === "achieved") {
@@ -305,7 +309,11 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
                     let fillClass = "bg-[#009293]";
                     let fillPercent = 0;
 
-                    if (row.status === "in_progress") {
+                    if (row.status === "on_hold") {
+                      baseClass = "border-2 border-solid border-red-500 bg-red-100/60";
+                      fillClass = "bg-red-500";
+                      fillPercent = row.progress > 0 ? row.progress : 30;
+                    } else if (row.status === "in_progress") {
                       baseClass = "border-2 border-dashed border-[#009293]/60 bg-[#009293]/10";
                       fillPercent = row.progress;
                     } else if (row.status === "achieved") {
