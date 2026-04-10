@@ -2058,6 +2058,53 @@ export type Database = {
           },
         ]
       }
+      task_alerts: {
+        Row: {
+          alert_type: Database["public"]["Enums"]["task_alert_type"]
+          certification_id: string
+          created_at: string
+          created_by: string
+          description: string | null
+          escalate_to_admin: boolean
+          id: string
+          is_resolved: boolean
+          resolved_at: string | null
+          title: string
+        }
+        Insert: {
+          alert_type: Database["public"]["Enums"]["task_alert_type"]
+          certification_id: string
+          created_at?: string
+          created_by: string
+          description?: string | null
+          escalate_to_admin?: boolean
+          id?: string
+          is_resolved?: boolean
+          resolved_at?: string | null
+          title: string
+        }
+        Update: {
+          alert_type?: Database["public"]["Enums"]["task_alert_type"]
+          certification_id?: string
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          escalate_to_admin?: boolean
+          id?: string
+          is_resolved?: boolean
+          resolved_at?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_alerts_certification_id_fkey"
+            columns: ["certification_id"]
+            isOneToOne: false
+            referencedRelation: "certifications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       telemetry: {
         Row: {
           device_id: string
@@ -2916,6 +2963,12 @@ export type Database = {
       milestone_category: "scorecard" | "timeline"
       permission_level: "view" | "edit" | "admin"
       scope_type: "project" | "site" | "brand" | "holding" | "region"
+      task_alert_type:
+        | "timeline_to_configure"
+        | "milestone_deadline"
+        | "project_on_hold"
+        | "pm_operational"
+        | "other_critical"
       wiring_type: "WYE" | "DELTA"
     }
     CompositeTypes: {
@@ -3071,6 +3124,13 @@ export const Constants = {
       milestone_category: ["scorecard", "timeline"],
       permission_level: ["view", "edit", "admin"],
       scope_type: ["project", "site", "brand", "holding", "region"],
+      task_alert_type: [
+        "timeline_to_configure",
+        "milestone_deadline",
+        "project_on_hold",
+        "pm_operational",
+        "other_critical",
+      ],
       wiring_type: ["WYE", "DELTA"],
     },
   },

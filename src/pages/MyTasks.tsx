@@ -5,6 +5,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePMDashboard } from "@/hooks/usePMDashboard";
+import { useTaskAlerts, useResolveAlert, useCreateAlert, ALERT_TYPE_LABELS, ALERT_TYPE_COLORS, type TaskAlert, type TaskAlertType } from "@/hooks/useTaskAlerts";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +13,11 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowRight, CheckCircle, Clock, AlertTriangle, CalendarDays, FolderKanban, Upload, Lock } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { ArrowRight, Bell, CheckCircle, Clock, AlertTriangle, CalendarDays, FolderKanban, Upload, Lock, Plus, X } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
 import { cn } from "@/lib/utils";
 
@@ -36,11 +41,19 @@ interface TaskRow {
 
 export default function MyTasks() {
   const navigate = useNavigate();
-  const { user, isPM } = useAuth();
+  const { user, isPM, role } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [selectedTask, setSelectedTask] = useState<TaskRow | null>(null);
+  const [showCreateAlert, setShowCreateAlert] = useState(false);
+  const [newAlertTitle, setNewAlertTitle] = useState("");
+  const [newAlertDesc, setNewAlertDesc] = useState("");
+  const [newAlertType, setNewAlertType] = useState<TaskAlertType>("pm_operational");
+  const [newAlertCertId, setNewAlertCertId] = useState("");
   const { data: pmProjects = [], isLoading: isPMProjectsLoading } = usePMDashboard();
+  const { data: alerts = [], isLoading: alertsLoading } = useTaskAlerts(role, user?.id);
+  const resolveAlert = useResolveAlert();
+  const createAlert = useCreateAlert();
 
   const { data: tasks = [], isLoading, isError } = useQuery({
     queryKey: ["my-tasks", user?.id],
@@ -203,8 +216,85 @@ export default function MyTasks() {
     );
   };
 
+  const handleCreateAlert = () => {
+    if (!user?.id || !newAlertCertId || !newAlertTitle.trim()) return;
+    const escalate = newAlertType !== "pm_operational";
+    createAlert.mutate(
+      {
+        certification_id: newAlertCertId,
+        created_by: user.id,
+        alert_type: newAlertType,
+        title: newAlertTitle.trim(),
+        description: newAlertDesc.trim() || undefined,
+        escalate_to_admin: escalate,
+      },
+      {
+        onSuccess: () => {
+          toast({ title: "Alert created" });
+          setShowCreateAlert(false);
+          setNewAlertTitle("");
+          setNewAlertDesc("");
+          setNewAlertType("pm_operational");
+          setNewAlertCertId("");
+        },
+      }
+    );
+  };
+
   return (
     <MainLayout title="My Tasks" subtitle="Your operational inbox">
+      {/* Alerts Section */}
+      {isPM && (
+        <div className="mb-6 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <Bell className="h-4 w-4 text-destructive" />
+              Alerts ({alerts.length})
+            </h3>
+            <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => setShowCreateAlert(true)}>
+              <Plus className="h-3 w-3" /> New Alert
+            </Button>
+          </div>
+          {alerts.length > 0 && (
+            <div className="space-y-2">
+              {alerts.map((alert) => (
+                <Card key={alert.id} className="hover:shadow-sm transition-all">
+                  <CardContent className="py-3 px-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-sm text-foreground truncate">{alert.title}</p>
+                          <Badge variant="outline" className={cn("text-[10px] shrink-0", ALERT_TYPE_COLORS[alert.alert_type as TaskAlertType])}>
+                            {ALERT_TYPE_LABELS[alert.alert_type as TaskAlertType]}
+                          </Badge>
+                          {alert.escalate_to_admin && (
+                            <Badge variant="destructive" className="text-[10px] shrink-0">Admin</Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {alert.certification_name} · {format(new Date(alert.created_at), "dd MMM")}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 w-7 p-0"
+                          onClick={() => resolveAlert.mutate(alert.id)}
+                          disabled={resolveAlert.isPending}
+                        >
+                          <CheckCircle className="h-4 w-4 text-success" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {pageIsLoading ? (
         <div className="space-y-3">
           {[...Array(5)].map((_, i) => (
@@ -217,7 +307,7 @@ export default function MyTasks() {
             Error loading tasks. Please try again later.
           </CardContent>
         </Card>
-      ) : tasks.length === 0 ? (
+      ) : tasks.length === 0 && alerts.length === 0 ? (
         <Card>
           <CardContent className="py-16 text-center">
             <CheckCircle className="h-12 w-12 text-success mx-auto mb-3" />
@@ -365,6 +455,58 @@ export default function MyTasks() {
           )}
         </SheetContent>
       </Sheet>
+
+      {/* Create Alert Dialog */}
+      <Dialog open={showCreateAlert} onOpenChange={setShowCreateAlert}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create Alert</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Project</Label>
+              <Select value={newAlertCertId} onValueChange={setNewAlertCertId}>
+                <SelectTrigger><SelectValue placeholder="Select project" /></SelectTrigger>
+                <SelectContent>
+                  {pmProjects.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Type</Label>
+              <Select value={newAlertType} onValueChange={(v) => setNewAlertType(v as TaskAlertType)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pm_operational">PM Operational (private)</SelectItem>
+                  <SelectItem value="timeline_to_configure">Timeline to Configure</SelectItem>
+                  <SelectItem value="milestone_deadline">Milestone Deadline</SelectItem>
+                  <SelectItem value="project_on_hold">Project On Hold</SelectItem>
+                  <SelectItem value="other_critical">Other Critical</SelectItem>
+                </SelectContent>
+              </Select>
+              {newAlertType !== "pm_operational" && (
+                <p className="text-xs text-muted-foreground">⚠️ This will be visible to Admin</p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label>Title</Label>
+              <Input value={newAlertTitle} onChange={(e) => setNewAlertTitle(e.target.value)} placeholder="Brief description" />
+            </div>
+            <div className="space-y-2">
+              <Label>Details (optional)</Label>
+              <Textarea value={newAlertDesc} onChange={(e) => setNewAlertDesc(e.target.value)} placeholder="Additional context..." rows={3} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreateAlert(false)}>Cancel</Button>
+            <Button onClick={handleCreateAlert} disabled={!newAlertCertId || !newAlertTitle.trim() || createAlert.isPending}>
+              Create
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }

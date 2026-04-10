@@ -47,6 +47,7 @@ export function AppSidebar() {
     mainNavItems = [
       { title: "CEO Dashboard", url: "/ceo-dashboard", icon: Crown },
       { title: "All Projects", url: "/projects", icon: FolderKanban },
+      { title: "Tasks", url: "/admin-tasks", icon: Inbox },
       { title: "Inventory", url: "/inventory", icon: Package },
       { title: "Supplier Orders", url: "/supplier-orders", icon: Truck },
       { title: "Reports", url: "/reports", icon: BarChart3 },

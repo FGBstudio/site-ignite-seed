@@ -17,6 +17,7 @@ import Settings from "./pages/Settings";
 import CeoDashboard from "./pages/CeoDashboard";
 import MyTasks from "./pages/MyTasks";
 import PMPortal from "./pages/PMPortal";
+import AdminTasks from "./pages/AdminTasks";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 
@@ -48,6 +49,7 @@ function AppRoutes() {
       <Route path="/supplier-orders" element={<ProtectedRoute allowedRoles={R("ADMIN")}><SupplierOrders /></ProtectedRoute>} />
       <Route path="/reports" element={<ProtectedRoute allowedRoles={R("ADMIN")}><Reports /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute allowedRoles={R("ADMIN")}><Settings /></ProtectedRoute>} />
+      <Route path="/admin-tasks" element={<ProtectedRoute allowedRoles={R("ADMIN")}><AdminTasks /></ProtectedRoute>} />
       
       {/* Shared: Admin + PM */}
       <Route path="/projects" element={<ProtectedRoute allowedRoles={R("ADMIN", "PM")}><Projects /></ProtectedRoute>} />

@@ -1,13 +1,15 @@
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { usePMDashboard, type PMProject } from "@/hooks/usePMDashboard";
+import { useAuth } from "@/contexts/AuthContext";
+import { useTaskAlertCounts, ALERT_TYPE_LABELS, ALERT_TYPE_COLORS, type TaskAlertType } from "@/hooks/useTaskAlerts";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { format, differenceInDays } from "date-fns";
 import { cn } from "@/lib/utils";
-import { AlertTriangle, ArrowRight, Building2, CalendarIcon, CheckCircle2, Clock3, FolderKanban } from "lucide-react";
+import { AlertTriangle, ArrowRight, Bell, Building2, CalendarIcon, CheckCircle2, Clock3, FolderKanban } from "lucide-react";
 import { PMCalendar } from "@/components/dashboard/PMCalendar";
 
 // IMPORT PER I WIDGET GRAFICI (STILE CEO DASHBOARD)
@@ -52,7 +54,9 @@ const financialChartConfig = {
 
 export default function PMPortal() {
   const navigate = useNavigate();
+  const { user, role } = useAuth();
   const { data: projects = [], isLoading } = usePMDashboard();
+  const { total: alertTotal, counts: alertCounts, alerts: recentAlerts } = useTaskAlertCounts(role, user?.id);
 
   const daConfigurare = projects.filter((p) => p.setup_status === "da_configurare");
   const inCorso = projects.filter((p) => p.setup_status === "in_corso");
@@ -136,7 +140,7 @@ export default function PMPortal() {
           {/* =========================================
               1. KPI COUNTERS (ORIGINALI)
           ========================================= */}
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-4">
             <Card className="border-warning/30 bg-card">
               <CardContent className="flex items-center gap-3 p-4">
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-warning/10">
@@ -167,6 +171,20 @@ export default function PMPortal() {
                 <div>
                   <p className="text-2xl font-bold text-foreground">{certificati.length}</p>
                   <p className="text-xs text-muted-foreground">Certified</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card
+              className="border-destructive/30 bg-card cursor-pointer hover:shadow-md transition-all"
+              onClick={() => navigate("/my-tasks")}
+            >
+              <CardContent className="flex items-center gap-3 p-4">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-destructive/10">
+                  <Bell className="h-5 w-5 text-destructive" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-foreground">{alertTotal}</p>
+                  <p className="text-xs text-muted-foreground">Alerts / Tasks</p>
                 </div>
               </CardContent>
             </Card>
