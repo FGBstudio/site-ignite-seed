@@ -158,6 +158,12 @@ export function TimelineSetupWizard({
         updates.start_date = dates.start_date;
         updates.due_date = dates.due_date;
       }
+
+      // Lock PM-restricted milestones after first save
+      if (isPmLockedAllDates || isPmLockedEndOnly) {
+        updates.edit_locked_for_pm = true;
+      }
+
       await supabase
         .from("certification_milestones")
         .update(updates)
@@ -165,6 +171,34 @@ export function TimelineSetupWizard({
 
       currentMilestone.start_date = updates.start_date;
       currentMilestone.due_date = updates.due_date;
+      if (updates.edit_locked_for_pm) currentMilestone.edit_locked_for_pm = true;
+
+      // Sync: when Construction Phase end date is set, auto-sync Construction end (Handover)
+      // and set planned/actual handover dates on the certification
+      if (milestoneName === CONSTRUCTION_PHASE_NAME && updates.due_date) {
+        const handoverMilestone = milestones.find((m: any) => m.requirement === CONSTRUCTION_END_NAME);
+        if (handoverMilestone && !handoverMilestone.start_date && !handoverMilestone.due_date) {
+          await supabase
+            .from("certification_milestones")
+            .update({ start_date: updates.due_date, due_date: updates.due_date })
+            .eq("id", handoverMilestone.id);
+          handoverMilestone.start_date = updates.due_date;
+          handoverMilestone.due_date = updates.due_date;
+        }
+        // Set dual handover tracking dates on the certification
+        await (supabase as any)
+          .from("certifications")
+          .update({ planned_handover_date: updates.due_date, actual_handover_date: updates.due_date })
+          .eq("id", certId);
+      }
+
+      // When Construction end (Handover) is updated, sync actual_handover_date
+      if (milestoneName === CONSTRUCTION_END_NAME && updates.due_date) {
+        await (supabase as any)
+          .from("certifications")
+          .update({ actual_handover_date: updates.due_date })
+          .eq("id", certId);
+      }
 
       qc.invalidateQueries({ queryKey: ["timeline-milestones", certId] });
       setCurrentIndex((prev) => prev + 1);
