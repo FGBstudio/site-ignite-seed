@@ -127,6 +127,31 @@ function KpiStrip({ tasks, payments, projects, alertTotal, alertCounts }: { task
           )}
         </CardContent>
       </Card>
+
+      <Card className="cursor-pointer hover:shadow-md transition-all" onClick={() => navigate("/admin-tasks")}>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium text-muted-foreground">Alerts / Tasks</CardTitle>
+        </CardHeader>
+        <CardContent className="h-[220px]">
+          {alertTotal === 0 ? (
+            <div className="flex items-center justify-center h-full text-sm text-muted-foreground">No open alerts 🎉</div>
+          ) : (
+            <div className="flex flex-col justify-center h-full space-y-3">
+              <p className="text-4xl font-bold text-foreground text-center">{alertTotal}</p>
+              <p className="text-xs text-muted-foreground text-center">open alerts from PMs</p>
+              <div className="flex flex-wrap gap-1.5 justify-center pt-2">
+                {Object.entries(alertCounts)
+                  .filter(([, v]) => v > 0)
+                  .map(([type, count]) => (
+                    <Badge key={type} variant="outline" className="text-[10px]">
+                      {ALERT_TYPE_LABELS[type as TaskAlertType]}: {count}
+                    </Badge>
+                  ))}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -486,10 +511,12 @@ function TabPagamenti({ payments, projects }: { payments: CertPaymentRow[]; proj
 }
 
 export default function CeoDashboard() {
+  const { user, role } = useAuth();
   const { data: tasks = [], isLoading: loadingTasks } = useCertTasks();
   const { data: payments = [], isLoading: loadingPayments } = useCertPayments();
   const { data: projects = [], isLoading: loadingProjects } = useActiveProjects();
   const { data: calendarProjects = [], isLoading: loadingCalendar } = useAdminCalendarData();
+  const { total: alertTotal, counts: alertCounts } = useTaskAlertCounts(role, user?.id);
 
   const isLoading = loadingTasks || loadingPayments || loadingProjects;
 
@@ -507,8 +534,8 @@ export default function CeoDashboard() {
     <MainLayout title="CEO Dashboard" subtitle="Executive control hub — Certifications & Portfolio">
       {isLoading ? (
         <div className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            {[1, 2, 3].map(i => (
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map(i => (
               <Card key={i}><CardContent className="pt-6"><Skeleton className="h-[220px] w-full" /></CardContent></Card>
             ))}
           </div>
@@ -516,7 +543,8 @@ export default function CeoDashboard() {
         </div>
       ) : (
         <>
-          <KpiStrip tasks={tasks} payments={payments} projects={projects} />
+          <KpiStrip tasks={tasks} payments={payments} projects={projects} alertTotal={alertTotal} alertCounts={alertCounts} />
+
 
           <PMCalendar projects={calendarProjects} adminMode pmNames={pmNames} />
 
