@@ -431,11 +431,13 @@ export type Database = {
       }
       certification_milestones: {
         Row: {
+          actual_date: string | null
           category: string
           certification_id: string
           completed_date: string | null
           created_at: string | null
           due_date: string | null
+          edit_locked_for_pm: boolean
           evidence_url: string | null
           id: string
           max_score: number | null
@@ -450,11 +452,13 @@ export type Database = {
           status: string | null
         }
         Insert: {
+          actual_date?: string | null
           category: string
           certification_id: string
           completed_date?: string | null
           created_at?: string | null
           due_date?: string | null
+          edit_locked_for_pm?: boolean
           evidence_url?: string | null
           id?: string
           max_score?: number | null
@@ -469,11 +473,13 @@ export type Database = {
           status?: string | null
         }
         Update: {
+          actual_date?: string | null
           category?: string
           certification_id?: string
           completed_date?: string | null
           created_at?: string | null
           due_date?: string | null
+          edit_locked_for_pm?: boolean
           evidence_url?: string | null
           id?: string
           max_score?: number | null
@@ -499,6 +505,7 @@ export type Database = {
       }
       certifications: {
         Row: {
+          actual_handover_date: string | null
           categories: Json | null
           cert_level: string | null
           cert_rating: string | null
@@ -512,6 +519,7 @@ export type Database = {
           issued_date: string | null
           level: string | null
           name: string | null
+          planned_handover_date: string | null
           pm_id: string | null
           project_subtype: string | null
           region: string
@@ -522,6 +530,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          actual_handover_date?: string | null
           categories?: Json | null
           cert_level?: string | null
           cert_rating?: string | null
@@ -535,6 +544,7 @@ export type Database = {
           issued_date?: string | null
           level?: string | null
           name?: string | null
+          planned_handover_date?: string | null
           pm_id?: string | null
           project_subtype?: string | null
           region?: string
@@ -545,6 +555,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          actual_handover_date?: string | null
           categories?: Json | null
           cert_level?: string | null
           cert_rating?: string | null
@@ -558,6 +569,7 @@ export type Database = {
           issued_date?: string | null
           level?: string | null
           name?: string | null
+          planned_handover_date?: string | null
           pm_id?: string | null
           project_subtype?: string | null
           region?: string
