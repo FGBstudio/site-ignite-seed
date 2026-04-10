@@ -13,7 +13,7 @@ import {
   isWithinInterval,
   parseISO,
 } from "date-fns";
-import { ChevronLeft, ChevronRight, Filter, CalendarIcon, AlignLeft, ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronLeft, ChevronRight, Filter, CalendarIcon, AlignLeft, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { PMProject } from "@/hooks/usePMDashboard";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -42,6 +42,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { FGBPlanner } from "@/components/dashboard/FGBPlanner";
+import { useCreateAlert } from "@/hooks/useTaskAlerts";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 
 const BAR_COLORS = [
   "hsl(211 100% 50%)", "hsl(142 71% 45%)", "hsl(25 95% 53%)",
@@ -276,6 +279,29 @@ export function PMCalendar({ projects, adminMode, pmNames }: PMCalendarProps) {
   // Sheet state
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [sheetProject, setSheetProject] = useState("");
+  const [sheetTitle, setSheetTitle] = useState("");
+  const [sheetEventType, setSheetEventType] = useState<"task" | "milestone">("task");
+
+  const { user } = useAuth();
+  const createAlert = useCreateAlert();
+
+  const handleCreateAndAssign = async () => {
+    if (!sheetProject || !sheetTitle.trim() || !user) return;
+    await createAlert.mutateAsync({
+      certification_id: sheetProject,
+      created_by: user.id,
+      alert_type: sheetEventType === "task" ? "pm_operational" : "other_critical",
+      title: sheetTitle.trim(),
+      description: selectedDate ? `Scheduled for ${format(selectedDate, "dd MMM yyyy")}` : undefined,
+      escalate_to_admin: sheetEventType === "milestone",
+    });
+    toast.success(sheetEventType === "task" ? "Operational task created" : "Escalation request sent to Admin");
+    setSheetProject("");
+    setSheetTitle("");
+    setSheetEventType("task");
+    setIsSheetOpen(false);
+  };
 
   const filteredProjects = useMemo(() => {
     return projects.filter((p) => {
@@ -413,7 +439,7 @@ export function PMCalendar({ projects, adminMode, pmNames }: PMCalendarProps) {
           <div className="py-6 space-y-6">
             <div className="space-y-2">
               <Label>Reference Project *</Label>
-              <Select>
+              <Select value={sheetProject} onValueChange={setSheetProject}>
                 <SelectTrigger><SelectValue placeholder="Select a project..." /></SelectTrigger>
                 <SelectContent>
                   {projectOptions.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
@@ -423,12 +449,12 @@ export function PMCalendar({ projects, adminMode, pmNames }: PMCalendarProps) {
 
             <div className="space-y-2">
               <Label>Task / Milestone Title *</Label>
-              <Input placeholder="e.g. Energy documents review..." />
+              <Input placeholder="e.g. Energy documents review..." value={sheetTitle} onChange={(e) => setSheetTitle(e.target.value)} />
             </div>
 
             <div className="space-y-3">
               <Label>Event Type</Label>
-              <RadioGroup defaultValue="task" className="flex flex-col gap-3">
+              <RadioGroup value={sheetEventType} onValueChange={(v) => setSheetEventType(v as "task" | "milestone")} className="flex flex-col gap-3">
                 <div className="flex items-start space-x-3 border p-3 rounded-md bg-muted/20">
                   <RadioGroupItem value="task" id="r1" className="mt-1" />
                   <div>
@@ -448,7 +474,10 @@ export function PMCalendar({ projects, adminMode, pmNames }: PMCalendarProps) {
 
             <div className="pt-4 border-t flex justify-end gap-2">
               <Button variant="outline" onClick={() => setIsSheetOpen(false)}>Cancel</Button>
-              <Button>Create & Assign</Button>
+              <Button onClick={handleCreateAndAssign} disabled={createAlert.isPending || !sheetProject || !sheetTitle.trim()}>
+                {createAlert.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Create & Assign
+              </Button>
             </div>
           </div>
         </SheetContent>
