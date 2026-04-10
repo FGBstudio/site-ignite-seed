@@ -188,13 +188,15 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
               const isClickable = !!(row.onClickUrl || row.onClick);
 
               return (
-                  <div 
+                      <div 
                     key={row.id} 
                     className={cn(
                       "h-14 border-b flex items-center px-3 hover:bg-muted/50 transition-colors",
                       isClickable && "cursor-pointer",
                       row.id === "summary" && "bg-primary/5 font-semibold",
-                      row.status === "on_hold" && "bg-red-50 dark:bg-red-950/30 border-l-4 border-l-red-500"
+                      row.status === "on_hold" && "bg-red-50 dark:bg-red-950/30 border-l-4 border-l-red-500",
+                      row.isDeadlineCritical && row.status !== "on_hold" && "bg-red-50 dark:bg-red-950/20 border-l-4 border-l-red-400"
+                    )}
                     )}
                   onClick={() => {
                     if (row.onClick) row.onClick();
@@ -264,7 +266,7 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
             )}
 
             {data.map((row) => (
-              <div key={row.id} className={cn("h-14 border-b relative group hover:bg-muted/10 transition-colors", row.id === "summary" && "bg-primary/5", row.status === "on_hold" && "bg-red-50/50 dark:bg-red-950/20")}>
+              <div key={row.id} className={cn("h-14 border-b relative group hover:bg-muted/10 transition-colors", row.id === "summary" && "bg-primary/5", row.status === "on_hold" && "bg-red-50/50 dark:bg-red-950/20", row.isDeadlineCritical && row.status !== "on_hold" && "bg-red-50/30 dark:bg-red-950/10")}>
                 {row.segments && row.segments.length > 0 ? (
                   row.segments.map((seg, idx) => {
                     if (!seg.start || !seg.end) return null;
