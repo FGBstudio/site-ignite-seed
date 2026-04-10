@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { useProjectTasks, useCreateTask, useUpdateTask, useDeleteTask } from "@/hooks/useProjectTasks";
 import { usePaymentMilestones, PaymentMilestone } from "@/hooks/usePaymentMilestones";
+import { useCreateAlert, useResolveAlert, ALERT_TYPE_LABELS, ALERT_TYPE_COLORS, type TaskAlertType } from "@/hooks/useTaskAlerts";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 
 export interface ProjectTask {
   id: string;
@@ -23,12 +26,14 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Plus, Trash2, Lock, AlertTriangle, Loader2, Package } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Plus, Trash2, Lock, AlertTriangle, Loader2, Package, CheckCircle2, Bell } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
-import type { ProjectAllocation, Product } from "@/types/custom-tables";
+import type { ProjectAllocation, Product, AppRole } from "@/types/custom-tables";
 
 const TASK_STATUS_LABELS: Record<string, string> = {
   todo: "To Do",
@@ -46,16 +51,48 @@ const TASK_STATUS_COLORS: Record<string, string> = {
 
 interface Props {
   projectId: string;
+  role?: AppRole | null;
 }
 
-export function ProjectWBS({ projectId }: Props) {
+export function ProjectWBS({ projectId, role }: Props) {
   const { data: tasks = [], isLoading } = useProjectTasks(projectId);
   const { data: payments = [] } = usePaymentMilestones(projectId);
   const createTask = useCreateTask(projectId);
   const updateTask = useUpdateTask(projectId);
   const deleteTask = useDeleteTask(projectId);
+  const { user } = useAuth();
+
+  // Fetch project alerts
+  const { data: alerts = [] } = useQuery({
+    queryKey: ["project-alerts", projectId],
+    enabled: !!projectId,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("task_alerts")
+        .select("*, profiles!task_alerts_created_by_fkey(full_name)")
+        .eq("certification_id", projectId)
+        .eq("is_resolved", false)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      let items = (data || []) as any[];
+      // Admin sees only escalated; PM sees all
+      if (role === "ADMIN") {
+        items = items.filter((a: any) => a.escalate_to_admin);
+      }
+      return items.map((a: any) => ({
+        ...a,
+        pm_name: a.profiles?.full_name || "—",
+      }));
+    },
+  });
+
+  const resolveAlert = useResolveAlert();
+  const createAlert = useCreateAlert();
 
   const [showNewTask, setShowNewTask] = useState(false);
+  const [newTaskTab, setNewTaskTab] = useState<"wbs" | "note" | "escalation">("wbs");
+  const [alertTitle, setAlertTitle] = useState("");
+  const [alertDescription, setAlertDescription] = useState("");
   const [newTask, setNewTask] = useState({
     task_name: "",
     assigned_to: "",
