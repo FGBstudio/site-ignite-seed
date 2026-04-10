@@ -1,62 +1,64 @@
+## Fix Alert/Task Creation Flow + Unified Schedule View
 
+### Problems Identified
 
-## Project Detail Enhancements: Schedule Alerts + Overview Tab
-
-### Summary
-Two changes to `ProjectDetail.tsx`:
-1. **Schedule tab**: Show project-specific `task_alerts` (filtered by `certification_id`) alongside the existing WBS tasks
-2. **New "Overview" tab**: A vertical timeline visualization (inspired by the reference image) showing milestones with dates on alternating sides, plus a certification credits summary from the scorecard
-
----
-
-### 1. Schedule Tab — Project Alerts
-
-**File:** `src/pages/ProjectDetail.tsx`
-
-- Import and use `useTaskAlerts` from `src/hooks/useTaskAlerts.ts`, filtered by the current `certification_id`
-- Add a new query in the Schedule tab content that fetches `task_alerts` where `certification_id = projectId`
-- Display them as a list of alert cards above the existing `ProjectWBS` component, showing: alert type badge, title, description/log, created date, and a "Resolve" button
-- Visibility rules follow existing logic: PM sees own alerts, Admin sees escalated alerts
-
-**File:** `src/components/projects/ProjectAlerts.tsx` (new)
-
-- A small component that queries `task_alerts` for a given `certification_id`
-- Renders each alert as a compact card with type color coding (reusing `ALERT_TYPE_COLORS` from `useTaskAlerts`)
-- Includes resolve action via `useResolveAlert`
+1. **Calendar "Create & Assign" button is dead** — The Sheet in `PMCalendar.tsx` (line 451) has no `onClick` handler wired to the button. The `Select` for project and `RadioGroup` for event type have no controlled state. Nothing is saved.
+2. **Schedule tab only shows WBS tasks** — `ProjectDetail.tsx` Schedule tab renders `ProjectAlerts` (unresolved alerts) + `ProjectWBS` (project_tasks table), but alerts and WBS tasks are displayed as separate sections. The +New Task button have to creates alerts and PM `project_tasks`
+3. **No way to create alerts from Schedule** — The +New button in `ProjectWBS` only opens a WBS task creation dialog. There's no option to create PM private notes or escalation requests from the project Schedule page.
 
 ---
 
-### 2. New "Overview" Tab — Visual Timeline + Credits
+### Plan
 
-**File:** `src/components/projects/ProjectOverview.tsx` (new)
+#### A. Fix Calendar Sheet — Wire "Create & Assign" (`PMCalendar.tsx`)
 
-A new component with two sections:
+- Add controlled state for: `selectedProject`, `taskTitle`, `eventType` (task vs escalation)
+- On "Create & Assign":
+  - If **Operational Task**: insert into `task_alerts` with `alert_type = "pm_operational"`, `escalate_to_admin = false`
+  - If **Escalation Request**: insert into `task_alerts` with `alert_type = "other_critical"`, `escalate_to_admin = true`
+- Use `useCreateAlert` hook from `useTaskAlerts.ts`
+- Show toast on success, close sheet, reset form
+- Pass `useAuth()` context to get `user.id` for `created_by`
 
-**A. Vertical Timeline (inspired by reference image)**
-- A vertical line (teal/primary color) running down the center
-- Each milestone is a node on the line with:
-  - Date label (month + year) on one side
-  - Milestone name + description on the other side
-  - Alternating left/right placement
-  - Progress indicator (circle with percentage) at key transition points (e.g., 50% at construction start, 90% at construction end)
-  - Status-based styling: achieved = filled circle, in_progress = pulsing, pending = hollow, on_hold = red
-- Project header at the top: Client name, site name, certification type
-- LEED/certification badge at the bottom when certified
+#### B. Unified Schedule View (`ProjectDetail.tsx` Schedule tab)
 
-**B. Certification Credits Summary**
-- If the project has a scorecard, show a compact summary of credit categories with current score vs max score
-- Uses data from `certification_milestones` where `milestone_type = 'scorecard'`
-- Grouped by category, showing a progress bar per category
+Replace the current layout (ProjectAlerts above ProjectWBS) with a single unified list that shows:
 
-**Data source:** Reuses the existing `timelineMilestones` query already in `ProjectDetail.tsx` for the timeline, and `useMilestones` for scorecard data.
+- **Task alerts** for this project (`task_alerts` where `certification_id = projectId`)
+  - Admin sees: escalated alerts only (not PM private operational notes)
+  - PM sees: all own alerts (both private and escalated)
+- **WBS tasks** for this project (existing `project_tasks`)
+- Both types rendered as cards in a single chronological list
+
+Modify `ProjectWBS.tsx` or create a wrapper component that merges both data sources.
+
+#### C. Enhanced +New Button in Schedule (`ProjectWBS.tsx`)
+
+Replace the current "New Task" dialog with a tabbed or radio-group dialog offering:
+
+1. **Operational Task (WBS)** — existing project_tasks creation (keep current form)
+2. **PM Private Note** — creates `task_alert` with `alert_type = "pm_operational"`, `escalate_to_admin = false`
+3. **Escalation Request** — creates `task_alert` with `alert_type = "other_critical"`, `escalate_to_admin = true`
+
+The dialog auto-fills `certification_id` from the current project context.
+
+#### D. Admin "Tasks" KPI Widget (CEO Dashboard)
+
+The widget already exists in `CeoDashboard.tsx` using `useTaskAlertCounts`. Verify it renders the count correctly — no code change expected here.
 
 ---
 
-### Files Modified/Created
+### Files Modified
 
-| Action | File | What |
-|--------|------|------|
-| Create | `src/components/projects/ProjectOverview.tsx` | Visual vertical timeline + credits summary |
-| Create | `src/components/projects/ProjectAlerts.tsx` | Task alerts list for a specific project |
-| Modify | `src/pages/ProjectDetail.tsx` | Add "Overview" tab (first position), embed `ProjectAlerts` in Schedule tab |
 
+| Action | File                                        | Change                                                                                    |
+| ------ | ------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Modify | `src/components/dashboard/PMCalendar.tsx`   | Wire Create & Assign button with state + `useCreateAlert` + `useAuth`                     |
+| Modify | `src/components/projects/ProjectWBS.tsx`    | Merge task_alerts into the schedule view; enhance +New dialog with alert creation options |
+| Remove | `src/components/projects/ProjectAlerts.tsx` | No longer needed as a separate component — alerts are now inline in ProjectWBS            |
+| Modify | `src/pages/ProjectDetail.tsx`               | Remove `ProjectAlerts` import; pass `role` context to ProjectWBS                          |
+
+
+### No DB migration needed
+
+All tables (`task_alerts`, `project_tasks`) and RLS policies already exist and support these operations.
