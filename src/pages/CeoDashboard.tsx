@@ -37,7 +37,8 @@ const COLORS = {
   blocked: "hsl(38, 92%, 50%)",
 };
 
-function KpiStrip({ tasks, payments, projects }: { tasks: CertTaskRow[]; payments: CertPaymentRow[]; projects: ProjectRow[] }) {
+function KpiStrip({ tasks, payments, projects, alertTotal, alertCounts }: { tasks: CertTaskRow[]; payments: CertPaymentRow[]; projects: ProjectRow[]; alertTotal: number; alertCounts: Record<string, number> }) {
+  const navigate = useNavigate();
   const { inRitardo, inCorso, daConfigurare, certificati, lateProjects } = useMemo(() => computeProjectStatus(projects, tasks), [projects, tasks]);
   const overdueByProject = useMemo(() => computeOverduePayments(payments), [payments]);
 
