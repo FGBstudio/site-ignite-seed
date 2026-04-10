@@ -135,6 +135,7 @@ export function useCreateAlert() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["task-alerts"] });
+      qc.invalidateQueries({ queryKey: ["project-alerts"] });
     },
   });
 }
