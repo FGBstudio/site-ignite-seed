@@ -29,6 +29,8 @@ export interface GanttRowData {
   onClick?: () => void;
   /** For construction projects: original planned handover date (marker on Gantt) */
   plannedHandoverDate?: string | null;
+  /** If true, critical deadline < 15 days — row turns red */
+  isDeadlineCritical?: boolean;
 }
 
 interface FGBPlannerProps {
