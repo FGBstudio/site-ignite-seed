@@ -67,9 +67,23 @@ function computeCalculatedDate(
 function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChange: (open: boolean) => void }) {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const { user, role, isAdmin } = useAuth();
   const certId = project.certifications?.[0]?.id;
   const { template, isGeneric } = useProjectTemplate(project);
-  const [wizardMode, setWizardMode] = useState<boolean | null>(null); // null = auto-detect
+  const [wizardMode, setWizardMode] = useState<boolean | null>(null);
+
+  // On Hold state
+  const [onHoldPending, setOnHoldPending] = useState<{ milestoneId: string } | null>(null);
+  const [onHoldNote, setOnHoldNote] = useState("");
+
+  // Add milestone state
+  const [showAddMilestone, setShowAddMilestone] = useState(false);
+  const [newMilestoneName, setNewMilestoneName] = useState("");
+  const [newMilestoneStart, setNewMilestoneStart] = useState("");
+  const [newMilestoneEnd, setNewMilestoneEnd] = useState("");
+
+  // Delete milestone state
+  const [deletePending, setDeletePending] = useState<{ id: string; name: string } | null>(null);
 
   const { data: milestones = [], refetch } = useQuery({
     queryKey: ["timeline-milestones", certId],
@@ -88,14 +102,16 @@ function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChan
 
   const [saving, setSaving] = useState(false);
 
+  const hasOnHold = milestones.some((m: any) => m.status === "on_hold");
+
   const handleInitialize = async () => {
     if (!certId) return toast({ variant: "destructive", title: "Missing base certification in database." });
     setSaving(true);
     try {
       const rows = template.timeline.map((step) => ({
         certification_id: certId,
-        category: step.name,      // FIX: Scrive "Pre-assessment", "Start construction phase", ecc.
-        requirement: step.name,   // Manteniamo allineato per doppia sicurezza
+        category: step.name,
+        requirement: step.name,
         milestone_type: "timeline" as const,
         order_index: step.order_index,
         max_score: 0,
@@ -124,11 +140,138 @@ function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChan
     qc.invalidateQueries({ queryKey: ["pm-dashboard"] });
   };
 
+  // Handle status change — intercept "on_hold" to require note
+  const handleStatusChange = (milestoneId: string, newStatus: string) => {
+    if (newStatus === "on_hold") {
+      setOnHoldPending({ milestoneId });
+      setOnHoldNote("");
+    } else {
+      handleUpdate(milestoneId, { status: newStatus });
+    }
+  };
+
+  // Confirm on_hold with mandatory note
+  const confirmOnHold = async () => {
+    if (!onHoldPending || !onHoldNote.trim()) return;
+    const milestoneId = onHoldPending.milestoneId;
+    const milestone = milestones.find((m: any) => m.id === milestoneId);
+
+    // Update milestone status
+    await handleUpdate(milestoneId, { status: "on_hold" });
+
+    // Create task_alert
+    if (certId && user?.id) {
+      await (supabase as any).from("task_alerts").insert({
+        certification_id: certId,
+        created_by: user.id,
+        alert_type: "project_on_hold",
+        title: `Project On Hold: ${project.name} — "${milestone?.requirement || "Milestone"}"`,
+        description: onHoldNote.trim(),
+        escalate_to_admin: true, // Always visible to admin
+      });
+      qc.invalidateQueries({ queryKey: ["task-alerts"] });
+    }
+
+    toast({ title: "Project set to On Hold", description: "Alert sent." });
+    setOnHoldPending(null);
+    setOnHoldNote("");
+  };
+
+  // Add milestone
+  const handleAddMilestone = async () => {
+    if (!certId || !newMilestoneName.trim()) return;
+    setSaving(true);
+    try {
+      const maxOrder = milestones.reduce((max: number, m: any) => Math.max(max, m.order_index || 0), 0);
+      await supabase.from("certification_milestones").insert({
+        certification_id: certId,
+        category: newMilestoneName.trim(),
+        requirement: newMilestoneName.trim(),
+        milestone_type: "timeline" as const,
+        order_index: maxOrder + 1,
+        max_score: 0,
+        score: 0,
+        status: "pending",
+        start_date: newMilestoneStart || null,
+        due_date: newMilestoneEnd || null,
+        notes: JSON.stringify({ type: "manual_input", assigned_to_role: "PM" }),
+      } as any);
+
+      // Create admin alert
+      if (user?.id) {
+        const pmName = (project as any).pm_name || "PM";
+        await (supabase as any).from("task_alerts").insert({
+          certification_id: certId,
+          created_by: user.id,
+          alert_type: "pm_operational",
+          title: `Project: ${project.name} — ${pmName} added milestone "${newMilestoneName.trim()}"`,
+          escalate_to_admin: true,
+        });
+        qc.invalidateQueries({ queryKey: ["task-alerts"] });
+      }
+
+      refetch();
+      qc.invalidateQueries({ queryKey: ["pm-dashboard"] });
+      toast({ title: "Milestone added" });
+      setShowAddMilestone(false);
+      setNewMilestoneName("");
+      setNewMilestoneStart("");
+      setNewMilestoneEnd("");
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error", description: e.message });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Delete milestone
+  const confirmDeleteMilestone = async () => {
+    if (!deletePending || !certId) return;
+    setSaving(true);
+    try {
+      await supabase.from("certification_milestones").delete().eq("id", deletePending.id);
+
+      // Create admin alert
+      if (user?.id) {
+        const pmName = (project as any).pm_name || "PM";
+        await (supabase as any).from("task_alerts").insert({
+          certification_id: certId,
+          created_by: user.id,
+          alert_type: "pm_operational",
+          title: `Project: ${project.name} — ${pmName} removed milestone "${deletePending.name}"`,
+          escalate_to_admin: true,
+        });
+        qc.invalidateQueries({ queryKey: ["task-alerts"] });
+      }
+
+      // Reorder remaining milestones
+      const { data: remaining } = await supabase
+        .from("certification_milestones")
+        .select("id")
+        .eq("certification_id", certId)
+        .eq("milestone_type", "timeline")
+        .order("order_index");
+      if (remaining) {
+        for (let i = 0; i < remaining.length; i++) {
+          await supabase.from("certification_milestones").update({ order_index: i } as any).eq("id", remaining[i].id);
+        }
+      }
+
+      refetch();
+      qc.invalidateQueries({ queryKey: ["pm-dashboard"] });
+      toast({ title: "Milestone removed" });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error", description: e.message });
+    } finally {
+      setSaving(false);
+      setDeletePending(null);
+    }
+  };
+
   // Auto-recalculate calculated_deadline dates when manual dates change
   const handleManualDateChange = async (milestoneId: string, field: string, value: string) => {
     await handleUpdate(milestoneId, { [field]: value || null });
 
-    // Recalculate all calculated_deadline milestones
     setTimeout(async () => {
       const { data: freshMilestones } = await supabase
         .from("certification_milestones")
@@ -158,11 +301,9 @@ function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChan
     }, 300);
   };
   
-  // --- Ufficializza la Timeline e sblocca la Dashboard ---
   const handleSaveTimeline = async () => {
     setSaving(true);
     try {
-      // 1. Aggiorna lo stato della certificazione a "in_corso"
       if (certId) {
         await supabase
           .from("certifications")
@@ -170,13 +311,11 @@ function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChan
           .eq("id", certId);
       }
       
-      // 2. Also update the certification status
       await (supabase as any)
         .from("certifications")
         .update({ status: "in_corso" })
         .eq("id", project.id);
 
-      // 3. Ricarica la dashboard per far sparire il "Manca Timeline"
       qc.invalidateQueries({ queryKey: ["pm-dashboard"] });
       qc.invalidateQueries({ queryKey: ["projects"] });
       qc.invalidateQueries({ queryKey: ["timeline-milestones"] });
@@ -192,19 +331,16 @@ function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChan
     }
   };
 
-  // --- Dichiara il progetto Certificato ---
   const handleMarkAsCertified = async () => {
     if (!confirm("Are you sure you want to close this project? It will be moved to Certified and the Timeline will be locked.")) return;
     
     setSaving(true);
     try {
-      // 1. Update certification status
       await (supabase as any)
         .from("certifications")
         .update({ status: "certificato" })
         .eq("id", project.id);
 
-      // 2. Aggiorna la certificazione base
       if (certId) {
         await supabase
           .from("certifications")
@@ -212,7 +348,6 @@ function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChan
           .eq("id", certId);
       }
 
-      // 3. Sposta la card aggiornando la dashboard
       qc.invalidateQueries({ queryKey: ["pm-dashboard"] });
       qc.invalidateQueries({ queryKey: ["projects"] });
       
@@ -221,7 +356,6 @@ function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChan
         description: "The project has been officially certified and closed." 
       });
       
-      // 4. Chiude il modale in automatico
       onOpenChange(false);
 
     } catch (e: any) {
@@ -260,19 +394,16 @@ function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChan
     );
   }
 
-  // Sort milestones to match template step order (handles legacy data with order_index=0)
   const sortedMilestones = [...milestones].sort((a: any, b: any) => {
     const idxA = template.timeline.findIndex((s) => s.name === a.requirement);
     const idxB = template.timeline.findIndex((s) => s.name === b.requirement);
     return (idxA === -1 ? 999 : idxA) - (idxB === -1 ? 999 : idxB);
   });
 
-  // Auto-detect: show wizard if most dates are empty
   const emptyDates = sortedMilestones.filter((m: any) => !m.start_date && !m.due_date).length;
   const shouldShowWizard = wizardMode === true || (wizardMode === null && emptyDates > sortedMilestones.length / 2);
 
   if (shouldShowWizard) {
-    // Build aligned templateSteps matching sortedMilestones
     const alignedSteps = sortedMilestones.map((m: any) => {
       const match = template.timeline.find((s) => s.name === m.requirement);
       return match || {
@@ -299,7 +430,6 @@ function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChan
     );
   }
 
-  // Parse step metadata from notes
   const getStepMeta = (m: any) => {
     try {
       return JSON.parse(m.notes || "{}");
@@ -308,12 +438,70 @@ function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChan
     }
   };
 
-  // Calcola se l'ultima milestone è "achieved"
   const finalMilestone = milestones[milestones.length - 1];
   const isReadyToCertify = finalMilestone?.status === "achieved";
 
   return (
     <div className="space-y-3">
+      {/* On Hold mandatory note dialog */}
+      <AlertDialog open={!!onHoldPending} onOpenChange={(open) => !open && setOnHoldPending(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" /> Set Milestone On Hold
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Please provide a mandatory note explaining why this milestone is being put on hold. This will be logged and sent as an alert.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <Textarea
+            placeholder="Describe the reason for putting this on hold..."
+            value={onHoldNote}
+            onChange={(e) => setOnHoldNote(e.target.value)}
+            className="min-h-[100px]"
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmOnHold}
+              disabled={!onHoldNote.trim()}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Confirm On Hold
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete milestone confirm dialog */}
+      <AlertDialog open={!!deletePending} onOpenChange={(open) => !open && setDeletePending(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Milestone</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to remove "{deletePending?.name}"? This action cannot be undone. An alert will be sent to the Admin.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteMilestone}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* On Hold banner */}
+      {hasOnHold && (
+        <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-destructive/10 border border-destructive/30 text-destructive text-sm font-medium">
+          <AlertTriangle className="h-4 w-4" />
+          Project is ON HOLD — one or more milestones are blocked
+        </div>
+      )}
+
       {/* Wizard toggle */}
       <div className="flex justify-end">
         <Button variant="ghost" size="sm" onClick={() => setWizardMode(true)} className="text-xs text-muted-foreground">
@@ -323,27 +511,34 @@ function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChan
       </div>
       
       {/* Header */}
-      <div className="grid grid-cols-[1fr_80px_120px_120px_120px_100px] gap-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+      <div className="grid grid-cols-[1fr_80px_120px_120px_120px_100px_32px] gap-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
         <span>Step</span>
         <span>Role</span>
         <span>Start Date</span>
         <span>End Date</span>
         <span>Completed</span>
         <span>Status</span>
+        <span></span>
       </div>
 
-      <div className="border rounded-lg divide-y max-h-[400px] overflow-y-auto">
+      <div className={cn(
+        "border rounded-lg divide-y max-h-[400px] overflow-y-auto",
+        hasOnHold && "border-destructive/50 bg-destructive/5"
+      )}>
         {milestones.map((m: any, idx: number) => {
           const meta = getStepMeta(m);
           const isCalculated = meta.type === "calculated_deadline";
           const roleLabel = meta.assigned_to_role || "PM";
+          const isOnHold = m.status === "on_hold";
 
           return (
             <div
               key={m.id}
-              className={`grid grid-cols-[1fr_80px_120px_120px_120px_100px] gap-2 items-center px-3 py-2 ${
-                isCalculated ? "bg-muted/50" : "bg-background"
-              }`}
+              className={cn(
+                "grid grid-cols-[1fr_80px_120px_120px_120px_100px_32px] gap-2 items-center px-3 py-2",
+                isCalculated ? "bg-muted/50" : "bg-background",
+                isOnHold && "bg-destructive/10 border-l-4 border-l-destructive"
+              )}
             >
               <div className="flex items-center gap-2">
                 {isCalculated && <Lock className="h-3 w-3 text-muted-foreground shrink-0" />}
@@ -382,23 +577,72 @@ function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChan
               />
               <Select
                 value={m.status || "pending"}
-                onValueChange={(v) => handleUpdate(m.id, { status: v })}
+                onValueChange={(v) => handleStatusChange(m.id, v)}
               >
-                <SelectTrigger className="h-7 text-xs">
+                <SelectTrigger className={cn("h-7 text-xs", isOnHold && "border-destructive text-destructive")}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="pending">Pending</SelectItem>
                   <SelectItem value="in_progress">In Progress</SelectItem>
                   <SelectItem value="achieved">Completed</SelectItem>
+                  <SelectItem value="on_hold">
+                    <span className="text-destructive font-medium">On Hold</span>
+                  </SelectItem>
                 </SelectContent>
               </Select>
+
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                onClick={() => setDeletePending({ id: m.id, name: m.requirement })}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
             </div>
           );
         })}
       </div>
 
-      {/* --- BARRA DEI PULSANTI INFERIORE --- */}
+      {/* Add Milestone */}
+      {showAddMilestone ? (
+        <div className="border rounded-lg p-4 bg-muted/30 space-y-3">
+          <Label className="text-sm font-medium">Add New Milestone</Label>
+          <div className="grid grid-cols-[1fr_120px_120px] gap-3">
+            <Input
+              placeholder="Milestone name"
+              value={newMilestoneName}
+              onChange={(e) => setNewMilestoneName(e.target.value)}
+            />
+            <Input
+              type="date"
+              value={newMilestoneStart}
+              onChange={(e) => setNewMilestoneStart(e.target.value)}
+              placeholder="Start"
+            />
+            <Input
+              type="date"
+              value={newMilestoneEnd}
+              onChange={(e) => setNewMilestoneEnd(e.target.value)}
+              placeholder="End"
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button size="sm" onClick={handleAddMilestone} disabled={saving || !newMilestoneName.trim()}>
+              {saving && <Loader2 className="h-3 w-3 animate-spin mr-1" />}
+              <Plus className="h-3 w-3 mr-1" /> Add
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setShowAddMilestone(false)}>Cancel</Button>
+          </div>
+        </div>
+      ) : (
+        <Button variant="outline" size="sm" onClick={() => setShowAddMilestone(true)} className="w-full">
+          <Plus className="h-4 w-4 mr-2" /> Add Milestone
+        </Button>
+      )}
+
+      {/* Bottom action bar */}
       <div className="flex justify-end gap-3 pt-4 mt-2 border-t">
         <Button 
           onClick={handleSaveTimeline} 
