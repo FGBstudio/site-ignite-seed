@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +13,13 @@ import { Loader2, ChevronLeft, ChevronRight, SkipForward, CalendarIcon, Lock, Us
 import { format, parseISO, addDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import type { TimelineStep } from "@/data/certificationTemplates";
+
+/** Milestones where PM cannot edit dates after initial setup (admin-only) */
+const PM_LOCKED_MILESTONES_ALL_DATES = ["LEED Project Submission", "LEED Certification Attainment", "WELL Project Submission", "Certification Attainment WELL"];
+const PM_LOCKED_END_DATE_ONLY = ["Construction phase"];
+const SINGLE_DATE_MILESTONES = ["Construction end (Handover)"];
+const CONSTRUCTION_PHASE_NAME = "Construction phase";
+const CONSTRUCTION_END_NAME = "Construction end (Handover)";
 
 interface TimelineSetupWizardProps {
   milestones: any[];
@@ -59,6 +67,7 @@ export function TimelineSetupWizard({
   onSwitchToGrid,
 }: TimelineSetupWizardProps) {
   const { toast } = useToast();
+  const { role } = useAuth();
   const qc = useQueryClient();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -71,6 +80,17 @@ export function TimelineSetupWizard({
   const currentStep = !isComplete ? templateSteps[currentIndex] : null;
   const nextMilestone = currentIndex + 1 < total ? milestones[currentIndex + 1] : null;
   const nextStep = currentIndex + 1 < total ? templateSteps[currentIndex + 1] : null;
+
+  const milestoneName = currentMilestone?.requirement || "";
+  const isSingleDate = SINGLE_DATE_MILESTONES.includes(milestoneName);
+  const isPmLockedAllDates = PM_LOCKED_MILESTONES_ALL_DATES.includes(milestoneName);
+  const isPmLockedEndOnly = PM_LOCKED_END_DATE_ONLY.includes(milestoneName);
+  const isPM = role !== "ADMIN";
+
+  // For PM-locked milestones that already have dates, PM can only flag "Completed"
+  const hasExistingDates = !!(currentMilestone?.start_date || currentMilestone?.due_date);
+  const isDateEditDisabled = isPM && isPmLockedAllDates && hasExistingDates && currentMilestone?.edit_locked_for_pm;
+  const isEndDateDisabledForPM = isPM && isPmLockedEndOnly && hasExistingDates && currentMilestone?.edit_locked_for_pm;
 
   const getStepMeta = (m: any) => {
     try { return JSON.parse(m.notes || "{}"); } catch { return {}; }
@@ -87,15 +107,29 @@ export function TimelineSetupWizard({
 
   const setLocalDate = (field: "start_date" | "due_date", value: string | null) => {
     if (!currentMilestone) return;
-    setLocalDates((prev) => ({
-      ...prev,
-      [currentMilestone.id]: {
-        ...prev[currentMilestone.id],
+    setLocalDates((prev) => {
+      const current = {
         start_date: prev[currentMilestone.id]?.start_date ?? currentMilestone.start_date ?? null,
         due_date: prev[currentMilestone.id]?.due_date ?? currentMilestone.due_date ?? null,
         [field]: value,
-      },
-    }));
+      };
+
+      // Auto-fill: when start_date is set, auto-set due_date to the same value if due_date hasn't been manually changed
+      if (field === "start_date" && value) {
+        const existingDueDate = prev[currentMilestone.id]?.due_date ?? currentMilestone.due_date;
+        if (!existingDueDate || existingDueDate === (prev[currentMilestone.id]?.start_date ?? currentMilestone.start_date)) {
+          current.due_date = value;
+        }
+      }
+
+      // Single-date mode: both dates are always the same
+      if (isSingleDate && value) {
+        current.start_date = value;
+        current.due_date = value;
+      }
+
+      return { ...prev, [currentMilestone.id]: current };
+    });
   };
 
   const isCalculated = currentStep?.type === "calculated_deadline";
@@ -124,6 +158,12 @@ export function TimelineSetupWizard({
         updates.start_date = dates.start_date;
         updates.due_date = dates.due_date;
       }
+
+      // Lock PM-restricted milestones after first save
+      if (isPmLockedAllDates || isPmLockedEndOnly) {
+        updates.edit_locked_for_pm = true;
+      }
+
       await supabase
         .from("certification_milestones")
         .update(updates)
@@ -131,6 +171,34 @@ export function TimelineSetupWizard({
 
       currentMilestone.start_date = updates.start_date;
       currentMilestone.due_date = updates.due_date;
+      if (updates.edit_locked_for_pm) currentMilestone.edit_locked_for_pm = true;
+
+      // Sync: when Construction Phase end date is set, auto-sync Construction end (Handover)
+      // and set planned/actual handover dates on the certification
+      if (milestoneName === CONSTRUCTION_PHASE_NAME && updates.due_date) {
+        const handoverMilestone = milestones.find((m: any) => m.requirement === CONSTRUCTION_END_NAME);
+        if (handoverMilestone && !handoverMilestone.start_date && !handoverMilestone.due_date) {
+          await supabase
+            .from("certification_milestones")
+            .update({ start_date: updates.due_date, due_date: updates.due_date })
+            .eq("id", handoverMilestone.id);
+          handoverMilestone.start_date = updates.due_date;
+          handoverMilestone.due_date = updates.due_date;
+        }
+        // Set dual handover tracking dates on the certification
+        await (supabase as any)
+          .from("certifications")
+          .update({ planned_handover_date: updates.due_date, actual_handover_date: updates.due_date })
+          .eq("id", certId);
+      }
+
+      // When Construction end (Handover) is updated, sync actual_handover_date
+      if (milestoneName === CONSTRUCTION_END_NAME && updates.due_date) {
+        await (supabase as any)
+          .from("certifications")
+          .update({ actual_handover_date: updates.due_date })
+          .eq("id", certId);
+      }
 
       qc.invalidateQueries({ queryKey: ["timeline-milestones", certId] });
       setCurrentIndex((prev) => prev + 1);
@@ -235,7 +303,19 @@ export function TimelineSetupWizard({
                 <p className="text-sm text-foreground/80 leading-relaxed">{description}</p>
               </div>
 
-              {isCalculated ? (
+              {isDateEditDisabled ? (
+                <div className="space-y-3">
+                  <div className="rounded-lg bg-muted/50 p-4 border border-warning/30">
+                    <p className="text-xs text-muted-foreground uppercase font-medium mb-1">🔒 Admin-Only Dates</p>
+                    <p className="text-sm text-foreground">
+                      {dates.start_date ? format(parseISO(dates.start_date), "d MMMM yyyy") : "Not set"} → {dates.due_date ? format(parseISO(dates.due_date), "d MMMM yyyy") : "Not set"}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Solo l'Admin può modificare queste date (Priorità Direzionale). Come PM, puoi solo segnare "Completed" per confermare.
+                    </p>
+                  </div>
+                </div>
+              ) : isCalculated ? (
                 <div className="space-y-3">
                   <div className="rounded-lg bg-muted/50 p-4 border">
                     <p className="text-xs text-muted-foreground uppercase font-medium mb-1">Calculated Date</p>
@@ -245,6 +325,14 @@ export function TimelineSetupWizard({
                         : "⚠️ Fill in the dates for the previous manual step first"}
                     </p>
                   </div>
+                </div>
+              ) : isSingleDate ? (
+                <div className="grid grid-cols-1 gap-4">
+                  <DatePickerField
+                    label="Date"
+                    value={dates.start_date}
+                    onChange={(v) => setLocalDate("start_date", v)}
+                  />
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-4">
@@ -257,6 +345,7 @@ export function TimelineSetupWizard({
                     label="End Date / Deadline"
                     value={dates.due_date}
                     onChange={(v) => setLocalDate("due_date", v)}
+                    disabled={isEndDateDisabledForPM}
                   />
                 </div>
               )}
@@ -348,10 +437,12 @@ function DatePickerField({
   label,
   value,
   onChange,
+  disabled = false,
 }: {
   label: string;
   value: string | null;
   onChange: (value: string | null) => void;
+  disabled?: boolean;
 }) {
   const dateValue = value ? parseISO(value) : undefined;
 
@@ -362,9 +453,11 @@ function DatePickerField({
         <PopoverTrigger asChild>
           <Button
             variant="outline"
+            disabled={disabled}
             className={cn(
               "w-full justify-start text-left font-normal h-11",
-              !value && "text-muted-foreground"
+              !value && "text-muted-foreground",
+              disabled && "opacity-50 cursor-not-allowed"
             )}
           >
             <CalendarIcon className="mr-2 h-4 w-4" />

@@ -463,6 +463,61 @@ export function getMaxTotal(scorecard: ScorecardCategory[]): number {
   return scorecard.reduce((sum, s) => sum + s.max_score, 0);
 }
 
+// ═══════════════════════════════════════════
+// MACRO-PHASE MAPPING
+// ═══════════════════════════════════════════
+
+/**
+ * Maps each timeline milestone name to a macro certification phase.
+ * Used for strategic filtering in Admin and PM planner views.
+ */
+export const MILESTONE_MACRO_PHASE: Record<string, string> = {
+  // Design phase
+  "Pre-assessment": "Design",
+  "FGB Design guidelines": "Design",
+  "FGB tendering requirement": "Design",
+  // Construction phase
+  "Construction phase": "Construction",
+  "LEED GC training": "Construction",
+  "BREEAM GC training": "Construction",
+  "WELL GC training": "Construction",
+  "Construction end (Handover)": "Construction",
+  // Certification phase
+  "GC Provides Documentation": "Certification",
+  "LEED Project Submission": "Certification",
+  "WELL Project Submission": "Certification",
+  "Submission to BRE": "Certification",
+  "LEED Certification Attainment": "Certification",
+  "BREEAM Certification Attainment": "Certification",
+  "Certification Attainment WELL": "Certification",
+  "Assessor site visit": "Certification",
+  // Generic / fallback
+  "Sottomissione Review": "Certification",
+  "Risposta Review": "Certification",
+  "Certificazione": "Certification",
+};
+
+export type MacroPhase = "Design" | "Construction" | "Certification" | "Certified";
+
+/**
+ * Compute the current macro-phase of a certification based on
+ * its status and the latest achieved timeline milestone.
+ */
+export function computeMacroPhase(
+  certStatus: string | null | undefined,
+  milestones: Array<{ status?: string | null; milestone_type?: string | null; requirement?: string; order_index?: number | null }>
+): MacroPhase {
+  if (certStatus === "certificato") return "Certified";
+
+  const achieved = milestones
+    .filter(m => m.status === "achieved" && m.milestone_type === "timeline")
+    .sort((a, b) => (b.order_index ?? 0) - (a.order_index ?? 0));
+
+  if (achieved.length === 0) return "Design";
+
+  return (MILESTONE_MACRO_PHASE[achieved[0].requirement || ""] as MacroPhase) || "Design";
+}
+
 // ─── Available options for UI selects ───
 
 export const CERT_TYPES = ["LEED", "WELL", "BREEAM"] as const;

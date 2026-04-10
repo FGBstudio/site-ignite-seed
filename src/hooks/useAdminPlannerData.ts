@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { SetupStatus } from "@/hooks/usePMDashboard";
 import type { GanttRowData } from "@/components/dashboard/FGBPlanner";
+import { computeMacroPhase, type MacroPhase } from "@/data/certificationTemplates";
 
 export interface AdminPlannerProject {
   id: string;
@@ -23,6 +24,7 @@ export interface AdminPlannerProject {
   project_allocations: any[];
   certification_milestones: any[];
   plannerData: GanttRowData;
+  macro_phase: MacroPhase;
 }
 
 export function useAdminPlannerData() {
@@ -152,6 +154,7 @@ export function useAdminPlannerData() {
           status: plannerStatus,
           segments,
           onClickUrl: `/projects/${c.id}`,
+          plannedHandoverDate: c.planned_handover_date || null,
         };
 
         return {
@@ -174,6 +177,7 @@ export function useAdminPlannerData() {
           project_allocations: allocations,
           certification_milestones: certMilestones,
           plannerData,
+          macro_phase: computeMacroPhase(c.status, certMilestones),
         };
       });
     },
