@@ -52,7 +52,7 @@ export function useTaskAlerts(role: AppRole | null, userId: string | undefined) 
     queryFn: async () => {
       let query = (supabase as any)
         .from("task_alerts")
-        .select("*, certifications!task_alerts_certification_id_fkey(name, client), profiles!task_alerts_created_by_fkey(full_name)")
+        .select("*, certifications!task_alerts_certification_id_fkey(name, client)")
         .eq("is_resolved", false)
         .order("created_at", { ascending: false });
 
@@ -65,11 +65,28 @@ export function useTaskAlerts(role: AppRole | null, userId: string | undefined) 
       const { data, error } = await query;
       if (error) throw error;
 
-      return ((data || []) as any[]).map((a: any) => ({
+      const alerts = (data || []) as any[];
+
+      // Fetch profiles separately (FK goes to auth.users, not profiles)
+      const creatorIds = [...new Set(alerts.map((a: any) => a.created_by).filter(Boolean))] as string[];
+      let profileMap = new Map<string, string>();
+      if (creatorIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, full_name")
+          .in("id", creatorIds);
+        if (profiles) {
+          for (const p of profiles) {
+            profileMap.set(p.id, p.full_name || p.id);
+          }
+        }
+      }
+
+      return alerts.map((a: any) => ({
         ...a,
         certification_name: a.certifications?.name || "—",
         certification_client: a.certifications?.client || "",
-        pm_name: a.profiles?.full_name || "—",
+        pm_name: profileMap.get(a.created_by) || "—",
       })) as TaskAlert[];
     },
   });
@@ -118,6 +135,7 @@ export function useCreateAlert() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["task-alerts"] });
+      qc.invalidateQueries({ queryKey: ["project-alerts"] });
     },
   });
 }
@@ -135,6 +153,7 @@ export function useResolveAlert() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["task-alerts"] });
+      qc.invalidateQueries({ queryKey: ["project-alerts"] });
     },
   });
 }

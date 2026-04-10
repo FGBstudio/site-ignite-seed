@@ -69,7 +69,7 @@ export function ProjectWBS({ projectId, role }: Props) {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("task_alerts")
-        .select("*, profiles!task_alerts_created_by_fkey(full_name)")
+        .select("*")
         .eq("certification_id", projectId)
         .eq("is_resolved", false)
         .order("created_at", { ascending: false });
@@ -79,9 +79,23 @@ export function ProjectWBS({ projectId, role }: Props) {
       if (role === "ADMIN") {
         items = items.filter((a: any) => a.escalate_to_admin);
       }
+      // Fetch profile names separately
+      const creatorIds = [...new Set(items.map((a: any) => a.created_by).filter(Boolean))] as string[];
+      let profileMap = new Map<string, string>();
+      if (creatorIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, full_name")
+          .in("id", creatorIds);
+        if (profiles) {
+          for (const p of profiles) {
+            profileMap.set(p.id, p.full_name || p.id);
+          }
+        }
+      }
       return items.map((a: any) => ({
         ...a,
-        pm_name: a.profiles?.full_name || "—",
+        pm_name: profileMap.get(a.created_by) || "—",
       }));
     },
   });
