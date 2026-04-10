@@ -216,8 +216,85 @@ export default function MyTasks() {
     );
   };
 
+  const handleCreateAlert = () => {
+    if (!user?.id || !newAlertCertId || !newAlertTitle.trim()) return;
+    const escalate = newAlertType !== "pm_operational";
+    createAlert.mutate(
+      {
+        certification_id: newAlertCertId,
+        created_by: user.id,
+        alert_type: newAlertType,
+        title: newAlertTitle.trim(),
+        description: newAlertDesc.trim() || undefined,
+        escalate_to_admin: escalate,
+      },
+      {
+        onSuccess: () => {
+          toast({ title: "Alert created" });
+          setShowCreateAlert(false);
+          setNewAlertTitle("");
+          setNewAlertDesc("");
+          setNewAlertType("pm_operational");
+          setNewAlertCertId("");
+        },
+      }
+    );
+  };
+
   return (
     <MainLayout title="My Tasks" subtitle="Your operational inbox">
+      {/* Alerts Section */}
+      {isPM && (
+        <div className="mb-6 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <Bell className="h-4 w-4 text-destructive" />
+              Alerts ({alerts.length})
+            </h3>
+            <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => setShowCreateAlert(true)}>
+              <Plus className="h-3 w-3" /> New Alert
+            </Button>
+          </div>
+          {alerts.length > 0 && (
+            <div className="space-y-2">
+              {alerts.map((alert) => (
+                <Card key={alert.id} className="hover:shadow-sm transition-all">
+                  <CardContent className="py-3 px-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-sm text-foreground truncate">{alert.title}</p>
+                          <Badge variant="outline" className={cn("text-[10px] shrink-0", ALERT_TYPE_COLORS[alert.alert_type as TaskAlertType])}>
+                            {ALERT_TYPE_LABELS[alert.alert_type as TaskAlertType]}
+                          </Badge>
+                          {alert.escalate_to_admin && (
+                            <Badge variant="destructive" className="text-[10px] shrink-0">Admin</Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {alert.certification_name} · {format(new Date(alert.created_at), "dd MMM")}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 w-7 p-0"
+                          onClick={() => resolveAlert.mutate(alert.id)}
+                          disabled={resolveAlert.isPending}
+                        >
+                          <CheckCircle className="h-4 w-4 text-success" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {pageIsLoading ? (
         <div className="space-y-3">
           {[...Array(5)].map((_, i) => (
@@ -230,7 +307,7 @@ export default function MyTasks() {
             Error loading tasks. Please try again later.
           </CardContent>
         </Card>
-      ) : tasks.length === 0 ? (
+      ) : tasks.length === 0 && alerts.length === 0 ? (
         <Card>
           <CardContent className="py-16 text-center">
             <CheckCircle className="h-12 w-12 text-success mx-auto mb-3" />
