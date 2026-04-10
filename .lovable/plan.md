@@ -1,50 +1,128 @@
 
 
-## Fix Remaining `projects` Table References
+## Alerts/Tasks Widget System for Admin & PM Dashboards
 
-### Problem
-6 files still reference the deprecated `projects` table or use `project_id` where the DB column is now `certification_id`.
+### Summary
+Add a new task/alert classification system that feeds an "Alerts/Tasks" widget on both the CEO Dashboard (Admin) and PM Dashboard. Tasks are categorized by type and visibility — some are PM-only (private to-do), others escalate to Admin. A new DB table stores these alerts. The MyTasks page becomes the PM's task hub, and a new Admin Tasks section is added to the sidebar.
 
-### Changes
+### DB Migration — New `task_alerts` Table
 
-#### 1. `src/pages/ProjectCreateWizard.tsx`
-- **Lines 145-156** (no-cert path): Insert into `certifications` instead of `projects`
-- **Lines 165-183** (cert path): Insert into `certifications` instead of `projects`, including all business fields (`name`, `client`, `region`, `handover_date`, `pm_id`, `site_id`, `cert_type`, `cert_rating`, `cert_level`, `project_subtype`, `is_commissioning`). Remove the separate `certifications` insert at lines 187-198 since we're now inserting directly into `certifications` as the root entity.
+```sql
+CREATE TYPE public.task_alert_type AS ENUM (
+  'timeline_to_configure',
+  'milestone_deadline',
+  'project_on_hold',
+  'pm_operational',
+  'other_critical'
+);
 
-#### 2. `src/components/projects/ProjectFormModal.tsx`
-- **Lines 147-150**: Remove the query to `projects` table. Instead, read `pm_id`, `project_subtype` directly from the `certifications` rows (already fetched at line 141-144).
-- **Lines 155-166**: Remove `project_id` mapping. Use `c.id` (certification ID) directly, `c.pm_id`, `c.project_subtype` from certifications.
-- **Lines 245-255**: Replace upsert to `projects` with upsert to `certifications`. Update all business fields on certifications directly.
-- **Line 320**: `project_id: firstProjectId` → `certification_id: firstCertId` for `project_allocations` insert.
+CREATE TABLE public.task_alerts (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  certification_id uuid NOT NULL,
+  created_by uuid NOT NULL,
+  alert_type task_alert_type NOT NULL,
+  title text NOT NULL,
+  description text,
+  is_resolved boolean NOT NULL DEFAULT false,
+  escalate_to_admin boolean NOT NULL DEFAULT false,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  resolved_at timestamptz
+);
 
-#### 3. `src/components/projects/SiteProjectOnboardingForm.tsx`
-- **Lines 192-204**: Remove insert/update to `projects`. Instead, store business fields (`name`, `client`, `region`, `handover_date`, `pm_id`) directly on each certification row.
-- **Line 254**: `project_id: projectId` → `certification_id: certificationId` for `project_allocations` insert.
+ALTER TABLE public.task_alerts ENABLE ROW LEVEL SECURITY;
 
-#### 4. `src/pages/MyTasks.tsx`
-- **Line 21**: `project_id` → `certification_id` in `TaskRow` interface
-- **Line 51**: Fix join: `projects!project_tasks_project_id_fkey(name, client)` → query `certifications` separately or use `certification_id` to fetch cert name/client. Since `project_tasks.certification_id` links to `certifications`, the join becomes: `certifications!project_tasks_certification_id_fkey(name, client)`. If that FK name doesn't work, do a separate fetch.
-- **Lines 61-62**: `t.projects?.name` → `t.certifications?.name`, same for client
-- **Line 127**: `project_id: project.id` stays (synthetic tasks use cert ID as project ID since PM dashboard returns certifications now)
+-- Admin sees all escalated alerts
+CREATE POLICY "Admin full access" ON public.task_alerts
+  FOR ALL TO authenticated
+  USING (has_role(auth.uid(), 'ADMIN'::app_role))
+  WITH CHECK (has_role(auth.uid(), 'ADMIN'::app_role));
 
-#### 5. `src/components/projects/ProjectWBS.tsx`
-- **Line 83**: `.eq("project_id", projectId)` → `.eq("certification_id", projectId)` for `project_allocations` query
+-- PM sees own alerts
+CREATE POLICY "PM sees own alerts" ON public.task_alerts
+  FOR ALL TO authenticated
+  USING (created_by = auth.uid())
+  WITH CHECK (created_by = auth.uid());
+```
 
-#### 6. `src/pages/Projects.tsx`
-- **Line 71**: `.eq("project_id", project.id)` → `.eq("certification_id", project.id)` for `project_allocations` query
+**Alert type visibility rules:**
+- `pm_operational` → `escalate_to_admin = false` (PM-only, private to-do)
+- `timeline_to_configure`, `milestone_deadline`, `project_on_hold`, `other_critical` → `escalate_to_admin = true` (visible to Admin)
 
-#### 7. `src/components/admin/DataImporter.tsx`
-- **Lines 206-220**: Replace `projects` upsert with `certifications` upsert
-- **Line 242**: `project_id: (projectData as any).id` → `certification_id: (projectData as any).id` for `project_allocations` insert
+### New Hook: `useTaskAlerts`
 
-#### 8. `src/components/dashboard/ProcurementForecasting.tsx`
-- **Lines 77, 86**: Remove `(a as any).project_id` fallback — use only `certification_id`
+File: `src/hooks/useTaskAlerts.ts`
+
+- `useTaskAlerts(role, userId)` — fetches unresolved alerts; Admin gets all escalated, PM gets own
+- `useCreateAlert(certificationId)` — insert mutation
+- `useResolveAlert()` — sets `is_resolved = true, resolved_at = now()`
+- Auto-generate synthetic alerts from:
+  - Certifications with `setup_status = 'da_configurare'` → type `timeline_to_configure`
+  - Certifications with status `on_hold` → type `project_on_hold`
+  - Overdue milestone deadlines → type `milestone_deadline`
+
+### Changes to CEO Dashboard (`CeoDashboard.tsx`)
+
+Add a 4th KPI widget in the `KpiStrip` grid (change from `grid-cols-3` to `grid-cols-4`):
+
+- **"Alerts/Tasks" card**: Shows count of unresolved escalated alerts, broken down by type with colored badges
+- Clicking navigates to the new Admin Tasks page
+
+### Changes to PM Dashboard (`PMPortal.tsx`)
+
+Add a 4th KPI widget in the charts grid:
+
+- **"My Alerts/Tasks" card**: Shows count of all unresolved alerts (both private and escalated) for this PM
+- Compact list of top 3-5 alerts with resolve/dismiss actions
+- "View All" links to MyTasks page
+
+### New Admin Tasks Page
+
+File: `src/pages/AdminTasks.tsx`
+Route: `/admin-tasks`
+
+- Filterable list of all escalated alerts from all PMs
+- Grouped by certification/project with PM name
+- Actions: mark resolved, navigate to certification detail
+- Filter by alert type, PM, certification
+
+### Sidebar Update (`AppSidebar.tsx`)
+
+- Admin: Add "Tasks" entry after "All Projects" → `/admin-tasks` with `Inbox` icon
+- PM sidebar stays the same (MyTasks already exists)
+
+### MyTasks Enhancement (`MyTasks.tsx`)
+
+- Add alert cards alongside existing task cards
+- PM can create new alerts from here (e.g. "Flag issue on project X")
+- Alerts show type badge, certification name, and resolve/cancel buttons
+- Separate sections: "Alerts" (from `task_alerts`) and "Operational Tasks" (from `project_tasks`)
+
+### PMCalendar Integration
+
+- When PM creates a calendar event of type "Milestone" or "On Hold", auto-create a `task_alert` with `escalate_to_admin = true`
+- When PM creates "Operational" type event, create alert with `escalate_to_admin = false`
 
 ### Execution Order
-1. Fix simple field renames first (ProjectWBS, Projects, ProcurementForecasting)
-2. Fix MyTasks join
-3. Migrate creation flows (ProjectCreateWizard, ProjectFormModal, SiteProjectOnboardingForm, DataImporter)
 
-### No DB changes needed
-All target columns already exist on `certifications` and `project_allocations`.
+1. DB migration (create table + RLS)
+2. Create `useTaskAlerts` hook
+3. Build `AdminTasks.tsx` page + route + sidebar entry
+4. Add Alerts widget to CEO Dashboard KpiStrip
+5. Add Alerts widget to PM Dashboard
+6. Enhance MyTasks with alert cards + create/resolve actions
+7. Wire PMCalendar event creation to auto-generate alerts
+
+### Files Modified/Created
+
+| Action | File |
+|--------|------|
+| Create | `supabase/migrations/..._task_alerts.sql` |
+| Create | `src/hooks/useTaskAlerts.ts` |
+| Create | `src/pages/AdminTasks.tsx` |
+| Modify | `src/pages/CeoDashboard.tsx` — add 4th KPI widget |
+| Modify | `src/pages/PMPortal.tsx` — add alerts widget |
+| Modify | `src/pages/MyTasks.tsx` — add alert section |
+| Modify | `src/components/layout/AppSidebar.tsx` — add admin Tasks nav |
+| Modify | `src/App.tsx` — add `/admin-tasks` route |
+| Modify | `src/components/dashboard/PMCalendar.tsx` — auto-create alerts on event add |
 
