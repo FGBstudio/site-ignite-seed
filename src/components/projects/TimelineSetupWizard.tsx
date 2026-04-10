@@ -453,9 +453,11 @@ function DatePickerField({
         <PopoverTrigger asChild>
           <Button
             variant="outline"
+            disabled={disabled}
             className={cn(
               "w-full justify-start text-left font-normal h-11",
-              !value && "text-muted-foreground"
+              !value && "text-muted-foreground",
+              disabled && "opacity-50 cursor-not-allowed"
             )}
           >
             <CalendarIcon className="mr-2 h-4 w-4" />
