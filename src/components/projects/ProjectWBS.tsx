@@ -183,6 +183,23 @@ export function ProjectWBS({ projectId, role }: Props) {
     setShowNewTask(false);
   };
 
+  const handleCreateAlertItem = async () => {
+    if (!alertTitle.trim() || !user) return;
+    const isEscalation = newTaskTab === "escalation";
+    await createAlert.mutateAsync({
+      certification_id: projectId,
+      created_by: user.id,
+      alert_type: isEscalation ? "other_critical" : "pm_operational",
+      title: alertTitle.trim(),
+      description: alertDescription.trim() || undefined,
+      escalate_to_admin: isEscalation,
+    });
+    toast.success(isEscalation ? "Escalation request created" : "Private note created");
+    setAlertTitle("");
+    setAlertDescription("");
+    setShowNewTask(false);
+  };
+
   const handleStatusChange = (task: ProjectTask, newStatus: string) => {
     if (isBlocked(task) && (newStatus === "done" || newStatus === "review" || newStatus === "in_progress")) return;
     updateTask.mutate({ id: task.id, status: newStatus } as any);
