@@ -13,7 +13,7 @@ export function useProjectDetails(certificationId: string | undefined) {
 
       const { data: cert, error } = await (supabase as any)
         .from("certifications")
-        .select("*, sites!certifications_site_id_fkey(name, city, country)")
+        .select("*, sites(name, city, country)")
         .eq("id", certificationId)
         .single();
 
