@@ -336,83 +336,129 @@ export function ProjectWBS({ projectId, role }: Props) {
       )}
 
       <Dialog open={showNewTask} onOpenChange={setShowNewTask}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>New Task</DialogTitle></DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Task Name *</Label>
-              <Input value={newTask.task_name} onChange={(e) => setNewTask({ ...newTask, task_name: e.target.value })} placeholder="e.g. Install sensors floor 3" />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>New Item</DialogTitle></DialogHeader>
+          <Tabs value={newTaskTab} onValueChange={(v) => setNewTaskTab(v as any)}>
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="wbs" className="text-xs">WBS Task</TabsTrigger>
+              <TabsTrigger value="note" className="text-xs">PM Note</TabsTrigger>
+              <TabsTrigger value="escalation" className="text-xs">Escalation</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="wbs" className="space-y-4 mt-4">
               <div className="space-y-2">
-                <Label>Start Date</Label>
-                <Input type="date" value={newTask.start_date} onChange={(e) => setNewTask({ ...newTask, start_date: e.target.value })} />
+                <Label>Task Name *</Label>
+                <Input value={newTask.task_name} onChange={(e) => setNewTask({ ...newTask, task_name: e.target.value })} placeholder="e.g. Install sensors floor 3" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Start Date</Label>
+                  <Input type="date" value={newTask.start_date} onChange={(e) => setNewTask({ ...newTask, start_date: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>End Date</Label>
+                  <Input type="date" value={newTask.end_date} onChange={(e) => setNewTask({ ...newTask, end_date: e.target.value })} />
+                </div>
               </div>
               <div className="space-y-2">
-                <Label>End Date</Label>
-                <Input type="date" value={newTask.end_date} onChange={(e) => setNewTask({ ...newTask, end_date: e.target.value })} />
+                <Label>Assigned To</Label>
+                <Select value={newTask.assigned_to} onValueChange={(val) => setNewTask({ ...newTask, assigned_to: val })}>
+                  <SelectTrigger><SelectValue placeholder="Select resource" /></SelectTrigger>
+                  <SelectContent>
+                    {staff.map((s: any) => (
+                      <SelectItem key={s.id} value={s.id}>{s.full_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Assigned To</Label>
-              <Select value={newTask.assigned_to} onValueChange={(val) => setNewTask({ ...newTask, assigned_to: val })}>
-                <SelectTrigger><SelectValue placeholder="Select resource" /></SelectTrigger>
-                <SelectContent>
-                  {staff.map((s: any) => (
-                    <SelectItem key={s.id} value={s.id}>{s.full_name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Link Hardware (Optional)</Label>
-              <Select value={newTask.allocation_id} onValueChange={(val) => setNewTask({ ...newTask, allocation_id: val })}>
-                <SelectTrigger><SelectValue placeholder="No hardware linked" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">No hardware linked</SelectItem>
-                  {allocations.map((a) => {
-                    const prod = productMap.get(a.product_id);
-                    return (
-                      <SelectItem key={a.id} value={a.id}>
-                        {prod?.name || "Product"} — Qty: {a.quantity} ({a.status})
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Blocked by Payment</Label>
-              <Select value={newTask.blocking_payment_id} onValueChange={(val) => setNewTask({ ...newTask, blocking_payment_id: val })}>
-                <SelectTrigger><SelectValue placeholder="No block" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">No block</SelectItem>
-                  {payments.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>{p.milestone_name} — €{Number(p.amount).toLocaleString("en-US")}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Prerequisite Task</Label>
-              <Select value={newTask.dependency_id} onValueChange={(val) => setNewTask({ ...newTask, dependency_id: val })}>
-                <SelectTrigger><SelectValue placeholder="No dependency" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">No dependency</SelectItem>
-                  {tasks.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>{t.task_name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowNewTask(false)}>Cancel</Button>
-            <Button onClick={handleCreateTask} disabled={createTask.isPending || !newTask.task_name.trim()}>
-              {createTask.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Create Task
-            </Button>
-          </DialogFooter>
+              <div className="space-y-2">
+                <Label>Link Hardware (Optional)</Label>
+                <Select value={newTask.allocation_id} onValueChange={(val) => setNewTask({ ...newTask, allocation_id: val })}>
+                  <SelectTrigger><SelectValue placeholder="No hardware linked" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">No hardware linked</SelectItem>
+                    {allocations.map((a) => {
+                      const prod = productMap.get(a.product_id);
+                      return (
+                        <SelectItem key={a.id} value={a.id}>
+                          {prod?.name || "Product"} — Qty: {a.quantity} ({a.status})
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Blocked by Payment</Label>
+                <Select value={newTask.blocking_payment_id} onValueChange={(val) => setNewTask({ ...newTask, blocking_payment_id: val })}>
+                  <SelectTrigger><SelectValue placeholder="No block" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">No block</SelectItem>
+                    {payments.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>{p.milestone_name} — €{Number(p.amount).toLocaleString("en-US")}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Prerequisite Task</Label>
+                <Select value={newTask.dependency_id} onValueChange={(val) => setNewTask({ ...newTask, dependency_id: val })}>
+                  <SelectTrigger><SelectValue placeholder="No dependency" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">No dependency</SelectItem>
+                    {tasks.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>{t.task_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowNewTask(false)}>Cancel</Button>
+                <Button onClick={handleCreateTask} disabled={createTask.isPending || !newTask.task_name.trim()}>
+                  {createTask.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Create Task
+                </Button>
+              </DialogFooter>
+            </TabsContent>
+
+            <TabsContent value="note" className="space-y-4 mt-4">
+              <p className="text-xs text-muted-foreground">Private operational note visible only to you (PM). Not shared with Admin.</p>
+              <div className="space-y-2">
+                <Label>Title *</Label>
+                <Input value={alertTitle} onChange={(e) => setAlertTitle(e.target.value)} placeholder="e.g. Check energy docs before submission" />
+              </div>
+              <div className="space-y-2">
+                <Label>Description</Label>
+                <Input value={alertDescription} onChange={(e) => setAlertDescription(e.target.value)} placeholder="Optional details..." />
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowNewTask(false)}>Cancel</Button>
+                <Button onClick={handleCreateAlertItem} disabled={createAlert.isPending || !alertTitle.trim()}>
+                  {createAlert.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Create Note
+                </Button>
+              </DialogFooter>
+            </TabsContent>
+
+            <TabsContent value="escalation" className="space-y-4 mt-4">
+              <p className="text-xs text-destructive">This will create a critical alert visible to the Admin in their Tasks dashboard.</p>
+              <div className="space-y-2">
+                <Label>Title *</Label>
+                <Input value={alertTitle} onChange={(e) => setAlertTitle(e.target.value)} placeholder="e.g. Client unresponsive — project blocked" />
+              </div>
+              <div className="space-y-2">
+                <Label>Description</Label>
+                <Input value={alertDescription} onChange={(e) => setAlertDescription(e.target.value)} placeholder="Explain the issue..." />
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowNewTask(false)}>Cancel</Button>
+                <Button variant="destructive" onClick={handleCreateAlertItem} disabled={createAlert.isPending || !alertTitle.trim()}>
+                  {createAlert.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Send Escalation
+                </Button>
+              </DialogFooter>
+            </TabsContent>
+          </Tabs>
         </DialogContent>
       </Dialog>
     </div>
