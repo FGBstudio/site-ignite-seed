@@ -330,6 +330,21 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
                     );
                   })()
                 )}
+
+                {/* Planned Handover Marker — vertical dashed line for construction projects */}
+                {row.plannedHandoverDate && (() => {
+                  const markerDay = differenceInDays(new Date(row.plannedHandoverDate), minDate);
+                  if (markerDay < 0 || markerDay > totalDays) return null;
+                  return (
+                    <div
+                      className="absolute top-1 bottom-1 border-l-2 border-dashed border-amber-500/70 z-20 pointer-events-none"
+                      style={{ left: markerDay * dayWidth }}
+                      title={`Planned Handover: ${row.plannedHandoverDate}`}
+                    >
+                      <div className="absolute -top-0.5 -left-1 w-2 h-2 rounded-full bg-amber-500" />
+                    </div>
+                  );
+                })()}
               </div>
             ))}
           </div>
