@@ -45,7 +45,7 @@ import { FGBPlanner } from "@/components/dashboard/FGBPlanner";
 import { useCreateAlert, useTaskAlerts, type TaskAlert } from "@/hooks/useTaskAlerts";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { AlertTriangle as AlertTriangleIcon, StickyNote } from "lucide-react";
+
 
 const BAR_COLORS = [
   "hsl(211 100% 50%)", "hsl(142 71% 45%)", "hsl(25 95% 53%)",
