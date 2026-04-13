@@ -2081,6 +2081,7 @@ export type Database = {
           id: string
           is_resolved: boolean
           resolved_at: string | null
+          scheduled_date: string | null
           title: string
         }
         Insert: {
@@ -2093,6 +2094,7 @@ export type Database = {
           id?: string
           is_resolved?: boolean
           resolved_at?: string | null
+          scheduled_date?: string | null
           title: string
         }
         Update: {
@@ -2105,6 +2107,7 @@ export type Database = {
           id?: string
           is_resolved?: boolean
           resolved_at?: string | null
+          scheduled_date?: string | null
           title?: string
         }
         Relationships: [

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import {
   format,
   startOfMonth,
@@ -42,9 +42,10 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { FGBPlanner } from "@/components/dashboard/FGBPlanner";
-import { useCreateAlert } from "@/hooks/useTaskAlerts";
+import { useCreateAlert, useTaskAlerts, type TaskAlert } from "@/hooks/useTaskAlerts";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+
 
 const BAR_COLORS = [
   "hsl(211 100% 50%)", "hsl(142 71% 45%)", "hsl(25 95% 53%)",
@@ -90,7 +91,7 @@ function getActiveMilestone(project: PMProject): string {
   return active ? (active as any).requirement || "In Progress" : "—";
 }
 
-function buildCalendarData(projects: PMProject[], adminMode?: boolean, pmNames?: Map<string, string>) {
+function buildCalendarData(projects: PMProject[], alerts: TaskAlert[], adminMode?: boolean, pmNames?: Map<string, string>) {
   const spans: ProjectSpan[] = [];
   const milestones: MilestoneEvent[] = [];
 
@@ -117,6 +118,22 @@ function buildCalendarData(projects: PMProject[], adminMode?: boolean, pmNames?:
           pmName,
         });
       }
+    });
+  });
+
+  // Add task_alerts with scheduled_date as calendar events
+  alerts.forEach((alert) => {
+    if (!alert.scheduled_date) return;
+    const isEscalation = alert.escalate_to_admin;
+    milestones.push({
+      id: `alert-${alert.id}`,
+      projectId: alert.certification_id,
+      projectName: alert.certification_name || "—",
+      title: alert.title,
+      date: parseISO(alert.scheduled_date),
+      color: isEscalation ? "hsl(0 72% 51%)" : "hsl(211 100% 50%)",
+      activeMilestone: isEscalation ? "⚠️ Escalation" : "📋 PM Task",
+      pmName: alert.pm_name,
     });
   });
 
@@ -283,8 +300,9 @@ export function PMCalendar({ projects, adminMode, pmNames }: PMCalendarProps) {
   const [sheetTitle, setSheetTitle] = useState("");
   const [sheetEventType, setSheetEventType] = useState<"task" | "milestone">("task");
 
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const createAlert = useCreateAlert();
+  const { data: calendarAlerts = [] } = useTaskAlerts(role, user?.id);
 
   const handleCreateAndAssign = async () => {
     if (!sheetProject || !sheetTitle.trim() || !user) return;
@@ -295,6 +313,7 @@ export function PMCalendar({ projects, adminMode, pmNames }: PMCalendarProps) {
       title: sheetTitle.trim(),
       description: selectedDate ? `Scheduled for ${format(selectedDate, "dd MMM yyyy")}` : undefined,
       escalate_to_admin: sheetEventType === "milestone",
+      scheduled_date: selectedDate ? format(selectedDate, "yyyy-MM-dd") : undefined,
     });
     toast.success(sheetEventType === "task" ? "Operational task created" : "Escalation request sent to Admin");
     setSheetProject("");
@@ -314,7 +333,7 @@ export function PMCalendar({ projects, adminMode, pmNames }: PMCalendarProps) {
     });
   }, [projects, showCertificati, showInCorso, showDaConfigurare, selectedPm, selectedProject, adminMode]);
 
-  const { spans, milestones } = useMemo(() => buildCalendarData(filteredProjects, adminMode, pmNames), [filteredProjects, adminMode, pmNames]);
+  const { spans, milestones } = useMemo(() => buildCalendarData(filteredProjects, calendarAlerts, adminMode, pmNames), [filteredProjects, calendarAlerts, adminMode, pmNames]);
 
   const handleDayClick = (day: Date) => {
     setSelectedDate(day);

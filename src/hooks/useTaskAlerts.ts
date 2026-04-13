@@ -18,6 +18,7 @@ export interface TaskAlert {
   description: string | null;
   is_resolved: boolean;
   escalate_to_admin: boolean;
+  scheduled_date: string | null;
   created_at: string;
   resolved_at: string | null;
   // joined
@@ -124,6 +125,7 @@ export function useCreateAlert() {
       title: string;
       description?: string;
       escalate_to_admin: boolean;
+      scheduled_date?: string;
     }) => {
       const { data, error } = await (supabase as any)
         .from("task_alerts")

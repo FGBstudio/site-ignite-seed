@@ -42,6 +42,7 @@ export function TopNavbar() {
     navItems = [
       { title: "CEO Dashboard", url: "/ceo-dashboard", icon: Crown },
       { title: "Cantieri", url: "/projects", icon: FolderKanban },
+      { title: "Tasks & Alerts", url: "/admin-tasks", icon: Inbox },
       { title: "Magazzino", url: "/inventory", icon: Package },
       { title: "Ordini", url: "/supplier-orders", icon: Truck },
       { title: "Reports", url: "/reports", icon: BarChart3 },
