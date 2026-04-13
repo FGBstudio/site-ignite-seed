@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CheckCircle, ExternalLink, Inbox, AlertTriangle, Clock, Pause, FolderKanban, CalendarDays } from "lucide-react";
+import { CheckCircle, ExternalLink, Inbox, AlertTriangle, Clock, Pause, FolderKanban, CalendarDays, Settings2 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
@@ -41,8 +41,8 @@ export default function AdminTasks() {
   const { data: alerts = [], isLoading: alertsLoading } = useTaskAlerts(role, user?.id);
   const resolve = useResolveAlert();
 
-  // 1. Fetching Globale di tutti i Task (To Do / In Progress)
-  const { data: allTasks = [], isLoading: tasksLoading } = useQuery({
+  // 1. Fetching Globale dei Task Reali (Operatività)
+  const { data: realTasks = [], isLoading: tasksLoading } = useQuery({
     queryKey: ["admin-all-tasks"],
     enabled: role === "ADMIN",
     queryFn: async () => {
@@ -54,14 +54,10 @@ export default function AdminTasks() {
       
       if (error) throw error;
 
-      // Estrazione e mappatura dei nomi dei PM
       const pmIds = [...new Set((data || []).map((t: any) => t.assigned_to).filter(Boolean))] as string[];
       let profileMap = new Map<string, string>();
       if (pmIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("id, full_name")
-          .in("id", pmIds);
+        const { data: profiles } = await supabase.from("profiles").select("id, full_name").in("id", pmIds);
         if (profiles) profiles.forEach(p => profileMap.set(p.id, p.full_name));
       }
 
@@ -73,11 +69,48 @@ export default function AdminTasks() {
     }
   });
 
-  // 2. Stati per i Filtri Incrociati
+  // 2. Fetching Globale dei Task Sintetici (Setup Progetto Ritardato)
+  const { data: syntheticTasks = [], isLoading: syntheticLoading } = useQuery({
+    queryKey: ["admin-synthetic-tasks"],
+    enabled: role === "ADMIN",
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("certifications" as any)
+        .select("*")
+        .in("setup_status", ["da_configurare", "in_corso"]);
+
+      if (error) throw error;
+
+      const pmIds = [...new Set((data || []).map((p: any) => p.pm_id).filter(Boolean))] as string[];
+      let profileMap = new Map<string, string>();
+      if (pmIds.length > 0) {
+        const { data: profiles } = await supabase.from("profiles").select("id, full_name").in("id", pmIds);
+        if (profiles) profiles.forEach(p => profileMap.set(p.id, p.full_name));
+      }
+
+      return (data || []).map((p: any) => ({
+        id: `setup-${p.id}`,
+        certification_id: p.id,
+        task_name: p.setup_status === "da_configurare" 
+          ? `Project Setup Required: ${p.name}` 
+          : `Complete Setup: ${p.name}`,
+        assigned_to: p.pm_id,
+        end_date: p.handover_date,
+        status: p.setup_status === "in_corso" ? "in_progress" : "todo",
+        project_name: p.name,
+        pm_name: p.pm_id ? profileMap.get(p.pm_id) || "Unknown PM" : "Unassigned",
+        isSynthetic: true
+      }));
+    }
+  });
+
+  // 3. Unione dei flussi dati
+  const allTasks = useMemo(() => [...realTasks, ...syntheticTasks], [realTasks, syntheticTasks]);
+
+  // 4. Stati per i Filtri Incrociati
   const [selectedPM, setSelectedPM] = useState<string>("all");
   const [selectedProject, setSelectedProject] = useState<string>("all");
 
-  // 3. Estrazione Dinamica per i Dropdown
   const uniquePMs = useMemo(() => {
     const pms = new Map();
     allTasks.forEach(t => t.assigned_to && pms.set(t.assigned_to, t.pm_name));
@@ -92,7 +125,7 @@ export default function AdminTasks() {
     return Array.from(projs.entries());
   }, [allTasks, alerts]);
 
-  // 4. Motore di Filtraggio
+  // 5. Motore di Filtraggio
   const filteredTasks = allTasks.filter(t => {
     const matchPM = selectedPM === "all" || t.assigned_to === selectedPM;
     const matchProject = selectedProject === "all" || t.certification_id === selectedProject;
@@ -105,11 +138,10 @@ export default function AdminTasks() {
     return matchPM && matchProject;
   });
 
-  // 5. Smistamento Colonne
   const colTodo = filteredTasks.filter(t => t.status === "todo");
   const colInProgress = filteredTasks.filter(t => t.status === "in_progress" || t.status === "review");
 
-  const isLoading = alertsLoading || tasksLoading;
+  const isLoading = alertsLoading || tasksLoading || syntheticLoading;
 
   return (
     <MainLayout title="Tasks & Alerts" subtitle="Control room for PM operations and escalations">
@@ -223,13 +255,16 @@ export default function AdminTasks() {
   );
 }
 
-// --- SOTTO-COMPONENTI UI ---
-
 function TaskCard({ task }: { task: any }) {
   return (
-    <Card className="hover:border-primary/50 transition-all shadow-sm">
+    <Card className={cn("hover:border-primary/50 transition-all shadow-sm", task.isSynthetic && "border-primary/30 bg-primary/5")}>
       <CardContent className="py-3 px-4 space-y-2">
-        <p className="font-medium text-sm leading-tight text-foreground">{task.task_name}</p>
+        <div className="flex justify-between items-start gap-2">
+          <p className="font-medium text-sm leading-tight text-foreground flex-1">{task.task_name}</p>
+          {task.isSynthetic && (
+            <Settings2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+          )}
+        </div>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <FolderKanban className="h-3.5 w-3.5 shrink-0" />
           <span className="truncate">{task.project_name}</span>
@@ -239,7 +274,7 @@ function TaskCard({ task }: { task: any }) {
             {task.pm_name}
           </span>
           {task.end_date && (
-            <span className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground">
+            <span className={cn("flex items-center gap-1.5 text-[10px] font-medium", new Date(task.end_date) < new Date() ? "text-destructive" : "text-muted-foreground")}>
               <CalendarDays className="h-3.5 w-3.5" />
               {format(new Date(task.end_date), "dd MMM")}
             </span>
