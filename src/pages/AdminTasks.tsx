@@ -4,6 +4,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   useResolveAlert,
+  useCreateAlert,
   ALERT_TYPE_LABELS,
   ALERT_TYPE_COLORS,
   type TaskAlertType,
@@ -20,8 +21,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { CheckCircle, ExternalLink, Inbox, AlertTriangle, Clock, Pause, FolderKanban, CalendarDays, Settings2, ChevronDown } from "lucide-react";
+import { CheckCircle, ExternalLink, Inbox, AlertTriangle, Clock, Pause, FolderKanban, CalendarDays, Settings2, ChevronDown, Plus } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
@@ -39,10 +44,18 @@ export default function AdminTasks() {
   
   const { data, isLoading } = useAdminTasksData(role, user?.id);
   const resolve = useResolveAlert();
+  const createAlert = useCreateAlert();
   const alerts = data?.alerts || [];
   const allTasks = data?.tasks || [];
 
-  // 4. Stati per i Filtri Incrociati
+  // Stati per la creazione di un nuovo Alert
+  const [showCreateAlert, setShowCreateAlert] = useState(false);
+  const [newAlertTitle, setNewAlertTitle] = useState("");
+  const [newAlertDesc, setNewAlertDesc] = useState("");
+  const [newAlertType, setNewAlertType] = useState<TaskAlertType>("other_critical");
+  const [newAlertCertId, setNewAlertCertId] = useState("");
+
+  // Stati per i Filtri Incrociati
   const [selectedPM, setSelectedPM] = useState<string>("all");
   const [selectedProject, setSelectedProject] = useState<string>("all");
 
@@ -60,7 +73,7 @@ export default function AdminTasks() {
     return Array.from(projs.entries());
   }, [allTasks, alerts]);
 
-  // 5. Motore di Filtraggio
+  // Motore di Filtraggio
   const filteredTasks = allTasks.filter(t => {
     const matchPM = selectedPM === "all" || t.assigned_to === selectedPM;
     const matchProject = selectedProject === "all" || t.certification_id === selectedProject;
@@ -80,6 +93,29 @@ export default function AdminTasks() {
   // Separazione Alert Attivi e Risolti
   const activeAlerts = filteredAlerts.filter(a => !a.is_resolved);
   const resolvedAlerts = filteredAlerts.filter(a => a.is_resolved);
+
+  const handleCreateAlert = () => {
+    if (!user?.id || !newAlertCertId || !newAlertTitle.trim()) return;
+    createAlert.mutate(
+      {
+        certification_id: newAlertCertId,
+        created_by: user.id,
+        alert_type: newAlertType,
+        title: newAlertTitle.trim(),
+        description: newAlertDesc.trim() || undefined,
+        escalate_to_admin: true, // Come Admin, creiamo alert nativamente scalati
+      },
+      {
+        onSuccess: () => {
+          setShowCreateAlert(false);
+          setNewAlertTitle("");
+          setNewAlertDesc("");
+          setNewAlertType("other_critical");
+          setNewAlertCertId("");
+        },
+      }
+    );
+  };
 
   return (
     <MainLayout title="Tasks & Alerts" subtitle="Control room for PM operations and escalations">
@@ -165,9 +201,15 @@ export default function AdminTasks() {
 
             {/* COLONNA 3: ALERTS */}
             <div className="space-y-4">
-              <h3 className="text-sm font-semibold flex items-center gap-2 text-destructive">
-                <AlertTriangle className="h-4 w-4" /> Scaled Alerts ({activeAlerts.length})
-              </h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold flex items-center gap-2 text-destructive">
+                  <AlertTriangle className="h-4 w-4" /> Scaled Alerts ({activeAlerts.length})
+                </h3>
+                <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => setShowCreateAlert(true)}>
+                  <Plus className="h-3 w-3" /> New Alert
+                </Button>
+              </div>
+              
               <div className="space-y-3">
                 {activeAlerts.length === 0 ? (
                   <div className="bg-success/5 border border-success/20 rounded-xl p-4 text-center">
@@ -253,6 +295,56 @@ export default function AdminTasks() {
 
         </div>
       )}
+
+      {/* CREATE ALERT DIALOG FOR ADMIN */}
+      <Dialog open={showCreateAlert} onOpenChange={setShowCreateAlert}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create Scaled Alert</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Project</Label>
+              <Select value={newAlertCertId} onValueChange={setNewAlertCertId}>
+                <SelectTrigger><SelectValue placeholder="Select project" /></SelectTrigger>
+                <SelectContent>
+                  {uniqueProjects.map(([id, name]) => (
+                    <SelectItem key={id} value={id}>{name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Type</Label>
+              <Select value={newAlertType} onValueChange={(v) => setNewAlertType(v as TaskAlertType)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="timeline_to_configure">Timeline to Configure</SelectItem>
+                  <SelectItem value="milestone_deadline">Milestone Deadline</SelectItem>
+                  <SelectItem value="project_on_hold">Project On Hold</SelectItem>
+                  <SelectItem value="pm_operational">PM Operational</SelectItem>
+                  <SelectItem value="other_critical">Other Critical</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Title</Label>
+              <Input value={newAlertTitle} onChange={(e) => setNewAlertTitle(e.target.value)} placeholder="Brief description" />
+            </div>
+            <div className="space-y-2">
+              <Label>Details (optional)</Label>
+              <Textarea value={newAlertDesc} onChange={(e) => setNewAlertDesc(e.target.value)} placeholder="Additional context..." rows={3} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreateAlert(false)}>Cancel</Button>
+            <Button onClick={handleCreateAlert} disabled={!newAlertCertId || !newAlertTitle.trim() || createAlert.isPending}>
+              Create Alert
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </MainLayout>
   );
 }
