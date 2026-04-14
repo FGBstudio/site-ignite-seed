@@ -87,7 +87,8 @@ export function usePMDashboard() {
       // 1. Fetch certifications (root entity) with site + allocations
       let query = (supabase as any)
         .from("certifications")
-        .select("*, sites!certifications_site_id_fkey(name, city, country), project_allocations!project_allocations_certification_id_fkey(*)")
+        // RIMOSSI GLI ALIAS ESPLICITI COMPLESSI E USATA LA SINTASSI STANDARD
+        .select("*, sites(name, city, country), project_allocations(*)")
         .order("handover_date", { ascending: true });
 
       // If not admin, filter by PM
