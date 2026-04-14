@@ -35,24 +35,24 @@ export interface RegionBreakdown {
 
 export function useDashboardData(productFilter: string) {
   const [products, setProducts] = useState<Product[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [certs, setCerts] = useState<any[]>([]);
   const [allocations, setAllocations] = useState<ProjectAllocation[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetch = async () => {
+    const fetchData = async () => {
       setLoading(true);
-      const [prodRes, projRes, allocRes] = await Promise.all([
+      const [prodRes, certRes, allocRes] = await Promise.all([
         supabase.from("products" as any).select("*"),
-        supabase.from("projects" as any).select("*"),
+        supabase.from("certifications").select("id, name, client, region, handover_date, status, pm_id"),
         supabase.from("project_allocations" as any).select("*"),
       ]);
       setProducts((prodRes.data || []) as any);
-      setProjects((projRes.data || []) as any);
+      setCerts((certRes.data || []) as any);
       setAllocations((allocRes.data || []) as any);
       setLoading(false);
     };
-    fetch();
+    fetchData();
   }, []);
 
   const filteredProducts = useMemo(() => {
@@ -88,9 +88,9 @@ export function useDashboardData(productFilter: string) {
       );
       let earliestHandover: Date | null = null;
       for (const alloc of activeAllocs) {
-        const proj = projects.find((p) => p.id === (alloc as any).certification_id);
-        if (proj) {
-          const d = new Date(proj.handover_date);
+        const cert = certs.find((c: any) => c.id === (alloc as any).certification_id);
+        if (cert) {
+          const d = new Date(cert.handover_date);
           if (!earliestHandover || d < earliestHandover) earliestHandover = d;
         }
       }
@@ -103,7 +103,7 @@ export function useDashboardData(productFilter: string) {
     }
 
     return { installed, confirmed, inStock, pipeline, toOrder, dropDeadDate };
-  }, [filteredProducts, allocations, projects]);
+  }, [filteredProducts, allocations, certs]);
 
   const runway = useMemo<RunwayRow[]>(() => {
     return filteredProducts.map((product) => {
@@ -114,8 +114,8 @@ export function useDashboardData(productFilter: string) {
 
       const allocsWithDate = prodAllocs
         .map((a) => {
-          const proj = projects.find((p) => p.id === (a as any).certification_id);
-          return { ...a, handoverDate: proj?.handover_date || "9999-12-31", project: proj };
+          const cert = certs.find((c: any) => c.id === (a as any).certification_id);
+          return { ...a, handoverDate: cert?.handover_date || "9999-12-31", project: cert };
         })
         .sort((a, b) => a.handoverDate.localeCompare(b.handoverDate));
 
@@ -158,7 +158,7 @@ export function useDashboardData(productFilter: string) {
 
       return { product, stock: product.quantity_in_stock, totalDemand, runwayDate, orderQty, orderByDate, regions };
     });
-  }, [filteredProducts, allocations, projects]);
+  }, [filteredProducts, allocations, certs]);
 
   return { products, kpi, runway, loading };
 }

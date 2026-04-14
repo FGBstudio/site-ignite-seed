@@ -69,23 +69,16 @@ export default function Inventory() {
     setSelectedProduct(product);
     setLoadingBreakdown(true);
 
-    const { data, error } = await supabase
+    // Fetch allocations separately, then resolve certifications
+    const { data: allocData, error: allocError } = await supabase
       .from("project_allocations" as any)
-      .select(`
-        quantity,
-        status,
-        target_date,
-        projects!inner (
-          name,
-          client,
-          region,
-          status
-        )
-      `)
+      .select("*")
       .eq("product_id", product.id);
 
-    if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+    if (allocError || !allocData || allocData.length === 0) {
+      if (allocError) {
+        toast({ title: "Error", description: allocError.message, variant: "destructive" });
+      }
       setBreakdown({
         total_stock: product.quantity_in_stock,
         total_allocated: 0,
@@ -95,33 +88,47 @@ export default function Inventory() {
         shipped: 0,
         allocations: [],
       });
-    } else {
-      const allocations: AllocationDetail[] = (data || []).map((row: any) => ({
-        project_name: row.projects.name,
-        client: row.projects.client,
-        region: row.projects.region,
-        status: row.projects.status,
+      setLoadingBreakdown(false);
+      return;
+    }
+
+    // Get unique certification IDs and fetch from certifications table
+    const certIds = [...new Set((allocData as any[]).map((a) => a.certification_id))];
+    const { data: certData } = await supabase
+      .from("certifications")
+      .select("id, name, client, region, status")
+      .in("id", certIds);
+
+    const certMap = new Map((certData || []).map((c: any) => [c.id, c]));
+
+    const allocations: AllocationDetail[] = (allocData as any[]).map((row: any) => {
+      const cert = certMap.get(row.certification_id) || {} as any;
+      return {
+        project_name: cert.name || "Unknown",
+        client: cert.client || "",
+        region: cert.region || "",
+        status: cert.status || "",
         quantity: row.quantity,
         allocation_status: row.status,
         target_date: row.target_date,
-      }));
+      };
+    });
 
-      const activeAllocations = allocations.filter((a) => a.allocation_status !== "Installed_Online");
-      const totalAllocated = activeAllocations.reduce((sum, a) => sum + a.quantity, 0);
-      const requested = activeAllocations.filter(a => a.allocation_status === "Requested").reduce((s, a) => s + a.quantity, 0);
-      const allocated = activeAllocations.filter(a => a.allocation_status === "Allocated").reduce((s, a) => s + a.quantity, 0);
-      const shipped = activeAllocations.filter(a => a.allocation_status === "Shipped").reduce((s, a) => s + a.quantity, 0);
+    const activeAllocations = allocations.filter((a) => a.allocation_status !== "Installed_Online");
+    const totalAllocated = activeAllocations.reduce((sum, a) => sum + a.quantity, 0);
+    const requested = activeAllocations.filter(a => a.allocation_status === "Requested").reduce((s, a) => s + a.quantity, 0);
+    const allocated = activeAllocations.filter(a => a.allocation_status === "Allocated").reduce((s, a) => s + a.quantity, 0);
+    const shipped = activeAllocations.filter(a => a.allocation_status === "Shipped").reduce((s, a) => s + a.quantity, 0);
 
-      setBreakdown({
-        total_stock: product.quantity_in_stock,
-        total_allocated: totalAllocated,
-        free_stock: Math.max(0, product.quantity_in_stock - totalAllocated),
-        requested,
-        allocated,
-        shipped,
-        allocations,
-      });
-    }
+    setBreakdown({
+      total_stock: product.quantity_in_stock,
+      total_allocated: totalAllocated,
+      free_stock: Math.max(0, product.quantity_in_stock - totalAllocated),
+      requested,
+      allocated,
+      shipped,
+      allocations,
+    });
 
     setLoadingBreakdown(false);
   };
