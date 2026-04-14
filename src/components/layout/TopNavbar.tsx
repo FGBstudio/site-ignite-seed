@@ -40,23 +40,23 @@ export function TopNavbar() {
 
   if (isAdmin) {
     navItems = [
-      { title: "CEO Dashboard", url: "/ceo-dashboard", icon: Crown },
-      { title: "Cantieri", url: "/projects", icon: FolderKanban },
+      { title: "Admin Dashboard", url: "/admin-dashboard", icon: Crown },
+      { title: "Projects", url: "/projects", icon: FolderKanban },
       { title: "Tasks & Alerts", url: "/admin-tasks", icon: Inbox },
-      { title: "Magazzino", url: "/inventory", icon: Package },
-      { title: "Ordini", url: "/supplier-orders", icon: Truck },
+      { title: "Inventory", url: "/inventory", icon: Package },
+      { title: "Orders", url: "/supplier-orders", icon: Truck },
       { title: "Reports", url: "/reports", icon: BarChart3 },
       { title: "Settings", url: "/settings", icon: Settings },
     ];
   } else if (isPM) {
     navItems = [
       { title: "Dashboard", url: "/pm-portal", icon: LayoutDashboard },
-      { title: "I Miei Cantieri", url: "/projects", icon: FolderKanban },
-      { title: "I Miei Task", url: "/my-tasks", icon: Inbox },
+      { title: "My Projects", url: "/projects", icon: FolderKanban },
+      { title: "My Tasks", url: "/my-tasks", icon: Inbox },
     ];
   } else if (isOperative) {
     navItems = [
-      { title: "I Miei Task", url: "/my-tasks", icon: Inbox },
+      { title: "My Tasks", url: "/my-tasks", icon: Inbox },
     ];
   }
 
