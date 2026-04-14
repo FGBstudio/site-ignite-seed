@@ -24,7 +24,7 @@ export default function Login() {
     if (!ALLOWED_DOMAINS.includes(domain)) {
       toast({
         title: "Access denied",
-        description: "Only users with @fgbstudio.com domain can access this application.",
+        description: "Only FGB users with company @fgb-studio.com domain are allowed to access.",
         variant: "destructive",
       });
       return;
@@ -46,8 +46,8 @@ export default function Login() {
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary">
             <Package className="h-7 w-7 text-primary-foreground" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground">FGB Studio</h1>
-          <p className="text-sm text-muted-foreground">Engine Room — Internal Access</p>
+          <h1 className="text-2xl font-bold text-foreground">FGB</h1>
+          <p className="text-sm text-muted-foreground">Company Management Tool</p>
         </div>
 
         <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2">
