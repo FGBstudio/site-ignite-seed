@@ -41,7 +41,7 @@ export default function ProjectDetail() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("certification_milestones")
-        .select("*")
+        .select('*, profiles(full_name, display_name, email), sites(name, city, country)')
         .eq("certification_id", certification!.id)
         .eq("milestone_type", "timeline")
         .order("order_index");
