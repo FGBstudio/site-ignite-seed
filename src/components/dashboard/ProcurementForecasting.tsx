@@ -1,14 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, Fragment } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AlertTriangle, CheckCircle, ChevronDown, Package, ShoppingCart, Loader2 } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { AlertTriangle, CheckCircle, Package, ShoppingCart, Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { addDays, format } from "date-fns";
-import type { Product, Project, ProjectAllocation } from "@/types/custom-tables";
+import type { Product, ProjectAllocation } from "@/types/custom-tables";
 
 interface ProjectDemand {
   projectId: string;
@@ -16,6 +15,9 @@ interface ProjectDemand {
   client: string;
   region: string;
   quantity: number;
+  pmName: string;
+  status: string;
+  handoverDate: string;
 }
 
 interface ForecastItem {
@@ -51,6 +53,7 @@ export function ProcurementForecasting() {
     if (prodRes.error) toast({ title: "Error", description: prodRes.error.message, variant: "destructive" });
     if (certRes.error) toast({ title: "Error", description: certRes.error.message, variant: "destructive" });
     if (allocRes.error) toast({ title: "Error", description: allocRes.error.message, variant: "destructive" });
+    
     setProducts((prodRes.data || []) as any);
     setCerts((certRes.data || []) as any);
     setAllocations((allocRes.data || []) as any);
@@ -79,6 +82,7 @@ export function ProcurementForecasting() {
     const demandMap = new Map<string, number>();
     const breakdownMap = new Map<string, Map<string, number>>();
     const allocIdMap = new Map<string, string[]>();
+    
     for (const a of filteredAllocations) {
       demandMap.set(a.product_id, (demandMap.get(a.product_id) || 0) + a.quantity);
       if (!breakdownMap.has(a.product_id)) breakdownMap.set(a.product_id, new Map());
@@ -99,30 +103,38 @@ export function ProcurementForecasting() {
 
       const projectBreakdown: ProjectDemand[] = [];
       const pMap = breakdownMap.get(product.id);
+      
       if (pMap) {
         for (const [certId, qty] of pMap) {
           const cert = filteredCerts.find((c: any) => c.id === certId);
           if (cert) {
+            const pm = pmList.find(p => p.id === cert.pm_id);
             projectBreakdown.push({
               projectId: certId,
               projectName: cert.name || "Unnamed",
               client: cert.client,
               region: cert.region,
               quantity: qty,
+              pmName: pm ? pm.full_name : "—",
+              status: cert.status || cert.setup_status || "—",
+              handoverDate: cert.handover_date,
             });
           }
         }
       }
-      projectBreakdown.sort((a, b) => b.quantity - a.quantity);
+      // Sort breakdown by Handover Date (closest first)
+      projectBreakdown.sort((a, b) => new Date(a.handoverDate).getTime() - new Date(b.handoverDate).getTime());
+      
       items.push({
         product, totalDemand, currentStock, coveredByStock, shortfallToOrder, projectBreakdown,
         allocationIds: allocIdMap.get(product.id) || [],
       });
     }
 
+    // Sort ForecastItems by highest shortfall first
     items.sort((a, b) => b.shortfallToOrder - a.shortfallToOrder);
     return items;
-  }, [products, certs, allocations, horizon, region, pmFilter]);
+  }, [products, certs, allocations, horizon, region, pmFilter, pmList]);
 
   const handleGenerateOrder = async (item: ForecastItem) => {
     setGeneratingOrder(item.product.id);
@@ -174,6 +186,7 @@ export function ProcurementForecasting() {
 
   return (
     <div className="space-y-6">
+      {/* Filters */}
       <div className="flex flex-wrap gap-3 items-center p-4 rounded-xl bg-card border border-border/50">
         <span className="text-sm font-medium text-muted-foreground mr-1">Filters:</span>
         <Select value={horizon} onValueChange={setHorizon}>
@@ -206,22 +219,23 @@ export function ProcurementForecasting() {
         </Select>
       </div>
 
+      {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="stat-card flex items-center gap-3">
+        <div className="stat-card flex items-center gap-3 p-4 border rounded-xl bg-card">
           <Package className="h-5 w-5 text-primary" />
           <div>
             <p className="text-2xl font-bold text-foreground">{forecast.length}</p>
             <p className="text-xs text-muted-foreground">Products with demand</p>
           </div>
         </div>
-        <div className="stat-card flex items-center gap-3">
+        <div className="stat-card flex items-center gap-3 p-4 border rounded-xl bg-card">
           <CheckCircle className="h-5 w-5 text-success" />
           <div>
             <p className="text-2xl font-bold text-foreground">{forecast.filter((f) => f.shortfallToOrder === 0).length}</p>
             <p className="text-xs text-muted-foreground">Covered by stock</p>
           </div>
         </div>
-        <div className="stat-card flex items-center gap-3">
+        <div className="stat-card flex items-center gap-3 p-4 border rounded-xl bg-card">
           <AlertTriangle className="h-5 w-5 text-destructive" />
           <div>
             <p className="text-2xl font-bold text-foreground">{forecast.filter((f) => f.shortfallToOrder > 0).length}</p>
@@ -230,111 +244,87 @@ export function ProcurementForecasting() {
         </div>
       </div>
 
+      {/* Forecast Table */}
       {forecast.length === 0 ? (
-        <div className="table-container p-12 text-center text-muted-foreground">
+        <div className="table-container p-12 text-center text-muted-foreground bg-card border rounded-xl">
           No demand in the selected period.
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {forecast.map((item) => {
-            const coveredPct = (item.coveredByStock / item.totalDemand) * 100;
-            const shortfallPct = (item.shortfallToOrder / item.totalDemand) * 100;
-            const hasShortfall = item.shortfallToOrder > 0;
-            const isGenerating = generatingOrder === item.product.id;
+        <div className="table-container bg-card border rounded-xl overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/50 hover:bg-muted/50">
+                <TableHead className="font-semibold">Device</TableHead>
+                <TableHead className="font-semibold text-center">n°</TableHead>
+                <TableHead className="font-semibold">PM</TableHead>
+                <TableHead className="font-semibold">Area</TableHead>
+                <TableHead className="font-semibold">Client</TableHead>
+                <TableHead className="font-semibold">Project</TableHead>
+                <TableHead className="font-semibold">Status</TableHead>
+                <TableHead className="font-semibold">Handover</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {forecast.map((item) => {
+                const hasShortfall = item.shortfallToOrder > 0;
+                const isGenerating = generatingOrder === item.product.id;
 
-            return (
-              <Card key={item.product.id} className={hasShortfall ? "border-destructive/30" : "border-success/30"}>
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <CardTitle className="text-base">{item.product.name}</CardTitle>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-xs text-muted-foreground font-mono">{item.product.sku}</span>
-                        <Badge variant="outline" className="text-xs">{item.product.certification}</Badge>
-                      </div>
-                      <Collapsible>
-                        <CollapsibleTrigger asChild>
-                          <button className="flex items-center gap-1 mt-2 text-xs text-primary hover:text-primary/80 transition-colors">
-                            <ChevronDown className="h-3 w-3" />
-                            {item.projectBreakdown.length} associated project{item.projectBreakdown.length === 1 ? "" : "s"}
-                          </button>
-                        </CollapsibleTrigger>
-                        <CollapsibleContent>
-                          <div className="mt-2 space-y-1.5">
-                            {item.projectBreakdown.map((pb) => (
-                              <div key={pb.projectId} className="flex items-center justify-between text-xs p-1.5 rounded bg-muted/50">
-                                <div className="flex items-center gap-2">
-                                  <span className="font-medium text-foreground">{pb.projectName}</span>
-                                  <span className="text-muted-foreground">{pb.client}</span>
-                                  <Badge variant="outline" className="text-[10px] px-1 py-0">{pb.region}</Badge>
-                                </div>
-                                <span className="font-semibold text-foreground">×{pb.quantity}</span>
-                              </div>
-                            ))}
+                return (
+                  <Fragment key={item.product.id}>
+                    {/* Device Summary Row */}
+                    <TableRow className="bg-muted/20 border-t-2">
+                      <TableCell colSpan={8} className="py-3">
+                        <div className="flex items-center justify-between px-2">
+                          <div className="flex items-center gap-4">
+                            <span className="font-bold text-foreground text-base">{item.product.name}</span>
+                            <div className="flex items-center gap-3 text-sm">
+                              <span className="text-muted-foreground">Demand: <strong className="text-foreground">{item.totalDemand}</strong></span>
+                              <span className="text-muted-foreground">Stock: <strong className="text-foreground">{item.currentStock}</strong></span>
+                              <span className="text-muted-foreground">
+                                Shortfall: <strong className={hasShortfall ? "text-destructive" : "text-success"}>{item.shortfallToOrder}</strong>
+                              </span>
+                            </div>
                           </div>
-                        </CollapsibleContent>
-                      </Collapsible>
-                    </div>
-                    {hasShortfall && <AlertTriangle className="h-5 w-5 text-destructive shrink-0" />}
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex gap-4 text-sm">
-                    <div>
-                      <span className="text-muted-foreground">Demand: </span>
-                      <span className="font-semibold text-foreground">{item.totalDemand}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">In Stock: </span>
-                      <span className="font-semibold text-foreground">{item.currentStock}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">To Order: </span>
-                      <span className={`font-semibold ${hasShortfall ? "text-destructive" : "text-success"}`}>
-                        {item.shortfallToOrder}
-                      </span>
-                    </div>
-                  </div>
+                          {hasShortfall && (
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              className="gap-2 h-8"
+                              onClick={() => handleGenerateOrder(item)}
+                              disabled={isGenerating}
+                            >
+                              {isGenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShoppingCart className="h-3.5 w-3.5" />}
+                              Order {item.shortfallToOrder} units
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
 
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>Stock coverage</span>
-                      <span>{Math.round(coveredPct)}%</span>
-                    </div>
-                    <div className="relative h-4 w-full rounded-full overflow-hidden bg-muted">
-                      <div
-                        className="absolute inset-y-0 left-0 rounded-l-full bg-success transition-all duration-500"
-                        style={{ width: `${coveredPct}%` }}
-                      />
-                      {hasShortfall && (
-                        <div
-                          className="absolute inset-y-0 rounded-r-full bg-destructive transition-all duration-500"
-                          style={{
-                            left: `${coveredPct}%`,
-                            width: `${shortfallPct}%`,
-                            backgroundImage: "repeating-linear-gradient(135deg, transparent, transparent 3px, rgba(255,255,255,0.15) 3px, rgba(255,255,255,0.15) 6px)",
-                          }}
-                        />
-                      )}
-                    </div>
-                  </div>
-
-                  {hasShortfall && (
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      className="gap-2 w-full"
-                      onClick={() => handleGenerateOrder(item)}
-                      disabled={isGenerating}
-                    >
-                      {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingCart className="h-4 w-4" />}
-                      Generate Supplier Order ({item.shortfallToOrder} units)
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })}
+                    {/* Breakdown Rows */}
+                    {item.projectBreakdown.map((pb) => (
+                      <TableRow key={`${item.product.id}-${pb.projectId}`} className="hover:bg-muted/30">
+                        <TableCell className="font-medium text-muted-foreground">{item.product.name}</TableCell>
+                        <TableCell className="text-center font-semibold">{pb.quantity}</TableCell>
+                        <TableCell>{pb.pmName}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-xs">{pb.region}</Badge>
+                        </TableCell>
+                        <TableCell>{pb.client}</TableCell>
+                        <TableCell>{pb.projectName}</TableCell>
+                        <TableCell className="capitalize text-muted-foreground">
+                          {pb.status.replace(/_/g, ' ')}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap font-medium">
+                          {format(new Date(pb.handoverDate), "MMM-yy")}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </Fragment>
+                );
+              })}
+            </TableBody>
+          </Table>
         </div>
       )}
     </div>
