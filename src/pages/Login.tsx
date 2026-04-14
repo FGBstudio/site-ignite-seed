@@ -4,7 +4,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Package, LogIn, ShieldAlert } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const ALLOWED_DOMAINS = ["fgb-studio.com", "fgbstudio.com"];
@@ -43,9 +42,12 @@ export default function Login() {
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <div className="w-full max-w-sm space-y-8">
         <div className="flex flex-col items-center gap-3">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary">
-            <Package className="h-7 w-7 text-primary-foreground" />
-          </div>
+          {/* Immagine del Brand caricata da public/green.png */}
+          <img 
+            src="/green.png" 
+            alt="FGB Studio Logo" 
+            className="h-16 w-auto object-contain mb-2" 
+          />
           <h1 className="text-2xl font-bold text-foreground">FGB</h1>
           <p className="text-sm text-muted-foreground">Company Management Tool</p>
         </div>
