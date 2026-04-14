@@ -167,6 +167,10 @@ export default function MyTasks() {
   const doneTasks = visibleTasks.filter((t) => t.status === "done");
   const activeTasksCount = todoTasks.length + inProgressTasks.length + reviewTasks.length;
 
+  // Split alerts
+  const activeAlerts = alerts.filter((a) => !a.is_resolved);
+  const resolvedAlerts = alerts.filter((a) => a.is_resolved);
+
   const renderTaskCard = (task: TaskRow) => {
     const blocked = isBlocked(task);
     const overdue = task.end_date && new Date(task.end_date) < new Date();
@@ -254,15 +258,15 @@ export default function MyTasks() {
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
               <Bell className="h-4 w-4 text-destructive" />
-              Alerts ({alerts.length})
+              Alerts ({activeAlerts.length})
             </h3>
             <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => setShowCreateAlert(true)}>
               <Plus className="h-3 w-3" /> New Alert
             </Button>
           </div>
-          {alerts.length > 0 && (
+          {activeAlerts.length > 0 && (
             <div className="space-y-2">
-              {alerts.map((alert) => (
+              {activeAlerts.map((alert) => (
                 <Card key={alert.id} className="hover:shadow-sm transition-all">
                   <CardContent className="py-3 px-4">
                     <div className="flex items-start justify-between gap-3">
@@ -312,7 +316,7 @@ export default function MyTasks() {
             Error loading tasks. Please try again later.
           </CardContent>
         </Card>
-      ) : activeTasksCount === 0 && alerts.length === 0 && doneTasks.length === 0 ? (
+      ) : activeTasksCount === 0 && activeAlerts.length === 0 && doneTasks.length === 0 ? (
         <Card>
           <CardContent className="py-16 text-center">
             <CheckCircle className="h-12 w-12 text-success mx-auto mb-3" />
@@ -322,13 +326,13 @@ export default function MyTasks() {
         </Card>
       ) : (
         <div className="space-y-6">
-          {/* Inbox Zero State - Shows when all active tasks are done but history exists */}
-          {activeTasksCount === 0 && alerts.length === 0 && doneTasks.length > 0 && (
+          {/* Inbox Zero State - Shows when all active tasks and active alerts are done but history exists */}
+          {activeTasksCount === 0 && activeAlerts.length === 0 && (doneTasks.length > 0 || resolvedAlerts.length > 0) && (
             <Card>
               <CardContent className="py-12 text-center bg-muted/20 border-border/50">
                 <CheckCircle className="h-10 w-10 text-success mx-auto mb-3" />
                 <p className="text-lg font-medium text-foreground">Inbox Zero! 🎉</p>
-                <p className="text-sm text-muted-foreground mt-1">Check your completed tasks below.</p>
+                <p className="text-sm text-muted-foreground mt-1">Check your completed items below.</p>
               </CardContent>
             </Card>
           )}
@@ -382,6 +386,51 @@ export default function MyTasks() {
                   {doneTasks.map((task) => (
                     <div key={task.id} className="opacity-60 grayscale-[50%] pointer-events-none">
                       {renderTaskCard(task)}
+                    </div>
+                  ))}
+                </CollapsibleContent>
+              </Collapsible>
+            </div>
+          )}
+
+          {/* SEZIONE ALERTS RISOLTI (STORICO) */}
+          {resolvedAlerts.length > 0 && (
+            <div className="mt-4 border-t border-border pt-6">
+              <Collapsible>
+                <CollapsibleTrigger className="flex w-full items-center justify-between rounded-xl bg-muted border border-border px-5 py-4 text-sm font-medium hover:bg-muted/80 transition-colors group">
+                  <div className="flex items-center gap-2.5 text-muted-foreground">
+                    <CheckCircle className="h-5 w-5" />
+                    <span className="text-base font-semibold">Storico Alerts Risolti</span>
+                    <span className="rounded-full bg-background px-2.5 py-0.5 text-xs font-bold border border-border">
+                      {resolvedAlerts.length}
+                    </span>
+                  </div>
+                  <ChevronDown className="h-5 w-5 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                </CollapsibleTrigger>
+                
+                <CollapsibleContent className="mt-4 space-y-2">
+                  {resolvedAlerts.map((alert) => (
+                    <div key={alert.id} className="opacity-60 grayscale-[50%] pointer-events-none">
+                      <Card className="hover:shadow-sm transition-all">
+                        <CardContent className="py-3 px-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <p className="font-medium text-sm text-foreground truncate">{alert.title}</p>
+                                <Badge variant="outline" className={cn("text-[10px] shrink-0", ALERT_TYPE_COLORS[alert.alert_type as TaskAlertType])}>
+                                  {ALERT_TYPE_LABELS[alert.alert_type as TaskAlertType]}
+                                </Badge>
+                                {alert.escalate_to_admin && (
+                                  <Badge variant="destructive" className="text-[10px] shrink-0">Admin</Badge>
+                                )}
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {alert.certification_name} · {format(new Date(alert.created_at), "dd MMM")}
+                              </p>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
                     </div>
                   ))}
                 </CollapsibleContent>
