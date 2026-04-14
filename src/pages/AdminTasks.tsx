@@ -1,16 +1,14 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import {
-  useTaskAlerts,
   useResolveAlert,
   ALERT_TYPE_LABELS,
   ALERT_TYPE_COLORS,
   type TaskAlertType,
 } from "@/hooks/useTaskAlerts";
+import { useAdminTasksData } from "@/hooks/useAdminTasksData";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -38,74 +36,10 @@ export default function AdminTasks() {
   const navigate = useNavigate();
   const { user, role } = useAuth();
   
-  const { data: alerts = [], isLoading: alertsLoading } = useTaskAlerts(role, user?.id);
+  const { data, isLoading } = useAdminTasksData(role, user?.id);
   const resolve = useResolveAlert();
-
-  // 1. Fetching Globale dei Task Reali (Operatività)
-  const { data: realTasks = [], isLoading: tasksLoading } = useQuery({
-    queryKey: ["admin-all-tasks"],
-    enabled: role === "ADMIN",
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("project_tasks" as any)
-        .select("*, certifications!project_tasks_certification_id_fkey(name, client)")
-        .neq("status", "done")
-        .order("end_date", { ascending: true });
-      
-      if (error) throw error;
-
-      const pmIds = [...new Set((data || []).map((t: any) => t.assigned_to).filter(Boolean))] as string[];
-      let profileMap = new Map<string, string>();
-      if (pmIds.length > 0) {
-        const { data: profiles } = await supabase.from("profiles").select("id, full_name").in("id", pmIds);
-        if (profiles) profiles.forEach(p => profileMap.set(p.id, p.full_name));
-      }
-
-      return (data || []).map((t: any) => ({
-        ...t,
-        project_name: t.certifications?.name || "Unknown Project",
-        pm_name: t.assigned_to ? profileMap.get(t.assigned_to) || "Unknown PM" : "Unassigned"
-      }));
-    }
-  });
-
-  // 2. Fetching Globale dei Task Sintetici (Setup Progetto Ritardato)
-  const { data: syntheticTasks = [], isLoading: syntheticLoading } = useQuery({
-    queryKey: ["admin-synthetic-tasks"],
-    enabled: role === "ADMIN",
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("certifications" as any)
-        .select("*")
-        .in("setup_status", ["da_configurare", "in_corso"]);
-
-      if (error) throw error;
-
-      const pmIds = [...new Set((data || []).map((p: any) => p.pm_id).filter(Boolean))] as string[];
-      let profileMap = new Map<string, string>();
-      if (pmIds.length > 0) {
-        const { data: profiles } = await supabase.from("profiles").select("id, full_name").in("id", pmIds);
-        if (profiles) profiles.forEach(p => profileMap.set(p.id, p.full_name));
-      }
-
-      return (data || []).map((p: any) => ({
-        id: `setup-${p.id}`,
-        certification_id: p.id,
-        task_name: p.setup_status === "da_configurare" 
-          ? `Project Setup Required: ${p.name}` 
-          : `Complete Setup: ${p.name}`,
-        assigned_to: p.pm_id,
-        end_date: p.handover_date,
-        status: p.setup_status === "in_corso" ? "in_progress" : "todo",
-        project_name: p.name,
-        pm_name: p.pm_id ? profileMap.get(p.pm_id) || "Unknown PM" : "Unassigned",
-        isSynthetic: true
-      }));
-    }
-  });
-
-  // 3. Unione dei flussi dati
-  const allTasks = useMemo(() => [...realTasks, ...syntheticTasks], [realTasks, syntheticTasks]);
+  const alerts = data?.alerts || [];
+  const allTasks = data?.tasks || [];
 
   // 4. Stati per i Filtri Incrociati
   const [selectedPM, setSelectedPM] = useState<string>("all");
@@ -140,8 +74,6 @@ export default function AdminTasks() {
 
   const colTodo = filteredTasks.filter(t => t.status === "todo");
   const colInProgress = filteredTasks.filter(t => t.status === "in_progress" || t.status === "review");
-
-  const isLoading = alertsLoading || tasksLoading || syntheticLoading;
 
   return (
     <MainLayout title="Tasks & Alerts" subtitle="Control room for PM operations and escalations">
