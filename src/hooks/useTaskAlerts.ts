@@ -45,7 +45,7 @@ const ALERT_TYPE_COLORS: Record<TaskAlertType, string> = {
 
 export { ALERT_TYPE_LABELS, ALERT_TYPE_COLORS };
 
-/** Fetch unresolved alerts: Admin sees all escalated, PM sees own */
+/** Fetch alerts: Admin sees all escalated, PM sees own. Limit 200 for performance. */
 export function useTaskAlerts(role: AppRole | null, userId: string | undefined) {
   return useQuery({
     queryKey: ["task-alerts", role, userId],
@@ -54,8 +54,9 @@ export function useTaskAlerts(role: AppRole | null, userId: string | undefined) 
       let query = (supabase as any)
         .from("task_alerts")
         .select("*, certifications!task_alerts_certification_id_fkey(name, client)")
-        .eq("is_resolved", false)
-        .order("created_at", { ascending: false });
+        // Rimosso .eq("is_resolved", false) per permettere lo scaricamento dello storico
+        .order("created_at", { ascending: false })
+        .limit(200); // Limite di sicurezza per non saturare la memoria con vecchi alert
 
       // Admin sees all escalated; PM sees own
       if (role === "ADMIN") {
@@ -93,11 +94,14 @@ export function useTaskAlerts(role: AppRole | null, userId: string | undefined) 
   });
 }
 
-/** Count alerts by type */
+/** Count alerts by type (Counts ONLY active alerts) */
 export function useTaskAlertCounts(role: AppRole | null, userId: string | undefined) {
-  const { data: alerts = [], ...rest } = useTaskAlerts(role, userId);
+  const { data: allAlerts = [], ...rest } = useTaskAlerts(role, userId);
 
-  const counts = alerts.reduce<Record<TaskAlertType, number>>(
+  // Filtriamo solo quelli non risolti per aggiornare correttamente i contatori in alto
+  const activeAlerts = allAlerts.filter(a => !a.is_resolved);
+
+  const counts = activeAlerts.reduce<Record<TaskAlertType, number>>(
     (acc, a) => {
       acc[a.alert_type as TaskAlertType] = (acc[a.alert_type as TaskAlertType] || 0) + 1;
       return acc;
@@ -111,7 +115,7 @@ export function useTaskAlertCounts(role: AppRole | null, userId: string | undefi
     }
   );
 
-  return { alerts, counts, total: alerts.length, ...rest };
+  return { alerts: activeAlerts, counts, total: activeAlerts.length, ...rest };
 }
 
 /** Create a new alert */
@@ -129,7 +133,7 @@ export function useCreateAlert() {
     }) => {
       const { data, error } = await (supabase as any)
         .from("task_alerts")
-        .insert(alert)
+        .insert({ ...alert, is_resolved: false }) // Sicurezza aggiuntiva per eventuali trigger del DB
         .select()
         .single();
       if (error) throw error;
