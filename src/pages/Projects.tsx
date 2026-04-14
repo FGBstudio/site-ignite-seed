@@ -91,10 +91,7 @@ export default function Projects() {
           </TabsTrigger>
           <TabsTrigger value="projects">Projects</TabsTrigger>
           <TabsTrigger value="forecast" className="gap-2">
-            <BarChart3 className="h-4 w-4" /> Demand Analysis
-          </TabsTrigger>
-          <TabsTrigger value="import" className="gap-2">
-            <FileUp className="h-4 w-4" /> Import CSV
+            <BarChart3 className="h-4 w-4" /> Device Demand Analysis
           </TabsTrigger>
         </TabsList>
 
