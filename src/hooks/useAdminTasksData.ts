@@ -67,14 +67,16 @@ export function useAdminTasksData(role: AppRole | null, userId: string | undefin
         supabase
           .from("project_tasks" as any)
           .select("id, certification_id, assigned_to, end_date, status, task_name, certifications!project_tasks_certification_id_fkey(name, client)")
-          .neq("status", "done")
-          .order("end_date", { ascending: true }),
+          // Rimosso .neq("status", "done") per permettere il download dello storico completato
+          .order("end_date", { ascending: true })
+          .limit(500), // Limite di sicurezza per lo storico dei task
         (supabase as any)
           .from("task_alerts")
           .select("*, certifications!task_alerts_certification_id_fkey(name, client)")
-          .eq("is_resolved", false)
+          // Rimosso .eq("is_resolved", false) per permettere il download degli alert risolti
           .eq("escalate_to_admin", true)
-          .order("created_at", { ascending: false }),
+          .order("created_at", { ascending: false })
+          .limit(200), // Limite di sicurezza per lo storico degli alert
         (supabase as any)
           .from("certifications")
           .select("id, name, client, pm_id, handover_date, created_at, status, cert_type, issued_date, project_allocations(id)")
@@ -138,41 +140,4 @@ export function useAdminTasksData(role: AppRole | null, userId: string | undefin
         pm_name: task.assigned_to ? profileMap.get(task.assigned_to) || "Unknown PM" : "Unassigned",
       }));
 
-      const syntheticTasks = certifications.reduce<AdminBoardTask[]>((acc, certification) => {
-        const certificationMilestones = milestonesByCertification.get(certification.id) || [];
-        const setupStatus = computeSetupStatus(certification, certificationMilestones);
-
-        if (setupStatus === "certificato") return acc;
-
-        acc.push({
-          id: `setup-${certification.id}`,
-          certification_id: certification.id,
-          task_name:
-            setupStatus === "da_configurare"
-              ? `Configure project ${certification.name || certification.cert_type || "Unnamed Project"}`
-              : `Complete setup for project ${certification.name || certification.cert_type || "Unnamed Project"}`,
-          assigned_to: certification.pm_id,
-          end_date: certification.handover_date,
-          status: setupStatus === "in_corso" ? "in_progress" : "todo",
-          project_name: certification.name || certification.cert_type || "Unnamed Project",
-          pm_name: certification.pm_id ? profileMap.get(certification.pm_id) || "Unknown PM" : "Unassigned",
-          isSynthetic: true,
-        });
-
-        return acc;
-      }, []).sort(sortByEndDate);
-
-      const alerts: TaskAlert[] = rawAlerts.map((alert) => ({
-        ...alert,
-        certification_name: alert.certifications?.name || "—",
-        certification_client: alert.certifications?.client || "",
-        pm_name: profileMap.get(alert.created_by) || "—",
-      }));
-
-      return {
-        tasks: [...realTasks, ...syntheticTasks].sort(sortByEndDate),
-        alerts,
-      };
-    },
-  });
-}
+      const syntheticTasks = certifications.
