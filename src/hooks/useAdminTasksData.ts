@@ -138,30 +138,29 @@ export function useAdminTasksData(role: AppRole | null, userId: string | undefin
         pm_name: task.assigned_to ? profileMap.get(task.assigned_to) || "Unknown PM" : "Unassigned",
       }));
 
-      const syntheticTasks: AdminBoardTask[] = certifications
-        .map((certification) => {
-          const certificationMilestones = milestonesByCertification.get(certification.id) || [];
-          const setupStatus = computeSetupStatus(certification, certificationMilestones);
+      const syntheticTasks = certifications.reduce<AdminBoardTask[]>((acc, certification) => {
+        const certificationMilestones = milestonesByCertification.get(certification.id) || [];
+        const setupStatus = computeSetupStatus(certification, certificationMilestones);
 
-          if (setupStatus === "certificato") return null;
+        if (setupStatus === "certificato") return acc;
 
-          return {
-            id: `setup-${certification.id}`,
-            certification_id: certification.id,
-            task_name:
-              setupStatus === "da_configurare"
-                ? `Configure project ${certification.name || certification.cert_type || "Unnamed Project"}`
-                : `Complete setup for project ${certification.name || certification.cert_type || "Unnamed Project"}`,
-            assigned_to: certification.pm_id,
-            end_date: certification.handover_date,
-            status: setupStatus === "in_corso" ? "in_progress" : "todo",
-            project_name: certification.name || certification.cert_type || "Unnamed Project",
-            pm_name: certification.pm_id ? profileMap.get(certification.pm_id) || "Unknown PM" : "Unassigned",
-            isSynthetic: true,
-          } satisfies AdminBoardTask;
-        })
-        .filter((task): task is AdminBoardTask => task !== null)
-        .sort(sortByEndDate);
+        acc.push({
+          id: `setup-${certification.id}`,
+          certification_id: certification.id,
+          task_name:
+            setupStatus === "da_configurare"
+              ? `Configure project ${certification.name || certification.cert_type || "Unnamed Project"}`
+              : `Complete setup for project ${certification.name || certification.cert_type || "Unnamed Project"}`,
+          assigned_to: certification.pm_id,
+          end_date: certification.handover_date,
+          status: setupStatus === "in_corso" ? "in_progress" : "todo",
+          project_name: certification.name || certification.cert_type || "Unnamed Project",
+          pm_name: certification.pm_id ? profileMap.get(certification.pm_id) || "Unknown PM" : "Unassigned",
+          isSynthetic: true,
+        });
+
+        return acc;
+      }, []).sort(sortByEndDate);
 
       const alerts: TaskAlert[] = rawAlerts.map((alert) => ({
         ...alert,
