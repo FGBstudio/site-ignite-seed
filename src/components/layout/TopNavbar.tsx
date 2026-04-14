@@ -40,7 +40,7 @@ export function TopNavbar() {
 
   if (isAdmin) {
     navItems = [
-      { title: "Admin Dashboard", url: "/admin-dashboard", icon: Crown },
+      { title: "Admin Dashboard", url: "/ceo-dashboard", icon: Crown },
       { title: "Projects", url: "/projects", icon: FolderKanban },
       { title: "Tasks & Alerts", url: "/admin-tasks", icon: Inbox },
       { title: "Inventory", url: "/inventory", icon: Package },
