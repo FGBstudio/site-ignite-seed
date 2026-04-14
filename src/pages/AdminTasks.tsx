@@ -77,6 +77,10 @@ export default function AdminTasks() {
   const colInProgress = filteredTasks.filter(t => t.status === "in_progress" || t.status === "review");
   const colDone = filteredTasks.filter(t => t.status === "done");
 
+  // Separazione Alert Attivi e Risolti
+  const activeAlerts = filteredAlerts.filter(a => !a.is_resolved);
+  const resolvedAlerts = filteredAlerts.filter(a => a.is_resolved);
+
   return (
     <MainLayout title="Tasks & Alerts" subtitle="Control room for PM operations and escalations">
       
@@ -113,7 +117,7 @@ export default function AdminTasks() {
             {colTodo.length + colInProgress.length} Tasks
           </Badge>
           <Badge variant="destructive" className="text-xs">
-            {filteredAlerts.length} Alerts
+            {activeAlerts.length} Alerts
           </Badge>
         </div>
       </div>
@@ -162,16 +166,16 @@ export default function AdminTasks() {
             {/* COLONNA 3: ALERTS */}
             <div className="space-y-4">
               <h3 className="text-sm font-semibold flex items-center gap-2 text-destructive">
-                <AlertTriangle className="h-4 w-4" /> Scaled Alerts ({filteredAlerts.length})
+                <AlertTriangle className="h-4 w-4" /> Scaled Alerts ({activeAlerts.length})
               </h3>
               <div className="space-y-3">
-                {filteredAlerts.length === 0 ? (
+                {activeAlerts.length === 0 ? (
                   <div className="bg-success/5 border border-success/20 rounded-xl p-4 text-center">
                     <CheckCircle className="h-8 w-8 text-success mx-auto mb-2" />
                     <p className="text-sm font-medium text-success">Zero anomalie</p>
                   </div>
                 ) : (
-                  filteredAlerts.map(alert => (
+                  activeAlerts.map(alert => (
                     <AlertCard 
                       key={alert.id} 
                       alert={alert} 
@@ -186,7 +190,7 @@ export default function AdminTasks() {
 
           </div>
 
-          {/* SEZIONE ATTIVITÀ COMPLETATE */}
+          {/* SEZIONE ATTIVITÀ COMPLETATE (TASKS) */}
           {colDone.length > 0 && (
             <div className="mt-8 border-t border-border pt-6">
               <Collapsible>
@@ -202,11 +206,43 @@ export default function AdminTasks() {
                 </CollapsibleTrigger>
                 
                 <CollapsibleContent className="mt-4">
-                  {/* Griglia a 3 colonne su schermi larghi per sfruttare lo spazio orizzontale */}
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {colDone.map((task) => (
                       <div key={task.id} className="opacity-60 grayscale-[50%] pointer-events-none">
                         <TaskCard task={task} />
+                      </div>
+                    ))}
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            </div>
+          )}
+
+          {/* SEZIONE ALERTS RISOLTI (STORICO) */}
+          {resolvedAlerts.length > 0 && (
+            <div className="mt-4 border-t border-border pt-6">
+              <Collapsible>
+                <CollapsibleTrigger className="flex w-full items-center justify-between rounded-xl bg-muted border border-border px-5 py-4 text-sm font-medium hover:bg-muted/80 transition-colors group">
+                  <div className="flex items-center gap-2.5 text-muted-foreground">
+                    <CheckCircle className="h-5 w-5" />
+                    <span className="text-base font-semibold">Storico Alerts Risolti</span>
+                    <span className="rounded-full bg-background px-2.5 py-0.5 text-xs font-bold border border-border">
+                      {resolvedAlerts.length}
+                    </span>
+                  </div>
+                  <ChevronDown className="h-5 w-5 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                </CollapsibleTrigger>
+                
+                <CollapsibleContent className="mt-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {resolvedAlerts.map((alert) => (
+                      <div key={alert.id} className="opacity-60 grayscale-[50%] pointer-events-none">
+                        <AlertCard 
+                          alert={alert} 
+                          navigate={navigate} 
+                          resolveAlert={() => {}} 
+                          isResolving={false} 
+                        />
                       </div>
                     ))}
                   </div>
@@ -286,15 +322,17 @@ function AlertCard({ alert, navigate, resolveAlert, isResolving }: any) {
             <Button size="icon" variant="ghost" className="h-8 w-8 hover:bg-background/80" onClick={() => navigate(`/projects/${alert.certification_id}`)}>
               <ExternalLink className="h-4 w-4" />
             </Button>
-            <Button 
-              size="icon" 
-              variant="outline" 
-              className="h-8 w-8 text-success hover:bg-success hover:text-success-foreground border-success/30" 
-              disabled={isResolving} 
-              onClick={resolveAlert}
-            >
-              <CheckCircle className="h-4 w-4" />
-            </Button>
+            {!alert.is_resolved && (
+              <Button 
+                size="icon" 
+                variant="outline" 
+                className="h-8 w-8 text-success hover:bg-success hover:text-success-foreground border-success/30" 
+                disabled={isResolving} 
+                onClick={resolveAlert}
+              >
+                <CheckCircle className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         </div>
       </CardContent>
