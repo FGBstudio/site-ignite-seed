@@ -232,14 +232,14 @@ export default function AdminTasks() {
 
           </div>
 
-          {/* SEZIONE ATTIVITÀ COMPLETATE (TASKS) */}
+          {/* SEZIONE ATTIVITÀ COMPLETATE (Record Completed Tasks) */}
           {colDone.length > 0 && (
             <div className="mt-8 border-t border-border pt-6">
               <Collapsible>
                 <CollapsibleTrigger className="flex w-full items-center justify-between rounded-xl bg-success/10 border border-success/20 px-5 py-4 text-sm font-medium hover:bg-success/20 transition-colors group">
                   <div className="flex items-center gap-2.5 text-success">
                     <CheckCircle className="h-5 w-5" />
-                    <span className="text-base font-semibold">Attività Completate Recenti</span>
+                    <span className="text-base font-semibold">Record Completed Tasks</span>
                     <span className="rounded-full bg-success/20 px-2.5 py-0.5 text-xs font-bold">
                       {colDone.length}
                     </span>
@@ -260,14 +260,14 @@ export default function AdminTasks() {
             </div>
           )}
 
-          {/* SEZIONE ALERTS RISOLTI (STORICO) */}
+          {/* SEZIONE ALERTS RISOLTI (Record Fixed Alerts) */}
           {resolvedAlerts.length > 0 && (
             <div className="mt-4 border-t border-border pt-6">
               <Collapsible>
                 <CollapsibleTrigger className="flex w-full items-center justify-between rounded-xl bg-muted border border-border px-5 py-4 text-sm font-medium hover:bg-muted/80 transition-colors group">
                   <div className="flex items-center gap-2.5 text-muted-foreground">
                     <CheckCircle className="h-5 w-5" />
-                    <span className="text-base font-semibold">Storico Alerts Risolti</span>
+                    <span className="text-base font-semibold">Record Fixed Alerts</span>
                     <span className="rounded-full bg-background px-2.5 py-0.5 text-xs font-bold border border-border">
                       {resolvedAlerts.length}
                     </span>
