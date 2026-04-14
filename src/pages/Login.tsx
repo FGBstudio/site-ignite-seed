@@ -43,19 +43,18 @@ export default function Login() {
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <div className="w-full max-w-sm space-y-8">
         <div className="flex flex-col items-center gap-3">
-          {/* Immagine del Brand caricata da public/green.png */}
           <img 
             src="/green.png" 
             alt="FGB Studio Logo" 
-            className="h-16 w-auto object-contain mb-2" 
+            className="h-26 w-auto object-contain mb-2" 
           />
-          <h1 className="text-2xl font-bold text-foreground">FGB</h1>
+          <h1 className="text-2xl font-bold text-foreground"></h1>
           <p className="text-sm text-muted-foreground">Company Management Tool</p>
         </div>
 
         <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2">
           <ShieldAlert className="h-4 w-4 text-muted-foreground shrink-0" />
-          <p className="text-xs text-muted-foreground">Access restricted to <span className="font-medium text-foreground">@fgbstudio.com</span> domain</p>
+          <p className="text-xs text-muted-foreground">Access restricted to <span className="font-medium text-foreground">@fgb-studio.com</span> domain</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
