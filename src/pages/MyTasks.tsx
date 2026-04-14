@@ -400,7 +400,7 @@ export default function MyTasks() {
                 <CollapsibleTrigger className="flex w-full items-center justify-between rounded-xl bg-muted border border-border px-5 py-4 text-sm font-medium hover:bg-muted/80 transition-colors group">
                   <div className="flex items-center gap-2.5 text-muted-foreground">
                     <CheckCircle className="h-5 w-5" />
-                    <span className="text-base font-semibold">Storico Alerts Risolti</span>
+                    <span className="text-base font-semibold">Record Fixed Alerts</span>
                     <span className="rounded-full bg-background px-2.5 py-0.5 text-xs font-bold border border-border">
                       {resolvedAlerts.length}
                     </span>
