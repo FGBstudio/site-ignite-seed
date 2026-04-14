@@ -30,7 +30,7 @@ interface ForecastItem {
 
 export function ProcurementForecasting() {
   const [products, setProducts] = useState<Product[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [certs, setCerts] = useState<any[]>([]);
   const [allocations, setAllocations] = useState<ProjectAllocation[]>([]);
   const [pmList, setPmList] = useState<{ id: string; full_name: string }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,17 +42,17 @@ export function ProcurementForecasting() {
 
   const fetchAll = async () => {
     setLoading(true);
-    const [prodRes, projRes, allocRes, pmRes] = await Promise.all([
+    const [prodRes, certRes, allocRes, pmRes] = await Promise.all([
       supabase.from("products" as any).select("*"),
-      supabase.from("projects" as any).select("*").in("status", ["Design", "Construction"]),
-      supabase.from("project_allocations" as any).select("*").eq("status", "Requested"),
+      supabase.from("certifications").select("*").in("status", ["in_progress", "Design", "Construction"]),
+      supabase.from("project_allocations" as any).select("*").neq("status", "Installed_Online"),
       supabase.from("profiles").select("id, full_name"),
     ]);
     if (prodRes.error) toast({ title: "Error", description: prodRes.error.message, variant: "destructive" });
-    if (projRes.error) toast({ title: "Error", description: projRes.error.message, variant: "destructive" });
+    if (certRes.error) toast({ title: "Error", description: certRes.error.message, variant: "destructive" });
     if (allocRes.error) toast({ title: "Error", description: allocRes.error.message, variant: "destructive" });
     setProducts((prodRes.data || []) as any);
-    setProjects((projRes.data || []) as any);
+    setCerts((certRes.data || []) as any);
     setAllocations((allocRes.data || []) as any);
     setPmList((pmRes.data || []) as any);
     setLoading(false);
@@ -66,15 +66,15 @@ export function ProcurementForecasting() {
       ? null
       : new Date(now.getTime() + parseInt(horizon) * 24 * 60 * 60 * 1000);
 
-    const filteredProjects = projects.filter((p) => {
-      if (cutoff && new Date(p.handover_date) > cutoff) return false;
-      if (region !== "all" && p.region !== region) return false;
-      if (pmFilter !== "all" && p.pm_id !== pmFilter) return false;
+    const filteredCerts = certs.filter((c) => {
+      if (cutoff && new Date(c.handover_date) > cutoff) return false;
+      if (region !== "all" && c.region !== region) return false;
+      if (pmFilter !== "all" && c.pm_id !== pmFilter) return false;
       return true;
     });
 
-    const projectIds = new Set(filteredProjects.map((p) => p.id));
-    const filteredAllocations = allocations.filter((a) => projectIds.has((a as any).certification_id));
+    const certIds = new Set(filteredCerts.map((c: any) => c.id));
+    const filteredAllocations = allocations.filter((a) => certIds.has((a as any).certification_id));
 
     const demandMap = new Map<string, number>();
     const breakdownMap = new Map<string, Map<string, number>>();
@@ -100,14 +100,14 @@ export function ProcurementForecasting() {
       const projectBreakdown: ProjectDemand[] = [];
       const pMap = breakdownMap.get(product.id);
       if (pMap) {
-        for (const [projId, qty] of pMap) {
-          const proj = filteredProjects.find((p) => p.id === projId);
-          if (proj) {
+        for (const [certId, qty] of pMap) {
+          const cert = filteredCerts.find((c: any) => c.id === certId);
+          if (cert) {
             projectBreakdown.push({
-              projectId: projId,
-              projectName: proj.name,
-              client: proj.client,
-              region: proj.region,
+              projectId: certId,
+              projectName: cert.name || "Unnamed",
+              client: cert.client,
+              region: cert.region,
               quantity: qty,
             });
           }
@@ -122,7 +122,7 @@ export function ProcurementForecasting() {
 
     items.sort((a, b) => b.shortfallToOrder - a.shortfallToOrder);
     return items;
-  }, [products, projects, allocations, horizon, region, pmFilter]);
+  }, [products, certs, allocations, horizon, region, pmFilter]);
 
   const handleGenerateOrder = async (item: ForecastItem) => {
     setGeneratingOrder(item.product.id);
