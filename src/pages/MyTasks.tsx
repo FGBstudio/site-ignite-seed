@@ -17,7 +17,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { ArrowRight, Bell, CheckCircle, Clock, AlertTriangle, CalendarDays, FolderKanban, Upload, Lock, Plus, X } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ArrowRight, Bell, CheckCircle, Clock, AlertTriangle, CalendarDays, FolderKanban, Upload, Lock, Plus, X, ChevronDown } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
 import { cn } from "@/lib/utils";
 
@@ -63,8 +64,9 @@ export default function MyTasks() {
         .from("project_tasks" as any)
         .select("*, certifications!project_tasks_certification_id_fkey(name, client)")
         .eq("assigned_to", user.id)
-        .neq("status", "done")
-        .order("end_date", { ascending: true });
+        .order("end_date", { ascending: true })
+        .limit(200); // Safety limit for performance: fetches active + max recent completed tasks
+
       if (error) throw error;
 
       const enriched: TaskRow[] = [];
@@ -158,9 +160,12 @@ export default function MyTasks() {
   const visibleTasks = tasks.length > 0 ? tasks : syntheticTasks;
   const pageIsLoading = isLoading || (isPM && tasks.length === 0 && isPMProjectsLoading);
 
+  // Group tasks by status
   const todoTasks = visibleTasks.filter((t) => t.status === "todo");
   const inProgressTasks = visibleTasks.filter((t) => t.status === "in_progress");
   const reviewTasks = visibleTasks.filter((t) => t.status === "review");
+  const doneTasks = visibleTasks.filter((t) => t.status === "done");
+  const activeTasksCount = todoTasks.length + inProgressTasks.length + reviewTasks.length;
 
   const renderTaskCard = (task: TaskRow) => {
     const blocked = isBlocked(task);
@@ -204,7 +209,7 @@ export default function MyTasks() {
                   {format(new Date(task.end_date), "dd MMM")}
                 </div>
               )}
-              {daysLeft !== null && (
+              {daysLeft !== null && task.status !== "done" && (
                 <p className={cn("text-xs mt-0.5", daysLeft < 0 ? "text-destructive" : daysLeft <= 3 ? "text-warning" : "text-muted-foreground")}>
                   {daysLeft < 0 ? `${Math.abs(daysLeft)}d overdue` : `${daysLeft}d left`}
                 </p>
@@ -307,7 +312,7 @@ export default function MyTasks() {
             Error loading tasks. Please try again later.
           </CardContent>
         </Card>
-      ) : tasks.length === 0 && alerts.length === 0 ? (
+      ) : activeTasksCount === 0 && alerts.length === 0 && doneTasks.length === 0 ? (
         <Card>
           <CardContent className="py-16 text-center">
             <CheckCircle className="h-12 w-12 text-success mx-auto mb-3" />
@@ -317,6 +322,17 @@ export default function MyTasks() {
         </Card>
       ) : (
         <div className="space-y-6">
+          {/* Inbox Zero State - Shows when all active tasks are done but history exists */}
+          {activeTasksCount === 0 && alerts.length === 0 && doneTasks.length > 0 && (
+            <Card>
+              <CardContent className="py-12 text-center bg-muted/20 border-border/50">
+                <CheckCircle className="h-10 w-10 text-success mx-auto mb-3" />
+                <p className="text-lg font-medium text-foreground">Inbox Zero! 🎉</p>
+                <p className="text-sm text-muted-foreground mt-1">Check your completed tasks below.</p>
+              </CardContent>
+            </Card>
+          )}
+
           {inProgressTasks.length > 0 && (
             <div className="space-y-2">
               <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
@@ -344,6 +360,32 @@ export default function MyTasks() {
                 In Review ({reviewTasks.length})
               </h3>
               <div className="space-y-2">{reviewTasks.map(renderTaskCard)}</div>
+            </div>
+          )}
+
+          {/* Completed Tasks Collapsible Section */}
+          {doneTasks.length > 0 && (
+            <div className="mt-8 border-t border-border pt-6">
+              <Collapsible>
+                <CollapsibleTrigger className="flex w-full items-center justify-between rounded-xl bg-success/10 border border-success/20 px-5 py-4 text-sm font-medium hover:bg-success/20 transition-colors group">
+                  <div className="flex items-center gap-2.5 text-success">
+                    <CheckCircle className="h-5 w-5" />
+                    <span className="text-base font-semibold">Attività Completate Recenti</span>
+                    <span className="rounded-full bg-success/20 px-2.5 py-0.5 text-xs font-bold">
+                      {doneTasks.length}
+                    </span>
+                  </div>
+                  <ChevronDown className="h-5 w-5 text-success transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                </CollapsibleTrigger>
+                
+                <CollapsibleContent className="mt-4 space-y-2">
+                  {doneTasks.map((task) => (
+                    <div key={task.id} className="opacity-60 grayscale-[50%] pointer-events-none">
+                      {renderTaskCard(task)}
+                    </div>
+                  ))}
+                </CollapsibleContent>
+              </Collapsible>
             </div>
           )}
         </div>
@@ -438,7 +480,7 @@ export default function MyTasks() {
                 ) : (
                   <Button
                     className="w-full gap-2"
-                    disabled={isBlocked(selectedTask) || updateStatus.isPending}
+                    disabled={isBlocked(selectedTask) || updateStatus.isPending || selectedTask.status === "done"}
                     onClick={() => updateStatus.mutate({ taskId: selectedTask.id, newStatus: "review" })}
                   >
                     <Upload className="h-4 w-4" />
