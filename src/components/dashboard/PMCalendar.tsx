@@ -291,7 +291,7 @@ export function PMCalendar({ projects, adminMode, pmNames }: PMCalendarProps) {
   const [showDaConfigurare, setShowDaConfigurare] = useState(true);
   const [selectedPm, setSelectedPm] = useState<string>("all");
   const [selectedProject, setSelectedProject] = useState<string>("all");
-  const [showLegend, setShowLegend] = useState(() => projects.length <= 6);
+  const [showLegend, setShowLegend] = useState(false);
 
   // Sheet state
   const [isSheetOpen, setIsSheetOpen] = useState(false);
