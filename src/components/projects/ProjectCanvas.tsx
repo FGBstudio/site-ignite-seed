@@ -42,7 +42,7 @@ export function ProjectCanvas({ certificationId }: ProjectCanvasProps) {
       if (error) throw error;
 
       // Fetch author profiles separately
-      const authorIds = [...new Set((data || []).map((e: any) => e.author_id))];
+      const authorIds = [...new Set((data || []).map((e: any) => e.author_id as string))] as string[];
       if (authorIds.length === 0) return [];
 
       const { data: profiles } = await supabase

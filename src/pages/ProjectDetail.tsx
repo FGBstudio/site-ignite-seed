@@ -214,6 +214,7 @@ export default function ProjectDetail() {
           <TabsTrigger value="wbs">Schedule</TabsTrigger>
           <TabsTrigger value="hardware">Hardware</TabsTrigger>
           <TabsTrigger value="payments">Payments</TabsTrigger>
+          <TabsTrigger value="canvas">Canvas</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview">
