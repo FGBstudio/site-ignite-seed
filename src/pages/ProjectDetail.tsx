@@ -10,6 +10,7 @@ import { ProjectWBS } from "@/components/projects/ProjectWBS";
 import { ProjectOverview } from "@/components/projects/ProjectOverview";
 import { useAuth } from "@/contexts/AuthContext";
 import { ProjectPayments } from "@/components/projects/ProjectPayments";
+import { ProjectCanvas } from "@/components/projects/ProjectCanvas";
 import { ArrowLeft, MapPin, Calendar, User, Cpu } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -213,6 +214,7 @@ export default function ProjectDetail() {
           <TabsTrigger value="wbs">Schedule</TabsTrigger>
           <TabsTrigger value="hardware">Hardware</TabsTrigger>
           <TabsTrigger value="payments">Payments</TabsTrigger>
+          <TabsTrigger value="canvas">Canvas</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview">
@@ -300,6 +302,10 @@ export default function ProjectDetail() {
 
         <TabsContent value="payments">
           <ProjectPayments projectId={projectId!} />
+        </TabsContent>
+
+        <TabsContent value="canvas">
+          <ProjectCanvas certificationId={projectId!} />
         </TabsContent>
       </Tabs>
     </MainLayout>
