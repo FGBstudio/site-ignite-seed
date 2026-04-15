@@ -303,6 +303,10 @@ export default function ProjectDetail() {
         <TabsContent value="payments">
           <ProjectPayments projectId={projectId!} />
         </TabsContent>
+
+        <TabsContent value="canvas">
+          <ProjectCanvas certificationId={projectId!} />
+        </TabsContent>
       </Tabs>
     </MainLayout>
   );
