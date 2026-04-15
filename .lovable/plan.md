@@ -1,73 +1,57 @@
 
 
-## Fix: Bidirectional Alert Visibility (Admin ↔ PM)
+## Add "Canvas" (Project Journal) to Project Detail
 
-### Problem
-When the Admin creates an alert on a project, the PM assigned to that project cannot see it. Two layers block this:
-1. **RLS policy** on `task_alerts`: PM policy is `created_by = auth.uid()` — rejects rows created by others
-2. **Frontend query** in `useTaskAlerts.ts`: no explicit filter for PM, but RLS silently drops Admin-created rows
+### What it does
 
-### Solution
+A new **Canvas** tab on the project detail page acts as a chronological journal for the project. It displays timestamped, attributed entries — meeting minutes pasted by the PM, admin support requests (auto-generated from escalated alerts), and admin notes. Both PM and Admin can add entries. Each entry shows who wrote it and when (e.g., "Shikha has updated the canvas on 15/04/2026 at 14:30").
 
-#### 1. Database Migration — Update RLS on `task_alerts`
+### Database
 
-Replace the current PM policy with one that allows reading alerts the PM created **OR** alerts on projects where the PM is assigned:
+**New table: `project_canvas_entries`**
 
-```sql
-DROP POLICY "PM manages own alerts" ON task_alerts;
+| Column | Type | Notes |
+|--------|------|-------|
+| id | uuid PK | |
+| certification_id | uuid FK → certifications | |
+| author_id | uuid FK → profiles(id) | who wrote it |
+| entry_type | text | `meeting_minutes`, `admin_support_request`, `admin_note`, `general` |
+| content | text | the actual text/minutes |
+| source_alert_id | uuid nullable | links to task_alerts if auto-generated from an escalation |
+| created_at | timestamptz | |
 
--- PM can READ alerts they created OR alerts on their projects
-CREATE POLICY "PM can read own and project alerts"
-  ON task_alerts FOR SELECT TO authenticated
-  USING (
-    created_by = auth.uid()
-    OR EXISTS (
-      SELECT 1 FROM certifications c
-      WHERE c.id = task_alerts.certification_id
-        AND c.pm_id = auth.uid()
-    )
-  );
+**RLS policies:**
+- SELECT: authenticated users who are admin OR PM of the certification
+- INSERT: authenticated users (author_id = auth.uid())
+- UPDATE: only the author (author_id = auth.uid()) or admin
 
--- PM can INSERT alerts they create
-CREATE POLICY "PM can create alerts"
-  ON task_alerts FOR INSERT TO authenticated
-  WITH CHECK (created_by = auth.uid());
+**Auto-entry trigger:** When a `task_alerts` row is inserted with `escalate_to_admin = true`, a trigger inserts a canvas entry of type `admin_support_request` with the alert title/description. Similarly, when Admin creates an alert on the project, a canvas entry is auto-created.
 
--- PM can UPDATE (resolve) alerts they created OR on their projects
-CREATE POLICY "PM can update own and project alerts"
-  ON task_alerts FOR UPDATE TO authenticated
-  USING (
-    created_by = auth.uid()
-    OR EXISTS (
-      SELECT 1 FROM certifications c
-      WHERE c.id = task_alerts.certification_id
-        AND c.pm_id = auth.uid()
-    )
-  )
-  WITH CHECK (
-    created_by = auth.uid()
-    OR EXISTS (
-      SELECT 1 FROM certifications c
-      WHERE c.id = task_alerts.certification_id
-        AND c.pm_id = auth.uid()
-    )
-  );
-```
+### Frontend
 
-This splits the old ALL policy into SELECT/INSERT/UPDATE with the correct scope for each.
+#### 1. New component: `src/components/projects/ProjectCanvas.tsx`
 
-#### 2. Frontend — `src/hooks/useTaskAlerts.ts`
+- Receives `certificationId` as prop
+- Fetches entries from `project_canvas_entries` ordered by `created_at DESC`, joined with `profiles` for author name
+- Displays a timeline of entries, each showing:
+  - Author avatar/name + timestamp header (e.g., "Shikha has updated the canvas on 15/04/2026 at 14:30")
+  - Entry type badge (Meeting Minutes, Support Request, Admin Note)
+  - Content text (rendered as markdown or plain text with line breaks)
+- "Add Entry" button opens a form with:
+  - Type selector (Meeting Minutes / General Note)
+  - Textarea for content
+  - Submit inserts into `project_canvas_entries`
 
-No changes needed to the query logic itself. Currently the PM path has no `.eq()` filter — it relies on RLS. Once the RLS policy is updated, the PM will automatically receive both their own alerts and Admin-created alerts on their projects. The existing `.limit(200)` and `.order("created_at")` remain untouched.
+#### 2. Update `src/pages/ProjectDetail.tsx`
+
+- Add `Canvas` tab trigger after Payments
+- Add `TabsContent` rendering `<ProjectCanvas certificationId={projectId} />`
 
 ### Files Modified
 
 | File | Change |
 |------|--------|
-| DB migration | Replace single PM ALL policy with 3 granular policies (SELECT/INSERT/UPDATE) that include project-based visibility |
-| `src/hooks/useTaskAlerts.ts` | No change needed — RLS handles the filtering |
-
-### No frontend code changes required
-
-The hook already fetches without a `created_by` filter for PMs (line 62-64 only adds a filter for Admins). The RLS fix alone restores symmetry.
+| DB migration | Create `project_canvas_entries` table + RLS + auto-entry trigger |
+| `src/components/projects/ProjectCanvas.tsx` | New component — journal timeline + add entry form |
+| `src/pages/ProjectDetail.tsx` | Add Canvas tab |
 
