@@ -1682,6 +1682,51 @@ export type Database = {
           },
         ]
       }
+      project_canvas_entries: {
+        Row: {
+          author_id: string
+          certification_id: string
+          content: string
+          created_at: string
+          entry_type: string
+          id: string
+          source_alert_id: string | null
+        }
+        Insert: {
+          author_id: string
+          certification_id: string
+          content: string
+          created_at?: string
+          entry_type?: string
+          id?: string
+          source_alert_id?: string | null
+        }
+        Update: {
+          author_id?: string
+          certification_id?: string
+          content?: string
+          created_at?: string
+          entry_type?: string
+          id?: string
+          source_alert_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_canvas_entries_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_canvas_entries_certification_id_fkey"
+            columns: ["certification_id"]
+            isOneToOne: false
+            referencedRelation: "certifications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_tasks: {
         Row: {
           assigned_to: string | null
