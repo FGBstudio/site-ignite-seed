@@ -10,6 +10,7 @@ import { ProjectWBS } from "@/components/projects/ProjectWBS";
 import { ProjectOverview } from "@/components/projects/ProjectOverview";
 import { useAuth } from "@/contexts/AuthContext";
 import { ProjectPayments } from "@/components/projects/ProjectPayments";
+import { ProjectCanvas } from "@/components/projects/ProjectCanvas";
 import { ArrowLeft, MapPin, Calendar, User, Cpu } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
