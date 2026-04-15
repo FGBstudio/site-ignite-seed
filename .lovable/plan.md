@@ -1,46 +1,73 @@
 
 
-## Fix: Inventory Breakdown & Demand Analysis — Empty Data
+## Fix: Bidirectional Alert Visibility (Admin ↔ PM)
 
-### Root Cause
+### Problem
+When the Admin creates an alert on a project, the PM assigned to that project cannot see it. Two layers block this:
+1. **RLS policy** on `task_alerts`: PM policy is `created_by = auth.uid()` — rejects rows created by others
+2. **Frontend query** in `useTaskAlerts.ts`: no explicit filter for PM, but RLS silently drops Admin-created rows
 
-Both `Inventory.tsx` and `ProcurementForecasting.tsx` fail to display allocation data because:
+### Solution
 
-1. **Inventory dialog** (line 74-84) uses `projects!inner(name, client, region, status)` as a PostgREST join — but `project_allocations` has **no foreign key** to `projects`. The column is `certification_id`, which references `certifications`. PostgREST silently returns zero rows when it cannot resolve the relationship.
+#### 1. Database Migration — Update RLS on `task_alerts`
 
-2. **Demand Analysis** fetches from `projects` table and tries to match allocations via `certification_id`, but `projects.id` and `certifications.id` are **different UUIDs**. The allocations point to `certifications`, not `projects`. The join `projectIds.has((a as any).certification_id)` fails because `projects.id !== certifications.id`.
+Replace the current PM policy with one that allows reading alerts the PM created **OR** alerts on projects where the PM is assigned:
 
-3. **useDashboardData.ts** has the same bug — it matches `projects.find(p => p.id === (a as any).certification_id)` which will never match.
+```sql
+DROP POLICY "PM manages own alerts" ON task_alerts;
 
-### Fix Plan
+-- PM can READ alerts they created OR alerts on their projects
+CREATE POLICY "PM can read own and project alerts"
+  ON task_alerts FOR SELECT TO authenticated
+  USING (
+    created_by = auth.uid()
+    OR EXISTS (
+      SELECT 1 FROM certifications c
+      WHERE c.id = task_alerts.certification_id
+        AND c.pm_id = auth.uid()
+    )
+  );
 
-#### 1. Fix Inventory Dialog (`src/pages/Inventory.tsx`)
+-- PM can INSERT alerts they create
+CREATE POLICY "PM can create alerts"
+  ON task_alerts FOR INSERT TO authenticated
+  WITH CHECK (created_by = auth.uid());
 
-Replace the PostgREST join (`projects!inner(...)`) with a two-step fetch:
-- Fetch allocations for the product (plain `select("*")`)
-- Fetch matching certifications by their IDs (`certifications` table, not `projects`)
-- Map allocation data with certification name/client/region
+-- PM can UPDATE (resolve) alerts they created OR on their projects
+CREATE POLICY "PM can update own and project alerts"
+  ON task_alerts FOR UPDATE TO authenticated
+  USING (
+    created_by = auth.uid()
+    OR EXISTS (
+      SELECT 1 FROM certifications c
+      WHERE c.id = task_alerts.certification_id
+        AND c.pm_id = auth.uid()
+    )
+  )
+  WITH CHECK (
+    created_by = auth.uid()
+    OR EXISTS (
+      SELECT 1 FROM certifications c
+      WHERE c.id = task_alerts.certification_id
+        AND c.pm_id = auth.uid()
+    )
+  );
+```
 
-#### 2. Fix Demand Analysis (`src/components/dashboard/ProcurementForecasting.tsx`)
+This splits the old ALL policy into SELECT/INSERT/UPDATE with the correct scope for each.
 
-Replace `projects` fetch with `certifications` fetch:
-- Change `supabase.from("projects")` to `supabase.from("certifications")`
-- Filter by active statuses (`in_progress`, etc.)
-- Use `certification_id` matching correctly since allocations reference certifications
+#### 2. Frontend — `src/hooks/useTaskAlerts.ts`
 
-#### 3. Fix Dashboard Hook (`src/hooks/useDashboardData.ts`)
-
-Same fix — replace `projects` with `certifications` for the join logic. Match `allocations.certification_id` against `certifications.id`.
+No changes needed to the query logic itself. Currently the PM path has no `.eq()` filter — it relies on RLS. Once the RLS policy is updated, the PM will automatically receive both their own alerts and Admin-created alerts on their projects. The existing `.limit(200)` and `.order("created_at")` remain untouched.
 
 ### Files Modified
 
 | File | Change |
 |------|--------|
-| `src/pages/Inventory.tsx` | Replace PostgREST join with separate certifications fetch |
-| `src/components/dashboard/ProcurementForecasting.tsx` | Query `certifications` instead of `projects`; fix ID matching |
-| `src/hooks/useDashboardData.ts` | Query `certifications` instead of `projects`; fix ID matching |
+| DB migration | Replace single PM ALL policy with 3 granular policies (SELECT/INSERT/UPDATE) that include project-based visibility |
+| `src/hooks/useTaskAlerts.ts` | No change needed — RLS handles the filtering |
 
-### No DB migration needed
+### No frontend code changes required
 
-The data and schema are correct. The bug is purely in the frontend query logic using the wrong table.
+The hook already fetches without a `created_by` filter for PMs (line 62-64 only adds a filter for Admins). The RLS fix alone restores symmetry.
 
