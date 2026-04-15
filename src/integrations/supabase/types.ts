@@ -62,6 +62,103 @@ export type Database = {
         }
         Relationships: []
       }
+      alert_audit_log: {
+        Row: {
+          action: string
+          changed_at: string | null
+          changed_by: string | null
+          details: Json | null
+          id: string
+          new_status: string | null
+          prev_status: string | null
+          site_alert_id: string | null
+        }
+        Insert: {
+          action: string
+          changed_at?: string | null
+          changed_by?: string | null
+          details?: Json | null
+          id?: string
+          new_status?: string | null
+          prev_status?: string | null
+          site_alert_id?: string | null
+        }
+        Update: {
+          action?: string
+          changed_at?: string | null
+          changed_by?: string | null
+          details?: Json | null
+          id?: string
+          new_status?: string | null
+          prev_status?: string | null
+          site_alert_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alert_audit_log_site_alert_id_fkey"
+            columns: ["site_alert_id"]
+            isOneToOne: false
+            referencedRelation: "site_alerts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      alert_rules: {
+        Row: {
+          condition: string
+          created_at: string | null
+          device_type: string | null
+          duration_minutes: number | null
+          enabled: boolean | null
+          hysteresis: number | null
+          id: string
+          message_template: string
+          metric: string
+          recommendation_template: string | null
+          severity: string | null
+          site_id: string | null
+          threshold: number
+        }
+        Insert: {
+          condition?: string
+          created_at?: string | null
+          device_type?: string | null
+          duration_minutes?: number | null
+          enabled?: boolean | null
+          hysteresis?: number | null
+          id?: string
+          message_template: string
+          metric: string
+          recommendation_template?: string | null
+          severity?: string | null
+          site_id?: string | null
+          threshold: number
+        }
+        Update: {
+          condition?: string
+          created_at?: string | null
+          device_type?: string | null
+          duration_minutes?: number | null
+          enabled?: boolean | null
+          hysteresis?: number | null
+          id?: string
+          message_template?: string
+          metric?: string
+          recommendation_template?: string | null
+          severity?: string | null
+          site_id?: string | null
+          threshold?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alert_rules_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_logs: {
         Row: {
           certification_id: string | null
@@ -1718,6 +1815,91 @@ export type Database = {
           },
         ]
       }
+      site_alerts: {
+        Row: {
+          acknowledged_at: string | null
+          acknowledged_by: string | null
+          alert_key: string
+          current_value: number | null
+          device_id: string | null
+          id: string
+          message: string
+          metadata: Json | null
+          metric: string
+          recommendation: string | null
+          resolved_at: string | null
+          rule_id: string | null
+          severity: string | null
+          site_id: string
+          status: string | null
+          suppressed_until: string | null
+          threshold_value: number | null
+          triggered_at: string | null
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          alert_key: string
+          current_value?: number | null
+          device_id?: string | null
+          id?: string
+          message: string
+          metadata?: Json | null
+          metric: string
+          recommendation?: string | null
+          resolved_at?: string | null
+          rule_id?: string | null
+          severity?: string | null
+          site_id: string
+          status?: string | null
+          suppressed_until?: string | null
+          threshold_value?: number | null
+          triggered_at?: string | null
+        }
+        Update: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          alert_key?: string
+          current_value?: number | null
+          device_id?: string | null
+          id?: string
+          message?: string
+          metadata?: Json | null
+          metric?: string
+          recommendation?: string | null
+          resolved_at?: string | null
+          rule_id?: string | null
+          severity?: string | null
+          site_id?: string
+          status?: string | null
+          suppressed_until?: string | null
+          threshold_value?: number | null
+          triggered_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "site_alerts_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "devices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "site_alerts_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "alert_rules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "site_alerts_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       site_config: {
         Row: {
           created_at: string | null
@@ -2736,6 +2918,7 @@ export type Database = {
         Args: { _site_id: string; _user_id: string }
         Returns: boolean
       }
+      check_device_health: { Args: never; Returns: undefined }
       compute_historical_power: {
         Args: { p_device_id: string; p_end: string; p_start: string }
         Returns: {
