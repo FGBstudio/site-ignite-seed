@@ -1,57 +1,90 @@
-
-
-## Add "Canvas" (Project Journal) to Project Detail
+## Pre-Sales / Quotation Flow Integration
 
 ### What it does
 
-A new **Canvas** tab on the project detail page acts as a chronological journal for the project. It displays timestamped, attributed entries — meeting minutes pasted by the PM, admin support requests (auto-generated from escalated alerts), and admin notes. Both PM and Admin can add entries. Each entry shows who wrote it and when (e.g., "Shikha has updated the canvas on 15/04/2026 at 14:30").
+Adds a "Quotation" phase before the operational phase. New projects start as commercial quotes (no PM assigned), and only transition to operational status when confirmed by Admin. Adds "Canceled" status for rejected quotes.   
+Nuove Tab: Aggiungere nella sezione dove sono presenti To Configure (n), In Progress (n), Certified (n) due nuove sezioni: "Quotation" (posizionata come prima tab a sinistra) e "Canceled" (posizionata per ultima a destra).
 
-### Database
+### Database Changes (Migration)
 
-**New table: `project_canvas_entries`**
+**Add columns to `certifications` table:**
 
-| Column | Type | Notes |
-|--------|------|-------|
-| id | uuid PK | |
-| certification_id | uuid FK → certifications | |
-| author_id | uuid FK → profiles(id) | who wrote it |
-| entry_type | text | `meeting_minutes`, `admin_support_request`, `admin_note`, `general` |
-| content | text | the actual text/minutes |
-| source_alert_id | uuid nullable | links to task_alerts if auto-generated from an escalation |
-| created_at | timestamptz | |
 
-**RLS policies:**
-- SELECT: authenticated users who are admin OR PM of the certification
-- INSERT: authenticated users (author_id = auth.uid())
-- UPDATE: only the author (author_id = auth.uid()) or admin
+| Column              | Type    | Default |
+| ------------------- | ------- | ------- |
+| sqm                 | numeric | null    |
+| fgb_monitor         | boolean | false   |
+| services_fees       | numeric | null    |
+| gbci_fees           | numeric | null    |
+| total_fees          | numeric | null    |
+| quotation_notes     | text    | null    |
+| quotation_sent_date | date    | null    |
+| po_sign_date        | date    | null    |
 
-**Auto-entry trigger:** When a `task_alerts` row is inserted with `escalate_to_admin = true`, a trigger inserts a canvas entry of type `admin_support_request` with the alert title/description. Similarly, when Admin creates an alert on the project, a canvas entry is auto-created.
 
-### Frontend
+No new `status` column needed — the existing `status` column (text) already holds free-form values. We add two new values: `quotation` and `canceled` to the application logic.
 
-#### 1. New component: `src/components/projects/ProjectCanvas.tsx`
+### Type Changes
 
-- Receives `certificationId` as prop
-- Fetches entries from `project_canvas_entries` ordered by `created_at DESC`, joined with `profiles` for author name
-- Displays a timeline of entries, each showing:
-  - Author avatar/name + timestamp header (e.g., "Shikha has updated the canvas on 15/04/2026 at 14:30")
-  - Entry type badge (Meeting Minutes, Support Request, Admin Note)
-  - Content text (rendered as markdown or plain text with line breaks)
-- "Add Entry" button opens a form with:
-  - Type selector (Meeting Minutes / General Note)
-  - Textarea for content
-  - Submit inserts into `project_canvas_entries`
+`**src/hooks/usePMDashboard.ts**`: Extend `SetupStatus` to include `quotation` and `canceled`:
 
-#### 2. Update `src/pages/ProjectDetail.tsx`
+```ts
+export type SetupStatus = "quotation" | "da_configurare" | "in_corso" | "certificato" | "canceled";
+```
 
-- Add `Canvas` tab trigger after Payments
-- Add `TabsContent` rendering `<ProjectCanvas certificationId={projectId} />`
+### Hook: `useAdminPlannerData.ts`
+
+Update the `setup_status` derivation logic:
+
+- If `c.status === "quotation"` → `setup_status = "quotation"`
+- If `c.status === "canceled"` → `setup_status = "canceled"`
+- Then existing logic for certificato / in_corso / da_configurare
+- Skip `missing` checks for quotation/canceled projects
+
+### `ProjectFormModal.tsx` — Multi-mode form
+
+Add a `mode` prop: `"create_quotation" | "confirm_project" | "edit"` (default: `"edit"`).
+
+**Mode `create_quotation`:**
+
+- Show: Site selection, Name, Client, Region, Handover Date, Certification toggles (type/rating/level/subtype)
+- Show NEW: sqm, fgb_monitor, services_fees, gbci_fees, total_fees, quotation_notes, quotation_sent_date
+- Hide: PM selector, Hardware allocations, Status field
+- On submit: insert with `status = "quotation"`, `pm_id = null`
+
+**Mode `confirm_project`:**
+
+- Show: Read-only overview of project data (name, client, cert type, fees)
+- Show EDITABLE: PM selector (required), po_sign_date
+- Hide: everything else
+- On submit: update `pm_id`, `po_sign_date`, `status = "in_progress"` → triggers `setup_status = "da_configurare"`
+
+**Mode `edit`:**
+
+- Current behavior, unchanged. PM selector visible as today.
+
+### `Projects.tsx` — Dashboard tabs
+
+Update the status tabs from 4 to 6:
+
+```
+Quotation | To Configure | In Progress | Certified | Canceled
+```
+
+- **Quotation tab**: Rows show project name, client, cert type, fees summary, quotation_sent_date. Instead of "Edit/Details" buttons, show:
+  - "Confirmed" (green) → opens `ProjectFormModal` in `confirm_project` mode
+  - "Canceled" (red) → updates status to `canceled` directly
+- **Canceled tab**: Read-only list of canceled projects.
+- Update `SETUP_STATUS_META` to include `quotation` and `canceled` entries.
+- Update badge counts to include the two new statuses.
 
 ### Files Modified
 
-| File | Change |
-|------|--------|
-| DB migration | Create `project_canvas_entries` table + RLS + auto-entry trigger |
-| `src/components/projects/ProjectCanvas.tsx` | New component — journal timeline + add entry form |
-| `src/pages/ProjectDetail.tsx` | Add Canvas tab |
 
+| File                                           | Change                                                                       |
+| ---------------------------------------------- | ---------------------------------------------------------------------------- |
+| DB migration                                   | Add 8 columns to `certifications`                                            |
+| `src/hooks/usePMDashboard.ts`                  | Extend `SetupStatus` type                                                    |
+| `src/hooks/useAdminPlannerData.ts`             | Handle `quotation`/`canceled` in setup_status logic                          |
+| `src/components/projects/ProjectFormModal.tsx` | Add `mode` prop, conditional field rendering, quotation fields, confirm mode |
+| `src/pages/Projects.tsx`                       | Add Quotation/Canceled tabs, Confirmed/Canceled action buttons               |
