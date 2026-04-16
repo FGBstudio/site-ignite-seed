@@ -224,6 +224,9 @@ export function useAdminPlannerData() {
 
         const progress = hasTimeline ? Math.round((achievedCount / timelineMilestones.length) * 100) : 0;
         
+        // CHECK ON HOLD
+        const hasOnHold = timelineMilestones.some((m: any) => m.status === "on_hold");
+
         const plannerData: GanttRowData = {
           id: c.id,
           label: c.name || c.cert_type || "Unnamed",
@@ -241,7 +244,7 @@ export function useAdminPlannerData() {
           actualStart: macroPhase !== "Pending" ? planStart : null,
           actualEnd: isCertified ? today : null,
           progress,
-          status: macroPhase, // Mostra Macro Fase (Design, Construction) invece di "in_corso"
+          status: hasOnHold ? "on_hold" : (setup_status === "certificato" ? "Certified" : macroPhase), 
           segments,
           onClickUrl: `/projects/${c.id}`,
           plannedHandoverDate: c.planned_handover_date || null,
