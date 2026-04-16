@@ -27,6 +27,12 @@ export interface AdminPlannerProject {
   plannerData: GanttRowData;
   macro_phase: MacroPhase;
   is_deadline_critical?: boolean;
+  // Quotation fields
+  total_fees?: number | null;
+  quotation_sent_date?: string | null;
+  sqm?: number | null;
+  services_fees?: number | null;
+  gbci_fees?: number | null;
 }
 
 /** Check if any deadline milestone is < 15 days away and not achieved */
