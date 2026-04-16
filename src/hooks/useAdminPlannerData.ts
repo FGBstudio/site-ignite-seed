@@ -27,7 +27,6 @@ export interface AdminPlannerProject {
   plannerData: GanttRowData;
   macro_phase: MacroPhase;
   is_deadline_critical?: boolean;
-  // Quotation fields
   total_fees?: number | null;
   quotation_sent_date?: string | null;
   sqm?: number | null;
@@ -110,39 +109,35 @@ export function useAdminPlannerData() {
       return (certs as any[]).map((c): AdminPlannerProject => {
         const certMilestones = milestones.filter((m) => m.certification_id === c.id);
         const allocations = c.project_allocations || [];
+        const macroPhase = computeMacroPhase(c.status, certMilestones);
+        const pmName = c.pm_id ? profilesMap.get(c.pm_id) || null : null;
+
+        // Date fittizie per Quotation/Canceled
+        const emptyDates = {
+          designStart: null, designEnd: null, constrStartPlan: null, constrEndFcst: null, constrEndAct: null, planDuration: "—", actDuration: "—",
+          planStart: c.created_at.slice(0,10), planEnd: c.handover_date, actualStart: null, actualEnd: null
+        };
 
         // Early exit for quotation / canceled
-        if (c.status === "quotation") {
-          const pmName = c.pm_id ? profilesMap.get(c.pm_id) || null : null;
+        if (c.status === "quotation" || c.status === "canceled") {
           return {
             id: c.id, name: c.name || c.cert_type || "Unnamed", client: c.client, region: c.region,
             status: c.status, handover_date: c.handover_date, site_id: c.site_id, cert_type: c.cert_type,
             cert_rating: c.cert_rating || c.level, pm_id: c.pm_id, created_at: c.created_at,
-            project_subtype: c.project_subtype, setup_status: "quotation", missing: [], pm_name: pmName,
+            project_subtype: c.project_subtype, setup_status: c.status as SetupStatus, missing: [], pm_name: pmName,
             brand_name: c.sites?.brand_id ? brandsMap.get(c.sites.brand_id) || null : null,
             project_allocations: allocations, certification_milestones: certMilestones,
-            plannerData: { id: c.id, label: c.name || c.cert_type || "Unnamed", subLabel: c.client, launchDate: c.created_at.slice(0,10), currentActivity: "Quotation", planStart: c.created_at.slice(0,10), planEnd: c.handover_date, actualStart: null, actualEnd: null, progress: 0, status: "pending", segments: [], plannedHandoverDate: c.planned_handover_date || null, isDeadlineCritical: false },
-            macro_phase: computeMacroPhase(c.status, certMilestones), is_deadline_critical: false,
+            plannerData: { 
+              id: c.id, label: c.name || c.cert_type || "Unnamed", subLabel: c.client, launchDate: c.created_at.slice(0,10), 
+              currentActivity: c.status === "quotation" ? "Quotation" : "Canceled", progress: 0, status: c.status === "quotation" ? "pending" : "canceled", segments: [], plannedHandoverDate: c.planned_handover_date || null, isDeadlineCritical: false,
+              ...emptyDates
+            } as unknown as GanttRowData,
+            macro_phase: macroPhase, is_deadline_critical: false,
             total_fees: c.total_fees, quotation_sent_date: c.quotation_sent_date, sqm: c.sqm, services_fees: c.services_fees, gbci_fees: c.gbci_fees,
           };
         }
-        if (c.status === "canceled") {
-          const pmName = c.pm_id ? profilesMap.get(c.pm_id) || null : null;
-          return {
-            id: c.id, name: c.name || c.cert_type || "Unnamed", client: c.client, region: c.region,
-            status: c.status, handover_date: c.handover_date, site_id: c.site_id, cert_type: c.cert_type,
-            cert_rating: c.cert_rating || c.level, pm_id: c.pm_id, created_at: c.created_at,
-            project_subtype: c.project_subtype, setup_status: "canceled", missing: [], pm_name: pmName,
-            brand_name: c.sites?.brand_id ? brandsMap.get(c.sites.brand_id) || null : null,
-            project_allocations: allocations, certification_milestones: certMilestones,
-            plannerData: { id: c.id, label: c.name || c.cert_type || "Unnamed", subLabel: c.client, launchDate: c.created_at.slice(0,10), currentActivity: "Canceled", planStart: c.created_at.slice(0,10), planEnd: c.handover_date, actualStart: null, actualEnd: null, progress: 0, status: "pending", segments: [], plannedHandoverDate: c.planned_handover_date || null, isDeadlineCritical: false },
-            macro_phase: computeMacroPhase(c.status, certMilestones), is_deadline_critical: false,
-          };
-        }
 
-        const isCertified = c.status === "certificato" ||
-          (c.status === "active" && c.issued_date && c.issued_date.slice(0, 10) <= today);
-
+        const isCertified = c.status === "certificato" || (c.status === "active" && c.issued_date && c.issued_date.slice(0, 10) <= today);
         const timelineMilestones = certMilestones.filter((m: any) => m.milestone_type === "timeline");
         const hasTimeline = timelineMilestones.length > 0;
         const hasScorecard = certMilestones.some((m: any) => m.milestone_type === "scorecard");
@@ -159,11 +154,34 @@ export function useAdminPlannerData() {
         else if (hasTimeline && hasScorecard) setup_status = "in_corso";
         else setup_status = "da_configurare";
 
-        // Deadline critical flag
         const is_deadline_critical = !isCertified && checkDeadlineCritical(certMilestones, today);
-
-        // Planner data
         const launchDate = c.created_at.slice(0, 10);
+        
+        // --- ESTRAZIONE DATE SPECIFICHE LEED ---
+        const designMilestone = timelineMilestones.find((m: any) => m.requirement?.toLowerCase().includes("design"));
+        const designStart = designMilestone?.start_date || null;
+        const designEnd = designMilestone?.due_date || null;
+
+        const constrMilestone = timelineMilestones.find((m: any) => m.requirement?.toLowerCase().includes("construction phase") || m.requirement?.toLowerCase().includes("cantiere"));
+        const constrStartPlan = constrMilestone?.start_date || null;
+        const constrEndFcst = constrMilestone?.due_date || null;
+
+        const handoverMilestone = timelineMilestones.find((m: any) => m.requirement?.toLowerCase().includes("construction end") || m.requirement?.toLowerCase().includes("handover"));
+        const constrEndAct = (handoverMilestone?.status === "achieved" || handoverMilestone?.status === "completed") ? handoverMilestone?.completed_date || null : null;
+
+        // --- CALCOLO DURATE ---
+        let planDuration: number | string = "—";
+        if (constrStartPlan && constrEndFcst) {
+          planDuration = Math.max(differenceInDays(new Date(constrEndFcst), new Date(constrStartPlan)), 1);
+        }
+
+        let actDuration: number | string = "—";
+        if (constrStartPlan && constrEndAct) {
+          actDuration = Math.max(differenceInDays(new Date(constrEndAct), new Date(constrStartPlan)), 1);
+        } else if (constrStartPlan && macroPhase === "Construction") {
+          actDuration = Math.max(differenceInDays(new Date(), new Date(constrStartPlan)), 1);
+        }
+
         let planStart = launchDate;
         let achievedCount = 0;
         const segments: any[] = [];
@@ -177,73 +195,57 @@ export function useAdminPlannerData() {
             if (m.start_date && m.due_date) {
               let displayStatus = m.status;
               if (m.status !== "achieved" && m.due_date < today) displayStatus = "late";
+              
+              // Assegna la fase al segmento per i colori del Gantt
+              let phase = "Other";
+              const req = (m.requirement || "").toLowerCase();
+              if (req.includes("design")) phase = "Design";
+              else if (req.includes("construction") || req.includes("cantiere") || req.includes("handover")) phase = "Construction";
+              else if (req.includes("certif") || req.includes("review")) phase = "Certification";
+
               segments.push({
-                start: m.start_date, end: m.due_date, status: displayStatus,
+                id: m.id, start: m.start_date, end: m.due_date, status: displayStatus,
                 progress: m.status === "achieved" ? 100 : m.status === "in_progress" ? 50 : 0,
+                phase // <-- Passiamo la fase al Gantt
               });
             }
           });
         }
 
         const progress = hasTimeline ? Math.round((achievedCount / timelineMilestones.length) * 100) : 0;
-        const activeMilestone = timelineMilestones.find((m: any) => m.status === "in_progress");
-        const currentActivity = activeMilestone
-          ? activeMilestone.requirement
-          : (setup_status === "certificato" ? "Completed" : "Pending");
-
-        let plannerStatus = "pending";
-        if (setup_status === "certificato") plannerStatus = "achieved";
-        else if (hasTimeline) {
-          const hasActive = timelineMilestones.some((m: any) => m.status === "in_progress" || m.status === "achieved");
-          if (hasActive) plannerStatus = c.handover_date < today ? "late" : "in_progress";
-        }
-
-        // Override for on_hold
-        const hasOnHold = timelineMilestones.some((m: any) => m.status === "on_hold");
-        if (hasOnHold) plannerStatus = "on_hold";
-
-        const pmName = c.pm_id ? profilesMap.get(c.pm_id) || null : null;
-
+        
         const plannerData: GanttRowData = {
           id: c.id,
           label: c.name || c.cert_type || "Unnamed",
           subLabel: pmName ? `${c.client} · PM: ${pmName}` : c.client,
           launchDate,
-          currentActivity,
-          planStart,
-          planEnd: c.handover_date,
-          actualStart: plannerStatus !== "pending" ? planStart : null,
-          actualEnd: setup_status === "certificato" ? today : null,
+          designStart,
+          designEnd,
+          constrStartPlan,
+          constrEndFcst,
+          constrEndAct,
+          planDuration,
+          actDuration,
+          planStart, // Passato in modo invisibile per mantenere sani i confini della timeline visiva
+          planEnd: c.handover_date, 
+          actualStart: macroPhase !== "Pending" ? planStart : null,
+          actualEnd: isCertified ? today : null,
           progress,
-          status: plannerStatus,
+          status: macroPhase, // Mostra Macro Fase (Design, Construction) invece di "in_corso"
           segments,
           onClickUrl: `/projects/${c.id}`,
           plannedHandoverDate: c.planned_handover_date || null,
           isDeadlineCritical: is_deadline_critical,
-        };
+        } as unknown as GanttRowData;
 
         return {
-          id: c.id,
-          name: c.name || c.cert_type || "Unnamed",
-          client: c.client,
-          region: c.region,
-          status: c.status,
-          handover_date: c.handover_date,
-          site_id: c.site_id,
-          cert_type: c.cert_type,
-          cert_rating: c.cert_rating || c.level,
-          pm_id: c.pm_id,
-          created_at: c.created_at,
-          project_subtype: c.project_subtype,
-          setup_status,
-          missing,
-          pm_name: pmName,
+          id: c.id, name: c.name || c.cert_type || "Unnamed", client: c.client, region: c.region,
+          status: c.status, handover_date: c.handover_date, site_id: c.site_id, cert_type: c.cert_type,
+          cert_rating: c.cert_rating || c.level, pm_id: c.pm_id, created_at: c.created_at,
+          project_subtype: c.project_subtype, setup_status, missing, pm_name: pmName,
           brand_name: c.sites?.brand_id ? brandsMap.get(c.sites.brand_id) || null : null,
-          project_allocations: allocations,
-          certification_milestones: certMilestones,
-          plannerData,
-          macro_phase: computeMacroPhase(c.status, certMilestones),
-          is_deadline_critical,
+          project_allocations: allocations, certification_milestones: certMilestones,
+          plannerData, macro_phase: macroPhase, is_deadline_critical,
         };
       });
     },
