@@ -610,6 +610,8 @@ export type Database = {
           client: string
           created_at: string | null
           expiry_date: string | null
+          fgb_monitor: boolean
+          gbci_fees: number | null
           handover_date: string
           id: string
           is_commissioning: boolean | null
@@ -618,12 +620,18 @@ export type Database = {
           name: string | null
           planned_handover_date: string | null
           pm_id: string | null
+          po_sign_date: string | null
           project_subtype: string | null
+          quotation_notes: string | null
+          quotation_sent_date: string | null
           region: string
           score: number | null
+          services_fees: number | null
           site_id: string
+          sqm: number | null
           status: string | null
           target_score: number | null
+          total_fees: number | null
           updated_at: string | null
         }
         Insert: {
@@ -635,6 +643,8 @@ export type Database = {
           client?: string
           created_at?: string | null
           expiry_date?: string | null
+          fgb_monitor?: boolean
+          gbci_fees?: number | null
           handover_date?: string
           id?: string
           is_commissioning?: boolean | null
@@ -643,12 +653,18 @@ export type Database = {
           name?: string | null
           planned_handover_date?: string | null
           pm_id?: string | null
+          po_sign_date?: string | null
           project_subtype?: string | null
+          quotation_notes?: string | null
+          quotation_sent_date?: string | null
           region?: string
           score?: number | null
+          services_fees?: number | null
           site_id: string
+          sqm?: number | null
           status?: string | null
           target_score?: number | null
+          total_fees?: number | null
           updated_at?: string | null
         }
         Update: {
@@ -660,6 +676,8 @@ export type Database = {
           client?: string
           created_at?: string | null
           expiry_date?: string | null
+          fgb_monitor?: boolean
+          gbci_fees?: number | null
           handover_date?: string
           id?: string
           is_commissioning?: boolean | null
@@ -668,12 +686,18 @@ export type Database = {
           name?: string | null
           planned_handover_date?: string | null
           pm_id?: string | null
+          po_sign_date?: string | null
           project_subtype?: string | null
+          quotation_notes?: string | null
+          quotation_sent_date?: string | null
           region?: string
           score?: number | null
+          services_fees?: number | null
           site_id?: string
+          sqm?: number | null
           status?: string | null
           target_score?: number | null
+          total_fees?: number | null
           updated_at?: string | null
         }
         Relationships: [
