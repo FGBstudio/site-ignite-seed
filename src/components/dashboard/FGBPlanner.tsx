@@ -199,8 +199,13 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
                     {row.subLabel && <span className="text-[10px] text-muted-foreground truncate">{row.subLabel}</span>}
                   </div>
                   <div className="w-[100px] shrink-0 pl-2 flex items-center">
-                    <span className="truncate text-[10px] font-medium px-1.5 py-0.5 rounded-full border border-[#009293]/30 text-[#009293] bg-[#009293]/5">
-                      {row.status}
+                    <span className={cn(
+                      "truncate text-[10px] font-medium px-1.5 py-0.5 rounded-full border",
+                      row.status === "on_hold" 
+                        ? "border-red-400 text-red-600 bg-red-50 dark:bg-red-900/30"
+                        : "border-[#009293]/30 text-[#009293] bg-[#009293]/5"
+                    )}>
+                      {row.status.replace("_", " ")}
                     </span>
                   </div>
                   <div className="w-[70px] shrink-0 pl-2 text-[10px] text-muted-foreground">{fmt(row.launchDate ? new Date(row.launchDate) : null)}</div>
