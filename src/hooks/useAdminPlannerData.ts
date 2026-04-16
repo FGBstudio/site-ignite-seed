@@ -157,30 +157,26 @@ export function useAdminPlannerData() {
         const is_deadline_critical = !isCertified && checkDeadlineCritical(certMilestones, today);
         const launchDate = c.created_at.slice(0, 10);
         
-        // --- ESTRAZIONE DATE SPECIFICHE LEED / WELL ---
-        
-        // 1 & 2. DESIGN START & END ("FGB Design guidelines")
-        const msDesign = timelineMilestones.find((m: any) => 
-          (m.requirement || "").toLowerCase().includes("design guidelines")
-        );
+        // --- ESTRAZIONE DATE SPECIFICHE (MATCH ESATTO CASE-INSENSITIVE) ---
+        // Usiamo trim() per neutralizzare qualsiasi spazio vuoto invisibile dal database
+        const getMilestone = (exactName: string) => {
+          const target = exactName.toLowerCase().trim();
+          return timelineMilestones.find((m: any) => 
+            (m.requirement || "").toLowerCase().trim() === target
+          );
+        };
+
+        const msDesign = getMilestone("FGB design guidelines");
         const designStart = msDesign?.start_date || null;
         const designEnd = msDesign?.due_date || null;
 
-        // 3 & 4. CONSTR START PLAN & END FCST ("Construction phase")
-        const msConstrPhase = timelineMilestones.find((m: any) => 
-          (m.requirement || "").toLowerCase().includes("construction phase")
-        );
+        const msConstrPhase = getMilestone("construction phase");
         const constrStartPlan = msConstrPhase?.start_date || null;
         const constrEndFcst = msConstrPhase?.due_date || null;
 
-        // 5. CONSTR END ACT ("Construction end (Handover)")
-        const msHandover = timelineMilestones.find((m: any) => 
-          (m.requirement || "").toLowerCase().includes("handover") || 
-          (m.requirement || "").toLowerCase().includes("construction end")
-        );
-        
+        const msHandover = getMilestone("construction end (handover)");
         const constrEndAct = (msHandover?.status === "achieved" || msHandover?.status === "completed") 
-          ? (msHandover.completed_date || msHandover.due_date || msHandover.actual_date) 
+          ? (msHandover.completed_date || msHandover.due_date || msHandover.actual_date || null) 
           : null;
 
         // --- CALCOLO DURATE ---
@@ -191,10 +187,8 @@ export function useAdminPlannerData() {
 
         let actDuration: number | string = "—";
         if (constrStartPlan && constrEndAct) {
-          // Se il cantiere è chiuso, calcola inizio -> fine effettiva
           actDuration = Math.max(differenceInDays(new Date(constrEndAct), new Date(constrStartPlan)), 1);
         } else if (constrStartPlan && (macroPhase === "Construction" || macroPhase === "Certification")) {
-          // Se il cantiere è ancora aperto, calcola inizio -> oggi
           actDuration = Math.max(differenceInDays(new Date(), new Date(constrStartPlan)), 1);
         }
 
