@@ -72,8 +72,10 @@ const formSchema = z.object({
   quotation_notes: z.string().optional(),
   quotation_sent_date: z.date().optional().nullable(),
   po_sign_date: z.date().optional().nullable(),
-  // Confirm mode — PM required
+  // Confirm mode — PM required + site coordinates
   confirm_pm_id: z.string().optional(),
+  site_lat: z.string().optional(),
+  site_lng: z.string().optional(),
 });
 
 type ProjectFormData = z.infer<typeof formSchema>;
@@ -118,6 +120,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
       sqm: undefined, fgb_monitor: false, services_fees: undefined,
       gbci_fees: undefined, total_fees: undefined, quotation_notes: "",
       quotation_sent_date: null, po_sign_date: null, confirm_pm_id: "",
+      site_lat: "", site_lng: "",
     },
   });
 
@@ -169,6 +172,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
             allocations: [], certifications: [],
             confirm_pm_id: "",
             po_sign_date: null,
+            site_lat: "", site_lng: "",
           });
         } else {
           // Edit mode
@@ -241,6 +245,15 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
           .update(updatePayload)
           .eq("id", project.id);
         if (error) throw error;
+
+        // Update site coordinates if provided
+        if (project.site_id && (data.site_lat || data.site_lng)) {
+          const siteUpdate: any = {};
+          if (data.site_lat) siteUpdate.lat = parseFloat(data.site_lat);
+          if (data.site_lng) siteUpdate.lng = parseFloat(data.site_lng);
+          await supabase.from("sites").update(siteUpdate).eq("id", project.site_id);
+        }
+
         toast({ title: "Project confirmed", description: "PM assigned and project is now active." });
         onOpenChange(false);
         onSaved();
@@ -443,6 +456,32 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
                   <FormMessage />
                 </FormItem>
               )} />
+
+              {/* Site coordinates */}
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Site Coordinates <span className="text-muted-foreground font-normal">(optional)</span></p>
+                <p className="text-xs text-muted-foreground">Add the exact GPS coordinates for the site — used for maps and monitoring.</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <FormField control={form.control} name="site_lat" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs">Latitude</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g. 45.4654" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="site_lng" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs">Longitude</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g. 9.1859" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                </div>
+              </div>
 
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>

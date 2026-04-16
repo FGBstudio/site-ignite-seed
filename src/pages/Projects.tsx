@@ -4,12 +4,14 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { ProjectFormModal } from "@/components/projects/ProjectFormModal";
+import { NewQuotationWizard } from "@/components/projects/NewQuotationWizard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Search, Plus, Pencil, BarChart3, Eye, GanttChartSquare, AlertTriangle, Clock3, CheckCircle2, FileText, XCircle, CheckSquare } from "lucide-react";
+
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ProcurementForecasting } from "@/components/dashboard/ProcurementForecasting";
@@ -41,11 +43,14 @@ export default function Projects() {
   const [pmFilter, setPmFilter] = useState("all");
   const [statusTab, setStatusTab] = useState("all");
 
-  // Edit modal state
+  // New quotation wizard
+  const [wizardOpen, setWizardOpen] = useState(false);
+
+  // Edit / confirm modal state
   const [modalOpen, setModalOpen] = useState(false);
   const [editProject, setEditProject] = useState<Project | null>(null);
   const [editAllocations, setEditAllocations] = useState<ProjectAllocation[]>([]);
-  const [modalMode, setModalMode] = useState<"edit" | "create_quotation" | "confirm_project">("edit");
+  const [modalMode, setModalMode] = useState<"edit" | "confirm_project">("edit");
 
   const pmOptions = useMemo(() => {
     const pms = new Map<string, string>();
@@ -87,7 +92,7 @@ export default function Projects() {
   const openConfirm = (project: AdminPlannerProject) => {
     setEditProject(project as any);
     setEditAllocations([]);
-    setModalMode("confirm_project");
+    setModalMode("confirm_project" as any);
     setModalOpen(true);
   };
 
@@ -104,12 +109,6 @@ export default function Projects() {
     }
   };
 
-  const openNewQuotation = () => {
-    setEditProject(null);
-    setEditAllocations([]);
-    setModalMode("create_quotation");
-    setModalOpen(true);
-  };
 
   if (!isAdmin) {
     return (
@@ -186,14 +185,9 @@ export default function Projects() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex gap-2 shrink-0">
-              <Button onClick={openNewQuotation} variant="outline" className="gap-2">
-                <FileText className="h-4 w-4" /> New Quotation
-              </Button>
-              <Button onClick={() => navigate("/projects/new")} className="gap-2">
-                <Plus className="h-4 w-4" /> New Project
-              </Button>
-            </div>
+            <Button onClick={() => setWizardOpen(true)} className="gap-2 shrink-0">
+              <Plus className="h-4 w-4" /> New
+            </Button>
           </div>
 
           {/* Table */}
@@ -359,13 +353,19 @@ export default function Projects() {
         </TabsContent>
       </Tabs>
 
+      <NewQuotationWizard
+        open={wizardOpen}
+        onOpenChange={setWizardOpen}
+        onSaved={() => queryClient.invalidateQueries({ queryKey: ["admin-planner-all-certifications"] })}
+      />
+
       <ProjectFormModal
         open={modalOpen}
         onOpenChange={setModalOpen}
         project={editProject}
         existingAllocations={editAllocations}
         onSaved={() => queryClient.invalidateQueries({ queryKey: ["admin-planner-all-certifications"] })}
-        mode={modalMode}
+        mode={modalMode as any}
       />
     </MainLayout>
   );
