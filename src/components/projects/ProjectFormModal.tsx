@@ -18,6 +18,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
 import { CalendarIcon, Plus, Trash2, Loader2, Edit3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -40,7 +41,6 @@ const CERT_LEVELS: Record<string, string[]> = {
   GRESB: [],
 };
 
-// ZOD SCHEMA AGGIORNATO: pm_id spostato nelle certificazioni
 const formSchema = z.object({
   name: z.string().min(2, "Name required"),
   client: z.string().min(2, "Client required"),
@@ -55,17 +55,30 @@ const formSchema = z.object({
     status: z.string(),
   })).default([]),
   certifications: z.array(z.object({
-    id: z.string().optional(), 
-    project_id: z.string().optional(), // Riferimento al project "figlio"
+    id: z.string().optional(),
+    project_id: z.string().optional(),
     cert_type: z.enum(["LEED", "WELL", "BREEAM", "ESG", "GRESB"]),
     cert_rating: z.string().optional(),
     cert_level: z.string().optional(),
     project_subtype: z.string().optional(),
-    pm_id: z.string().optional(), // PM granulare
+    pm_id: z.string().optional(),
   })).default([]),
+  // Quotation fields
+  sqm: z.number().optional(),
+  fgb_monitor: z.boolean().optional(),
+  services_fees: z.number().optional(),
+  gbci_fees: z.number().optional(),
+  total_fees: z.number().optional(),
+  quotation_notes: z.string().optional(),
+  quotation_sent_date: z.date().optional().nullable(),
+  po_sign_date: z.date().optional().nullable(),
+  // Confirm mode — PM required
+  confirm_pm_id: z.string().optional(),
 });
 
 type ProjectFormData = z.infer<typeof formSchema>;
+
+export type ProjectFormMode = "edit" | "create_quotation" | "confirm_project";
 
 interface Props {
   open: boolean;
@@ -73,9 +86,10 @@ interface Props {
   project?: Project | null;
   existingAllocations?: ProjectAllocation[];
   onSaved: () => void;
+  mode?: ProjectFormMode;
 }
 
-export function ProjectFormModal({ open, onOpenChange, project, existingAllocations = [], onSaved }: Props) {
+export function ProjectFormModal({ open, onOpenChange, project, existingAllocations = [], onSaved, mode = "edit" }: Props) {
   const { user, isAdmin } = useAuth();
   const { toast } = useToast();
   const [products, setProducts] = useState<Product[]>([]);
@@ -93,11 +107,17 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
   const { data: brands = [], isLoading: loadingBrands } = useBrands(selectedHoldingId || undefined);
   const { data: sites = [], isLoading: loadingSites } = useSites(selectedBrandId || undefined);
 
+  const isQuotationMode = mode === "create_quotation";
+  const isConfirmMode = mode === "confirm_project";
+
   const form = useForm<ProjectFormData>({
     resolver: zodResolver(formSchema),
     defaultValues: { 
       name: "", client: "", region: "Europe", handover_date: new Date(), 
-      status: "Design", site_id: "", allocations: [], certifications: [] 
+      status: "Design", site_id: "", allocations: [], certifications: [],
+      sqm: undefined, fgb_monitor: false, services_fees: undefined,
+      gbci_fees: undefined, total_fees: undefined, quotation_notes: "",
+      quotation_sent_date: null, po_sign_date: null, confirm_pm_id: "",
     },
   });
 
@@ -108,10 +128,13 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
 
   useEffect(() => {
     if (!open) return;
-    supabase.from("products" as any).select("*").then(({ data }) => setProducts((data || []) as any));
+    if (mode !== "confirm_project") {
+      supabase.from("products" as any).select("*").then(({ data }) => setProducts((data || []) as any));
+    }
     
     const fetchPMs = async () => {
       if (!isAdmin) return;
+      if (mode === "create_quotation") return; // No PMs needed
       setLoadingPMs(true);
       try {
         const { data: rolesData, error: rolesError } = await supabase.from("user_roles").select("user_id").eq("role", "PM");
@@ -130,47 +153,60 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
       }
     };
     fetchPMs();
-  }, [open, isAdmin]);
+  }, [open, isAdmin, mode]);
 
   useEffect(() => {
     if (!open) return;
     
     const loadProjectData = async () => {
       if (project) {
-        // Recupera le certificazioni attive sul sito
-        const { data: existingCerts, error: certErr } = await supabase
-          .from("certifications")
-          .select("*")
-          .eq("site_id", project.site_id);
+        if (isConfirmMode) {
+          // Confirm mode: pre-fill from the project but only PM + po_sign_date are editable
+          form.reset({
+            name: project.name, client: project.client, region: project.region as any,
+            handover_date: new Date(project.handover_date), status: project.status || "Design",
+            site_id: project.site_id || "",
+            allocations: [], certifications: [],
+            confirm_pm_id: "",
+            po_sign_date: null,
+          });
+        } else {
+          // Edit mode
+          const { data: existingCerts, error: certErr } = await supabase
+            .from("certifications")
+            .select("*")
+            .eq("site_id", project.site_id);
 
-        if (certErr) console.error("Error loading certifications:", certErr);
+          if (certErr) console.error("Error loading certifications:", certErr);
 
-        // Map certifications directly — no need to cross-reference projects
-        const mappedCerts = (existingCerts || []).map((c: any) => ({
-          id: c.id,
-          cert_type: c.cert_type,
-          cert_rating: c.level || c.cert_rating,
-          pm_id: c.pm_id || "",
-          project_subtype: c.project_subtype || "",
-        }));
+          const mappedCerts = (existingCerts || []).map((c: any) => ({
+            id: c.id,
+            cert_type: c.cert_type,
+            cert_rating: c.level || c.cert_rating,
+            pm_id: c.pm_id || "",
+            project_subtype: c.project_subtype || "",
+          }));
 
-        // Pulisce il nome togliendo la sigla della cert in caso di edit
-        const baseName = project.name.includes(" - ") ? project.name.split(" - ")[0] : project.name;
+          const baseName = project.name.includes(" - ") ? project.name.split(" - ")[0] : project.name;
 
-        form.reset({
-          name: baseName, client: project.client, region: project.region as any,
-          handover_date: new Date(project.handover_date), status: project.status,
-          site_id: project.site_id || "",
-          allocations: existingAllocations.map((a) => ({ id: a.id, product_id: a.product_id, quantity: a.quantity, status: a.status })),
-          certifications: mappedCerts as any,
-        });
+          form.reset({
+            name: baseName, client: project.client, region: project.region as any,
+            handover_date: new Date(project.handover_date), status: project.status,
+            site_id: project.site_id || "",
+            allocations: existingAllocations.map((a) => ({ id: a.id, product_id: a.product_id, quantity: a.quantity, status: a.status })),
+            certifications: mappedCerts as any,
+          });
+        }
         
         setSelectedHoldingId(""); setSelectedBrandId(""); 
       } else {
         form.reset({ 
           name: "", client: "", region: "Europe", handover_date: new Date(), 
-          status: "Design", site_id: "", 
-          allocations: [], certifications: [] 
+          status: isQuotationMode ? "quotation" : "Design", site_id: "", 
+          allocations: [], certifications: [],
+          sqm: undefined, fgb_monitor: false, services_fees: undefined,
+          gbci_fees: undefined, total_fees: undefined, quotation_notes: "",
+          quotation_sent_date: null, po_sign_date: null, confirm_pm_id: "",
         });
         setSelectedHoldingId(""); setSelectedBrandId(""); setShowNewSite(false); setNewSiteName("");
       }
@@ -178,7 +214,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
     };
 
     loadProjectData();
-  }, [open, project, existingAllocations, form, isAdmin, user]);
+  }, [open, project, existingAllocations, form, isAdmin, user, mode]);
 
   const handleHoldingChange = (val: string) => { setSelectedHoldingId(val); setSelectedBrandId(""); form.setValue("site_id", ""); setShowNewSite(false); setNewSiteName(""); };
   const handleBrandChange = (val: string) => { setSelectedBrandId(val); form.setValue("site_id", ""); setShowNewSite(false); setNewSiteName(""); };
@@ -186,9 +222,35 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
   const onSubmit = async (data: ProjectFormData) => {
     setSaving(true);
     try {
+      // CONFIRM MODE: just update PM + po_sign_date + status
+      if (isConfirmMode && project) {
+        if (!data.confirm_pm_id) {
+          toast({ title: "PM Required", description: "Please select a Project Manager.", variant: "destructive" });
+          setSaving(false);
+          return;
+        }
+        const updatePayload: any = {
+          pm_id: data.confirm_pm_id,
+          status: "in_progress",
+        };
+        if (data.po_sign_date) {
+          updatePayload.po_sign_date = format(data.po_sign_date, "yyyy-MM-dd");
+        }
+        const { error } = await supabase
+          .from("certifications")
+          .update(updatePayload)
+          .eq("id", project.id);
+        if (error) throw error;
+        toast({ title: "Project confirmed", description: "PM assigned and project is now active." });
+        onOpenChange(false);
+        onSaved();
+        setSaving(false);
+        return;
+      }
+
       const handoverStr = format(data.handover_date, "yyyy-MM-dd");
 
-      // 1. Creazione / Associazione Sito
+      // Site creation / selection
       let siteId = data.site_id || null;
       if (showNewSite && newSiteName.trim()) {
         if (!selectedBrandId) throw new Error("Select a Brand before creating a new Site.");
@@ -197,31 +259,30 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
         siteId = newSite.id;
       }
 
-      // 2. Identifica e rimuovi le certificazioni deselezionate
-      const originalCertIds = project ? (form.formState.defaultValues?.certifications?.map(c => c.id).filter(Boolean) as string[]) : [];
+      // Remove deselected certs
+      const originalCertIds = project ? (form.formState.defaultValues?.certifications?.map(c => c?.id).filter(Boolean) as string[]) : [];
       const currentCertIds = data.certifications.map(c => c.id).filter(Boolean) as string[];
-      
       const certsToDelete = originalCertIds.filter(id => !currentCertIds.includes(id));
       if (certsToDelete.length > 0) {
-         await supabase.from("certifications").delete().in("id", certsToDelete);
+        await supabase.from("certifications").delete().in("id", certsToDelete);
       }
 
-      let firstCertId = project?.id; // Usato come fallback per le allocazioni
+      let firstCertId = project?.id;
 
-      // 3. LOGICA MULTI-CERTIFICAZIONE — certifications è l'entità root
+      // Multi-certification logic
       for (const certConf of data.certifications) {
-        const pmId = isAdmin ? certConf.pm_id : user?.id;
+        const pmId = isQuotationMode ? null : (isAdmin ? certConf.pm_id : user?.id);
         
         const projectName = data.certifications.length > 1 
           ? `${data.name} - ${certConf.cert_type}` 
           : data.name;
 
-        const certPayload = {
+        const certPayload: any = {
           name: projectName, 
           client: data.client, 
           region: data.region, 
           handover_date: handoverStr,
-          status: data.status || "in_progress", 
+          status: isQuotationMode ? "quotation" : (data.status || "in_progress"), 
           pm_id: pmId || null, 
           site_id: siteId, 
           cert_type: certConf.cert_type,
@@ -231,64 +292,80 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
           level: certConf.cert_rating || null,
         };
 
+        // Add quotation-specific fields
+        if (isQuotationMode) {
+          certPayload.sqm = data.sqm || null;
+          certPayload.fgb_monitor = data.fgb_monitor || false;
+          certPayload.services_fees = data.services_fees || null;
+          certPayload.gbci_fees = data.gbci_fees || null;
+          certPayload.total_fees = data.total_fees || null;
+          certPayload.quotation_notes = data.quotation_notes || null;
+          certPayload.quotation_sent_date = data.quotation_sent_date ? format(data.quotation_sent_date, "yyyy-MM-dd") : null;
+        }
+
         if (certConf.id) {
-          const { error: updErr } = await supabase.from("certifications").update(certPayload as any).eq("id", certConf.id);
+          const { error: updErr } = await supabase.from("certifications").update(certPayload).eq("id", certConf.id);
           if (updErr) throw updErr;
           if (!firstCertId) firstCertId = certConf.id;
         } else {
           const { data: newCert, error: insErr } = await supabase
             .from("certifications")
-            .insert({ ...certPayload, score: 0 } as any)
+            .insert({ ...certPayload, score: 0 })
             .select("id")
             .single();
           if (insErr) throw insErr;
           if (!firstCertId) firstCertId = newCert.id;
 
-          const templateInfo = getCertificationTemplate(certConf.cert_type, certConf.cert_rating, certConf.project_subtype);
-          
-          if (templateInfo) {
-            const milestoneRows: any[] = [];
+          // Don't generate milestones for quotation mode
+          if (!isQuotationMode) {
+            const templateInfo = getCertificationTemplate(certConf.cert_type, certConf.cert_rating, certConf.project_subtype);
             
-            templateInfo.timeline.forEach((t) => {
-              milestoneRows.push({ 
-                certification_id: newCert.id, category: "Timeline", requirement: t.name, 
-                milestone_type: "timeline", status: "pending" 
+            if (templateInfo) {
+              const milestoneRows: any[] = [];
+              
+              templateInfo.timeline.forEach((t) => {
+                milestoneRows.push({ 
+                  certification_id: newCert.id, category: "Timeline", requirement: t.name, 
+                  milestone_type: "timeline", status: "pending" 
+                });
               });
-            });
-            
-            templateInfo.scorecard.forEach((s) => {
-              milestoneRows.push({ 
-                certification_id: newCert.id, category: s.category, requirement: s.requirement, 
-                milestone_type: "scorecard", max_score: s.max_score, score: 0, status: "pending" 
+              
+              templateInfo.scorecard.forEach((s) => {
+                milestoneRows.push({ 
+                  certification_id: newCert.id, category: s.category, requirement: s.requirement, 
+                  milestone_type: "scorecard", max_score: s.max_score, score: 0, status: "pending" 
+                });
               });
-            });
 
-            if (milestoneRows.length > 0) {
-              for (let i = 0; i < milestoneRows.length; i += 50) {
-                const batch = milestoneRows.slice(i, i + 50);
-                await supabase.from("certification_milestones").insert(batch as any);
+              if (milestoneRows.length > 0) {
+                for (let i = 0; i < milestoneRows.length; i += 50) {
+                  const batch = milestoneRows.slice(i, i + 50);
+                  await supabase.from("certification_milestones").insert(batch as any);
+                }
               }
             }
           }
         }
       }
 
-      // 4. Gestione Allocazioni (Hardware)
-      const existingAllocIds = existingAllocations.map((a) => a.id);
-      const currentAllocIds = data.allocations.filter((a) => a.id).map((a) => a.id!);
-      const allocsToDelete = existingAllocIds.filter((id) => !currentAllocIds.includes(id));
-      if (allocsToDelete.length > 0) await supabase.from("project_allocations" as any).delete().in("id", allocsToDelete);
+      // Hardware allocations (skip in quotation mode)
+      if (!isQuotationMode) {
+        const existingAllocIds = existingAllocations.map((a) => a.id);
+        const currentAllocIds = data.allocations.filter((a) => a.id).map((a) => a.id!);
+        const allocsToDelete = existingAllocIds.filter((id) => !currentAllocIds.includes(id));
+        if (allocsToDelete.length > 0) await supabase.from("project_allocations" as any).delete().in("id", allocsToDelete);
 
-      for (const alloc of data.allocations) {
-        const targetDate = format(new Date(data.handover_date.getTime() - 15 * 24 * 60 * 60 * 1000), "yyyy-MM-dd");
-        if (alloc.id) {
-          await supabase.from("project_allocations" as any).update({ product_id: alloc.product_id, quantity: alloc.quantity, status: alloc.status } as any).eq("id", alloc.id);
-        } else {
-          await supabase.from("project_allocations" as any).insert({ certification_id: firstCertId, product_id: alloc.product_id, quantity: alloc.quantity, status: (alloc.status || "Draft") as any, target_date: targetDate });
+        for (const alloc of data.allocations) {
+          const targetDate = format(new Date(data.handover_date.getTime() - 15 * 24 * 60 * 60 * 1000), "yyyy-MM-dd");
+          if (alloc.id) {
+            await supabase.from("project_allocations" as any).update({ product_id: alloc.product_id, quantity: alloc.quantity, status: alloc.status } as any).eq("id", alloc.id);
+          } else {
+            await supabase.from("project_allocations" as any).insert({ certification_id: firstCertId, product_id: alloc.product_id, quantity: alloc.quantity, status: (alloc.status || "Draft") as any, target_date: targetDate });
+          }
         }
       }
 
-      toast({ title: project ? "Project updated" : "Project created", description: "Operation completed successfully." });
+      toast({ title: isQuotationMode ? "Quotation created" : (project ? "Project updated" : "Project created"), description: "Operation completed successfully." });
       onOpenChange(false);
       onSaved();
     } catch (err: any) {
@@ -300,13 +377,99 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
 
   if (!dataLoaded) return null;
 
+  // ===== CONFIRM MODE RENDER =====
+  if (isConfirmMode && project) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-lg bg-slate-50/50">
+          <DialogHeader>
+            <DialogTitle className="text-2xl">Confirm Project: {project.name}</DialogTitle>
+            <DialogDescription>
+              Assign a Project Manager to activate this project. It will move from Quotation to "To Configure".
+            </DialogDescription>
+          </DialogHeader>
+
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 mt-4">
+              {/* Read-only overview */}
+              <Card className="border-muted">
+                <CardContent className="pt-4 space-y-2 text-sm">
+                  <div className="flex justify-between"><span className="text-muted-foreground">Client</span><span className="font-medium">{project.client}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Region</span><span className="font-medium">{project.region}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Certification</span><span className="font-medium">{(project as any).cert_type || "—"}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Rating</span><span className="font-medium">{(project as any).cert_rating || "—"}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Handover</span><span className="font-medium">{format(new Date(project.handover_date), "dd MMM yyyy")}</span></div>
+                  {(project as any).total_fees != null && (
+                    <div className="flex justify-between"><span className="text-muted-foreground">Total Fees</span><span className="font-medium">€{Number((project as any).total_fees).toLocaleString()}</span></div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Separator />
+
+              {/* PM selection (required) */}
+              <FormField control={form.control} name="confirm_pm_id" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Project Manager *</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value || ""} disabled={loadingPMs}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder={loadingPMs ? "Loading..." : "Select PM"} />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {pmList.map((pm) => (<SelectItem key={pm.id} value={pm.id}>{pm.full_name}</SelectItem>))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )} />
+
+              {/* PO Sign Date */}
+              <FormField control={form.control} name="po_sign_date" render={({ field }) => (
+                <FormItem className="flex flex-col">
+                  <FormLabel>PO Sign Date</FormLabel>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !field.value && "text-muted-foreground")}>
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {field.value ? format(field.value, "dd MMM yyyy") : "Select date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar mode="single" selected={field.value || undefined} onSelect={field.onChange} initialFocus className="p-3" />
+                    </PopoverContent>
+                  </Popover>
+                  <FormMessage />
+                </FormItem>
+              )} />
+
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+                <Button type="submit" disabled={saving} className="px-8 font-semibold bg-emerald-600 hover:bg-emerald-700">
+                  {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Save & Start Project
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  // ===== STANDARD / QUOTATION MODE RENDER =====
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-slate-50/50">
         <DialogHeader>
-          <DialogTitle className="text-2xl">{project ? `Review & Config: ${project.name}` : "New Project on Site"}</DialogTitle>
+          <DialogTitle className="text-2xl">
+            {isQuotationMode ? "New Quotation" : project ? `Review & Config: ${project.name}` : "New Project on Site"}
+          </DialogTitle>
           <DialogDescription>
-            {project ? "Select the sections below to edit details or add new certification schemas." : "Assign a new project to an existing site and define schemas."}
+            {isQuotationMode
+              ? "Create a commercial quotation. A Project Manager will be assigned after confirmation."
+              : project ? "Select the sections below to edit details or add new certification schemas." : "Assign a new project to an existing site and define schemas."}
           </DialogDescription>
         </DialogHeader>
 
@@ -357,10 +520,85 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
                       <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus className="p-3" /></PopoverContent></Popover>
                     <FormMessage /></FormItem>
                   )} />
-                  <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Status</FormLabel><Select value={field.value} onValueChange={field.onChange}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent>{PROJECT_STATUSES.map((s) => (<SelectItem key={s} value={s}>{s}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                  {!isQuotationMode && (
+                    <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Status</FormLabel><Select value={field.value} onValueChange={field.onChange}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent>{PROJECT_STATUSES.map((s) => (<SelectItem key={s} value={s}>{s}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                  )}
                 </div>
               </CardContent>
             </Card>
+
+            {/* QUOTATION FINANCIAL SECTION */}
+            {isQuotationMode && (
+              <Card className="border-blue-200 shadow-sm">
+                <CardHeader className="bg-blue-50/50 pb-4 border-b border-blue-100">
+                  <CardTitle className="text-lg text-blue-700">💰 Quotation Details</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6 pt-6 bg-white">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                    <FormField control={form.control} name="sqm" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Area (sqm)</FormLabel>
+                        <FormControl><Input type="number" placeholder="e.g. 1500" value={field.value ?? ""} onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="services_fees" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Services Fees (€)</FormLabel>
+                        <FormControl><Input type="number" placeholder="e.g. 15000" value={field.value ?? ""} onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="gbci_fees" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>GBCI Fees (€)</FormLabel>
+                        <FormControl><Input type="number" placeholder="e.g. 5000" value={field.value ?? ""} onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="total_fees" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Total Fees (€)</FormLabel>
+                        <FormControl><Input type="number" placeholder="e.g. 20000" value={field.value ?? ""} onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="fgb_monitor" render={({ field }) => (
+                      <FormItem className="flex items-center gap-3 pt-6">
+                        <FormControl>
+                          <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                        </FormControl>
+                        <FormLabel className="!mt-0">FGB Monitor</FormLabel>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="quotation_sent_date" render={({ field }) => (
+                      <FormItem className="flex flex-col">
+                        <FormLabel>Quotation Sent Date</FormLabel>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !field.value && "text-muted-foreground")}>
+                              <CalendarIcon className="mr-2 h-4 w-4" />
+                              {field.value ? format(field.value, "dd MMM yyyy") : "Select date"}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar mode="single" selected={field.value || undefined} onSelect={field.onChange} initialFocus className="p-3" />
+                          </PopoverContent>
+                        </Popover>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                  </div>
+                  <FormField control={form.control} name="quotation_notes" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Commercial Notes</FormLabel>
+                      <FormControl><Textarea placeholder="Notes about this quotation..." className="min-h-[80px]" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                </CardContent>
+              </Card>
+            )}
 
             <Card className="border-primary/20 shadow-md">
               <CardHeader className="bg-primary/5 pb-4 border-b border-primary/10">
@@ -415,8 +653,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
                             </div>
                           )}
                           <h5 className="font-bold text-lg text-slate-800 mb-4 border-b pb-2">{certType} Configuration</h5>
-                          {/* Modificata Griglia da 3 a 4 colonne */}
-                          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                          <div className={cn("grid grid-cols-1 gap-6", isQuotationMode ? "md:grid-cols-3" : "md:grid-cols-4")}>
                             <FormField control={form.control} name={`certifications.${index}.cert_rating`} render={({ field: f }) => (
                               <FormItem>
                                 <FormLabel>Rating System</FormLabel>
@@ -448,8 +685,8 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
                               </FormItem>
                             )} />
                             
-                            {/* PM INSERITO DENTRO LA SINGOLA CERTIFICAZIONE */}
-                            {isAdmin && (
+                            {/* PM — hidden in quotation mode */}
+                            {!isQuotationMode && isAdmin && (
                               <FormField control={form.control} name={`certifications.${index}.pm_id`} render={({ field: f }) => (
                                 <FormItem>
                                   <FormLabel>Project Manager</FormLabel>
@@ -476,46 +713,49 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
               </CardContent>
             </Card>
 
-            <Card className="border-slate-200 shadow-sm">
-              <CardHeader className="bg-white pb-3 border-b">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg text-slate-800">📦 Hardware Allocations</CardTitle>
-                  <Button type="button" variant="outline" size="sm" onClick={() => appendAlloc({ product_id: "", quantity: 1, status: "Draft" })} className="gap-1"><Plus className="h-4 w-4" /> Add Item</Button>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-4 bg-slate-50">
-                {allocFields.length === 0 ? <p className="text-sm text-muted-foreground text-center py-6 italic">No hardware assigned.</p> : (
-                  <div className="space-y-3">
-                    {allocFields.map((field, index) => (
-                      <div key={field.id} className="flex items-end gap-3 rounded-lg border bg-white p-4 shadow-sm">
-                        <div className="flex-1 space-y-1">
-                          <Label className="text-xs text-muted-foreground">Product</Label>
-                          <Controller control={form.control} name={`allocations.${index}.product_id`} render={({ field: f }) => (
-                            <Select value={f.value} onValueChange={f.onChange}><SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger><SelectContent>{Object.entries(products.reduce((acc, p) => { const cert = p.certification; if (!acc[cert]) acc[cert] = []; acc[cert].push(p); return acc; }, {} as Record<string, Product[]>)).map(([cert, prods]) => (<div key={cert}><div className="px-2 py-1.5 text-xs font-semibold text-slate-400 bg-slate-50">{cert}</div>{prods.map((p) => (<SelectItem key={p.id} value={p.id}>{p.name} — Stock: {p.quantity_in_stock}</SelectItem>))}</div>))}</SelectContent></Select>
-                          )} />
-                        </div>
-                        <div className="w-24 space-y-1"><Label className="text-xs text-muted-foreground">Qty</Label><Input type="number" min="1" {...form.register(`allocations.${index}.quantity`, { valueAsNumber: true })} /></div>
-                        {isAdmin && (
-                          <div className="w-40 space-y-1">
-                            <Label className="text-xs text-muted-foreground">Status</Label>
-                            <Controller control={form.control} name={`allocations.${index}.status`} render={({ field: f }) => (
-                              <Select value={f.value} onValueChange={f.onChange}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{ALLOCATION_STATUSES.map((s) => (<SelectItem key={s} value={s}>{s}</SelectItem>))}</SelectContent></Select>
+            {/* Hardware — hidden in quotation mode */}
+            {!isQuotationMode && (
+              <Card className="border-slate-200 shadow-sm">
+                <CardHeader className="bg-white pb-3 border-b">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg text-slate-800">📦 Hardware Allocations</CardTitle>
+                    <Button type="button" variant="outline" size="sm" onClick={() => appendAlloc({ product_id: "", quantity: 1, status: "Draft" })} className="gap-1"><Plus className="h-4 w-4" /> Add Item</Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-4 bg-slate-50">
+                  {allocFields.length === 0 ? <p className="text-sm text-muted-foreground text-center py-6 italic">No hardware assigned.</p> : (
+                    <div className="space-y-3">
+                      {allocFields.map((field, index) => (
+                        <div key={field.id} className="flex items-end gap-3 rounded-lg border bg-white p-4 shadow-sm">
+                          <div className="flex-1 space-y-1">
+                            <Label className="text-xs text-muted-foreground">Product</Label>
+                            <Controller control={form.control} name={`allocations.${index}.product_id`} render={({ field: f }) => (
+                              <Select value={f.value} onValueChange={f.onChange}><SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger><SelectContent>{Object.entries(products.reduce((acc, p) => { const cert = p.certification; if (!acc[cert]) acc[cert] = []; acc[cert].push(p); return acc; }, {} as Record<string, Product[]>)).map(([cert, prods]) => (<div key={cert}><div className="px-2 py-1.5 text-xs font-semibold text-slate-400 bg-slate-50">{cert}</div>{prods.map((p) => (<SelectItem key={p.id} value={p.id}>{p.name} — Stock: {p.quantity_in_stock}</SelectItem>))}</div>))}</SelectContent></Select>
                             )} />
                           </div>
-                        )}
-                        <Button type="button" variant="ghost" size="icon" onClick={() => removeAlloc(index)} className="text-destructive hover:bg-destructive/10"><Trash2 className="h-5 w-5" /></Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                          <div className="w-24 space-y-1"><Label className="text-xs text-muted-foreground">Qty</Label><Input type="number" min="1" {...form.register(`allocations.${index}.quantity`, { valueAsNumber: true })} /></div>
+                          {isAdmin && (
+                            <div className="w-40 space-y-1">
+                              <Label className="text-xs text-muted-foreground">Status</Label>
+                              <Controller control={form.control} name={`allocations.${index}.status`} render={({ field: f }) => (
+                                <Select value={f.value} onValueChange={f.onChange}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{ALLOCATION_STATUSES.map((s) => (<SelectItem key={s} value={s}>{s}</SelectItem>))}</SelectContent></Select>
+                              )} />
+                            </div>
+                          )}
+                          <Button type="button" variant="ghost" size="icon" onClick={() => removeAlloc(index)} className="text-destructive hover:bg-destructive/10"><Trash2 className="h-5 w-5" /></Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             <DialogFooter className="sticky bottom-0 bg-white/90 backdrop-blur-sm p-4 border-t mt-8 z-10 rounded-b-lg">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
               <Button type="submit" disabled={saving} className="px-8 font-semibold">
                 {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {project ? "Save All Changes" : "Create Project"}
+                {isQuotationMode ? "Create Quotation" : project ? "Save All Changes" : "Create Project"}
               </Button>
             </DialogFooter>
           </form>
