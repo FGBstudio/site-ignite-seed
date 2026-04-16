@@ -123,6 +123,7 @@ export function useAdminPlannerData() {
             project_allocations: allocations, certification_milestones: certMilestones,
             plannerData: { id: c.id, label: c.name || c.cert_type || "Unnamed", subLabel: c.client, launchDate: c.created_at.slice(0,10), currentActivity: "Quotation", planStart: c.created_at.slice(0,10), planEnd: c.handover_date, actualStart: null, actualEnd: null, progress: 0, status: "pending", segments: [], plannedHandoverDate: c.planned_handover_date || null, isDeadlineCritical: false },
             macro_phase: computeMacroPhase(c.status, certMilestones), is_deadline_critical: false,
+            total_fees: c.total_fees, quotation_sent_date: c.quotation_sent_date, sqm: c.sqm, services_fees: c.services_fees, gbci_fees: c.gbci_fees,
           };
         }
         if (c.status === "canceled") {
