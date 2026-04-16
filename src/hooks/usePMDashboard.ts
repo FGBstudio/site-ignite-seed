@@ -279,7 +279,7 @@ export function usePMDashboard() {
           actualStart: plannerStatus !== "pending" ? planStart : null,
           actualEnd: setup_status === "certificato" ? today : null,
           progress,
-          status: setup_status === "certificato" ? "Certified" : macroPhase, // Mostra la macro fase o Certified
+          status: timelineMilestones.some((m: any) => m.status === "on_hold") ? "on_hold" : (setup_status === "certificato" ? "Certified" : macroPhase),
           segments,
           plannedHandoverDate: c.planned_handover_date || null,
           isDeadlineCritical: is_deadline_critical,
