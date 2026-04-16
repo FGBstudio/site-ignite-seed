@@ -262,13 +262,13 @@ export default function Projects() {
                         {statusTab === "quotation" ? (
                           <>
                             <td className="p-4 font-medium">
-                              {(project as any).total_fees != null
-                                ? `€${Number((project as any).total_fees).toLocaleString()}`
+                              {project.total_fees != null
+                                ? `€${Number(project.total_fees).toLocaleString()}`
                                 : "—"}
                             </td>
                             <td className="p-4 text-muted-foreground">
-                              {(project as any).quotation_sent_date
-                                ? format(new Date((project as any).quotation_sent_date), "dd MMM yyyy")
+                              {project.quotation_sent_date
+                                ? format(new Date(project.quotation_sent_date), "dd MMM yyyy")
                                 : "—"}
                             </td>
                           </>
