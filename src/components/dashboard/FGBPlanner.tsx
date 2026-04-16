@@ -10,6 +10,7 @@ export interface GanttSegment {
   end: string | null;
   status: "pending" | "in_progress" | "achieved" | "late" | string;
   progress?: number;
+  phase?: string; // Nuova prop per il mapping colore della fase
 }
 
 export interface GanttRowData {
@@ -18,7 +19,7 @@ export interface GanttRowData {
   subLabel?: string;
   currentActivity?: string;
   launchDate?: string | null;
-  // --- NUOVE COLONNE LEED ---
+  // --- COLONNE FASI LEED ---
   designStart: string | null;
   designEnd: string | null;
   constrStartPlan: string | null;
@@ -26,9 +27,13 @@ export interface GanttRowData {
   constrEndAct: string | null;
   planDuration: number | string;
   actDuration: number | string;
-  // --------------------------
+  // -------------------------
+  planStart: string | null; // Nascosto, serve solo per bounds
+  planEnd: string | null;   // Nascosto, serve solo per bounds
+  actualStart: string | null;
+  actualEnd: string | null;
   progress: number;
-  status: "pending" | "in_progress" | "achieved" | "late" | string;
+  status: "pending" | "in_progress" | "achieved" | "late" | "Certified" | string;
   segments?: GanttSegment[];
   onClickUrl?: string;
   onClick?: () => void;
@@ -153,7 +158,7 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
           onScroll={handleLeftScroll}
           className="flex-shrink-0 border-r bg-muted/10 relative z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] overflow-auto custom-scrollbar max-w-[65%]"
         >
-          {/* Header */}
+          {/* Header Aggiornato */}
           <div className="sticky top-0 z-30 h-12 border-b flex items-center px-3 font-semibold text-[10px] text-muted-foreground uppercase tracking-wide bg-background w-max shadow-sm">
             <div className="w-[160px] shrink-0">Progetto / Fase</div>
             <div className="w-[100px] shrink-0 border-l border-border/50 pl-2">Status</div>
@@ -168,26 +173,8 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
             <div className="w-[50px] shrink-0 border-l border-border/50 pl-1 text-right pr-1">% Comp</div>
           </div>
           
-          {/* Rows - Rimosso il wrapping inutile e il flex-1 per rispettare l'auto scroll del parent */}
           <div className="w-max">
             {data.map((row) => {
-              const pStart = row.planStart ? new Date(row.planStart) : null;
-              const pEnd = row.planEnd ? new Date(row.planEnd) : null;
-              const aStart = row.actualStart ? new Date(row.actualStart) : null;
-              const aEnd = row.actualEnd ? new Date(row.actualEnd) : null;
-              const launch = row.launchDate ? new Date(row.launchDate) : pStart;
-
-              const planStartOffset = pStart ? differenceInDays(pStart, minDate) : "—";
-              const planDuration = pStart && pEnd ? Math.max(differenceInDays(pEnd, pStart), 1) : "—";
-              const actStartOffset = aStart ? differenceInDays(aStart, minDate) : "—";
-              
-              let actDuration: number | string = "—";
-              if (aStart && aEnd) {
-                actDuration = Math.max(differenceInDays(aEnd, aStart), 1);
-              } else if (aStart && row.status !== "pending") {
-                actDuration = Math.max(differenceInDays(highlightDate, aStart), 0);
-              }
-
               const isClickable = !!(row.onClickUrl || row.onClick);
 
                 return (
@@ -198,7 +185,9 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
                       isClickable && "cursor-pointer",
                       row.id === "summary" && "bg-primary/5 font-semibold",
                       row.status === "on_hold" && "bg-red-50 dark:bg-red-950/30 border-l-4 border-l-red-500",
-                      row.isDeadlineCritical && row.status !== "on_hold" && "bg-red-50 dark:bg-red-950/20 border-l-4 border-l-red-400"
+                      row.isDeadlineCritical && row.status !== "on_hold" && "bg-red-50 dark:bg-red-950/20 border-l-4 border-l-red-400",
+                      // Colora intera riga se Certificato
+                      row.status === "Certified" && "bg-green-50/80 dark:bg-[#009293]/10 border-l-4 border-l-[#009293]"
                     )}
                     onClick={() => {
                       if (row.onClick) row.onClick();
@@ -235,7 +224,7 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
           onScroll={handleRightScroll}
           className="flex-1 overflow-auto relative custom-scrollbar bg-card"
         >
-          {/* Timeline Header - Spostato allo stesso livello delle righe e reso Sticky */}
+          {/* Timeline Header */}
           <div className="sticky top-0 z-30 h-12 border-b bg-background" style={{ width: totalDays * dayWidth }}>
             <div className="absolute top-0 left-0 h-6 flex items-center text-[10px] font-bold text-muted-foreground uppercase px-2">Timeline</div>
             <div className="absolute bottom-0 left-0 h-6 flex">
@@ -264,26 +253,51 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
             )}
 
             {data.map((row) => (
-              <div key={row.id} className={cn("h-14 border-b relative group hover:bg-muted/10 transition-colors", row.id === "summary" && "bg-primary/5", row.status === "on_hold" && "bg-red-50/50 dark:bg-red-950/20", row.isDeadlineCritical && row.status !== "on_hold" && "bg-red-50/30 dark:bg-red-950/10")}>
+              <div 
+                key={row.id} 
+                className={cn(
+                  "h-14 border-b relative group hover:bg-muted/10 transition-colors", 
+                  row.id === "summary" && "bg-primary/5", 
+                  row.status === "on_hold" && "bg-red-50/50 dark:bg-red-950/20", 
+                  row.isDeadlineCritical && row.status !== "on_hold" && "bg-red-50/30 dark:bg-red-950/10",
+                  // Colora intera riga timeline se Certificato
+                  row.status === "Certified" && "bg-green-50/50 dark:bg-[#009293]/5"
+                )}
+              >
                 {row.segments && row.segments.length > 0 ? (
                   row.segments.map((seg, idx) => {
                     if (!seg.start || !seg.end) return null;
                     const segStartDay = differenceInDays(new Date(seg.start), minDate);
                     const segDurationDays = Math.max(differenceInDays(new Date(seg.end), new Date(seg.start)), 1);
 
-                    let baseClass = "border-2 border-dashed border-gray-400/70 bg-gray-200/40";
-                    let fillClass = "bg-[#009293]";
-                    let fillPercent = 0;
+                    // --- LOGICA COLORI FGB PER FASE ---
+                    let phaseOpacityBase = "bg-[#009293]/20 border-[#009293]/40";
+                    let phaseOpacityFill = "bg-[#009293]";
+
+                    if (seg.phase === "Design") {
+                      phaseOpacityBase = "bg-[#009293]/10 border-[#009293]/20";
+                      phaseOpacityFill = "bg-[#009293]/30"; // Leggero
+                    } else if (seg.phase === "Construction") {
+                      phaseOpacityBase = "bg-[#009293]/20 border-[#009293]/40";
+                      phaseOpacityFill = "bg-[#009293]/70"; // Medio
+                    } else if (seg.phase === "Certification") {
+                      phaseOpacityBase = "bg-[#009293]/30 border-[#009293]/60";
+                      phaseOpacityFill = "bg-[#009293]"; // Scuro
+                    }
+
+                    let baseClass = `border-2 border-dashed ${phaseOpacityBase}`;
+                    let fillClass = phaseOpacityFill;
+                    let fillPercent = seg.progress ?? 0;
 
                     if (seg.status === "on_hold") {
                       baseClass = "border-2 border-solid border-red-500 bg-red-100/60";
                       fillClass = "bg-red-500";
                       fillPercent = seg.progress ?? 50;
                     } else if (seg.status === "in_progress") {
-                      baseClass = "border-2 border-dashed border-[#009293]/60 bg-[#009293]/10";
+                      // Mantiene la sfumatura ma col dashed standard
                       fillPercent = seg.progress ?? 50;
                     } else if (seg.status === "achieved") {
-                      baseClass = "bg-[#009293] border-none";
+                      baseClass = `${phaseOpacityFill} border-none`;
                       fillPercent = 100;
                     } else if (seg.status === "late") {
                       baseClass = "border-2 border-dashed border-red-400/70 bg-red-100/40";
@@ -303,6 +317,7 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
                     );
                   })
                 ) : (
+                  // Fallback: Se non ci sono segmenti, usa planStart/planEnd invisibili
                   (() => {
                     const pStartDay = row.planStart ? differenceInDays(new Date(row.planStart), minDate) : null;
                     const pEndDay = row.planEnd ? differenceInDays(new Date(row.planEnd), minDate) : null;
@@ -316,16 +331,9 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
                       baseClass = "border-2 border-solid border-red-500 bg-red-100/60";
                       fillClass = "bg-red-500";
                       fillPercent = row.progress > 0 ? row.progress : 30;
-                    } else if (row.status === "in_progress") {
-                      baseClass = "border-2 border-dashed border-[#009293]/60 bg-[#009293]/10";
-                      fillPercent = row.progress;
-                    } else if (row.status === "achieved") {
+                    } else if (row.status === "Certified") {
                       baseClass = "bg-[#009293] border-none";
                       fillPercent = 100;
-                    } else if (row.status === "late") {
-                      baseClass = "border-2 border-dashed border-red-400/70 bg-red-100/40";
-                      fillClass = "bg-red-500";
-                      fillPercent = row.progress > 0 ? row.progress : 30;
                     }
 
                     const fillWidthPx = (fillPercent / 100) * planDays * dayWidth;
