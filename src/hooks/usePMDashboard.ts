@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { computeMacroPhase, type MacroPhase } from "@/data/certificationTemplates";
 import { differenceInDays, parseISO } from "date-fns";
+import type { GanttRowData } from "@/components/dashboard/FGBPlanner";
 
 export type SetupStatus = "quotation" | "da_configurare" | "in_corso" | "certificato" | "canceled";
 
@@ -29,7 +30,7 @@ export interface PMProject {
   setup_status: SetupStatus;
   missing: string[];
   certification_milestones: any[];
-  plannerData?: any;
+  plannerData?: GanttRowData;
   macro_phase: MacroPhase;
   is_deadline_critical?: boolean;
 }
@@ -87,7 +88,6 @@ export function usePMDashboard() {
       // 1. Fetch certifications (root entity) with site + allocations
       let query = (supabase as any)
         .from("certifications")
-        // RIMOSSI GLI ALIAS ESPLICITI COMPLESSI E USATA LA SINTASSI STANDARD
         .select("*, sites(name, city, country), project_allocations(*)")
         .order("handover_date", { ascending: true });
 
@@ -146,6 +146,7 @@ export function usePMDashboard() {
       return (certs as any[]).map((c): PMProject => {
         const certMilestones = milestones.filter((m) => m.certification_id === c.id);
         const allocations = c.project_allocations || [];
+        const macroPhase = computeMacroPhase(c.status, certMilestones);
 
         const isCertified =
           c.status === "certificato" ||
@@ -179,6 +180,40 @@ export function usePMDashboard() {
         // Deadline critical flag
         const is_deadline_critical = !isCertified && checkDeadlineCritical(certMilestones, today);
 
+        // --- ESTRAZIONE DATE SPECIFICHE LEED / WELL (ALLINEATO CON ADMIN) ---
+        const getMilestone = (exactName: string) => {
+          const target = exactName.toLowerCase().trim();
+          return timelineMilestones.find((m: any) => 
+            (m.requirement || "").toLowerCase().trim() === target
+          );
+        };
+
+        const msDesign = getMilestone("fgb design guidelines");
+        const designStart = msDesign?.start_date || null;
+        const designEnd = msDesign?.due_date || null;
+
+        const msConstrPhase = getMilestone("construction phase");
+        const constrStartPlan = msConstrPhase?.start_date || null;
+        const constrEndFcst = msConstrPhase?.due_date || null;
+
+        const msHandover = getMilestone("construction end (handover)");
+        const constrEndAct = (msHandover?.status === "achieved" || msHandover?.status === "completed") 
+          ? (msHandover.completed_date || msHandover.due_date || msHandover.actual_date || null) 
+          : null;
+
+        // --- CALCOLO DURATE ---
+        let planDuration: number | string = "—";
+        if (constrStartPlan && constrEndFcst) {
+          planDuration = Math.max(differenceInDays(new Date(constrEndFcst), new Date(constrStartPlan)), 1);
+        }
+
+        let actDuration: number | string = "—";
+        if (constrStartPlan && constrEndAct) {
+          actDuration = Math.max(differenceInDays(new Date(constrEndAct), new Date(constrStartPlan)), 1);
+        } else if (constrStartPlan && (macroPhase === "Construction" || macroPhase === "Certification")) {
+          actDuration = Math.max(differenceInDays(new Date(), new Date(constrStartPlan)), 1);
+        }
+
         // Planner data
         const launchDate = c.created_at.slice(0, 10);
         let planStart = launchDate;
@@ -194,9 +229,18 @@ export function usePMDashboard() {
             if (m.start_date && m.due_date) {
               let displayStatus = m.status;
               if (m.status !== "achieved" && m.due_date < today) displayStatus = "late";
+              
+              // Assegna la fase al segmento per i colori del Gantt
+              let phase = "Other";
+              const req = (m.requirement || "").toLowerCase();
+              if (req.includes("design")) phase = "Design";
+              else if (req.includes("construction") || req.includes("cantiere") || req.includes("handover")) phase = "Construction";
+              else if (req.includes("certif") || req.includes("review")) phase = "Certification";
+
               segments.push({
-                start: m.start_date, end: m.due_date, status: displayStatus,
-                progress: m.status === "achieved" ? 100 : m.status === "in_progress" ? 50 : 0
+                id: m.id, start: m.start_date, end: m.due_date, status: displayStatus,
+                progress: m.status === "achieved" ? 100 : m.status === "in_progress" ? 50 : 0,
+                phase
               });
             }
           });
@@ -204,14 +248,9 @@ export function usePMDashboard() {
 
         const progress = (hasTimeline && isTimelineConfigured) ? Math.round((achievedCount / timelineMilestones.length) * 100) : 0;
 
-        const activeMilestone = timelineMilestones.find((m: any) => m.status === "in_progress");
-        const currentActivity = activeMilestone
-          ? activeMilestone.requirement
-          : (setup_status === "certificato" ? "Completed" : "Pending");
-
         let plannerStatus = "pending";
         if (setup_status === "certificato") {
-          plannerStatus = "achieved";
+          plannerStatus = "Certified"; // Imposto a Certified per attivare la riga verde in FGBPlanner
         } else if (hasTimeline && isTimelineConfigured) {
           const hasActive = timelineMilestones.some((m: any) => m.status === "in_progress" || m.status === "achieved");
           if (hasActive) {
@@ -219,22 +258,28 @@ export function usePMDashboard() {
           }
         }
 
-        // Override status for on_hold or deadline critical
+        // Override status for on_hold
         const hasOnHold = timelineMilestones.some((m: any) => m.status === "on_hold");
         if (hasOnHold) plannerStatus = "on_hold";
 
-        const plannerData = {
+        const plannerData: GanttRowData = {
           id: c.id,
           label: c.name || c.cert_type || "Unnamed",
           subLabel: c.client,
           launchDate,
-          currentActivity,
+          designStart,
+          designEnd,
+          constrStartPlan,
+          constrEndFcst,
+          constrEndAct,
+          planDuration,
+          actDuration,
           planStart,
           planEnd: c.handover_date,
           actualStart: plannerStatus !== "pending" ? planStart : null,
           actualEnd: setup_status === "certificato" ? today : null,
           progress,
-          status: plannerStatus,
+          status: setup_status === "certificato" ? "Certified" : macroPhase, // Mostra la macro fase o Certified
           segments,
           plannedHandoverDate: c.planned_handover_date || null,
           isDeadlineCritical: is_deadline_critical,
@@ -262,7 +307,7 @@ export function usePMDashboard() {
           missing,
           certification_milestones: certMilestones,
           plannerData,
-          macro_phase: computeMacroPhase(c.status, certMilestones),
+          macro_phase: macroPhase,
           is_deadline_critical,
         } as PMProject;
       });
