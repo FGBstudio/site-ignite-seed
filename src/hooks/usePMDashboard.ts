@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { computeMacroPhase, type MacroPhase } from "@/data/certificationTemplates";
 import { differenceInDays, parseISO } from "date-fns";
 
-export type SetupStatus = "da_configurare" | "in_corso" | "certificato";
+export type SetupStatus = "quotation" | "da_configurare" | "in_corso" | "certificato" | "canceled";
 
 export interface PMProject {
   id: string;
