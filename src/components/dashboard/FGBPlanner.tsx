@@ -18,18 +18,21 @@ export interface GanttRowData {
   subLabel?: string;
   currentActivity?: string;
   launchDate?: string | null;
-  planStart: string | null;
-  planEnd: string | null;
-  actualStart: string | null;
-  actualEnd: string | null;
+  // --- NUOVE COLONNE LEED ---
+  designStart: string | null;
+  designEnd: string | null;
+  constrStartPlan: string | null;
+  constrEndFcst: string | null;
+  constrEndAct: string | null;
+  planDuration: number | string;
+  actDuration: number | string;
+  // --------------------------
   progress: number;
   status: "pending" | "in_progress" | "achieved" | "late" | string;
   segments?: GanttSegment[];
   onClickUrl?: string;
   onClick?: () => void;
-  /** For construction projects: original planned handover date (marker on Gantt) */
   plannedHandoverDate?: string | null;
-  /** If true, critical deadline < 15 days — row turns red */
   isDeadlineCritical?: boolean;
 }
 
@@ -150,18 +153,18 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
           onScroll={handleLeftScroll}
           className="flex-shrink-0 border-r bg-muted/10 relative z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] overflow-auto custom-scrollbar max-w-[65%]"
         >
-          {/* Header - Reso Sticky per non scomparire scorrendo */}
+          {/* Header */}
           <div className="sticky top-0 z-30 h-12 border-b flex items-center px-3 font-semibold text-[10px] text-muted-foreground uppercase tracking-wide bg-background w-max shadow-sm">
             <div className="w-[160px] shrink-0">Progetto / Fase</div>
-            <div className="w-[120px] shrink-0 border-l border-border/50 pl-2">Activity</div>
+            <div className="w-[100px] shrink-0 border-l border-border/50 pl-2">Status</div>
             <div className="w-[70px] shrink-0 border-l border-border/50 pl-2">Launch</div>
-            <div className="w-[70px] shrink-0 border-l border-border/50 pl-2">Start Plan</div>
-            <div className="w-[70px] shrink-0 border-l border-border/50 pl-2">End Fcst</div>
-            <div className="w-[70px] shrink-0 border-l border-border/50 pl-2">End Act</div>
-            <div className="w-[50px] shrink-0 border-l border-border/50 pl-1 text-right pr-1">Plan St</div>
-            <div className="w-[50px] shrink-0 border-l border-border/50 pl-1 text-right pr-1">Plan Dur</div>
-            <div className="w-[50px] shrink-0 border-l border-border/50 pl-1 text-right pr-1">Act St</div>
-            <div className="w-[50px] shrink-0 border-l border-border/50 pl-1 text-right pr-1">Act Dur</div>
+            <div className="w-[70px] shrink-0 border-l border-border/50 pl-2 text-[#009293]">Des. Start</div>
+            <div className="w-[70px] shrink-0 border-l border-border/50 pl-2 text-[#009293]">Des. End</div>
+            <div className="w-[70px] shrink-0 border-l border-border/50 pl-2 text-warning">Con. Start</div>
+            <div className="w-[70px] shrink-0 border-l border-border/50 pl-2 text-warning">Con. Fcst</div>
+            <div className="w-[70px] shrink-0 border-l border-border/50 pl-2 text-warning">Con. Act</div>
+            <div className="w-[50px] shrink-0 border-l border-border/50 pl-1 text-right pr-1">Plan D.</div>
+            <div className="w-[50px] shrink-0 border-l border-border/50 pl-1 text-right pr-1">Act D.</div>
             <div className="w-[50px] shrink-0 border-l border-border/50 pl-1 text-right pr-1">% Comp</div>
           </div>
           
@@ -206,23 +209,19 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
                     <span className="text-xs truncate text-foreground font-medium">{row.label}</span>
                     {row.subLabel && <span className="text-[10px] text-muted-foreground truncate">{row.subLabel}</span>}
                   </div>
-                  <div className="w-[120px] shrink-0 pl-2 flex items-center">
-                    {row.currentActivity ? (
-                      <span className="truncate text-[10px] font-medium px-1.5 py-0.5 rounded-full border border-[#009293]/30 text-[#009293] bg-[#009293]/5">
-                        {row.currentActivity}
-                      </span>
-                    ) : (
-                      <span className="text-[10px] text-muted-foreground">—</span>
-                    )}
+                  <div className="w-[100px] shrink-0 pl-2 flex items-center">
+                    <span className="truncate text-[10px] font-medium px-1.5 py-0.5 rounded-full border border-[#009293]/30 text-[#009293] bg-[#009293]/5">
+                      {row.status}
+                    </span>
                   </div>
-                  <div className="w-[70px] shrink-0 pl-2 text-[10px] text-muted-foreground">{fmt(launch)}</div>
-                  <div className="w-[70px] shrink-0 pl-2 text-[10px]">{fmt(pStart)}</div>
-                  <div className="w-[70px] shrink-0 pl-2 text-[10px]">{fmt(pEnd)}</div>
-                  <div className="w-[70px] shrink-0 pl-2 text-[10px]">{fmt(aEnd)}</div>
-                  <div className="w-[50px] shrink-0 pl-1 text-[10px] text-right pr-1 font-mono text-muted-foreground">{planStartOffset}</div>
-                  <div className="w-[50px] shrink-0 pl-1 text-[10px] text-right pr-1 font-mono">{planDuration}</div>
-                  <div className="w-[50px] shrink-0 pl-1 text-[10px] text-right pr-1 font-mono text-muted-foreground">{actStartOffset}</div>
-                  <div className="w-[50px] shrink-0 pl-1 text-[10px] text-right pr-1 font-mono font-bold">{actDuration}</div>
+                  <div className="w-[70px] shrink-0 pl-2 text-[10px] text-muted-foreground">{fmt(row.launchDate ? new Date(row.launchDate) : null)}</div>
+                  <div className="w-[70px] shrink-0 pl-2 text-[10px]">{fmt(row.designStart ? new Date(row.designStart) : null)}</div>
+                  <div className="w-[70px] shrink-0 pl-2 text-[10px]">{fmt(row.designEnd ? new Date(row.designEnd) : null)}</div>
+                  <div className="w-[70px] shrink-0 pl-2 text-[10px]">{fmt(row.constrStartPlan ? new Date(row.constrStartPlan) : null)}</div>
+                  <div className="w-[70px] shrink-0 pl-2 text-[10px]">{fmt(row.constrEndFcst ? new Date(row.constrEndFcst) : null)}</div>
+                  <div className="w-[70px] shrink-0 pl-2 text-[10px] font-medium">{fmt(row.constrEndAct ? new Date(row.constrEndAct) : null)}</div>
+                  <div className="w-[50px] shrink-0 pl-1 text-[10px] text-right pr-1 font-mono text-muted-foreground">{row.planDuration}</div>
+                  <div className="w-[50px] shrink-0 pl-1 text-[10px] text-right pr-1 font-mono font-bold">{row.actDuration}</div>
                   <div className="w-[50px] shrink-0 pl-1 text-[10px] text-right pr-1 font-bold text-[#009293]">{Math.round(row.progress)}%</div>
                 </div>
               );
