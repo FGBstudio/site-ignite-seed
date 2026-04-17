@@ -14,7 +14,10 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ['-apple-system', 'Inter', 'SF Pro Display', 'system-ui', 'sans-serif'],
+        // Body: DM Sans (Gestionale primary font)
+        sans: ["'DM Sans'", "-apple-system", "Inter", "system-ui", "sans-serif"],
+        // Display / labels: Futura-like uppercase
+        futura: ["'Futura'", "'Futura PT'", "'Century Gothic'", "'Trebuchet MS'", "sans-serif"],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -76,6 +79,13 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        // FGB brand extra
+        teal: {
+          DEFAULT: "#009193",
+          dark: "#006367",
+          light: "#a0d5d6",
+        },
+        burg: "#911140",
         chart: {
           "1": "hsl(var(--chart-1))",
           "2": "hsl(var(--chart-2))",
@@ -89,6 +99,15 @@ export default {
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
+      borderWidth: {
+        // Gestionale uses 0.5px ultra-thin borders
+        "0.5": "0.5px",
+      },
+      boxShadow: {
+        "fgb-sm": "0 2px 8px rgba(0,0,0,.06), 0 0 1px rgba(0,0,0,.05)",
+        "fgb-md": "0 4px 16px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.05)",
+        "fgb-lg": "0 8px 32px rgba(0,0,0,.10), 0 1px 2px rgba(0,0,0,.06)",
+      },
       keyframes: {
         "accordion-down": {
           from: { height: "0" },
@@ -98,25 +117,22 @@ export default {
           from: { height: "var(--radix-accordion-content-height)" },
           to: { height: "0" },
         },
-        "fade-in": {
-          from: { opacity: "0", transform: "translateY(8px)" },
-          to: { opacity: "1", transform: "translateY(0)" },
-        },
-        "slide-in": {
-          from: { transform: "translateX(-100%)" },
-          to: { transform: "translateX(0)" },
-        },
-        "scale-in": {
+        // Gestionale modal entrance
+        "modal-in": {
           from: { opacity: "0", transform: "scale(0.97)" },
           to: { opacity: "1", transform: "scale(1)" },
+        },
+        // Gestionale toast entrance
+        "toast-in": {
+          from: { opacity: "0", transform: "translateY(10px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
         },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
-        "fade-in": "fade-in 0.4s ease-out",
-        "slide-in": "slide-in 0.3s ease-out",
-        "scale-in": "scale-in 0.3s ease-out",
+        "modal-in": "modal-in 0.2s ease",
+        "toast-in": "toast-in 0.2s ease",
       },
     },
   },
