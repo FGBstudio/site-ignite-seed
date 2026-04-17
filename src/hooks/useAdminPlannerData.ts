@@ -245,7 +245,7 @@ export function useAdminPlannerData() {
           actDuration,
           planStart, // Passato in modo invisibile per mantenere sani i confini della timeline visiva
           planEnd: c.handover_date, 
-          actualStart: macroPhase !== "Pending" ? planStart : null,
+          actualStart: hasTimeline ? planStart : null,
           actualEnd: isCertified ? today : null,
           progress,
           status: hasOnHold ? "on_hold" : (setup_status === "certificato" ? "Certified" : macroPhase), 
