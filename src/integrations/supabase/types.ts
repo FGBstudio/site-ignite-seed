@@ -3236,6 +3236,7 @@ export type Database = {
         | "project_on_hold"
         | "pm_operational"
         | "other_critical"
+        | "extra_canone"
       wiring_type: "WYE" | "DELTA"
     }
     CompositeTypes: {
@@ -3397,6 +3398,7 @@ export const Constants = {
         "project_on_hold",
         "pm_operational",
         "other_critical",
+        "extra_canone",
       ],
       wiring_type: ["WYE", "DELTA"],
     },

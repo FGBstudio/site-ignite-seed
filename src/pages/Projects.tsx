@@ -235,8 +235,23 @@ export default function Projects() {
                     const isCanceled = project.setup_status === "canceled";
 
                     return (
-                      <tr key={project.id} className="border-b last:border-b-0 hover:bg-muted/50 transition-colors">
-                        <td className="p-4 font-medium text-foreground">{project.name}</td>
+                      <tr
+                        key={project.id}
+                        className={cn(
+                          "border-b last:border-b-0 transition-colors",
+                          project.is_deadline_critical
+                            ? "bg-destructive/5 hover:bg-destructive/10"
+                            : "hover:bg-muted/50"
+                        )}
+                      >
+                        <td className="p-4 font-medium text-foreground">
+                          <div className="flex items-center gap-2">
+                            {project.is_deadline_critical && (
+                              <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
+                            )}
+                            {project.name}
+                          </div>
+                        </td>
                         <td className="p-4 text-foreground">{project.client}</td>
                         <td className="p-4"><Badge variant="outline">{project.region}</Badge></td>
                         <td className="p-4">
@@ -279,7 +294,16 @@ export default function Projects() {
                           </>
                         )}
                         <td className="p-4">
-                          <span className={cn("font-medium", daysLeft <= 30 ? "text-warning" : "text-foreground")}>
+                          <span
+                            className={cn(
+                              "font-medium",
+                              project.is_deadline_critical
+                                ? "text-destructive"
+                                : daysLeft <= 30
+                                ? "text-warning"
+                                : "text-foreground"
+                            )}
+                          >
                             {format(new Date(project.handover_date), "dd MMM yyyy")}
                           </span>
                           <span className="text-xs text-muted-foreground ml-1">({daysLeft}d)</span>
@@ -289,6 +313,13 @@ export default function Projects() {
                             <StatusIcon className="mr-1 h-3 w-3" />
                             {statusMeta.label}
                           </Badge>
+                          {project.is_deadline_critical && (
+                            <div className="mt-1">
+                              <span className="text-[10px] font-semibold text-destructive">
+                                ⚠ Critical deadline (&lt; 15d)
+                              </span>
+                            </div>
+                          )}
                           {!isQuotation && !isCanceled && project.missing.length > 0 && (
                             <div className="flex flex-wrap gap-1 mt-1">
                               {project.missing.map((item) => (

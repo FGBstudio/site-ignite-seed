@@ -91,14 +91,21 @@ export default function ProjectDetail() {
         label: m.requirement,
         subLabel: `Role: ${role}`,
         currentActivity: m.status === "in_progress" ? m.requirement : (m.status === "achieved" ? "Completed" : "Pending"),
-        launchDate: projectLaunchDate, 
+        launchDate: projectLaunchDate,
+        designStart: null,
+        designEnd: null,
+        constrStartPlan: null,
+        constrEndFcst: null,
+        constrEndAct: null,
+        planDuration: "—",
+        actDuration: "—",
         planStart: m.start_date,
         planEnd: m.due_date,
         actualStart: m.status !== "pending" ? m.start_date : null,
         actualEnd: m.completed_date || null,
         progress: m.status === "achieved" ? 100 : m.status === "in_progress" ? 50 : 0,
         status: displayStatus,
-      };
+      } as GanttRowData;
     });
 
     const totalAchieved = timelineMilestones.filter((m: any) => m.status === 'achieved').length;
@@ -115,6 +122,13 @@ export default function ProjectDetail() {
       subLabel: "Overall Progress",
       currentActivity: summaryActivity,
       launchDate: projectLaunchDate,
+      designStart: null,
+      designEnd: null,
+      constrStartPlan: null,
+      constrEndFcst: null,
+      constrEndAct: null,
+      planDuration: "—",
+      actDuration: "—",
       planStart: firstStartDate,
       planEnd: project.handover_date,
       actualStart: overallProgress > 0 ? firstStartDate : null,

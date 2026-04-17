@@ -67,7 +67,12 @@ function PMProjectCard({
   const hardwareConfigured = !project.missing.includes("Hardware");
 
   return (
-    <Card className="border-border/70 bg-card transition-shadow hover:shadow-md">
+    <Card
+      className={cn(
+        "border-border/70 bg-card transition-shadow hover:shadow-md",
+        project.is_deadline_critical && "border-destructive/60 bg-destructive/5 ring-1 ring-destructive/20"
+      )}
+    >
       <CardHeader className="space-y-4 pb-4">
         <div className="flex items-start justify-between gap-3">
           <div className="space-y-1.5">
@@ -82,6 +87,13 @@ function PMProjectCard({
             {statusMeta.label}
           </Badge>
         </div>
+
+        {project.is_deadline_critical && (
+          <Badge variant="outline" className="self-start border-destructive/60 bg-destructive/10 text-destructive">
+            <AlertTriangle className="mr-1 h-3 w-3" />
+            Critical deadline (&lt; 15 days)
+          </Badge>
+        )}
 
         <div className="flex flex-wrap gap-2">
           {project.cert_type && <Badge variant="secondary">{project.cert_type}</Badge>}
@@ -118,7 +130,16 @@ function PMProjectCard({
             <CalendarDays className="h-3.5 w-3.5" />
             {format(new Date(project.handover_date), "dd MMM yyyy")}
           </span>
-          <span className={cn("text-xs font-medium", daysLeft <= 30 ? "text-warning" : "text-muted-foreground")}>
+          <span
+            className={cn(
+              "text-xs font-medium",
+              project.is_deadline_critical
+                ? "text-destructive"
+                : daysLeft <= 30
+                ? "text-warning"
+                : "text-muted-foreground"
+            )}
+          >
             {daysLeft >= 0 ? `${daysLeft}d to handover` : `${Math.abs(daysLeft)}d overdue`}
           </span>
         </div>
