@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import { format, differenceInDays, addDays, startOfWeek, endOfWeek } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -126,6 +126,16 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
   const activeOffset = highlightOffset !== null ? highlightOffset : todayOffset;
   const highlightDate = addDays(minDate, activeOffset);
 
+  useEffect(() => {
+    if (rightScrollRef.current) {
+      const targetPixel = activeOffset * dayWidth;
+      rightScrollRef.current.scrollTo({
+        left: Math.max(0, targetPixel - 200),
+        behavior: "auto"
+      });
+    }
+  }, [activeOffset, dayWidth]);
+
   const fmt = (d: Date | string | null) => {
     if (!d) return "—";
     const dateObj = typeof d === 'string' ? new Date(d) : d;
@@ -199,7 +209,6 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
                       row.id === "summary" && "bg-primary/5 font-semibold",
                       row.status === "on_hold" && "bg-red-50 dark:bg-red-950/30 border-l-4 border-l-red-500",
                       row.isDeadlineCritical && row.status !== "on_hold" && "bg-red-50 dark:bg-red-950/20 border-l-4 border-l-red-400",
-                      // Colora intera riga se Certificato
                       row.status === "Certified" && "bg-green-50/80 dark:bg-[#009293]/10 border-l-4 border-l-[#009293]"
                     )}
                     onClick={() => {
@@ -240,7 +249,7 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
         <div 
           ref={rightScrollRef}
           onScroll={handleRightScroll}
-          className="flex-1 overflow-auto relative custom-scrollbar bg-card"
+          className="flex-1 overflow-auto relative custom-scrollbar bg-card scroll-smooth"
         >
           {/* Timeline Header */}
           <div className="sticky top-0 z-30 h-12 border-b bg-background" style={{ width: totalDays * dayWidth }}>
@@ -259,16 +268,21 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
 
           {/* Timeline Grid */}
           <div className="relative" style={{ width: totalDays * dayWidth }}>
+            {/* SOSTITUZIONE DELLA LINEA ROSSA CON L'EVIDENZIAZIONE DELL'INTERA COLONNA */}
             <div className="absolute inset-0 flex pointer-events-none opacity-20">
-              {days.map((_, i) => <div key={i} className="h-full border-l flex-shrink-0" style={{ width: dayWidth }} />)}
+              {days.map((_, i) => (
+                <div 
+                  key={i} 
+                  className={cn(
+                    "h-full border-l flex-shrink-0",
+                    i === activeOffset && "bg-[#009293] opacity-30 border-none" // Colonna evidenziata elegantemente
+                  )} 
+                  style={{ width: dayWidth }} 
+                />
+              ))}
             </div>
 
-            {activeOffset >= 0 && activeOffset <= totalDays && (
-              <div 
-                className="absolute top-0 bottom-0 border-l-2 border-red-500/80 z-30 pointer-events-none shadow-[0_0_8px_rgba(239,68,68,0.5)] transition-all duration-75" 
-                style={{ left: activeOffset * dayWidth }} 
-              />
-            )}
+            {/* HO RIMOSSO LA VECCHIA LINEA ROSSA DA QUI */}
 
             {data.map((row) => (
               <div 
@@ -278,7 +292,6 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
                   row.id === "summary" && "bg-primary/5", 
                   row.status === "on_hold" && "bg-red-50/50 dark:bg-red-950/20", 
                   row.isDeadlineCritical && row.status !== "on_hold" && "bg-red-50/30 dark:bg-red-950/10",
-                  // Colora intera riga timeline se Certificato
                   row.status === "Certified" && "bg-green-50/50 dark:bg-[#009293]/5"
                 )}
               >
@@ -303,7 +316,6 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
                       phaseOpacityFill = "bg-[#009293]"; 
                     }
 
-                    // Rimossi i bordi tratteggiati invadenti
                     let baseClass = `${phaseOpacityBase}`;
                     let fillClass = phaseOpacityFill;
                     let fillPercent = seg.progress ?? 0;
@@ -332,14 +344,12 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
                               style={{ 
                                 left: segStartDay * dayWidth, 
                                 width: segDurationDays * dayWidth, 
-                                top: "18px", // Centrato (14 * 4px - 20px) / 2
-                                height: "20px" // h-5
+                                top: "18px", 
+                                height: "20px" 
                               }}
                             >
-                              {/* Sfondo Leggero (Pianificato) */}
                               <div className={cn("absolute inset-0 rounded-full", baseClass)} />
                               
-                              {/* Riempimento Forte (Progresso) */}
                               {fillPercent > 0 && (
                                 <div 
                                   className={cn("absolute top-0 bottom-0 left-0 rounded-full shadow-sm", fillClass)} 
@@ -349,7 +359,6 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
                             </div>
                           </TooltipTrigger>
 
-                          {/* TOOLTIP INTERATTIVO */}
                           <TooltipContent side="top" align="center" className="w-64 p-0 overflow-hidden shadow-lg border-muted">
                             <div className="bg-muted/60 px-3 py-2 border-b flex items-start gap-2">
                               <Info className="h-4 w-4 text-[#009293] mt-0.5 shrink-0" />
@@ -384,7 +393,6 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
                     );
                   })
                 ) : (
-                  // Fallback: Se non ci sono segmenti, usa planStart/planEnd invisibili
                   (() => {
                     const pStartDay = row.planStart ? differenceInDays(new Date(row.planStart), minDate) : null;
                     const pEndDay = row.planEnd ? differenceInDays(new Date(row.planEnd), minDate) : null;
