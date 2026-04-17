@@ -238,9 +238,13 @@ export function usePMDashboard() {
               else if (req.includes("certif") || req.includes("review")) phase = "Certification";
 
               segments.push({
-                id: m.id, start: m.start_date, end: m.due_date, status: displayStatus,
+                id: m.id, 
+                start: m.start_date, 
+                end: m.due_date, 
+                status: displayStatus,
                 progress: m.status === "achieved" ? 100 : m.status === "in_progress" ? 50 : 0,
-                phase
+                phase: phase,
+                title: m.requirement // <-- Fondamentale per il Tooltip
               });
             }
           });
