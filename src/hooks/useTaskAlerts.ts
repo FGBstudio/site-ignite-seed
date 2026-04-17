@@ -7,7 +7,8 @@ export type TaskAlertType =
   | "milestone_deadline"
   | "project_on_hold"
   | "pm_operational"
-  | "other_critical";
+  | "other_critical"
+  | "extra_canone";
 
 export interface TaskAlert {
   id: string;
@@ -33,6 +34,7 @@ const ALERT_TYPE_LABELS: Record<TaskAlertType, string> = {
   project_on_hold: "Project On Hold",
   pm_operational: "PM Operational",
   other_critical: "Critical Issue",
+  extra_canone: "Extra-Canone",
 };
 
 const ALERT_TYPE_COLORS: Record<TaskAlertType, string> = {
@@ -41,6 +43,7 @@ const ALERT_TYPE_COLORS: Record<TaskAlertType, string> = {
   project_on_hold: "bg-muted text-muted-foreground border-border",
   pm_operational: "bg-primary/10 text-primary border-primary/20",
   other_critical: "bg-destructive/10 text-destructive border-destructive/20",
+  extra_canone: "bg-destructive/10 text-destructive border-destructive/30",
 };
 
 export { ALERT_TYPE_LABELS, ALERT_TYPE_COLORS };
@@ -112,6 +115,7 @@ export function useTaskAlertCounts(role: AppRole | null, userId: string | undefi
       project_on_hold: 0,
       pm_operational: 0,
       other_critical: 0,
+      extra_canone: 0,
     }
   );
 

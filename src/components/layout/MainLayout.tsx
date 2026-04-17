@@ -1,5 +1,6 @@
 import { ReactNode } from "react";
 import { TopNavbar } from "./TopNavbar";
+import { PMConfirmationDialog } from "@/components/dashboard/PMConfirmationDialog";
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -20,6 +21,8 @@ export function MainLayout({ children, title, subtitle }: MainLayoutProps) {
           {children}
         </main>
       </div>
+      {/* Global 7-day confirmation pop-up for PMs */}
+      <PMConfirmationDialog />
     </div>
   );
 }
