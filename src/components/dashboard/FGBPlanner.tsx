@@ -8,9 +8,11 @@ export interface GanttSegment {
   id: string;
   start: string | null;
   end: string | null;
-  status: "pending" | "in_progress" | "achieved" | "late" | string;
+  status: "pending" | "in_progress" | "achieved" | "late" | "on_hold" | string;
   progress?: number;
-  phase?: string; // Nuova prop per il mapping colore della fase
+  phase?: string; 
+  title?: string; // Es. "FGB Design guidelines"
+  duration?: number; // Giorni totali
 }
 
 export interface GanttRowData {
