@@ -70,28 +70,58 @@ export function AppSidebar() {
   };
 
   return (
-    <Sidebar collapsible="icon" className="border-r border-sidebar-border/60">
-      <SidebarHeader className="p-4 pb-2">
+    <Sidebar
+      collapsible="icon"
+      className="border-r border-sidebar-border/60 bg-sidebar"
+    >
+      {/* ── Header: FGB brand (Gestionale topnav style) ── */}
+      <SidebarHeader className="p-4 pb-3">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-foreground">
-            <Package className="h-4 w-4 text-background" />
+          {/* Logo mark: quadrato teal come Gestionale */}
+          <div
+            className={cn(
+              "flex items-center justify-center rounded-lg shrink-0 transition-all duration-300",
+              "bg-[#009193]",
+              collapsed ? "h-8 w-8" : "h-9 w-9"
+            )}
+          >
+            <Package className="h-4 w-4 text-white" strokeWidth={1.8} />
           </div>
+
+          {/* Brand text: Futura uppercase tracking (Gestionale nav-brand) */}
           {!collapsed && (
-            <div className="flex flex-col">
-              <span className="text-[15px] font-semibold tracking-tight text-sidebar-foreground">FGB Studio</span>
-              <span className="text-[11px] text-sidebar-foreground/50 font-medium">Engine Room</span>
+            <div className="flex flex-col leading-tight">
+              <span
+                className="text-[13px] text-sidebar-foreground tracking-[0.12em] uppercase"
+                style={{ fontFamily: "'Futura','Century Gothic','Trebuchet MS',sans-serif", fontWeight: 400 }}
+              >
+                FGB Studio
+              </span>
+              <span
+                className="text-[10px] text-sidebar-foreground/40 tracking-[0.1em] uppercase"
+                style={{ fontFamily: "'Futura','Century Gothic',sans-serif", fontWeight: 400 }}
+              >
+                Engine Room
+              </span>
             </div>
           )}
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="px-3 pt-2">
+      {/* ── Content: Nav items ── */}
+      <SidebarContent className="px-2 pt-1">
         <SidebarGroup>
-          <SidebarGroupLabel className="text-[11px] font-medium text-sidebar-foreground/40 uppercase tracking-widest px-3 mb-1">
-            {!collapsed && "Menu"}
-          </SidebarGroupLabel>
+          {/* Group label: Gestionale section-label style (9-10px futura uppercase) */}
+          {!collapsed && (
+            <SidebarGroupLabel
+              className="px-3 mb-1 text-[9px] tracking-[0.14em] uppercase text-sidebar-foreground/35"
+              style={{ fontFamily: "'Futura','Century Gothic',sans-serif" }}
+            >
+              Menu
+            </SidebarGroupLabel>
+          )}
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className="gap-[2px]">
               {mainNavItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
@@ -99,14 +129,23 @@ export function AppSidebar() {
                     isActive={isActive(item.url)}
                     tooltip={item.title}
                     className={cn(
-                      "rounded-lg h-9 transition-all duration-200 font-medium text-[13px]",
-                      isActive(item.url) 
-                        ? "bg-primary/10 text-primary" 
-                        : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                      // Gestionale nav item: h-9, rounded-lg, transizione colore
+                      "rounded-lg h-9 transition-all duration-150",
+                      "text-[12px] tracking-[0.02em]",
+                      isActive(item.url)
+                        // Active: teal tint bg (Gestionale pill-admin style)
+                        ? "bg-[#009193]/10 text-[#009193] font-medium"
+                        : "text-sidebar-foreground/55 hover:bg-sidebar-accent hover:text-sidebar-foreground"
                     )}
                   >
                     <NavLink to={item.url}>
-                      <item.icon className="h-[18px] w-[18px]" strokeWidth={1.8} />
+                      <item.icon
+                        className={cn(
+                          "h-[17px] w-[17px] shrink-0",
+                          isActive(item.url) ? "text-[#009193]" : ""
+                        )}
+                        strokeWidth={isActive(item.url) ? 2 : 1.7}
+                      />
                       <span>{item.title}</span>
                     </NavLink>
                   </SidebarMenuButton>
@@ -116,11 +155,17 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
+        {/* ── System section (admin only) ── */}
         {isAdmin && (
           <SidebarGroup className="mt-auto">
-            <SidebarGroupLabel className="text-[11px] font-medium text-sidebar-foreground/40 uppercase tracking-widest px-3 mb-1">
-              {!collapsed && "System"}
-            </SidebarGroupLabel>
+            {!collapsed && (
+              <SidebarGroupLabel
+                className="px-3 mb-1 text-[9px] tracking-[0.14em] uppercase text-sidebar-foreground/35"
+                style={{ fontFamily: "'Futura','Century Gothic',sans-serif" }}
+              >
+                System
+              </SidebarGroupLabel>
+            )}
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
@@ -129,14 +174,20 @@ export function AppSidebar() {
                     isActive={isActive("/settings")}
                     tooltip="Settings"
                     className={cn(
-                      "rounded-lg h-9 transition-all duration-200 font-medium text-[13px]",
+                      "rounded-lg h-9 transition-all duration-150 text-[12px]",
                       isActive("/settings")
-                        ? "bg-primary/10 text-primary"
-                        : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                        ? "bg-[#009193]/10 text-[#009193] font-medium"
+                        : "text-sidebar-foreground/55 hover:bg-sidebar-accent hover:text-sidebar-foreground"
                     )}
                   >
                     <NavLink to="/settings">
-                      <Settings className="h-[18px] w-[18px]" strokeWidth={1.8} />
+                      <Settings
+                        className={cn(
+                          "h-[17px] w-[17px]",
+                          isActive("/settings") ? "text-[#009193]" : ""
+                        )}
+                        strokeWidth={isActive("/settings") ? 2 : 1.7}
+                      />
                       <span>Settings</span>
                     </NavLink>
                   </SidebarMenuButton>
@@ -147,10 +198,18 @@ export function AppSidebar() {
         )}
       </SidebarContent>
 
-      <SidebarFooter className="p-4">
+      {/* ── Footer: versione (Gestionale style) ── */}
+      <SidebarFooter className="p-4 pt-2">
         {!collapsed && (
-          <div className="rounded-xl bg-muted/50 p-3">
-            <p className="text-[11px] text-muted-foreground font-medium">FGB Engine Room v2.0</p>
+          <div
+            className="rounded-lg bg-muted/40 border border-border/40 px-3 py-2"
+          >
+            <p
+              className="text-[9px] text-muted-foreground tracking-[0.1em] uppercase"
+              style={{ fontFamily: "'Futura','Century Gothic',sans-serif" }}
+            >
+              FGB Engine Room v2.0
+            </p>
           </div>
         )}
       </SidebarFooter>
