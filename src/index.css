@@ -2,118 +2,133 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+/* ── FGB Design System ──────────────────────────────────────────────────────
+   Estratto esteticamente dal Gestionale_v8.html
+   Palette teal #009193, sfondo avorio #f5f4f0, DM Sans + Futura uppercase
+   ──────────────────────────────────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap');
 
 @layer base {
   :root {
-    --background: 0 0% 98%;
-    --foreground: 0 0% 11%;
-
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 11%;
-
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 11%;
-
-    --primary: 211 100% 50%;
+    /* ── Core palette (Gestionale) ── */
+    /* Teal brand: #009193 */
+    --primary:            181 100% 29%;   /* #009193 */
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 0 0% 96%;
-    --secondary-foreground: 0 0% 11%;
+    /* Backgrounds: avorio caldo */
+    --background:         40 13% 96%;    /* #f5f4f0 */
+    --foreground:         0 0% 10%;      /* #1a1a1a */
 
-    --muted: 0 0% 96%;
-    --muted-foreground: 0 0% 45%;
+    /* Card / surface: bianco */
+    --card:               0 0% 100%;
+    --card-foreground:    0 0% 10%;
 
-    --accent: 0 0% 96%;
-    --accent-foreground: 0 0% 11%;
+    --popover:            0 0% 100%;
+    --popover-foreground: 0 0% 10%;
 
-    --destructive: 0 72% 51%;
+    /* Secondary / muted */
+    --secondary:          40 13% 94%;
+    --secondary-foreground: 0 0% 10%;
+
+    --muted:              40 10% 92%;
+    --muted-foreground:   0 0% 53%;      /* #888 */
+
+    --accent:             40 10% 92%;
+    --accent-foreground:  0 0% 10%;
+
+    /* Semantic */
+    --destructive:        0 72% 51%;     /* #dc2626 */
     --destructive-foreground: 0 0% 100%;
 
-    --success: 142 71% 45%;
+    --success:            142 69% 38%;   /* #16a34a */
     --success-foreground: 0 0% 100%;
 
-    --warning: 38 92% 50%;
+    --warning:            38 97% 44%;    /* #d97706 */
     --warning-foreground: 0 0% 100%;
 
-    --inbound: 142 71% 45%;
+    --inbound:            142 69% 38%;
     --inbound-foreground: 0 0% 100%;
 
-    --outbound: 25 95% 53%;
+    --outbound:           9 87% 52%;     /* #e63f26 */
     --outbound-foreground: 0 0% 100%;
 
-    --border: 0 0% 91%;
-    --input: 0 0% 91%;
-    --ring: 211 100% 50%;
+    /* Borders: caldi, ultra-sottili */
+    --border:             40 14% 89%;    /* #e4e2dc */
+    --input:              40 14% 89%;
+    --ring:               181 100% 29%;
 
-    --radius: 0.875rem;
+    /* Radius */
+    --radius: 0.75rem;                   /* 12px — coerente con Gestionale */
 
-    --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 0 0% 11%;
-    --sidebar-primary: 211 100% 50%;
+    /* ── Sidebar ── */
+    --sidebar-background:        0 0% 100%;
+    --sidebar-foreground:        0 0% 10%;
+    --sidebar-primary:           181 100% 29%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 0 0% 96%;
-    --sidebar-accent-foreground: 0 0% 11%;
-    --sidebar-border: 0 0% 93%;
-    --sidebar-ring: 211 100% 50%;
+    --sidebar-accent:            40 13% 94%;
+    --sidebar-accent-foreground: 0 0% 10%;
+    --sidebar-border:            40 14% 91%;
+    --sidebar-ring:              181 100% 29%;
 
-    --chart-1: 211 100% 50%;
-    --chart-2: 142 71% 45%;
-    --chart-3: 25 95% 53%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
+    /* ── Charts ── */
+    --chart-1: 181 100% 29%;   /* teal */
+    --chart-2: 142 69% 38%;   /* green */
+    --chart-3: 9 87% 52%;     /* orange-red */
+    --chart-4: 337 71% 33%;   /* burgundy #911140 */
+    --chart-5: 38 97% 44%;    /* amber */
 
-    /* Apple-style elevation shadows */
-    --shadow-xs: 0 1px 2px 0 hsl(0 0% 0% / 0.03);
-    --shadow-sm: 0 1px 3px 0 hsl(0 0% 0% / 0.04), 0 1px 2px -1px hsl(0 0% 0% / 0.03);
-    --shadow-md: 0 4px 12px -1px hsl(0 0% 0% / 0.06), 0 2px 6px -2px hsl(0 0% 0% / 0.04);
-    --shadow-lg: 0 10px 30px -3px hsl(0 0% 0% / 0.08), 0 4px 10px -4px hsl(0 0% 0% / 0.04);
-    --shadow-xl: 0 20px 50px -5px hsl(0 0% 0% / 0.1), 0 8px 20px -6px hsl(0 0% 0% / 0.04);
+    /* ── Shadows (light, stile Gestionale) ── */
+    --shadow-xs: 0 1px 2px rgba(0,0,0,.04);
+    --shadow-sm: 0 2px 8px rgba(0,0,0,.06), 0 0 1px rgba(0,0,0,.05);
+    --shadow-md: 0 4px 16px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.05);
+    --shadow-lg: 0 8px 32px rgba(0,0,0,.10), 0 1px 2px rgba(0,0,0,.06);
+    --shadow-xl: 0 20px 50px rgba(0,0,0,.12), 0 8px 20px rgba(0,0,0,.06);
   }
 
   .dark {
-    --background: 0 0% 6%;
-    --foreground: 0 0% 96%;
+    /* ── Dark mode (Gestionale dark: bg #0e0e0e, surface #181818) ── */
+    --background:         0 0% 7%;       /* #121212 */
+    --foreground:         40 12% 94%;    /* #f0eeea */
 
-    --card: 0 0% 10%;
-    --card-foreground: 0 0% 96%;
+    --card:               0 0% 9%;       /* #181818 */
+    --card-foreground:    40 12% 94%;
 
-    --popover: 0 0% 10%;
-    --popover-foreground: 0 0% 96%;
+    --popover:            0 0% 9%;
+    --popover-foreground: 40 12% 94%;
 
-    --primary: 211 100% 60%;
-    --primary-foreground: 0 0% 6%;
+    --primary:            181 75% 40%;   /* teal più luminoso in dark */
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 0 0% 15%;
-    --secondary-foreground: 0 0% 96%;
+    --secondary:          0 0% 13%;
+    --secondary-foreground: 40 12% 94%;
 
-    --muted: 0 0% 15%;
-    --muted-foreground: 0 0% 55%;
+    --muted:              0 0% 13%;
+    --muted-foreground:   0 0% 53%;
 
-    --accent: 0 0% 15%;
-    --accent-foreground: 0 0% 96%;
+    --accent:             0 0% 13%;
+    --accent-foreground:  40 12% 94%;
 
-    --destructive: 0 62% 30%;
-    --destructive-foreground: 0 0% 96%;
+    --destructive:        0 62% 30%;
+    --destructive-foreground: 40 12% 94%;
 
-    --border: 0 0% 16%;
-    --input: 0 0% 16%;
-    --ring: 211 100% 60%;
+    --border:             0 0% 17%;      /* #2b2b2b */
+    --input:              0 0% 17%;
+    --ring:               181 75% 40%;
 
-    --sidebar-background: 0 0% 8%;
-    --sidebar-foreground: 0 0% 96%;
-    --sidebar-primary: 211 100% 60%;
-    --sidebar-primary-foreground: 0 0% 6%;
-    --sidebar-accent: 0 0% 13%;
-    --sidebar-accent-foreground: 0 0% 96%;
-    --sidebar-border: 0 0% 14%;
-    --sidebar-ring: 211 100% 60%;
+    --sidebar-background: 0 0% 7%;
+    --sidebar-foreground: 40 12% 94%;
+    --sidebar-primary:    181 75% 40%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent:     0 0% 13%;
+    --sidebar-accent-foreground: 40 12% 94%;
+    --sidebar-border:     0 0% 14%;
+    --sidebar-ring:       181 75% 40%;
 
-    --shadow-xs: 0 1px 2px 0 hsl(0 0% 0% / 0.1);
-    --shadow-sm: 0 1px 3px 0 hsl(0 0% 0% / 0.15), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
-    --shadow-md: 0 4px 12px -1px hsl(0 0% 0% / 0.2), 0 2px 6px -2px hsl(0 0% 0% / 0.12);
-    --shadow-lg: 0 10px 30px -3px hsl(0 0% 0% / 0.25), 0 4px 10px -4px hsl(0 0% 0% / 0.1);
-    --shadow-xl: 0 20px 50px -5px hsl(0 0% 0% / 0.3), 0 8px 20px -6px hsl(0 0% 0% / 0.12);
+    --shadow-xs: 0 1px 2px rgba(0,0,0,.20);
+    --shadow-sm: 0 2px 8px rgba(0,0,0,.35);
+    --shadow-md: 0 4px 16px rgba(0,0,0,.45), 0 1px 2px rgba(0,0,0,.30);
+    --shadow-lg: 0 8px 32px rgba(0,0,0,.55);
+    --shadow-xl: 0 20px 50px rgba(0,0,0,.60);
   }
 }
 
@@ -124,49 +139,237 @@
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: -apple-system, 'Inter', 'SF Pro Display', 'SF Pro Text', system-ui, sans-serif;
+    /* DM Sans come body font, con Futura disponibile via font-futura */
+    font-family: 'DM Sans', -apple-system, 'Inter', system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    letter-spacing: -0.011em;
+    letter-spacing: -0.008em;
   }
 
+  /* Headings: Futura-like (Century Gothic fallback) uppercase tracking */
   h1, h2, h3, h4, h5, h6 {
-    letter-spacing: -0.025em;
-    font-weight: 600;
+    font-family: 'Futura', 'Futura PT', 'Century Gothic', 'Trebuchet MS', 'DM Sans', sans-serif;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    font-weight: 400;
   }
 }
 
+/* ── Futura utility class ────────────────────────────────────────────────── */
+.font-futura {
+  font-family: 'Futura', 'Futura PT', 'Century Gothic', 'Trebuchet MS', sans-serif !important;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* ── Overrides: headings dentro card/layout NON uppercase ────────────────── */
+/* Le sezioni di contenuto (titoli pagina, card title) restano normali */
+.card h1, .card h2, .card h3,
+[data-section-title] {
+  text-transform: none;
+  letter-spacing: -0.015em;
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 600;
+}
+
 @layer utilities {
+  /* ── Glass / surface utilities (stile Gestionale) ── */
   .glass {
-    @apply bg-card/70 backdrop-blur-xl border border-border/40;
+    @apply bg-card/70 backdrop-blur-xl border border-border/50;
     box-shadow: var(--shadow-sm);
   }
 
   .glass-heavy {
-    @apply bg-card/80 backdrop-blur-2xl border border-border/30;
+    @apply bg-card/80 backdrop-blur-2xl border border-border/40;
     box-shadow: var(--shadow-md);
   }
 
+  /* ── Stat / KPI card (Gestionale: bordo sinistro colorato) ── */
   .stat-card {
-    @apply bg-card rounded-2xl p-6 border border-border/40 transition-all duration-300;
+    background: hsl(var(--card));
+    border: 0.5px solid hsl(var(--border));
+    border-radius: calc(var(--radius) - 2px);
+    padding: 0.75rem 1rem;
+    transition: border-color 0.15s, box-shadow 0.15s;
     box-shadow: var(--shadow-sm);
   }
 
   .stat-card:hover {
+    border-color: hsl(var(--border) / 0.8);
     box-shadow: var(--shadow-md);
-    transform: translateY(-1px);
   }
 
+  .stat-card.kpi-teal  { border-left: 3px solid hsl(var(--primary)); }
+  .stat-card.kpi-ok    { border-left: 3px solid hsl(var(--success)); }
+  .stat-card.kpi-warn  { border-left: 3px solid hsl(var(--warning)); }
+  .stat-card.kpi-err   { border-left: 3px solid hsl(var(--destructive)); }
+
+  /* ── Table container ── */
   .table-container {
-    @apply bg-card rounded-2xl border border-border/40 overflow-hidden;
+    background: hsl(var(--card));
+    border: 0.5px solid hsl(var(--border));
+    border-radius: var(--radius);
+    overflow: hidden;
     box-shadow: var(--shadow-sm);
   }
 
-  .apple-shadow {
-    box-shadow: var(--shadow-md);
+  /* ── KPI label (FUTURA uppercase 10px) ── */
+  .kpi-label {
+    font-family: 'Futura', 'Century Gothic', sans-serif;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: hsl(var(--muted-foreground));
+    margin-bottom: 3px;
   }
 
-  .apple-shadow-lg {
-    box-shadow: var(--shadow-lg);
+  .kpi-value {
+    font-size: 21px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    color: hsl(var(--foreground));
   }
+
+  /* ── Section label (tabs, group labels) ── */
+  .section-label {
+    font-family: 'Futura', 'Century Gothic', sans-serif;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    color: hsl(var(--muted-foreground));
+  }
+
+  /* ── Tab active: underline teal ── */
+  .tab-active {
+    color: hsl(var(--primary));
+    border-bottom: 2px solid hsl(var(--primary));
+  }
+
+  /* ── Toolbar button (Gestionale style) ── */
+  .tb-button {
+    font-family: 'Futura', 'Century Gothic', sans-serif;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 7px 14px;
+    border: 0.5px solid hsl(var(--border));
+    border-radius: calc(var(--radius) - 4px);
+    background: hsl(var(--card));
+    color: hsl(var(--foreground));
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+
+  .tb-button:hover {
+    background: hsl(var(--background));
+    border-color: hsl(var(--border) / 0.7);
+  }
+
+  .tb-button.primary {
+    background: hsl(var(--primary));
+    color: #fff;
+    border-color: hsl(var(--primary));
+  }
+
+  .tb-button.primary:hover {
+    background: hsl(181 100% 23%); /* teal-d #006367 */
+    border-color: hsl(181 100% 23%);
+  }
+
+  /* ── Badge variants (Gestionale pill style) ── */
+  .badge-teal {
+    background: color-mix(in srgb, #009193 12%, transparent);
+    color: #009193;
+    border-radius: 20px;
+    font-size: 11px;
+    padding: 2px 8px;
+    font-weight: 500;
+  }
+
+  .badge-burg {
+    background: color-mix(in srgb, #911140 10%, transparent);
+    color: #911140;
+    border-radius: 20px;
+    font-size: 11px;
+    padding: 2px 8px;
+    font-weight: 500;
+  }
+
+  /* ── Page transition overlay (Gestionale style) ── */
+  .page-transition {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    pointer-events: none;
+    opacity: 0;
+    transform: scale(0);
+    border-radius: 50%;
+    background: hsl(var(--primary));
+    transition: none;
+  }
+
+  .page-transition.go {
+    transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s ease;
+    transform: scale(7);
+    opacity: 1;
+  }
+
+  /* ── Shadows ── */
+  .fgb-shadow    { box-shadow: var(--shadow-sm); }
+  .fgb-shadow-md { box-shadow: var(--shadow-md); }
+  .fgb-shadow-lg { box-shadow: var(--shadow-lg); }
+
+  /* ── Subtle row hover (table, Gestionale 3% teal tint) ── */
+  .row-hover-teal:hover td,
+  .row-hover-teal:hover {
+    background: color-mix(in srgb, #009193 3%, transparent);
+  }
+
+  /* ── Input focus ring: teal ── */
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline: none;
+    border-color: hsl(var(--primary)) !important;
+  }
+}
+
+/* ── Table header style (Gestionale: 9px futura uppercase) ── */
+.fgb-table thead th {
+  font-family: 'Futura', 'Century Gothic', sans-serif;
+  font-size: 9px;
+  color: hsl(var(--muted-foreground));
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 9px 11px;
+  text-align: left;
+  border-bottom: 0.5px solid hsl(var(--border));
+  background: hsl(var(--background));
+  white-space: nowrap;
+  user-select: none;
+}
+
+.fgb-table thead th:hover {
+  color: hsl(var(--foreground));
+}
+
+.fgb-table tbody td {
+  font-size: 12px;
+  color: hsl(var(--foreground));
+  padding: 9px 11px;
+  border-bottom: 0.5px solid hsl(var(--border));
+  vertical-align: middle;
+}
+
+.fgb-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* ── Nav breadcrumb (Gestionale topnav) ── */
+.nav-brand-futura {
+  font-family: 'Futura', 'Century Gothic', sans-serif;
+  font-size: 14px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: hsl(var(--foreground));
 }
