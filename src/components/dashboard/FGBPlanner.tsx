@@ -3,6 +3,13 @@ import { format, differenceInDays, addDays, startOfWeek, endOfWeek } from "date-
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
+import { Calendar, Clock, Info } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export interface GanttSegment {
   id: string;
@@ -119,10 +126,14 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
   const activeOffset = highlightOffset !== null ? highlightOffset : todayOffset;
   const highlightDate = addDays(minDate, activeOffset);
 
-  const fmt = (d: Date | null) => d ? format(d, "dd/MM/yy") : "—";
+  const fmt = (d: Date | string | null) => {
+    if (!d) return "—";
+    const dateObj = typeof d === 'string' ? new Date(d) : d;
+    return format(dateObj, "dd/MM/yy");
+  };
 
   return (
-    <div className="flex flex-col h-full w-full bg-background border rounded-lg overflow-hidden text-sm">
+    <div className="flex flex-col h-full w-full bg-background border rounded-lg overflow-hidden text-sm shadow-sm">
       
       {/* BARRA CONTROLLI (Period Highlight) */}
       <div className="h-10 border-b flex items-center justify-between px-4 bg-muted/20 shrink-0">
@@ -210,12 +221,12 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
                       {row.status.replace("_", " ")}
                     </span>
                   </div>
-                  <div className="w-[70px] shrink-0 pl-2 text-[10px] text-muted-foreground">{fmt(row.launchDate ? new Date(row.launchDate) : null)}</div>
-                  <div className="w-[70px] shrink-0 pl-2 text-[10px]">{fmt(row.designStart ? new Date(row.designStart) : null)}</div>
-                  <div className="w-[70px] shrink-0 pl-2 text-[10px]">{fmt(row.designEnd ? new Date(row.designEnd) : null)}</div>
-                  <div className="w-[70px] shrink-0 pl-2 text-[10px]">{fmt(row.constrStartPlan ? new Date(row.constrStartPlan) : null)}</div>
-                  <div className="w-[70px] shrink-0 pl-2 text-[10px]">{fmt(row.constrEndFcst ? new Date(row.constrEndFcst) : null)}</div>
-                  <div className="w-[70px] shrink-0 pl-2 text-[10px] font-medium">{fmt(row.constrEndAct ? new Date(row.constrEndAct) : null)}</div>
+                  <div className="w-[70px] shrink-0 pl-2 text-[10px] text-muted-foreground">{fmt(row.launchDate)}</div>
+                  <div className="w-[70px] shrink-0 pl-2 text-[10px]">{fmt(row.designStart)}</div>
+                  <div className="w-[70px] shrink-0 pl-2 text-[10px]">{fmt(row.designEnd)}</div>
+                  <div className="w-[70px] shrink-0 pl-2 text-[10px]">{fmt(row.constrStartPlan)}</div>
+                  <div className="w-[70px] shrink-0 pl-2 text-[10px]">{fmt(row.constrEndFcst)}</div>
+                  <div className="w-[70px] shrink-0 pl-2 text-[10px] font-medium">{fmt(row.constrEndAct)}</div>
                   <div className="w-[50px] shrink-0 pl-1 text-[10px] text-right pr-1 font-mono text-muted-foreground">{row.planDuration}</div>
                   <div className="w-[50px] shrink-0 pl-1 text-[10px] text-right pr-1 font-mono font-bold">{row.actDuration}</div>
                   <div className="w-[50px] shrink-0 pl-1 text-[10px] text-right pr-1 font-bold text-[#009293]">{Math.round(row.progress)}%</div>
@@ -277,50 +288,99 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
                     const segStartDay = differenceInDays(new Date(seg.start), minDate);
                     const segDurationDays = Math.max(differenceInDays(new Date(seg.end), new Date(seg.start)), 1);
 
-                    // --- LOGICA COLORI FGB PER FASE ---
-                    let phaseOpacityBase = "bg-[#009293]/20 border-[#009293]/40";
+                    // --- LOGICA COLORI FGB PER FASE (MINIMALE) ---
+                    let phaseOpacityBase = "bg-[#009293]/20";
                     let phaseOpacityFill = "bg-[#009293]";
 
                     if (seg.phase === "Design") {
-                      phaseOpacityBase = "bg-[#009293]/10 border-[#009293]/20";
-                      phaseOpacityFill = "bg-[#009293]/30"; // Leggero
+                      phaseOpacityBase = "bg-[#009293]/20";
+                      phaseOpacityFill = "bg-[#009293]/40"; 
                     } else if (seg.phase === "Construction") {
-                      phaseOpacityBase = "bg-[#009293]/20 border-[#009293]/40";
-                      phaseOpacityFill = "bg-[#009293]/70"; // Medio
+                      phaseOpacityBase = "bg-[#009293]/40";
+                      phaseOpacityFill = "bg-[#009293]/70"; 
                     } else if (seg.phase === "Certification") {
-                      phaseOpacityBase = "bg-[#009293]/30 border-[#009293]/60";
-                      phaseOpacityFill = "bg-[#009293]"; // Scuro
+                      phaseOpacityBase = "bg-[#009293]/70";
+                      phaseOpacityFill = "bg-[#009293]"; 
                     }
 
-                    let baseClass = `border-2 border-dashed ${phaseOpacityBase}`;
+                    // Rimossi i bordi tratteggiati invadenti
+                    let baseClass = `${phaseOpacityBase}`;
                     let fillClass = phaseOpacityFill;
                     let fillPercent = seg.progress ?? 0;
 
                     if (seg.status === "on_hold") {
-                      baseClass = "border-2 border-solid border-red-500 bg-red-100/60";
+                      baseClass = "bg-red-200";
                       fillClass = "bg-red-500";
                       fillPercent = seg.progress ?? 50;
                     } else if (seg.status === "in_progress") {
-                      // Mantiene la sfumatura ma col dashed standard
                       fillPercent = seg.progress ?? 50;
                     } else if (seg.status === "achieved") {
-                      baseClass = `${phaseOpacityFill} border-none`;
+                      baseClass = `${phaseOpacityFill}`;
                       fillPercent = 100;
                     } else if (seg.status === "late") {
-                      baseClass = "border-2 border-dashed border-red-400/70 bg-red-100/40";
+                      baseClass = "bg-red-100";
                       fillClass = "bg-red-500";
                       fillPercent = seg.progress ?? 50;
                     }
 
-                    const fillWidthPx = (fillPercent / 100) * segDurationDays * dayWidth;
-
                     return (
-                      <div key={idx} className="absolute top-3 h-8 group-hover:z-20" style={{ left: segStartDay * dayWidth, width: segDurationDays * dayWidth }}>
-                        <div className={cn("absolute inset-0 rounded-md", baseClass)} />
-                        {fillPercent > 0 && fillPercent < 100 && (
-                          <div className={cn("absolute top-0 bottom-0 left-0 rounded-md shadow-sm opacity-95", fillClass)} style={{ width: Math.max(fillWidthPx, 4) }} />
-                        )}
-                      </div>
+                      <TooltipProvider key={idx} delayDuration={150}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div 
+                              className="absolute cursor-pointer group-hover:z-30 hover:ring-2 ring-[#009293]/30 transition-shadow rounded-full" 
+                              style={{ 
+                                left: segStartDay * dayWidth, 
+                                width: segDurationDays * dayWidth, 
+                                top: "18px", // Centrato (14 * 4px - 20px) / 2
+                                height: "20px" // h-5
+                              }}
+                            >
+                              {/* Sfondo Leggero (Pianificato) */}
+                              <div className={cn("absolute inset-0 rounded-full", baseClass)} />
+                              
+                              {/* Riempimento Forte (Progresso) */}
+                              {fillPercent > 0 && (
+                                <div 
+                                  className={cn("absolute top-0 bottom-0 left-0 rounded-full shadow-sm", fillClass)} 
+                                  style={{ width: `${fillPercent}%` }} 
+                                />
+                              )}
+                            </div>
+                          </TooltipTrigger>
+
+                          {/* TOOLTIP INTERATTIVO */}
+                          <TooltipContent side="top" align="center" className="w-64 p-0 overflow-hidden shadow-lg border-muted">
+                            <div className="bg-muted/60 px-3 py-2 border-b flex items-start gap-2">
+                              <Info className="h-4 w-4 text-[#009293] mt-0.5 shrink-0" />
+                              <div className="min-w-0">
+                                <p className="text-[10px] font-bold text-[#009293] uppercase tracking-wide truncate">
+                                  {seg.phase || "Milestone"}
+                                </p>
+                                <p className="text-sm font-semibold text-foreground truncate" title={seg.title}>
+                                  {seg.title || "Timeline Activity"}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="p-3 space-y-2 bg-background">
+                              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                                <div className="flex items-center gap-1.5"><Calendar className="h-3 w-3" /> Start</div>
+                                <span className="font-medium text-foreground">{fmt(seg.start)}</span>
+                              </div>
+                              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                                <div className="flex items-center gap-1.5"><Clock className="h-3 w-3" /> End</div>
+                                <span className="font-medium text-foreground">{fmt(seg.end)}</span>
+                              </div>
+                              <div className="flex items-center justify-between pt-2 border-t mt-2 text-xs">
+                                <span className="text-muted-foreground">Status</span>
+                                <span className={cn("font-bold", seg.status === "on_hold" || seg.status === "late" ? "text-red-500" : "text-[#009293]")}>
+                                  {seg.status === "achieved" ? "Completed (100%)" : `${fillPercent}%`}
+                                </span>
+                              </div>
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     );
                   })
                 ) : (
@@ -330,35 +390,39 @@ export function FGBPlanner({ data, dayWidth = 24 }: FGBPlannerProps) {
                     const pEndDay = row.planEnd ? differenceInDays(new Date(row.planEnd), minDate) : null;
                     const planDays = (pStartDay !== null && pEndDay !== null) ? Math.max(pEndDay - pStartDay, 1) : 0;
                     
-                    let baseClass = "border-2 border-dashed border-gray-400/70 bg-gray-200/40";
+                    let baseClass = "bg-[#009293]/20";
                     let fillClass = "bg-[#009293]";
                     let fillPercent = 0;
 
                     if (row.status === "on_hold") {
-                      baseClass = "border-2 border-solid border-red-500 bg-red-100/60";
+                      baseClass = "bg-red-200";
                       fillClass = "bg-red-500";
                       fillPercent = row.progress > 0 ? row.progress : 30;
                     } else if (row.status === "Certified") {
-                      baseClass = "bg-[#009293] border-none";
+                      baseClass = "bg-[#009293]";
                       fillPercent = 100;
                     }
-
-                    const fillWidthPx = (fillPercent / 100) * planDays * dayWidth;
 
                     return (
                       <>
                         {pStartDay !== null && planDays > 0 && (
-                          <div className={cn("absolute top-4 h-6 rounded-md", baseClass)} style={{ left: pStartDay * dayWidth, width: planDays * dayWidth }} />
+                          <div 
+                            className={cn("absolute rounded-full", baseClass)} 
+                            style={{ left: pStartDay * dayWidth, width: planDays * dayWidth, top: "18px", height: "20px" }} 
+                          />
                         )}
                         {pStartDay !== null && fillPercent > 0 && fillPercent < 100 && (
-                          <div className={cn("absolute top-4 h-6 rounded-md shadow-sm z-10 opacity-95", fillClass)} style={{ left: pStartDay * dayWidth, width: Math.max(fillWidthPx, 4) }} />
+                          <div 
+                            className={cn("absolute rounded-full shadow-sm z-10 opacity-95", fillClass)} 
+                            style={{ left: pStartDay * dayWidth, width: `${fillPercent}%`, top: "18px", height: "20px" }} 
+                          />
                         )}
                       </>
                     );
                   })()
                 )}
 
-                {/* Planned Handover Marker — vertical dashed line for construction projects */}
+                {/* Planned Handover Marker */}
                 {row.plannedHandoverDate && (() => {
                   const markerDay = differenceInDays(new Date(row.plannedHandoverDate), minDate);
                   if (markerDay < 0 || markerDay > totalDays) return null;
