@@ -113,33 +113,60 @@ function KpiStrip({
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">Financial Issues</CardTitle>
+      <Card className="cursor-pointer hover:shadow-md transition-all" onClick={onOpenPayments}>
+        <CardHeader className="pb-2 flex-row items-center justify-between space-y-0">
+          <CardTitle className="text-sm font-medium text-muted-foreground">Financial Alerts</CardTitle>
+          {financialAlerts && financialAlerts.totalCount > 0 && (
+            <Badge variant="outline" className="text-[10px]">{financialAlerts.totalCount}</Badge>
+          )}
         </CardHeader>
-        <CardContent className="h-[220px]">
-          {sortedOverdue.length === 0 ? (
+        <CardContent className="h-[220px] flex flex-col">
+          {sortedOverdue.length === 0 && (!financialAlerts || financialAlerts.totalCount === 0) ? (
             <div className="flex items-center justify-center h-full text-sm text-muted-foreground">None overdue 🎉</div>
           ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={sortedOverdue} layout="vertical" margin={{ left: 10, right: 30, top: 5, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 11 }} />
-                <YAxis dataKey="name" type="category" tick={{ fontSize: 10 }} width={100} />
-                <Tooltip formatter={(v: number, name: string) => {
-                  if (name === "daysOverdue") return [`${v} days`, "Delay"];
-                  return [`€${v.toLocaleString("en-US")}`, "Amount"];
-                }} />
-                <Bar dataKey="daysOverdue" fill={COLORS.overdue} radius={[0, 4, 4, 0]} barSize={18}>
-                  <LabelList
-                    dataKey="amount"
-                    position="right"
-                    formatter={(v: number) => `€${v.toLocaleString("en-US")}`}
-                    style={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-                  />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <>
+              <div className="flex-1 min-h-0">
+                {sortedOverdue.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={sortedOverdue} layout="vertical" margin={{ left: 10, right: 30, top: 5, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                      <XAxis type="number" tick={{ fontSize: 11 }} />
+                      <YAxis dataKey="name" type="category" tick={{ fontSize: 10 }} width={100} />
+                      <Tooltip formatter={(v: number, name: string) => {
+                        if (name === "daysOverdue") return [`${v} days`, "Delay"];
+                        return [`€${v.toLocaleString("en-US")}`, "Amount"];
+                      }} />
+                      <Bar dataKey="daysOverdue" fill={COLORS.overdue} radius={[0, 4, 4, 0]} barSize={18}>
+                        <LabelList
+                          dataKey="amount"
+                          position="right"
+                          formatter={(v: number) => `€${v.toLocaleString("en-US")}`}
+                          style={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                        />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex items-center justify-center h-full text-xs text-muted-foreground">
+                    No overdue payments
+                  </div>
+                )}
+              </div>
+              {financialAlerts && (
+                <div className="flex flex-wrap gap-1.5 justify-center pt-2">
+                  {financialAlerts.overduePayments.count > 0 && (
+                    <Badge variant="outline" className="text-[10px] border-destructive/30 bg-destructive/10 text-destructive">
+                      Overdue: {financialAlerts.overduePayments.count}
+                    </Badge>
+                  )}
+                  {financialAlerts.extraCanone.count > 0 && (
+                    <Badge variant="outline" className="text-[10px] border-destructive/30 bg-destructive/10 text-destructive">
+                      Extra-Canone: {financialAlerts.extraCanone.count}
+                    </Badge>
+                  )}
+                </div>
+              )}
+            </>
           )}
         </CardContent>
       </Card>
