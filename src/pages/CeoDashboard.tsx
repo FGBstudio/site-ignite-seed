@@ -562,6 +562,7 @@ export default function CeoDashboard() {
   const { total: alertTotal, counts: alertCounts } = useTaskAlertCounts(role, user?.id);
 
   const isLoading = loadingTasks || loadingPayments || loadingProjects;
+  const [activeTab, setActiveTab] = useState("projects");
 
   const pmNames = useMemo(() => {
     const map = new Map<string, string>();
@@ -586,12 +587,19 @@ export default function CeoDashboard() {
         </div>
       ) : (
         <>
-          <KpiStrip tasks={tasks} payments={payments} projects={projects} alertTotal={alertTotal} alertCounts={alertCounts} />
+          <KpiStrip
+            tasks={tasks}
+            payments={payments}
+            projects={projects}
+            alertTotal={alertTotal}
+            alertCounts={alertCounts}
+            onOpenPayments={() => setActiveTab("payments")}
+          />
 
 
           <PMCalendar projects={calendarProjects} adminMode pmNames={pmNames} />
 
-          <Tabs defaultValue="projects" className="space-y-4">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
             <TabsList>
               <TabsTrigger value="resources">Resources</TabsTrigger>
               <TabsTrigger value="projects">Projects</TabsTrigger>
