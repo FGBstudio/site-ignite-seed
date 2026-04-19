@@ -49,9 +49,6 @@ const lateChartConfig = {
   days: { label: "Days Late", color: "hsl(var(--destructive))" },
 };
 
-const financialChartConfig = {
-  value: { label: "Issue Score", color: "hsl(var(--warning))" },
-};
 
 export default function PMPortal() {
   const navigate = useNavigate();
