@@ -19,6 +19,7 @@ import {
   type ProjectRow,
 } from "@/hooks/useCeoDashboardData";
 import { useTaskAlertCounts, ALERT_TYPE_LABELS, type TaskAlertType } from "@/hooks/useTaskAlerts";
+import { useFinancialAlerts } from "@/hooks/useFinancialAlerts";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LabelList,
@@ -37,8 +38,23 @@ const COLORS = {
   blocked: "hsl(38, 92%, 50%)",
 };
 
-function KpiStrip({ tasks, payments, projects, alertTotal, alertCounts }: { tasks: CertTaskRow[]; payments: CertPaymentRow[]; projects: ProjectRow[]; alertTotal: number; alertCounts: Record<string, number> }) {
+function KpiStrip({
+  tasks,
+  payments,
+  projects,
+  alertTotal,
+  alertCounts,
+  onOpenPayments,
+}: {
+  tasks: CertTaskRow[];
+  payments: CertPaymentRow[];
+  projects: ProjectRow[];
+  alertTotal: number;
+  alertCounts: Record<string, number>;
+  onOpenPayments: () => void;
+}) {
   const navigate = useNavigate();
+  const { data: financialAlerts } = useFinancialAlerts();
   const { inRitardo, inCorso, daConfigurare, certificati, lateProjects } = useMemo(() => computeProjectStatus(projects, tasks), [projects, tasks]);
   const overdueByProject = useMemo(() => computeOverduePayments(payments), [payments]);
 
