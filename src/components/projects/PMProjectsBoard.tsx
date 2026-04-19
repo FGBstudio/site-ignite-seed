@@ -280,7 +280,12 @@ export function PMProjectsBoard() {
                 ) : (
                   <div className="grid gap-4 xl:grid-cols-2">
                     {groupedProjects[key].map((project) => (
-                      <PMProjectCard key={project.id} project={project} onConfigure={setSelectedProject} />
+                      <PMProjectCard
+                        key={project.id}
+                        project={project}
+                        onConfigure={setSelectedProject}
+                        financialAlert={financialAlerts?.byProject.get(project.id)}
+                      />
                     ))}
                   </div>
                 )}
