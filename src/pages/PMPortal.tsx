@@ -58,6 +58,7 @@ export default function PMPortal() {
   const { user, role } = useAuth();
   const { data: projects = [], isLoading } = usePMDashboard();
   const { total: alertTotal, counts: alertCounts, alerts: recentAlerts } = useTaskAlertCounts(role, user?.id);
+  const { data: financialAlerts } = useFinancialAlerts();
 
   const daConfigurare = projects.filter((p) => p.setup_status === "da_configurare");
   const inCorso = projects.filter((p) => p.setup_status === "in_corso");
@@ -72,7 +73,7 @@ export default function PMPortal() {
   );
 
   // --- COSTRUZIONE DATI PER I GRAFICI (Solo progetti del PM) ---
-  const { statusData, lateData, financialData } = useMemo(() => {
+  const { statusData, lateData } = useMemo(() => {
     const today = new Date();
 
     // 1. Dati Donut Chart (Project Status)
@@ -86,13 +87,13 @@ export default function PMPortal() {
     const lData = projects
       .filter(p => p.setup_status !== "certificato")
       .map(p => {
-        const handoverMilestone = p.certification_milestones?.find(m => 
-          m.requirement?.toLowerCase().includes("handover") || 
+        const handoverMilestone = p.certification_milestones?.find(m =>
+          m.requirement?.toLowerCase().includes("handover") ||
           m.category?.toLowerCase().includes("handover")
         );
         const baseDateStr = handoverMilestone?.due_date || p.handover_date;
-        const submissionMilestone = p.certification_milestones?.find(m => 
-          m.requirement?.toLowerCase().includes("submission") || 
+        const submissionMilestone = p.certification_milestones?.find(m =>
+          m.requirement?.toLowerCase().includes("submission") ||
           m.category?.toLowerCase().includes("submission")
         );
         const isSubmitted = submissionMilestone?.status === "achieved";
@@ -106,17 +107,9 @@ export default function PMPortal() {
       })
       .filter(p => p.days > 0)
       .sort((a, b) => b.days - a.days)
-      .slice(0, 5); // Mostra i top 5 più in ritardo
-
-    // 3. Dati Bar Chart (Financial Issues)
-    const fData = projects
-      .filter(p => p.setup_status !== "certificato" && p.missing?.includes("Hardware"))
-      .map(p => {
-        return { name: p.name, value: 100 }; // Assegniamo uno score/valore fittizio all'alert
-      })
       .slice(0, 5);
 
-    return { statusData: sData, lateData: lData, financialData: fData };
+    return { statusData: sData, lateData: lData };
   }, [projects, daConfigurare.length, inCorso.length, certificati.length]);
 
   return (
