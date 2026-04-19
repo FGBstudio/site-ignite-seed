@@ -258,26 +258,44 @@ export default function PMPortal() {
               </CardContent>
             </Card>
 
-            {/* WIDGET: FINANCIAL ISSUES (Horizontal Bar Chart) */}
-            <Card className="flex flex-col">
-              <CardHeader className="pb-0 pt-4">
-                <CardTitle className="text-sm font-semibold text-warning-foreground">Financial Issues</CardTitle>
-                <CardDescription className="text-xs">Missing hardware or allocations</CardDescription>
+            {/* WIDGET: FINANCIAL ALERTS (Clickable summary like Alerts/Tasks) */}
+            <Card
+              className="flex flex-col cursor-pointer hover:shadow-md transition-all"
+              onClick={() => navigate("/projects?filter=financial")}
+            >
+              <CardHeader className="pb-0 pt-4 flex-row items-center justify-between space-y-0">
+                <div>
+                  <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
+                    <DollarSign className="h-4 w-4 text-destructive" />
+                    Financial Alerts
+                  </CardTitle>
+                  <CardDescription className="text-xs">Overdue payments & Extra-Canone</CardDescription>
+                </div>
+                <ArrowRight className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent className="flex-1 pb-4 pt-4">
-                {financialData.length === 0 ? (
+                {!financialAlerts || financialAlerts.totalCount === 0 ? (
                   <div className="flex h-[180px] items-center justify-center text-sm text-muted-foreground">
-                    Nessuna anomalia finanziaria
+                    No financial issues 🎉
                   </div>
                 ) : (
-                  <ChartContainer config={financialChartConfig} className="h-[180px] w-full">
-                    <BarChart data={financialData} layout="vertical" margin={{ left: 0, right: 0, top: 0, bottom: 0 }}>
-                      <XAxis type="number" hide />
-                      <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} width={100} tick={{ fontSize: 10 }} />
-                      <ChartTooltip cursor={{ fill: 'var(--muted)' }} content={<ChartTooltipContent hideLabel />} />
-                      <Bar dataKey="value" fill="var(--color-value)" radius={[0, 4, 4, 0]} barSize={20} />
-                    </BarChart>
-                  </ChartContainer>
+                  <div className="flex flex-col justify-center h-[180px] space-y-3">
+                    <p className="text-4xl font-bold text-foreground text-center">{financialAlerts.totalCount}</p>
+                    <p className="text-xs text-muted-foreground text-center">open financial issues</p>
+                    <div className="flex flex-wrap gap-1.5 justify-center pt-1">
+                      {financialAlerts.overduePayments.count > 0 && (
+                        <Badge variant="outline" className="text-[10px] border-destructive/30 bg-destructive/10 text-destructive">
+                          Overdue: {financialAlerts.overduePayments.count}
+                        </Badge>
+                      )}
+                      {financialAlerts.extraCanone.count > 0 && (
+                        <Badge variant="outline" className="text-[10px] border-destructive/30 bg-destructive/10 text-destructive">
+                          <TrendingUp className="h-3 w-3 mr-0.5" />
+                          Extra-Canone: {financialAlerts.extraCanone.count}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
                 )}
               </CardContent>
             </Card>
