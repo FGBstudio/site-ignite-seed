@@ -1,18 +1,20 @@
 import { useMemo, useState } from "react";
 import { format } from "date-fns";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
   Building2,
   CalendarDays,
   CheckCircle2,
   Clock3,
+  DollarSign,
   Layers3,
   Settings2,
   LayoutGrid,
   GanttChartSquare,
 } from "lucide-react";
 import { usePMDashboard, type PMProject } from "@/hooks/usePMDashboard";
+import { useFinancialAlerts } from "@/hooks/useFinancialAlerts";
 import { cn } from "@/lib/utils";
 import { PMProjectConfigModal } from "@/components/projects/PMProjectConfigModal";
 import { Badge } from "@/components/ui/badge";
@@ -55,9 +57,11 @@ const MISSING_META: Record<string, string> = {
 function PMProjectCard({
   project,
   onConfigure,
+  financialAlert,
 }: {
   project: PMProjectView;
   onConfigure: (project: PMProjectView) => void;
+  financialAlert?: { paymentDelay: number; paymentAmount: number; extraCanone: number };
 }) {
   const statusMeta = STATUS_META[project.setup_status];
   const StatusIcon = statusMeta.icon;
@@ -65,12 +69,14 @@ function PMProjectCard({
   const timelineConfigured = !project.missing.includes("Timeline");
   const scorecardConfigured = !project.missing.includes("Scorecard");
   const hardwareConfigured = !project.missing.includes("Hardware");
+  const hasFinancialAlert = !!financialAlert && (financialAlert.paymentDelay > 0 || financialAlert.extraCanone > 0);
 
   return (
     <Card
       className={cn(
         "border-border/70 bg-card transition-shadow hover:shadow-md",
-        project.is_deadline_critical && "border-destructive/60 bg-destructive/5 ring-1 ring-destructive/20"
+        project.is_deadline_critical && "border-destructive/60 bg-destructive/5 ring-1 ring-destructive/20",
+        hasFinancialAlert && !project.is_deadline_critical && "border-destructive/40 ring-1 ring-destructive/10"
       )}
     >
       <CardHeader className="space-y-4 pb-4">
@@ -92,6 +98,15 @@ function PMProjectCard({
           <Badge variant="outline" className="self-start border-destructive/60 bg-destructive/10 text-destructive">
             <AlertTriangle className="mr-1 h-3 w-3" />
             Critical deadline (&lt; 15 days)
+          </Badge>
+        )}
+
+        {hasFinancialAlert && (
+          <Badge variant="outline" className="self-start border-destructive/60 bg-destructive/10 text-destructive">
+            <DollarSign className="mr-1 h-3 w-3" />
+            Financial alert
+            {financialAlert!.paymentAmount > 0 && ` · €${financialAlert!.paymentAmount.toLocaleString("en-US")}`}
+            {financialAlert!.extraCanone > 0 && ` · Extra-Canone (${financialAlert!.extraCanone})`}
           </Badge>
         )}
 
@@ -168,16 +183,24 @@ function PMProjectCard({
 
 export function PMProjectsBoard() {
   const { data: projects = [], isLoading } = usePMDashboard();
+  const { data: financialAlerts } = useFinancialAlerts();
   const [selectedProject, setSelectedProject] = useState<PMProjectView | null>(null);
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const financialFilter = searchParams.get("filter") === "financial";
+
+  const visibleProjects = useMemo(() => {
+    if (!financialFilter || !financialAlerts) return projects as PMProjectView[];
+    return (projects as PMProjectView[]).filter((p) => financialAlerts.byProject.has(p.id));
+  }, [projects, financialFilter, financialAlerts]);
 
   const groupedProjects = useMemo(
     () => ({
-      da_configurare: projects.filter((project) => project.setup_status === "da_configurare") as PMProjectView[],
-      in_corso: projects.filter((project) => project.setup_status === "in_corso") as PMProjectView[],
-      certificato: projects.filter((project) => project.setup_status === "certificato") as PMProjectView[],
+      da_configurare: visibleProjects.filter((project) => project.setup_status === "da_configurare"),
+      in_corso: visibleProjects.filter((project) => project.setup_status === "in_corso"),
+      certificato: visibleProjects.filter((project) => project.setup_status === "certificato"),
     }),
-    [projects],
+    [visibleProjects],
   );
 
   if (isLoading) {
@@ -206,7 +229,22 @@ export function PMProjectsBoard() {
     <>
       <Tabs defaultValue="kanban" className="w-full space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
-          <h2 className="text-xl font-bold tracking-tight">Projects Overview</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-xl font-bold tracking-tight">Projects Overview</h2>
+            {financialFilter && (
+              <Badge
+                variant="outline"
+                className="border-destructive/40 bg-destructive/10 text-destructive cursor-pointer"
+                onClick={() => {
+                  const next = new URLSearchParams(searchParams);
+                  next.delete("filter");
+                  setSearchParams(next);
+                }}
+              >
+                Financial alerts only · clear ✕
+              </Badge>
+            )}
+          </div>
           <TabsList className="bg-muted">
             <TabsTrigger value="kanban" className="gap-2">
               <LayoutGrid className="w-4 h-4" /> Kanban Board
@@ -242,7 +280,12 @@ export function PMProjectsBoard() {
                 ) : (
                   <div className="grid gap-4 xl:grid-cols-2">
                     {groupedProjects[key].map((project) => (
-                      <PMProjectCard key={project.id} project={project} onConfigure={setSelectedProject} />
+                      <PMProjectCard
+                        key={project.id}
+                        project={project}
+                        onConfigure={setSelectedProject}
+                        financialAlert={financialAlerts?.byProject.get(project.id)}
+                      />
                     ))}
                   </div>
                 )}

@@ -9,8 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { format, differenceInDays } from "date-fns";
 import { cn } from "@/lib/utils";
-import { AlertTriangle, ArrowRight, Bell, Building2, CalendarIcon, CheckCircle2, Clock3, FolderKanban } from "lucide-react";
+import { AlertTriangle, ArrowRight, Bell, Building2, CalendarIcon, CheckCircle2, Clock3, DollarSign, FolderKanban, TrendingUp } from "lucide-react";
 import { PMCalendar } from "@/components/dashboard/PMCalendar";
+import { useFinancialAlerts } from "@/hooks/useFinancialAlerts";
 
 // IMPORT PER I WIDGET GRAFICI (STILE CEO DASHBOARD)
 import { PieChart, Pie, Label, BarChart, Bar, XAxis, YAxis } from "recharts";
@@ -48,15 +49,13 @@ const lateChartConfig = {
   days: { label: "Days Late", color: "hsl(var(--destructive))" },
 };
 
-const financialChartConfig = {
-  value: { label: "Issue Score", color: "hsl(var(--warning))" },
-};
 
 export default function PMPortal() {
   const navigate = useNavigate();
   const { user, role } = useAuth();
   const { data: projects = [], isLoading } = usePMDashboard();
   const { total: alertTotal, counts: alertCounts, alerts: recentAlerts } = useTaskAlertCounts(role, user?.id);
+  const { data: financialAlerts } = useFinancialAlerts();
 
   const daConfigurare = projects.filter((p) => p.setup_status === "da_configurare");
   const inCorso = projects.filter((p) => p.setup_status === "in_corso");
@@ -71,7 +70,7 @@ export default function PMPortal() {
   );
 
   // --- COSTRUZIONE DATI PER I GRAFICI (Solo progetti del PM) ---
-  const { statusData, lateData, financialData } = useMemo(() => {
+  const { statusData, lateData } = useMemo(() => {
     const today = new Date();
 
     // 1. Dati Donut Chart (Project Status)
@@ -85,13 +84,13 @@ export default function PMPortal() {
     const lData = projects
       .filter(p => p.setup_status !== "certificato")
       .map(p => {
-        const handoverMilestone = p.certification_milestones?.find(m => 
-          m.requirement?.toLowerCase().includes("handover") || 
+        const handoverMilestone = p.certification_milestones?.find(m =>
+          m.requirement?.toLowerCase().includes("handover") ||
           m.category?.toLowerCase().includes("handover")
         );
         const baseDateStr = handoverMilestone?.due_date || p.handover_date;
-        const submissionMilestone = p.certification_milestones?.find(m => 
-          m.requirement?.toLowerCase().includes("submission") || 
+        const submissionMilestone = p.certification_milestones?.find(m =>
+          m.requirement?.toLowerCase().includes("submission") ||
           m.category?.toLowerCase().includes("submission")
         );
         const isSubmitted = submissionMilestone?.status === "achieved";
@@ -105,17 +104,9 @@ export default function PMPortal() {
       })
       .filter(p => p.days > 0)
       .sort((a, b) => b.days - a.days)
-      .slice(0, 5); // Mostra i top 5 più in ritardo
-
-    // 3. Dati Bar Chart (Financial Issues)
-    const fData = projects
-      .filter(p => p.setup_status !== "certificato" && p.missing?.includes("Hardware"))
-      .map(p => {
-        return { name: p.name, value: 100 }; // Assegniamo uno score/valore fittizio all'alert
-      })
       .slice(0, 5);
 
-    return { statusData: sData, lateData: lData, financialData: fData };
+    return { statusData: sData, lateData: lData };
   }, [projects, daConfigurare.length, inCorso.length, certificati.length]);
 
   return (
@@ -264,26 +255,44 @@ export default function PMPortal() {
               </CardContent>
             </Card>
 
-            {/* WIDGET: FINANCIAL ISSUES (Horizontal Bar Chart) */}
-            <Card className="flex flex-col">
-              <CardHeader className="pb-0 pt-4">
-                <CardTitle className="text-sm font-semibold text-warning-foreground">Financial Issues</CardTitle>
-                <CardDescription className="text-xs">Missing hardware or allocations</CardDescription>
+            {/* WIDGET: FINANCIAL ALERTS (Clickable summary like Alerts/Tasks) */}
+            <Card
+              className="flex flex-col cursor-pointer hover:shadow-md transition-all"
+              onClick={() => navigate("/projects?filter=financial")}
+            >
+              <CardHeader className="pb-0 pt-4 flex-row items-center justify-between space-y-0">
+                <div>
+                  <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
+                    <DollarSign className="h-4 w-4 text-destructive" />
+                    Financial Alerts
+                  </CardTitle>
+                  <CardDescription className="text-xs">Overdue payments & Extra-Canone</CardDescription>
+                </div>
+                <ArrowRight className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent className="flex-1 pb-4 pt-4">
-                {financialData.length === 0 ? (
+                {!financialAlerts || financialAlerts.totalCount === 0 ? (
                   <div className="flex h-[180px] items-center justify-center text-sm text-muted-foreground">
-                    Nessuna anomalia finanziaria
+                    No financial issues 🎉
                   </div>
                 ) : (
-                  <ChartContainer config={financialChartConfig} className="h-[180px] w-full">
-                    <BarChart data={financialData} layout="vertical" margin={{ left: 0, right: 0, top: 0, bottom: 0 }}>
-                      <XAxis type="number" hide />
-                      <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} width={100} tick={{ fontSize: 10 }} />
-                      <ChartTooltip cursor={{ fill: 'var(--muted)' }} content={<ChartTooltipContent hideLabel />} />
-                      <Bar dataKey="value" fill="var(--color-value)" radius={[0, 4, 4, 0]} barSize={20} />
-                    </BarChart>
-                  </ChartContainer>
+                  <div className="flex flex-col justify-center h-[180px] space-y-3">
+                    <p className="text-4xl font-bold text-foreground text-center">{financialAlerts.totalCount}</p>
+                    <p className="text-xs text-muted-foreground text-center">open financial issues</p>
+                    <div className="flex flex-wrap gap-1.5 justify-center pt-1">
+                      {financialAlerts.overduePayments.count > 0 && (
+                        <Badge variant="outline" className="text-[10px] border-destructive/30 bg-destructive/10 text-destructive">
+                          Overdue: {financialAlerts.overduePayments.count}
+                        </Badge>
+                      )}
+                      {financialAlerts.extraCanone.count > 0 && (
+                        <Badge variant="outline" className="text-[10px] border-destructive/30 bg-destructive/10 text-destructive">
+                          <TrendingUp className="h-3 w-3 mr-0.5" />
+                          Extra-Canone: {financialAlerts.extraCanone.count}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
                 )}
               </CardContent>
             </Card>
