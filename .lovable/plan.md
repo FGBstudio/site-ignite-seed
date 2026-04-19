@@ -1,90 +1,78 @@
-## Pre-Sales / Quotation Flow Integration
-
-### What it does
-
-Adds a "Quotation" phase before the operational phase. New projects start as commercial quotes (no PM assigned), and only transition to operational status when confirmed by Admin. Adds "Canceled" status for rejected quotes.   
-Nuove Tab: Aggiungere nella sezione dove sono presenti To Configure (n), In Progress (n), Certified (n) due nuove sezioni: "Quotation" (posizionata come prima tab a sinistra) e "Canceled" (posizionata per ultima a destra).
-
-### Database Changes (Migration)
-
-**Add columns to `certifications` table:**
 
 
-| Column              | Type    | Default |
-| ------------------- | ------- | ------- |
-| sqm                 | numeric | null    |
-| fgb_monitor         | boolean | false   |
-| services_fees       | numeric | null    |
-| gbci_fees           | numeric | null    |
-| total_fees          | numeric | null    |
-| quotation_notes     | text    | null    |
-| quotation_sent_date | date    | null    |
-| po_sign_date        | date    | null    |
+## Fix "Financial Alerts" Widget — Bind to Real Financial Data + Click-Through Detail
 
+### Problem identified
 
-No new `status` column needed — the existing `status` column (text) already holds free-form values. We add two new values: `quotation` and `canceled` to the application logic.
+1. **PMPortal "Financial Issues" widget** currently filters projects whose `missing` array contains `"Hardware"` — that's a **setup gap**, not a financial alert. It is NOT linked to the real financial-alerts pipeline (overdue payment milestones, Extra-Canone handover delays).
+2. **CeoDashboard "Financial Issues" widget** correctly uses `computeOverduePayments()` from `cert_payment_milestones`, but the card is not clickable and has no detail drill-down (unlike the "Alerts / Tasks" card which navigates to `/admin-tasks`).
 
-### Type Changes
+### Goal
 
-`**src/hooks/usePMDashboard.ts**`: Extend `SetupStatus` to include `quotation` and `canceled`:
+Make both Overview widgets (Admin & PM) reflect **real financial alerts** and behave like the "Alerts / Tasks" card: show summary + per-category indicators, click → land on the detailed view where the issues live.
 
+### Definition of "Financial Alert"
+
+A unified financial-issue model combining two existing data sources:
+
+| Source | Meaning | Severity |
+|---|---|---|
+| `cert_payment_milestones` where `status = 'Overdue'` | Unpaid invoice past due date | High (€) |
+| `task_alerts` where `alert_type = 'extra_canone'` and `is_resolved = false` | Handover postponed → contractual extra-fee impact | High |
+
+### Implementation
+
+#### 1. New shared helper hook — `src/hooks/useFinancialAlerts.ts`
+
+Aggregates the two sources into one indicator set:
 ```ts
-export type SetupStatus = "quotation" | "da_configurare" | "in_corso" | "certificato" | "canceled";
+{
+  totalCount,                   // overdue payments + open extra_canone
+  overduePayments: { count, totalAmount, projects: [{certId, name, daysOverdue, amount}] },
+  extraCanone:     { count, projects: [{certId, name, title, createdAt}] },
+  byProject: Map<certId, { name, paymentDelay, paymentAmount, extraCanone }>
+}
 ```
+- For ADMIN: query both tables globally.
+- For PM: filter both by certifications where `pm_id = auth.uid()`.
 
-### Hook: `useAdminPlannerData.ts`
+Reuses existing `computeOverduePayments` logic from `useCeoDashboardData.ts` and reuses `useTaskAlerts` filtering on `extra_canone`.
 
-Update the `setup_status` derivation logic:
+#### 2. Refactor PMPortal widget — `src/pages/PMPortal.tsx`
 
-- If `c.status === "quotation"` → `setup_status = "quotation"`
-- If `c.status === "canceled"` → `setup_status = "canceled"`
-- Then existing logic for certificato / in_corso / da_configurare
-- Skip `missing` checks for quotation/canceled projects
+Replace the broken "Hardware-missing" data source with `useFinancialAlerts()`. Restyle the card to match the "Alerts / Tasks" pattern:
 
-### `ProjectFormModal.tsx` — Multi-mode form
-
-Add a `mode` prop: `"create_quotation" | "confirm_project" | "edit"` (default: `"edit"`).
-
-**Mode `create_quotation`:**
-
-- Show: Site selection, Name, Client, Region, Handover Date, Certification toggles (type/rating/level/subtype)
-- Show NEW: sqm, fgb_monitor, services_fees, gbci_fees, total_fees, quotation_notes, quotation_sent_date
-- Hide: PM selector, Hardware allocations, Status field
-- On submit: insert with `status = "quotation"`, `pm_id = null`
-
-**Mode `confirm_project`:**
-
-- Show: Read-only overview of project data (name, client, cert type, fees)
-- Show EDITABLE: PM selector (required), po_sign_date
-- Hide: everything else
-- On submit: update `pm_id`, `po_sign_date`, `status = "in_progress"` → triggers `setup_status = "da_configurare"`
-
-**Mode `edit`:**
-
-- Current behavior, unchanged. PM selector visible as today.
-
-### `Projects.tsx` — Dashboard tabs
-
-Update the status tabs from 4 to 6:
-
+```text
+┌──────────────────────────────┐
+│ Financial Alerts        →    │  (clickable, hover shadow)
+│         3                    │
+│ open financial issues        │
+│ [Overdue: 2] [Extra-Canone:1]│
+└──────────────────────────────┘
 ```
-Quotation | To Configure | In Progress | Certified | Canceled
-```
+On click → `navigate("/projects?filter=financial")` (PM) — opens My Projects with a financial filter applied (highlights only projects flagged in `byProject`).
 
-- **Quotation tab**: Rows show project name, client, cert type, fees summary, quotation_sent_date. Instead of "Edit/Details" buttons, show:
-  - "Confirmed" (green) → opens `ProjectFormModal` in `confirm_project` mode
-  - "Canceled" (red) → updates status to `canceled` directly
-- **Canceled tab**: Read-only list of canceled projects.
-- Update `SETUP_STATUS_META` to include `quotation` and `canceled` entries.
-- Update badge counts to include the two new statuses.
+For PM specifically, also link the card to a new query-string `?tab=payments` on the project detail when only one project is impacted; otherwise list view.
+
+#### 3. Refactor CeoDashboard widget — `src/pages/CeoDashboard.tsx`
+
+- Make the existing "Financial Issues" card clickable: `onClick={() => setActiveTab("payments")}` (the `Payments` tab in the same dashboard already shows the detailed overdue list with bars).
+- Add per-category badges below the bar chart (Overdue count, Extra-Canone count) — same visual pattern as `Alerts / Tasks` card.
+- Rename title `Financial Issues` → `Financial Alerts` for consistency with the user's wording.
+
+#### 4. Highlight in detail view
+
+- **CeoDashboard `payments` tab** (already shows project-by-project overdue bars) — no changes needed, lands here directly from the click.
+- **PM Projects board** (`PMProjectsBoard.tsx`): support `?filter=financial` query param → only show cards flagged in `useFinancialAlerts().byProject`. Add a small `Financial alert` badge on those cards (same style as existing `Critical deadline` badge).
 
 ### Files Modified
 
+| File | Change |
+|---|---|
+| `src/hooks/useFinancialAlerts.ts` | **NEW** — aggregates overdue payments + extra_canone alerts, role-scoped |
+| `src/pages/PMPortal.tsx` | Replace `financialData` (Hardware) with `useFinancialAlerts`; restyle widget like "Alerts/Tasks" with count + category badges; make clickable → `/projects?filter=financial` |
+| `src/pages/CeoDashboard.tsx` | Make Financial card clickable → switch to `payments` tab; add category badges; rename to "Financial Alerts" |
+| `src/components/projects/PMProjectsBoard.tsx` | Read `?filter=financial`; filter list and add `Financial alert` badge to flagged cards |
 
-| File                                           | Change                                                                       |
-| ---------------------------------------------- | ---------------------------------------------------------------------------- |
-| DB migration                                   | Add 8 columns to `certifications`                                            |
-| `src/hooks/usePMDashboard.ts`                  | Extend `SetupStatus` type                                                    |
-| `src/hooks/useAdminPlannerData.ts`             | Handle `quotation`/`canceled` in setup_status logic                          |
-| `src/components/projects/ProjectFormModal.tsx` | Add `mode` prop, conditional field rendering, quotation fields, confirm mode |
-| `src/pages/Projects.tsx`                       | Add Quotation/Canceled tabs, Confirmed/Canceled action buttons               |
+No DB migration. No type changes (uses existing `cert_payment_milestones` and `extra_canone` alert type already in place).
+
