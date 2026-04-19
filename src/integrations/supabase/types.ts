@@ -105,12 +105,14 @@ export type Database = {
       }
       alert_rules: {
         Row: {
+          building_type: string | null
           condition: string
           created_at: string | null
           device_type: string | null
           duration_minutes: number | null
           enabled: boolean | null
           hysteresis: number | null
+          hysteresis_pct: number | null
           id: string
           message_template: string
           metric: string
@@ -120,12 +122,14 @@ export type Database = {
           threshold: number
         }
         Insert: {
+          building_type?: string | null
           condition?: string
           created_at?: string | null
           device_type?: string | null
           duration_minutes?: number | null
           enabled?: boolean | null
           hysteresis?: number | null
+          hysteresis_pct?: number | null
           id?: string
           message_template: string
           metric: string
@@ -135,12 +139,14 @@ export type Database = {
           threshold: number
         }
         Update: {
+          building_type?: string | null
           condition?: string
           created_at?: string | null
           device_type?: string | null
           duration_minutes?: number | null
           enabled?: boolean | null
           hysteresis?: number | null
+          hysteresis_pct?: number | null
           id?: string
           message_template?: string
           metric?: string
@@ -1884,6 +1890,60 @@ export type Database = {
           },
         ]
       }
+      sensor_health: {
+        Row: {
+          flapping_count_24h: number | null
+          is_flatlining: boolean | null
+          is_offline: boolean | null
+          last_evaluated_at: string | null
+          last_seen: string | null
+          metadata: Json | null
+          packet_loss_pct: number | null
+          sensor_id: string
+          site_id: string | null
+          trust_score: number | null
+        }
+        Insert: {
+          flapping_count_24h?: number | null
+          is_flatlining?: boolean | null
+          is_offline?: boolean | null
+          last_evaluated_at?: string | null
+          last_seen?: string | null
+          metadata?: Json | null
+          packet_loss_pct?: number | null
+          sensor_id: string
+          site_id?: string | null
+          trust_score?: number | null
+        }
+        Update: {
+          flapping_count_24h?: number | null
+          is_flatlining?: boolean | null
+          is_offline?: boolean | null
+          last_evaluated_at?: string | null
+          last_seen?: string | null
+          metadata?: Json | null
+          packet_loss_pct?: number | null
+          sensor_id?: string
+          site_id?: string | null
+          trust_score?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sensor_health_sensor_id_fkey"
+            columns: ["sensor_id"]
+            isOneToOne: true
+            referencedRelation: "devices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sensor_health_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       site_alerts: {
         Row: {
           acknowledged_at: string | null
@@ -1904,6 +1964,7 @@ export type Database = {
           suppressed_until: string | null
           threshold_value: number | null
           triggered_at: string | null
+          value_at_trigger: number | null
         }
         Insert: {
           acknowledged_at?: string | null
@@ -1924,6 +1985,7 @@ export type Database = {
           suppressed_until?: string | null
           threshold_value?: number | null
           triggered_at?: string | null
+          value_at_trigger?: number | null
         }
         Update: {
           acknowledged_at?: string | null
@@ -1944,6 +2006,7 @@ export type Database = {
           suppressed_until?: string | null
           threshold_value?: number | null
           triggered_at?: string | null
+          value_at_trigger?: number | null
         }
         Relationships: [
           {
@@ -3056,6 +3119,10 @@ export type Database = {
         }[]
       }
       delete_stale_energy_latest: { Args: never; Returns: undefined }
+      evaluate_daily_alerts: { Args: never; Returns: undefined }
+      evaluate_instant_alerts: { Args: never; Returns: undefined }
+      evaluate_sensor_health: { Args: never; Returns: undefined }
+      evaluate_sustained_alerts: { Args: never; Returns: undefined }
       extract_mqtt_timestamp: {
         Args: { p_fallback: string; p_payload: Json }
         Returns: string
@@ -3180,6 +3247,7 @@ export type Database = {
           telemetry_created: number
         }[]
       }
+      reset_sensor_health_daily: { Args: never; Returns: undefined }
       run_daily_jobs: {
         Args: never
         Returns: {
