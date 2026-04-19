@@ -9,8 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { format, differenceInDays } from "date-fns";
 import { cn } from "@/lib/utils";
-import { AlertTriangle, ArrowRight, Bell, Building2, CalendarIcon, CheckCircle2, Clock3, FolderKanban } from "lucide-react";
+import { AlertTriangle, ArrowRight, Bell, Building2, CalendarIcon, CheckCircle2, Clock3, DollarSign, FolderKanban, TrendingUp } from "lucide-react";
 import { PMCalendar } from "@/components/dashboard/PMCalendar";
+import { useFinancialAlerts } from "@/hooks/useFinancialAlerts";
 
 // IMPORT PER I WIDGET GRAFICI (STILE CEO DASHBOARD)
 import { PieChart, Pie, Label, BarChart, Bar, XAxis, YAxis } from "recharts";
