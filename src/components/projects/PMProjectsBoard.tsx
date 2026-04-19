@@ -1,18 +1,20 @@
 import { useMemo, useState } from "react";
 import { format } from "date-fns";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
   Building2,
   CalendarDays,
   CheckCircle2,
   Clock3,
+  DollarSign,
   Layers3,
   Settings2,
   LayoutGrid,
   GanttChartSquare,
 } from "lucide-react";
 import { usePMDashboard, type PMProject } from "@/hooks/usePMDashboard";
+import { useFinancialAlerts } from "@/hooks/useFinancialAlerts";
 import { cn } from "@/lib/utils";
 import { PMProjectConfigModal } from "@/components/projects/PMProjectConfigModal";
 import { Badge } from "@/components/ui/badge";
