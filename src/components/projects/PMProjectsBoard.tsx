@@ -183,16 +183,24 @@ function PMProjectCard({
 
 export function PMProjectsBoard() {
   const { data: projects = [], isLoading } = usePMDashboard();
+  const { data: financialAlerts } = useFinancialAlerts();
   const [selectedProject, setSelectedProject] = useState<PMProjectView | null>(null);
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const financialFilter = searchParams.get("filter") === "financial";
+
+  const visibleProjects = useMemo(() => {
+    if (!financialFilter || !financialAlerts) return projects as PMProjectView[];
+    return (projects as PMProjectView[]).filter((p) => financialAlerts.byProject.has(p.id));
+  }, [projects, financialFilter, financialAlerts]);
 
   const groupedProjects = useMemo(
     () => ({
-      da_configurare: projects.filter((project) => project.setup_status === "da_configurare") as PMProjectView[],
-      in_corso: projects.filter((project) => project.setup_status === "in_corso") as PMProjectView[],
-      certificato: projects.filter((project) => project.setup_status === "certificato") as PMProjectView[],
+      da_configurare: visibleProjects.filter((project) => project.setup_status === "da_configurare"),
+      in_corso: visibleProjects.filter((project) => project.setup_status === "in_corso"),
+      certificato: visibleProjects.filter((project) => project.setup_status === "certificato"),
     }),
-    [projects],
+    [visibleProjects],
   );
 
   if (isLoading) {
@@ -221,7 +229,22 @@ export function PMProjectsBoard() {
     <>
       <Tabs defaultValue="kanban" className="w-full space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
-          <h2 className="text-xl font-bold tracking-tight">Projects Overview</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-xl font-bold tracking-tight">Projects Overview</h2>
+            {financialFilter && (
+              <Badge
+                variant="outline"
+                className="border-destructive/40 bg-destructive/10 text-destructive cursor-pointer"
+                onClick={() => {
+                  const next = new URLSearchParams(searchParams);
+                  next.delete("filter");
+                  setSearchParams(next);
+                }}
+              >
+                Financial alerts only · clear ✕
+              </Badge>
+            )}
+          </div>
           <TabsList className="bg-muted">
             <TabsTrigger value="kanban" className="gap-2">
               <LayoutGrid className="w-4 h-4" /> Kanban Board
