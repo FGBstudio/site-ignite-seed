@@ -57,9 +57,11 @@ const MISSING_META: Record<string, string> = {
 function PMProjectCard({
   project,
   onConfigure,
+  financialAlert,
 }: {
   project: PMProjectView;
   onConfigure: (project: PMProjectView) => void;
+  financialAlert?: { paymentDelay: number; paymentAmount: number; extraCanone: number };
 }) {
   const statusMeta = STATUS_META[project.setup_status];
   const StatusIcon = statusMeta.icon;
@@ -67,12 +69,14 @@ function PMProjectCard({
   const timelineConfigured = !project.missing.includes("Timeline");
   const scorecardConfigured = !project.missing.includes("Scorecard");
   const hardwareConfigured = !project.missing.includes("Hardware");
+  const hasFinancialAlert = !!financialAlert && (financialAlert.paymentDelay > 0 || financialAlert.extraCanone > 0);
 
   return (
     <Card
       className={cn(
         "border-border/70 bg-card transition-shadow hover:shadow-md",
-        project.is_deadline_critical && "border-destructive/60 bg-destructive/5 ring-1 ring-destructive/20"
+        project.is_deadline_critical && "border-destructive/60 bg-destructive/5 ring-1 ring-destructive/20",
+        hasFinancialAlert && !project.is_deadline_critical && "border-destructive/40 ring-1 ring-destructive/10"
       )}
     >
       <CardHeader className="space-y-4 pb-4">
@@ -94,6 +98,15 @@ function PMProjectCard({
           <Badge variant="outline" className="self-start border-destructive/60 bg-destructive/10 text-destructive">
             <AlertTriangle className="mr-1 h-3 w-3" />
             Critical deadline (&lt; 15 days)
+          </Badge>
+        )}
+
+        {hasFinancialAlert && (
+          <Badge variant="outline" className="self-start border-destructive/60 bg-destructive/10 text-destructive">
+            <DollarSign className="mr-1 h-3 w-3" />
+            Financial alert
+            {financialAlert!.paymentAmount > 0 && ` · €${financialAlert!.paymentAmount.toLocaleString("en-US")}`}
+            {financialAlert!.extraCanone > 0 && ` · Extra-Canone (${financialAlert!.extraCanone})`}
           </Badge>
         )}
 
