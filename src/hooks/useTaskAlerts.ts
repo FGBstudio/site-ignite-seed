@@ -8,7 +8,8 @@ export type TaskAlertType =
   | "project_on_hold"
   | "pm_operational"
   | "other_critical"
-  | "extra_canone";
+  | "extra_canone"
+  | "billing_due";
 
 export interface TaskAlert {
   id: string;
@@ -35,6 +36,7 @@ const ALERT_TYPE_LABELS: Record<TaskAlertType, string> = {
   pm_operational: "PM Operational",
   other_critical: "Critical Issue",
   extra_canone: "Extra-Canone",
+  billing_due: "Billing Due",
 };
 
 const ALERT_TYPE_COLORS: Record<TaskAlertType, string> = {
@@ -44,6 +46,7 @@ const ALERT_TYPE_COLORS: Record<TaskAlertType, string> = {
   pm_operational: "bg-primary/10 text-primary border-primary/20",
   other_critical: "bg-destructive/10 text-destructive border-destructive/20",
   extra_canone: "bg-destructive/10 text-destructive border-destructive/30",
+  billing_due: "bg-success/10 text-success border-success/30",
 };
 
 export { ALERT_TYPE_LABELS, ALERT_TYPE_COLORS };

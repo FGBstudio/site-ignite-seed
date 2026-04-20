@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { Plus, FileText, AlertTriangle, Shield, MessageSquare } from "lucide-react";
+import { Plus, FileText, AlertTriangle, Shield, MessageSquare, Receipt, CheckCircle2 } from "lucide-react";
 
 interface ProjectCanvasProps {
   certificationId: string;
@@ -20,6 +20,8 @@ const ENTRY_TYPE_CONFIG: Record<string, { label: string; color: string; icon: ty
   meeting_minutes: { label: "Meeting Minutes", color: "bg-primary/10 text-primary border-primary/20", icon: FileText },
   admin_support_request: { label: "Support Request", color: "bg-destructive/10 text-destructive border-destructive/20", icon: AlertTriangle },
   admin_note: { label: "Admin Note", color: "bg-warning/10 text-warning border-warning/20", icon: Shield },
+  payment_invoice_sent: { label: "Invoice issued", color: "bg-primary/10 text-primary border-primary/20", icon: Receipt },
+  payment_received: { label: "Payment received", color: "bg-success/10 text-success border-success/20", icon: CheckCircle2 },
   general: { label: "Note", color: "bg-muted text-muted-foreground border-border", icon: MessageSquare },
 };
 
@@ -150,7 +152,11 @@ export function ProjectCanvas({ certificationId }: ProjectCanvasProps) {
                 ? "has requested admin support"
                 : entry.entry_type === "admin_note"
                   ? "has added an admin note"
-                  : "has updated the canvas";
+                  : entry.entry_type === "payment_invoice_sent"
+                    ? "has issued an invoice"
+                    : entry.entry_type === "payment_received"
+                      ? "has registered a payment"
+                      : "has updated the canvas";
 
               return (
                 <div key={entry.id} className="relative pl-12 pb-6">
