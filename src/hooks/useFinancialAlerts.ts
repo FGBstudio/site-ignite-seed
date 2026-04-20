@@ -19,6 +19,14 @@ export interface ExtraCanoneItem {
   createdAt: string;
 }
 
+export interface AwaitingInvoiceItem {
+  certId: string;
+  name: string;
+  client: string | null;
+  title: string;
+  createdAt: string;
+}
+
 export interface FinancialAlertsResult {
   totalCount: number;
   overduePayments: {
@@ -30,6 +38,10 @@ export interface FinancialAlertsResult {
     count: number;
     projects: ExtraCanoneItem[];
   };
+  awaitingInvoice: {
+    count: number;
+    projects: AwaitingInvoiceItem[];
+  };
   /** Map keyed by certification_id with per-project flags */
   byProject: Map<
     string,
@@ -38,6 +50,7 @@ export interface FinancialAlertsResult {
       paymentDelay: number; // max days overdue
       paymentAmount: number; // sum of overdue
       extraCanone: number; // count of open extra_canone alerts
+      awaitingInvoice: number; // count of open billing_due alerts
     }
   >;
 }
@@ -46,6 +59,7 @@ const EMPTY: FinancialAlertsResult = {
   totalCount: 0,
   overduePayments: { count: 0, totalAmount: 0, projects: [] },
   extraCanone: { count: 0, projects: [] },
+  awaitingInvoice: { count: 0, projects: [] },
   byProject: new Map(),
 };
 
