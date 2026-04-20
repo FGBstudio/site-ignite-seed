@@ -98,11 +98,11 @@ export function useFinancialAlerts() {
       const { data: payRows, error: pErr } = await payQ;
       if (pErr) throw pErr;
 
-      // 2) Open Extra-Canone alerts
+      // 2) Open Extra-Canone + Billing-Due alerts
       let alertQ = (supabase as any)
         .from("task_alerts")
         .select("id, certification_id, title, created_at, is_resolved, alert_type, certifications!task_alerts_certification_id_fkey(id, name, client)")
-        .eq("alert_type", "extra_canone")
+        .in("alert_type", ["extra_canone", "billing_due"])
         .eq("is_resolved", false);
       if (scopedCertIds) alertQ = alertQ.in("certification_id", scopedCertIds);
       const { data: alertRows, error: aErr } = await alertQ;
@@ -111,7 +111,7 @@ export function useFinancialAlerts() {
       const today = new Date();
       const byProject = new Map<
         string,
-        { name: string; paymentDelay: number; paymentAmount: number; extraCanone: number }
+        { name: string; paymentDelay: number; paymentAmount: number; extraCanone: number; awaitingInvoice: number }
       >();
 
       // Aggregate overdue payments
@@ -142,10 +142,7 @@ export function useFinancialAlerts() {
         const ex = byProject.get(row.certification_id);
         if (!ex) {
           byProject.set(row.certification_id, {
-            name: certName,
-            paymentDelay: days,
-            paymentAmount: amt,
-            extraCanone: 0,
+            name: certName, paymentDelay: days, paymentAmount: amt, extraCanone: 0, awaitingInvoice: 0,
           });
         } else {
           ex.paymentAmount += amt;
@@ -153,47 +150,43 @@ export function useFinancialAlerts() {
         }
       }
 
-      // Aggregate extra-canone alerts
+      // Aggregate alerts (extra_canone + billing_due) — dedupe billing_due across PM/Admin duplicates
       const extraProjects: ExtraCanoneItem[] = [];
+      const awaitingMap = new Map<string, AwaitingInvoiceItem>();
       for (const row of (alertRows ?? []) as any[]) {
         const certName = row.certifications?.name || "—";
         const certClient = row.certifications?.client ?? null;
-        extraProjects.push({
-          certId: row.certification_id,
-          name: certName,
-          client: certClient,
-          title: row.title || "Extra-Canone",
-          createdAt: row.created_at,
-        });
 
-        const ex = byProject.get(row.certification_id);
-        if (!ex) {
-          byProject.set(row.certification_id, {
-            name: certName,
-            paymentDelay: 0,
-            paymentAmount: 0,
-            extraCanone: 1,
+        if (row.alert_type === "extra_canone") {
+          extraProjects.push({
+            certId: row.certification_id, name: certName, client: certClient,
+            title: row.title || "Extra-Canone", createdAt: row.created_at,
           });
-        } else {
-          ex.extraCanone += 1;
+          const ex = byProject.get(row.certification_id);
+          if (!ex) byProject.set(row.certification_id, { name: certName, paymentDelay: 0, paymentAmount: 0, extraCanone: 1, awaitingInvoice: 0 });
+          else ex.extraCanone += 1;
+        } else if (row.alert_type === "billing_due") {
+          const key = `${row.certification_id}::${row.title}`;
+          if (!awaitingMap.has(key)) {
+            awaitingMap.set(key, {
+              certId: row.certification_id, name: certName, client: certClient,
+              title: row.title || "Billing Due", createdAt: row.created_at,
+            });
+            const ex = byProject.get(row.certification_id);
+            if (!ex) byProject.set(row.certification_id, { name: certName, paymentDelay: 0, paymentAmount: 0, extraCanone: 0, awaitingInvoice: 1 });
+            else ex.awaitingInvoice += 1;
+          }
         }
       }
 
-      const overdueProjects = Array.from(overdueProjectsMap.values()).sort(
-        (a, b) => b.daysOverdue - a.daysOverdue,
-      );
+      const overdueProjects = Array.from(overdueProjectsMap.values()).sort((a, b) => b.daysOverdue - a.daysOverdue);
+      const awaitingProjects = Array.from(awaitingMap.values()).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 
       const result: FinancialAlertsResult = {
-        totalCount: overdueProjects.length + extraProjects.length,
-        overduePayments: {
-          count: overdueProjects.length,
-          totalAmount,
-          projects: overdueProjects,
-        },
-        extraCanone: {
-          count: extraProjects.length,
-          projects: extraProjects,
-        },
+        totalCount: overdueProjects.length + extraProjects.length + awaitingProjects.length,
+        overduePayments: { count: overdueProjects.length, totalAmount, projects: overdueProjects },
+        extraCanone: { count: extraProjects.length, projects: extraProjects },
+        awaitingInvoice: { count: awaitingProjects.length, projects: awaitingProjects },
         byProject,
       };
       return result;
