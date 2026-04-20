@@ -1,78 +1,140 @@
 
 
-## Fix "Financial Alerts" Widget — Bind to Real Financial Data + Click-Through Detail
-
-### Problem identified
-
-1. **PMPortal "Financial Issues" widget** currently filters projects whose `missing` array contains `"Hardware"` — that's a **setup gap**, not a financial alert. It is NOT linked to the real financial-alerts pipeline (overdue payment milestones, Extra-Canone handover delays).
-2. **CeoDashboard "Financial Issues" widget** correctly uses `computeOverduePayments()` from `cert_payment_milestones`, but the card is not clickable and has no detail drill-down (unlike the "Alerts / Tasks" card which navigates to `/admin-tasks`).
+## Invoicing Schemes Tied to Project Timeline + Confirmation Workflow
 
 ### Goal
+Admins pick an **invoicing scheme** when creating a quotation. The system auto-generates the payment milestones, links each tranche to a **timeline trigger** (quotation signed / design end / construction end), fires **alerts to PM + Admin** before each billing moment, and lets the **Admin** (only) confirm "Invoice sent" and "Payment received" — each confirmation writes an entry in the **Project Canvas** and the **Payments timeline**. PMs keep read-only view + alerts for follow-up.
 
-Make both Overview widgets (Admin & PM) reflect **real financial alerts** and behave like the "Alerts / Tasks" card: show summary + per-category indicators, click → land on the detailed view where the issues live.
+### Predefined schemes
 
-### Definition of "Financial Alert"
-
-A unified financial-issue model combining two existing data sources:
-
-| Source | Meaning | Severity |
+| Scheme | Tranches | Triggers |
 |---|---|---|
-| `cert_payment_milestones` where `status = 'Overdue'` | Unpaid invoice past due date | High (€) |
-| `task_alerts` where `alert_type = 'extra_canone'` and `is_resolved = false` | Handover postponed → contractual extra-fee impact | High |
+| `quotation_construction_50_50` | 50% / 50% | Quotation signed → Construction end |
+| `quotation_design_construction_30_40_30` | 30% / 40% / 30% | Quotation signed → Design end → Construction end |
+| `bdc_sal_custom` | N tranches (manual) | Each tranche linked manually to any timeline milestone |
 
-### Implementation
+---
 
-#### 1. New shared helper hook — `src/hooks/useFinancialAlerts.ts`
+### 1. Database migration
 
-Aggregates the two sources into one indicator set:
+Add to `cert_payment_milestones`:
+- `payment_scheme TEXT` (denormalised on each row, identifies the parent scheme — same value across rows of one cert)
+- `tranche_pct NUMERIC` — share (e.g. 50, 30, 40)
+- `tranche_order INT` — ordering inside the scheme
+- `trigger_event TEXT` — `quotation_signed | design_end | construction_end | manual_sal`
+- `invoice_sent_date DATE` (Admin confirms invoice sent)
+- `invoice_sent_by UUID`
+- `payment_received_date DATE` (Admin confirms payment received)
+- `payment_received_by UUID`
+
+Status flow widened to: `Pending → Due → Invoiced → Paid` (+ existing `Overdue`). `Due` = trigger event reached but not yet invoiced.
+
+Add to `task_alerts.alert_type` enum: **`billing_due`** (new value).
+
+Trigger `trg_payment_status_from_timeline` on `certification_milestones` UPDATE: when a milestone matching the trigger event reaches `achieved`/`completed_date`, flip the matching `cert_payment_milestones` row from `Pending → Due` and create a `billing_due` alert escalated to Admin (and visible to PM). When a payment row stays `Due` for >7 days without `invoice_sent_date`, a daily cron-style check (or query-time computation) flags it and renews/refreshes the alert.
+
+Helper function `apply_payment_scheme(cert_id, scheme, total_amount)`: deletes existing pending tranches and inserts new ones according to the scheme.
+
+### 2. Scheme generator helper — `src/lib/paymentSchemes.ts` (new)
+
 ```ts
-{
-  totalCount,                   // overdue payments + open extra_canone
-  overduePayments: { count, totalAmount, projects: [{certId, name, daysOverdue, amount}] },
-  extraCanone:     { count, projects: [{certId, name, title, createdAt}] },
-  byProject: Map<certId, { name, paymentDelay, paymentAmount, extraCanone }>
-}
+export type PaymentSchemeId =
+  | "quotation_construction_50_50"
+  | "quotation_design_construction_30_40_30"
+  | "bdc_sal_custom";
+
+export const PAYMENT_SCHEMES = {
+  quotation_construction_50_50: {
+    label: "50% Quotation / 50% Construction End",
+    tranches: [
+      { pct: 50, trigger: "quotation_signed", name: "50% on Quotation Signature" },
+      { pct: 50, trigger: "construction_end", name: "50% on Construction End" },
+    ],
+  },
+  quotation_design_construction_30_40_30: {
+    label: "30% / 40% Design End / 30% Construction End",
+    tranches: [
+      { pct: 30, trigger: "quotation_signed", name: "30% on Quotation Signature" },
+      { pct: 40, trigger: "design_end",       name: "40% on Design End" },
+      { pct: 30, trigger: "construction_end", name: "30% on Construction End" },
+    ],
+  },
+  bdc_sal_custom: {
+    label: "BD+C — Custom SAL (defined per project)",
+    tranches: [], // populated in the wizard
+  },
+};
+
+export function generateTranches(scheme, totalAmount, certId) { /* returns rows for cert_payment_milestones */ }
 ```
-- For ADMIN: query both tables globally.
-- For PM: filter both by certifications where `pm_id = auth.uid()`.
 
-Reuses existing `computeOverduePayments` logic from `useCeoDashboardData.ts` and reuses `useTaskAlerts` filtering on `extra_canone`.
+### 3. Quotation wizard — Admin-only scheme picker
 
-#### 2. Refactor PMPortal widget — `src/pages/PMPortal.tsx`
+Modify **`src/components/projects/NewQuotationWizard.tsx`** (Step 2, "Services & Quote"):
 
-Replace the broken "Hardware-missing" data source with `useFinancialAlerts()`. Restyle the card to match the "Alerts / Tasks" pattern:
+- New section **"Invoicing Scheme"** with:
+  - radio cards for the 3 schemes (above)
+  - if `bdc_sal_custom` → repeatable rows (`% | Trigger milestone | Name`) — `+ Add SAL`, `Remove`. Sum must = 100%.
+- On save: after the certification(s) is inserted, call `generateTranches(scheme, total_fees, certId)` and bulk-insert into `cert_payment_milestones`. The first tranche (`quotation_signed`) is created already in `Due` status when `quotation_sent_date` is set and signed (or stays `Pending` if not yet signed — Admin flips it via the same confirm flow).
 
-```text
-┌──────────────────────────────┐
-│ Financial Alerts        →    │  (clickable, hover shadow)
-│         3                    │
-│ open financial issues        │
-│ [Overdue: 2] [Extra-Canone:1]│
-└──────────────────────────────┘
+Apply the same picker in **`src/pages/ProjectCreateWizard.tsx`** Step 3 (per-certification) so projects created outside the quotation wizard also support the schemes.
+
+### 4. Payments view — split visibility & actions
+
+Replace **`src/components/projects/ProjectPayments.tsx`** to read from `cert_payment_milestones` (currently it reads from the deprecated `payment_milestones`). New layout:
+
 ```
-On click → `navigate("/projects?filter=financial")` (PM) — opens My Projects with a financial filter applied (highlights only projects flagged in `byProject`).
+Scheme: 30/40/30 — Total €120,000          [Edit scheme] (Admin only)
+─────────────────────────────────────────────────────────────────────
+#1  30% — Quotation Signature       Due 12 Jan    [Pending]   —
+#2  40% — Design End                Due 04 Apr    [Due]       [Mark invoice sent] (Admin)
+#3  30% — Construction End          Due 18 Sep    [Pending]   —
+─────────────────────────────────────────────────────────────────────
+Bars:  ▓▓▓▓░░░░░░  Invoiced 30%   Paid 0%   Due 70%
+```
 
-For PM specifically, also link the card to a new query-string `?tab=payments` on the project detail when only one project is impacted; otherwise list view.
+- **Admin** sees two action buttons per row when applicable:
+  - **"Confirm invoice sent"** → opens dialog (date defaulted today, optional invoice number/note) → updates row to `Invoiced` + writes `invoice_sent_date/by` + inserts a **canvas entry** (entry_type `payment_invoice_sent`) + resolves the related `billing_due` alert.
+  - **"Confirm payment received"** → opens dialog (date defaulted today, optional note) → updates row to `Paid` + writes `payment_received_date/by` + inserts a **canvas entry** (entry_type `payment_received`).
+- **PM** sees the same table but **without** action buttons (read-only badges only). PM still receives the alerts in the inbox.
 
-#### 3. Refactor CeoDashboard widget — `src/pages/CeoDashboard.tsx`
+### 5. Canvas integration
 
-- Make the existing "Financial Issues" card clickable: `onClick={() => setActiveTab("payments")}` (the `Payments` tab in the same dashboard already shows the detailed overdue list with bars).
-- Add per-category badges below the bar chart (Overdue count, Extra-Canone count) — same visual pattern as `Alerts / Tasks` card.
-- Rename title `Financial Issues` → `Financial Alerts` for consistency with the user's wording.
+Extend `ENTRY_TYPE_CONFIG` in **`src/components/projects/ProjectCanvas.tsx`** with two new types:
+- `payment_invoice_sent` — green/€ icon, label "Invoice issued"
+- `payment_received` — emerald/check icon, label "Payment received"
 
-#### 4. Highlight in detail view
+Both entries auto-generated on Admin confirmation include the tranche name, amount, and date so the canvas becomes the financial timeline of the project.
 
-- **CeoDashboard `payments` tab** (already shows project-by-project overdue bars) — no changes needed, lands here directly from the click.
-- **PM Projects board** (`PMProjectsBoard.tsx`): support `?filter=financial` query param → only show cards flagged in `useFinancialAlerts().byProject`. Add a small `Financial alert` badge on those cards (same style as existing `Critical deadline` badge).
+### 6. Alerts to PM + Admin (billing follow-up)
 
-### Files Modified
+New alert type `billing_due`:
+- Created by the DB trigger when the linked timeline milestone is reached.
+- `escalate_to_admin = true` (Admin sees it in CEO inbox)
+- Inserted **also** for the PM by inserting a duplicate row with `created_by = pm_id` so PM's existing inbox query (`created_by = auth.uid()`) picks it up — same pattern already used by `usePMDashboard`.
+- Labels added in `src/hooks/useTaskAlerts.ts`:
+  - `billing_due`: "Billing Due" — emerald color, `Receipt` icon.
+- Auto-resolved when Admin clicks **"Confirm invoice sent"**.
+
+The `useFinancialAlerts` hook already aggregates Overdue + Extra-Canone — extend it to also count `billing_due` open alerts under a new "Awaiting invoice" bucket so both Overview widgets (CeoDashboard, PMPortal) show the new category.
+
+### 7. Files modified / created
 
 | File | Change |
 |---|---|
-| `src/hooks/useFinancialAlerts.ts` | **NEW** — aggregates overdue payments + extra_canone alerts, role-scoped |
-| `src/pages/PMPortal.tsx` | Replace `financialData` (Hardware) with `useFinancialAlerts`; restyle widget like "Alerts/Tasks" with count + category badges; make clickable → `/projects?filter=financial` |
-| `src/pages/CeoDashboard.tsx` | Make Financial card clickable → switch to `payments` tab; add category badges; rename to "Financial Alerts" |
-| `src/components/projects/PMProjectsBoard.tsx` | Read `?filter=financial`; filter list and add `Financial alert` badge to flagged cards |
+| **Migration** | New columns on `cert_payment_milestones`, new enum value `billing_due`, trigger `trg_payment_status_from_timeline`, helper function `apply_payment_scheme` |
+| `src/lib/paymentSchemes.ts` | **NEW** — scheme registry + `generateTranches` |
+| `src/components/projects/NewQuotationWizard.tsx` | Add scheme picker + custom-SAL editor in Step 2; insert tranches on save |
+| `src/pages/ProjectCreateWizard.tsx` | Same scheme picker in Step 3 (per-cert) |
+| `src/components/projects/ProjectPayments.tsx` | Rewrite against `cert_payment_milestones`; Admin-only action buttons; bars; status flow Pending→Due→Invoiced→Paid |
+| `src/hooks/usePaymentMilestones.ts` | Repoint queries from `payment_milestones` to `cert_payment_milestones`; add `confirmInvoiceSent` / `confirmPaymentReceived` mutations that also write canvas entries |
+| `src/components/projects/ProjectCanvas.tsx` | Add `payment_invoice_sent` and `payment_received` entry-type configs |
+| `src/hooks/useTaskAlerts.ts` | Add `billing_due` to enum + label + color |
+| `src/hooks/useFinancialAlerts.ts` | Add "awaiting invoice" bucket (open `billing_due` alerts) |
+| `src/pages/CeoDashboard.tsx` / `src/pages/PMPortal.tsx` | Surface the new bucket in the Financial Alerts widget |
 
-No DB migration. No type changes (uses existing `cert_payment_milestones` and `extra_canone` alert type already in place).
+### Notes
+- All mutations role-gated client-side **and** by RLS: only Admins can update `invoice_sent_date` / `payment_received_date` (existing `Admin full access` policy on `cert_payment_milestones` already covers this; PM policy stays read-only on these new columns through column-level UPDATE check via trigger).
+- The deprecated `payment_milestones` table stays untouched for backward compatibility with `MyTasks.tsx` blocking-payment lookups.
+- No automatic date changes anywhere — Admin confirmations only.
 
