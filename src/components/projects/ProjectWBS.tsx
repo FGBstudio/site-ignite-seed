@@ -153,7 +153,7 @@ export function ProjectWBS({ projectId, role }: Props) {
   const isBlocked = (task: ProjectTask): boolean => {
     if (task.blocking_payment_id) {
       const payment = paymentMap.get(task.blocking_payment_id);
-      if (payment && payment.status !== "paid") return true;
+      if (payment && payment.status !== "Paid") return true;
     }
     if (task.allocation_id) {
       const allocation = allocationMap.get(task.allocation_id);
@@ -167,7 +167,7 @@ export function ProjectWBS({ projectId, role }: Props) {
   const getBlockingPaymentName = (task: ProjectTask): string | null => {
     if (!task.blocking_payment_id) return null;
     const payment = paymentMap.get(task.blocking_payment_id);
-    return payment ? payment.milestone_name : null;
+    return payment ? payment.name : null;
   };
 
   const getBlockingAllocationInfo = (task: ProjectTask): { productName: string; status: string } | null => {
@@ -409,7 +409,7 @@ export function ProjectWBS({ projectId, role }: Props) {
                   <SelectContent>
                     <SelectItem value="">No block</SelectItem>
                     {payments.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>{p.milestone_name} — €{Number(p.amount).toLocaleString("en-US")}</SelectItem>
+                      <SelectItem key={p.id} value={p.id}>{p.name} — €{Number(p.amount).toLocaleString("en-US")}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

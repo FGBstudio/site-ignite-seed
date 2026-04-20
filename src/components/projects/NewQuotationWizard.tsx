@@ -5,6 +5,7 @@ import { useHoldings, useBrands, useSites } from "@/hooks/useProjectDetails";
 import { RATING_SYSTEMS, RATING_SUBTYPES, type RatingSystem } from "@/data/ratingSubtypes";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { PAYMENT_SCHEMES, TRIGGER_LABELS, generateTranches, validateCustomTranches, type PaymentSchemeId, type TriggerEvent } from "@/lib/paymentSchemes";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -76,6 +77,8 @@ interface ServicesState {
   quotationSentDate: Date | undefined;
   fgbMonitor: boolean;
   notes: string;
+  paymentScheme: import("@/lib/paymentSchemes").PaymentSchemeId;
+  customSal: { pct: string; trigger: import("@/lib/paymentSchemes").TriggerEvent; name: string }[];
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -89,6 +92,8 @@ function emptyServices(): ServicesState {
     projectName: "", client: "", region: "Europe", handoverDate: undefined,
     certifications: [], sqm: "", servicesFees: "", gbciFees: "", totalFees: "",
     quotationSentDate: undefined, fgbMonitor: false, notes: "",
+    paymentScheme: "quotation_construction_50_50",
+    customSal: [{ pct: "100", trigger: "manual_sal", name: "SAL 1" }],
   };
 }
 
