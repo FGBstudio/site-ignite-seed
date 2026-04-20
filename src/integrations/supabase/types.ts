@@ -360,8 +360,16 @@ export type Database = {
           created_at: string
           due_date: string | null
           id: string
+          invoice_sent_by: string | null
+          invoice_sent_date: string | null
           name: string
+          payment_received_by: string | null
+          payment_received_date: string | null
+          payment_scheme: string | null
           status: string
+          tranche_order: number | null
+          tranche_pct: number | null
+          trigger_event: string | null
           trigger_task_id: string | null
         }
         Insert: {
@@ -370,8 +378,16 @@ export type Database = {
           created_at?: string
           due_date?: string | null
           id?: string
+          invoice_sent_by?: string | null
+          invoice_sent_date?: string | null
           name: string
+          payment_received_by?: string | null
+          payment_received_date?: string | null
+          payment_scheme?: string | null
           status?: string
+          tranche_order?: number | null
+          tranche_pct?: number | null
+          trigger_event?: string | null
           trigger_task_id?: string | null
         }
         Update: {
@@ -380,8 +396,16 @@ export type Database = {
           created_at?: string
           due_date?: string | null
           id?: string
+          invoice_sent_by?: string | null
+          invoice_sent_date?: string | null
           name?: string
+          payment_received_by?: string | null
+          payment_received_date?: string | null
+          payment_scheme?: string | null
           status?: string
+          tranche_order?: number | null
+          tranche_pct?: number | null
+          trigger_event?: string | null
           trigger_task_id?: string | null
         }
         Relationships: [
@@ -3037,6 +3061,10 @@ export type Database = {
           rows_inserted: number
           rows_processed: number
         }[]
+      }
+      apply_payment_scheme: {
+        Args: { _cert_id: string; _scheme: string; _total: number }
+        Returns: undefined
       }
       can_access_brand: {
         Args: { _brand_id: string; _user_id: string }
