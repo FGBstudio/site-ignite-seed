@@ -26,7 +26,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { CheckCircle, ExternalLink, Inbox, AlertTriangle, Clock, Pause, FolderKanban, CalendarDays, Settings2, ChevronDown, Plus, TrendingUp } from "lucide-react";
+import { CheckCircle, ExternalLink, Inbox, AlertTriangle, Clock, Pause, FolderKanban, CalendarDays, Settings2, ChevronDown, Plus, TrendingUp, Receipt } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
@@ -37,6 +37,7 @@ const TYPE_ICONS: Record<TaskAlertType, typeof AlertTriangle> = {
   pm_operational: Inbox,
   other_critical: AlertTriangle,
   extra_canone: TrendingUp,
+  billing_due: Receipt,
 };
 
 export default function AdminTasks() {

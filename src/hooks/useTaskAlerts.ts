@@ -119,6 +119,7 @@ export function useTaskAlertCounts(role: AppRole | null, userId: string | undefi
       pm_operational: 0,
       other_critical: 0,
       extra_canone: 0,
+      billing_due: 0,
     }
   );
 
