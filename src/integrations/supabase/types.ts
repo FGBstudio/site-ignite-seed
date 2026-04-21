@@ -65,40 +65,79 @@ export type Database = {
       alert_audit_log: {
         Row: {
           action: string
+          alert_id: string | null
           changed_at: string | null
           changed_by: string | null
           details: Json | null
+          device_id: string | null
           id: string
+          metric: string | null
           new_status: string | null
           prev_status: string | null
+          rule_id: string | null
+          severity: string | null
           site_alert_id: string | null
+          site_id: string | null
         }
         Insert: {
           action: string
+          alert_id?: string | null
           changed_at?: string | null
           changed_by?: string | null
           details?: Json | null
+          device_id?: string | null
           id?: string
+          metric?: string | null
           new_status?: string | null
           prev_status?: string | null
+          rule_id?: string | null
+          severity?: string | null
           site_alert_id?: string | null
+          site_id?: string | null
         }
         Update: {
           action?: string
+          alert_id?: string | null
           changed_at?: string | null
           changed_by?: string | null
           details?: Json | null
+          device_id?: string | null
           id?: string
+          metric?: string | null
           new_status?: string | null
           prev_status?: string | null
+          rule_id?: string | null
+          severity?: string | null
           site_alert_id?: string | null
+          site_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "alert_audit_log_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "devices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alert_audit_log_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "alert_rules"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "alert_audit_log_site_alert_id_fkey"
             columns: ["site_alert_id"]
             isOneToOne: false
             referencedRelation: "site_alerts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alert_audit_log_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
             referencedColumns: ["id"]
           },
         ]
@@ -1917,6 +1956,9 @@ export type Database = {
       sensor_health: {
         Row: {
           flapping_count_24h: number | null
+          flatline_started_at: string | null
+          health_message: string | null
+          is_degraded: boolean | null
           is_flatlining: boolean | null
           is_offline: boolean | null
           last_evaluated_at: string | null
@@ -1929,6 +1971,9 @@ export type Database = {
         }
         Insert: {
           flapping_count_24h?: number | null
+          flatline_started_at?: string | null
+          health_message?: string | null
+          is_degraded?: boolean | null
           is_flatlining?: boolean | null
           is_offline?: boolean | null
           last_evaluated_at?: string | null
@@ -1941,6 +1986,9 @@ export type Database = {
         }
         Update: {
           flapping_count_24h?: number | null
+          flatline_started_at?: string | null
+          health_message?: string | null
+          is_degraded?: boolean | null
           is_flatlining?: boolean | null
           is_offline?: boolean | null
           last_evaluated_at?: string | null
@@ -2056,6 +2104,57 @@ export type Database = {
           },
         ]
       }
+      site_alerts_history: {
+        Row: {
+          alert_key: string | null
+          archived_at: string | null
+          device_id: string | null
+          id: string
+          message: string | null
+          metadata: Json | null
+          metric: string | null
+          resolved_at: string | null
+          rule_id: string | null
+          severity: string | null
+          site_id: string | null
+          status: string | null
+          triggered_at: string | null
+          value_at_trigger: number | null
+        }
+        Insert: {
+          alert_key?: string | null
+          archived_at?: string | null
+          device_id?: string | null
+          id: string
+          message?: string | null
+          metadata?: Json | null
+          metric?: string | null
+          resolved_at?: string | null
+          rule_id?: string | null
+          severity?: string | null
+          site_id?: string | null
+          status?: string | null
+          triggered_at?: string | null
+          value_at_trigger?: number | null
+        }
+        Update: {
+          alert_key?: string | null
+          archived_at?: string | null
+          device_id?: string | null
+          id?: string
+          message?: string | null
+          metadata?: Json | null
+          metric?: string | null
+          resolved_at?: string | null
+          rule_id?: string | null
+          severity?: string | null
+          site_id?: string | null
+          status?: string | null
+          triggered_at?: string | null
+          value_at_trigger?: number | null
+        }
+        Relationships: []
+      }
       site_config: {
         Row: {
           created_at: string | null
@@ -2134,11 +2233,16 @@ export type Database = {
           energy_plugs_kwh: number | null
           energy_total_kwh: number | null
           id: string
+          metadata: Json | null
+          metric: string | null
+          period: string | null
           period_end: string | null
           period_start: string | null
           period_type: string | null
           site_id: string
+          ts: string | null
           ts_computed: string
+          value: number | null
           water_consumption_liters: number | null
           water_leak_count: number | null
           water_target_liters: number | null
@@ -2164,11 +2268,16 @@ export type Database = {
           energy_plugs_kwh?: number | null
           energy_total_kwh?: number | null
           id?: string
+          metadata?: Json | null
+          metric?: string | null
+          period?: string | null
           period_end?: string | null
           period_start?: string | null
           period_type?: string | null
           site_id: string
+          ts?: string | null
           ts_computed?: string
+          value?: number | null
           water_consumption_liters?: number | null
           water_leak_count?: number | null
           water_target_liters?: number | null
@@ -2194,11 +2303,16 @@ export type Database = {
           energy_plugs_kwh?: number | null
           energy_total_kwh?: number | null
           id?: string
+          metadata?: Json | null
+          metric?: string | null
+          period?: string | null
           period_end?: string | null
           period_start?: string | null
           period_type?: string | null
           site_id?: string
+          ts?: string | null
           ts_computed?: string
+          value?: number | null
           water_consumption_liters?: number | null
           water_leak_count?: number | null
           water_target_liters?: number | null
@@ -2215,17 +2329,30 @@ export type Database = {
       }
       site_thresholds: {
         Row: {
+          air_co_critical_ppm: number | null
+          air_co_warning_ppm: number | null
           air_co2_critical_ppm: number | null
           air_co2_warning_ppm: number | null
           air_humidity_max_pct: number | null
           air_humidity_min_pct: number | null
+          air_o3_critical_ppb: number | null
+          air_o3_warning_ppb: number | null
+          air_pm10_critical_ugm3: number | null
+          air_pm10_warning_ugm3: number | null
+          air_pm25_critical_ugm3: number | null
+          air_pm25_warning_ugm3: number | null
           air_temp_max_c: number | null
           air_temp_min_c: number | null
+          air_voc_critical_ppb: number | null
+          air_voc_warning_ppb: number | null
+          connectivity_offline_threshold_energy_min: number | null
+          connectivity_offline_threshold_min: number | null
           created_at: string
           created_by: string | null
           energy_anomaly_detection_enabled: boolean | null
           energy_daily_budget_kwh: number | null
           energy_power_limit_kw: number | null
+          energy_target_eui_kwh_m2: number | null
           id: string
           site_id: string
           updated_at: string
@@ -2234,17 +2361,30 @@ export type Database = {
           water_leak_threshold_lh: number | null
         }
         Insert: {
+          air_co_critical_ppm?: number | null
+          air_co_warning_ppm?: number | null
           air_co2_critical_ppm?: number | null
           air_co2_warning_ppm?: number | null
           air_humidity_max_pct?: number | null
           air_humidity_min_pct?: number | null
+          air_o3_critical_ppb?: number | null
+          air_o3_warning_ppb?: number | null
+          air_pm10_critical_ugm3?: number | null
+          air_pm10_warning_ugm3?: number | null
+          air_pm25_critical_ugm3?: number | null
+          air_pm25_warning_ugm3?: number | null
           air_temp_max_c?: number | null
           air_temp_min_c?: number | null
+          air_voc_critical_ppb?: number | null
+          air_voc_warning_ppb?: number | null
+          connectivity_offline_threshold_energy_min?: number | null
+          connectivity_offline_threshold_min?: number | null
           created_at?: string
           created_by?: string | null
           energy_anomaly_detection_enabled?: boolean | null
           energy_daily_budget_kwh?: number | null
           energy_power_limit_kw?: number | null
+          energy_target_eui_kwh_m2?: number | null
           id?: string
           site_id: string
           updated_at?: string
@@ -2253,17 +2393,30 @@ export type Database = {
           water_leak_threshold_lh?: number | null
         }
         Update: {
+          air_co_critical_ppm?: number | null
+          air_co_warning_ppm?: number | null
           air_co2_critical_ppm?: number | null
           air_co2_warning_ppm?: number | null
           air_humidity_max_pct?: number | null
           air_humidity_min_pct?: number | null
+          air_o3_critical_ppb?: number | null
+          air_o3_warning_ppb?: number | null
+          air_pm10_critical_ugm3?: number | null
+          air_pm10_warning_ugm3?: number | null
+          air_pm25_critical_ugm3?: number | null
+          air_pm25_warning_ugm3?: number | null
           air_temp_max_c?: number | null
           air_temp_min_c?: number | null
+          air_voc_critical_ppb?: number | null
+          air_voc_warning_ppb?: number | null
+          connectivity_offline_threshold_energy_min?: number | null
+          connectivity_offline_threshold_min?: number | null
           created_at?: string
           created_by?: string | null
           energy_anomaly_detection_enabled?: boolean | null
           energy_daily_budget_kwh?: number | null
           energy_power_limit_kw?: number | null
+          energy_target_eui_kwh_m2?: number | null
           id?: string
           site_id?: string
           updated_at?: string
@@ -2276,6 +2429,70 @@ export type Database = {
             foreignKeyName: "site_thresholds_site_id_fkey"
             columns: ["site_id"]
             isOneToOne: true
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      site_weather_energy_daily: {
+        Row: {
+          energy_kwh: number | null
+          humidity_pct: number | null
+          site_id: string
+          temp_c: number | null
+          ts_day: string
+        }
+        Insert: {
+          energy_kwh?: number | null
+          humidity_pct?: number | null
+          site_id: string
+          temp_c?: number | null
+          ts_day: string
+        }
+        Update: {
+          energy_kwh?: number | null
+          humidity_pct?: number | null
+          site_id?: string
+          temp_c?: number | null
+          ts_day?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "site_weather_energy_daily_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      site_weather_energy_hourly: {
+        Row: {
+          energy_kwh: number | null
+          humidity_pct: number | null
+          site_id: string
+          temp_c: number | null
+          ts_hour: string
+        }
+        Insert: {
+          energy_kwh?: number | null
+          humidity_pct?: number | null
+          site_id: string
+          temp_c?: number | null
+          ts_hour: string
+        }
+        Update: {
+          energy_kwh?: number | null
+          humidity_pct?: number | null
+          site_id?: string
+          temp_c?: number | null
+          ts_hour?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "site_weather_energy_hourly_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
             referencedRelation: "sites"
             referencedColumns: ["id"]
           },
@@ -3066,6 +3283,18 @@ export type Database = {
         Args: { _cert_id: string; _scheme: string; _total: number }
         Returns: undefined
       }
+      archive_resolved_alerts: {
+        Args: { p_retention_days?: number }
+        Returns: undefined
+      }
+      backfill_correlation_cache: {
+        Args: { p_days?: number; p_site_id?: string }
+        Returns: undefined
+      }
+      calculate_site_weather_correlation: {
+        Args: { p_days?: number; p_site_id: string }
+        Returns: number
+      }
       can_access_brand: {
         Args: { _brand_id: string; _user_id: string }
         Returns: boolean
@@ -3158,6 +3387,15 @@ export type Database = {
       generate_standard_leed_timeline: {
         Args: { p_certification_id: string }
         Returns: undefined
+      }
+      get_energy_weather_correlation_data: {
+        Args: { p_end_date?: string; p_site_id: string; p_start_date?: string }
+        Returns: {
+          energy_kwh: number
+          humidity_pct: number
+          temp_c: number
+          ts: string
+        }[]
       }
       get_panel_config: {
         Args: { p_device_id: string; p_site_id: string }
@@ -3260,6 +3498,8 @@ export type Database = {
           raw_deleted: number
         }[]
       }
+      refresh_correlation_cache: { Args: never; Returns: undefined }
+      refresh_weather_impact_insights: { Args: never; Returns: undefined }
       reprocess_failed_mqtt_messages: {
         Args: { p_limit?: number }
         Returns: {
@@ -3291,6 +3531,10 @@ export type Database = {
           job_name: string
           status: string
         }[]
+      }
+      sync_site_settings_to_rules: {
+        Args: { p_site_id: string }
+        Returns: undefined
       }
       sync_telemetry_to_energy: {
         Args: { p_since?: string }
