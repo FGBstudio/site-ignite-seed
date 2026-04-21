@@ -22,6 +22,7 @@ import { Separator } from "@/components/ui/separator";
 import { CalendarIcon, Plus, Trash2, Loader2, Edit3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import { NewBrandButton, NewHoldingButton } from "@/components/projects/BrandHoldingCreator";
 
 import { RATING_SYSTEMS, RATING_SUBTYPES, type RatingSystem } from "@/data/ratingSubtypes";
 import { getCertificationTemplate } from "@/data/certificationTemplates";
