@@ -1,6 +1,7 @@
 import { ReactNode } from "react";
 import { TopNavbar } from "./TopNavbar";
 import { PMConfirmationDialog } from "@/components/dashboard/PMConfirmationDialog";
+import { useAdminEscalationNotifications } from "@/hooks/useAdminEscalationNotifications";
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -9,6 +10,9 @@ interface MainLayoutProps {
 }
 
 export function MainLayout({ children, title, subtitle }: MainLayoutProps) {
+  // Live escalation pop-ups for admins (no-op for other roles)
+  useAdminEscalationNotifications();
+
   return (
     <div className="min-h-screen w-full bg-background">
       <TopNavbar />

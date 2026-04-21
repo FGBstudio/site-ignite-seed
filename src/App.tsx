@@ -18,6 +18,7 @@ import CeoDashboard from "./pages/CeoDashboard";
 import MyTasks from "./pages/MyTasks";
 import PMPortal from "./pages/PMPortal";
 import AdminTasks from "./pages/AdminTasks";
+import Contacts from "./pages/Contacts";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 
@@ -58,6 +59,9 @@ function AppRoutes() {
       
       {/* PM Dashboard */}
       <Route path="/pm-portal" element={<ProtectedRoute allowedRoles={R("PM")}><PMPortal /></ProtectedRoute>} />
+      
+      {/* Contacts directory: Admin (full) + PM (read-only) */}
+      <Route path="/contacts" element={<ProtectedRoute allowedRoles={R("ADMIN", "PM")}><Contacts /></ProtectedRoute>} />
       
       {/* Operative inbox */}
       <Route path="/my-tasks" element={<ProtectedRoute allowedRoles={R("ADMIN", "PM", "document_manager", "specialist", "energy_modeler", "cxa")}><MyTasks /></ProtectedRoute>} />

@@ -786,6 +786,95 @@ export type Database = {
           },
         ]
       }
+      contacts: {
+        Row: {
+          address: string | null
+          bank_name: string | null
+          brand_id: string | null
+          city: string | null
+          company_name: string
+          country: string | null
+          created_at: string
+          created_by: string | null
+          email: string | null
+          iban: string | null
+          id: string
+          kind: string
+          notes: string | null
+          pec: string | null
+          phone: string | null
+          postal_code: string | null
+          primary_contact_email: string | null
+          primary_contact_name: string | null
+          primary_contact_phone: string | null
+          primary_contact_role: string | null
+          tax_code: string | null
+          updated_at: string
+          vat_number: string | null
+          website: string | null
+        }
+        Insert: {
+          address?: string | null
+          bank_name?: string | null
+          brand_id?: string | null
+          city?: string | null
+          company_name: string
+          country?: string | null
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          iban?: string | null
+          id?: string
+          kind: string
+          notes?: string | null
+          pec?: string | null
+          phone?: string | null
+          postal_code?: string | null
+          primary_contact_email?: string | null
+          primary_contact_name?: string | null
+          primary_contact_phone?: string | null
+          primary_contact_role?: string | null
+          tax_code?: string | null
+          updated_at?: string
+          vat_number?: string | null
+          website?: string | null
+        }
+        Update: {
+          address?: string | null
+          bank_name?: string | null
+          brand_id?: string | null
+          city?: string | null
+          company_name?: string
+          country?: string | null
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          iban?: string | null
+          id?: string
+          kind?: string
+          notes?: string | null
+          pec?: string | null
+          phone?: string | null
+          postal_code?: string | null
+          primary_contact_email?: string | null
+          primary_contact_name?: string | null
+          primary_contact_phone?: string | null
+          primary_contact_role?: string | null
+          tax_code?: string | null
+          updated_at?: string
+          vat_number?: string | null
+          website?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contacts_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       device_migration_log: {
         Row: {
           id: number
@@ -1697,6 +1786,7 @@ export type Database = {
           id: string
           job_title: string | null
           last_name: string | null
+          notify_escalations_email: boolean
           phone: string | null
           updated_at: string | null
         }
@@ -1711,6 +1801,7 @@ export type Database = {
           id: string
           job_title?: string | null
           last_name?: string | null
+          notify_escalations_email?: boolean
           phone?: string | null
           updated_at?: string | null
         }
@@ -1725,6 +1816,7 @@ export type Database = {
           id?: string
           job_title?: string | null
           last_name?: string | null
+          notify_escalations_email?: boolean
           phone?: string | null
           updated_at?: string | null
         }

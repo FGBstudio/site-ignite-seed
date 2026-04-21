@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import { NewBrandButton, NewHoldingButton } from "@/components/projects/BrandHoldingCreator";
 
 const STEPS = [
   { id: 1, title: "Site", icon: Building2, description: "Location & physical site" },
@@ -301,7 +302,8 @@ export default function ProjectCreateWizard() {
         <div className="max-w-3xl mx-auto">
           {step === 1 && <StepSite draft={draft} updateDraft={updateDraft} errors={errors}
             holdings={holdings} brands={brands} sites={sites}
-            loadingHoldings={loadingHoldings} loadingBrands={loadingBrands} loadingSites={loadingSites} />}
+            loadingHoldings={loadingHoldings} loadingBrands={loadingBrands} loadingSites={loadingSites}
+            isAdmin={isAdmin} />}
           {step === 2 && <StepProject draft={draft} updateDraft={updateDraft} errors={errors} />}
           {step === 3 && <StepCertifications draft={draft} updateDraft={updateDraft} errors={errors}
             pms={pms} loadingPMs={loadingPMs} isAdmin={isAdmin} />}
@@ -334,11 +336,12 @@ export default function ProjectCreateWizard() {
 
 /* ─── Step 1: Site ──────────────────────────────────────────── */
 
-function StepSite({ draft, updateDraft, errors, holdings, brands, sites, loadingHoldings, loadingBrands, loadingSites }: {
+function StepSite({ draft, updateDraft, errors, holdings, brands, sites, loadingHoldings, loadingBrands, loadingSites, isAdmin }: {
   draft: WizardDraft; updateDraft: (p: Partial<WizardDraft>) => void;
   errors: Record<string, string>;
   holdings: any[]; brands: any[]; sites: any[];
   loadingHoldings: boolean; loadingBrands: boolean; loadingSites: boolean;
+  isAdmin: boolean;
 }) {
   return (
     <div className="space-y-8">
@@ -351,17 +354,27 @@ function StepSite({ draft, updateDraft, errors, holdings, brands, sites, loading
         <CardContent className="pt-6 space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <FieldWrapper label="Holding" error={errors.holding_id}>
-              <Select value={draft.holding_id} onValueChange={(v) => updateDraft({ holding_id: v, brand_id: "", site_id: "" })}>
-                <SelectTrigger><SelectValue placeholder={loadingHoldings ? "Loading..." : "Select holding"} /></SelectTrigger>
-                <SelectContent>{holdings.map((h: any) => <SelectItem key={h.id} value={h.id}>{h.name}</SelectItem>)}</SelectContent>
-              </Select>
+              <div className="flex gap-2">
+                <Select value={draft.holding_id} onValueChange={(v) => updateDraft({ holding_id: v, brand_id: "", site_id: "" })}>
+                  <SelectTrigger className="flex-1"><SelectValue placeholder={loadingHoldings ? "Loading..." : "Select holding"} /></SelectTrigger>
+                  <SelectContent>{holdings.map((h: any) => <SelectItem key={h.id} value={h.id}>{h.name}</SelectItem>)}</SelectContent>
+                </Select>
+                {isAdmin && (
+                  <NewHoldingButton onCreated={(id) => updateDraft({ holding_id: id, brand_id: "", site_id: "" })} />
+                )}
+              </div>
             </FieldWrapper>
 
             <FieldWrapper label="Brand" error={errors.brand_id}>
-              <Select value={draft.brand_id} onValueChange={(v) => updateDraft({ brand_id: v, site_id: "" })} disabled={!draft.holding_id}>
-                <SelectTrigger><SelectValue placeholder={!draft.holding_id ? "Select holding first" : loadingBrands ? "Loading..." : "Select brand"} /></SelectTrigger>
-                <SelectContent>{brands.map((b: any) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}</SelectContent>
-              </Select>
+              <div className="flex gap-2">
+                <Select value={draft.brand_id} onValueChange={(v) => updateDraft({ brand_id: v, site_id: "" })} disabled={!draft.holding_id}>
+                  <SelectTrigger className="flex-1"><SelectValue placeholder={!draft.holding_id ? "Select holding first" : loadingBrands ? "Loading..." : "Select brand"} /></SelectTrigger>
+                  <SelectContent>{brands.map((b: any) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}</SelectContent>
+                </Select>
+                {isAdmin && (
+                  <NewBrandButton holdingId={draft.holding_id} onCreated={(id) => updateDraft({ brand_id: id, site_id: "" })} disabled={!draft.holding_id} />
+                )}
+              </div>
             </FieldWrapper>
 
             <FieldWrapper label="Site" error={errors.site_id}>

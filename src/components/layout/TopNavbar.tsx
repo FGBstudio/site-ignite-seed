@@ -11,6 +11,7 @@ import {
   Settings,
   LayoutDashboard,
   Inbox,
+  Contact as ContactIcon,
 } from "lucide-react";
 
 interface NavItem {
@@ -65,6 +66,7 @@ export function TopNavbar() {
     navItems = [
       { title: "Admin Dashboard", url: "/ceo-dashboard", icon: Crown },
       { title: "Projects", url: "/projects", icon: FolderKanban },
+      { title: "Contacts", url: "/contacts", icon: ContactIcon },
       { title: "Tasks & Alerts", url: "/admin-tasks", icon: Inbox },
       { title: "Inventory", url: "/inventory", icon: Package },
       { title: "Orders", url: "/supplier-orders", icon: Truck },
@@ -75,6 +77,7 @@ export function TopNavbar() {
     navItems = [
       { title: "Dashboard", url: "/pm-portal", icon: LayoutDashboard },
       { title: "My Projects", url: "/projects", icon: FolderKanban },
+      { title: "Contacts", url: "/contacts", icon: ContactIcon },
       { title: "My Tasks", url: "/my-tasks", icon: Inbox },
     ];
   } else if (isOperative) {
