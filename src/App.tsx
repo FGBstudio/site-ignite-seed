@@ -20,6 +20,7 @@ import PMPortal from "./pages/PMPortal";
 import AdminTasks from "./pages/AdminTasks";
 import Contacts from "./pages/Contacts";
 import Login from "./pages/Login";
+import Unsubscribe from "./pages/Unsubscribe";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -42,6 +43,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={user ? <Navigate to={getDefaultRoute(role)} replace /> : <Login />} />
+      <Route path="/unsubscribe" element={<Unsubscribe />} />
       
       {/* Admin routes */}
       <Route path="/" element={<ProtectedRoute allowedRoles={R("ADMIN")}><Index /></ProtectedRoute>} />
