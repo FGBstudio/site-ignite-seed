@@ -68,7 +68,7 @@ export function TopNavbar() {
       { title: "Projects", url: "/projects", icon: FolderKanban },
       { title: "Contacts", url: "/contacts", icon: ContactIcon },
       { title: "Tasks & Alerts", url: "/admin-tasks", icon: Inbox },
-      { title: "Inventory", url: "/inventory", icon: Package },
+      { title: "Hardwares", url: "/hardwares", icon: Package },
       { title: "Orders", url: "/supplier-orders", icon: Truck },
       { title: "Reports", url: "/reports", icon: BarChart3 },
       { title: "Settings", url: "/settings", icon: Settings },

@@ -184,6 +184,29 @@
     box-shadow: var(--shadow-md);
   }
 
+  .premium-card {
+    @apply relative overflow-hidden transition-all duration-300;
+    background: linear-gradient(135deg, hsl(var(--card)) 0%, hsl(var(--background)) 100%);
+    border: 1px solid hsl(var(--border) / 0.5);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .premium-card:hover {
+    @apply -translate-y-1;
+    box-shadow: var(--shadow-lg), 0 0 20px hsl(var(--primary) / 0.1);
+    border-color: hsl(var(--primary) / 0.3);
+  }
+
+  .premium-card::after {
+    content: '';
+    @apply absolute inset-0 pointer-events-none opacity-0 transition-opacity duration-500;
+    background: radial-gradient(circle at top right, hsl(var(--primary) / 0.05), transparent 70%);
+  }
+
+  .premium-card:hover::after {
+    @apply opacity-100;
+  }
+
   /* ── Stat / KPI card (Gestionale: bordo sinistro colorato) ── */
   .stat-card {
     background: hsl(var(--card));

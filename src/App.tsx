@@ -11,6 +11,7 @@ import Projects from "./pages/Projects";
 import ProjectCreateWizard from "./pages/ProjectCreateWizard";
 import ProjectDetail from "./pages/ProjectDetail";
 import Inventory from "./pages/Inventory";
+import Hardwares from "./pages/Hardwares";
 import SupplierOrders from "./pages/SupplierOrders";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
@@ -49,6 +50,7 @@ function AppRoutes() {
       <Route path="/" element={<ProtectedRoute allowedRoles={R("ADMIN")}><Index /></ProtectedRoute>} />
       <Route path="/ceo-dashboard" element={<ProtectedRoute allowedRoles={R("ADMIN")}><CeoDashboard /></ProtectedRoute>} />
       <Route path="/inventory" element={<ProtectedRoute allowedRoles={R("ADMIN")}><Inventory /></ProtectedRoute>} />
+      <Route path="/hardwares" element={<ProtectedRoute allowedRoles={R("ADMIN")}><Hardwares /></ProtectedRoute>} />
       <Route path="/supplier-orders" element={<ProtectedRoute allowedRoles={R("ADMIN")}><SupplierOrders /></ProtectedRoute>} />
       <Route path="/reports" element={<ProtectedRoute allowedRoles={R("ADMIN")}><Reports /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute allowedRoles={R("ADMIN")}><Settings /></ProtectedRoute>} />

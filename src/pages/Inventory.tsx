@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +12,19 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Plus, Table as TableIcon } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -33,6 +47,16 @@ interface AllocationDetail {
   target_date: string;
 }
 
+interface HardwareItem {
+  id: string;
+  device_id: string;
+  mac_address: string;
+  product_id: string;
+  site_id: string;
+  status: string;
+  shipment_date: string;
+}
+
 interface ProductBreakdown {
   total_stock: number;
   total_allocated: number;
@@ -41,28 +65,48 @@ interface ProductBreakdown {
   allocated: number;
   shipped: number;
   allocations: AllocationDetail[];
+  serialized_items: HardwareItem[];
 }
 
 export default function Inventory() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sites, setSites] = useState<any[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [breakdown, setBreakdown] = useState<ProductBreakdown | null>(null);
   const [loadingBreakdown, setLoadingBreakdown] = useState(false);
+  
+  const navigate = useNavigate();
+
+  const fetchInventoryData = async () => {
+    setLoading(true);
+    const { data: prodData } = await supabase.from("products" as any).select("*").order("name");
+    const { data: siteData } = await supabase.from("sites").select("id, name");
+    
+    // Fetch live hardware counts
+    const { data: hwCounts } = await (supabase as any)
+      .from("hardwares")
+      .select("product_id, status");
+
+    const stockMap: Record<string, number> = {};
+    hwCounts?.forEach(hw => {
+      if (hw.status === 'In Stock') {
+        stockMap[hw.product_id] = (stockMap[hw.product_id] || 0) + 1;
+      }
+    });
+
+    const enrichedProducts = (prodData || []).map((p: any) => ({
+      ...p,
+      quantity_in_stock: stockMap[p.id] || 0
+    }));
+    
+    setProducts(enrichedProducts as any);
+    setSites(siteData || []);
+    setLoading(false);
+  };
 
   useEffect(() => {
-    const fetchProducts = async () => {
-      const { data, error } = await supabase
-        .from("products" as any)
-        .select("*")
-        .order("name");
-      if (error) {
-        toast({ title: "Error", description: error.message, variant: "destructive" });
-      }
-      setProducts((data || []) as any);
-      setLoading(false);
-    };
-    fetchProducts();
+    fetchInventoryData();
   }, []);
 
   const handleProductClick = async (product: Product) => {
@@ -87,6 +131,7 @@ export default function Inventory() {
         allocated: 0,
         shipped: 0,
         allocations: [],
+        serialized_items: [],
       });
       setLoadingBreakdown(false);
       return;
@@ -120,6 +165,12 @@ export default function Inventory() {
     const allocated = activeAllocations.filter(a => a.allocation_status === "Allocated").reduce((s, a) => s + a.quantity, 0);
     const shipped = activeAllocations.filter(a => a.allocation_status === "Shipped").reduce((s, a) => s + a.quantity, 0);
 
+    // Fetch serialized items from the new hardwares table
+    const { data: itemData } = await (supabase as any)
+      .from("hardwares")
+      .select("*")
+      .eq("product_id", product.id);
+
     setBreakdown({
       total_stock: product.quantity_in_stock,
       total_allocated: totalAllocated,
@@ -128,6 +179,7 @@ export default function Inventory() {
       allocated,
       shipped,
       allocations,
+      serialized_items: itemData || [],
     });
 
     setLoadingBreakdown(false);
@@ -156,46 +208,65 @@ export default function Inventory() {
   };
 
   return (
-    <MainLayout title="Inventory" subtitle="Hardware stock levels and lead times">
+    <MainLayout title="Inventory Summary" subtitle="High-level hardware stock levels and allocations">
+      <div className="mb-6 flex justify-end">
+        <Button 
+          variant="outline" 
+          className="glass border-[#009193]/20 text-[#009193] flex items-center gap-2"
+          onClick={() => navigate("/hardwares")}
+        >
+          <TableIcon className="h-4 w-4" /> View Detailed Hardware List
+        </Button>
+      </div>
       {loading ? (
         <div className="flex justify-center py-20">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-          {products.map((product) => (
-            <Card
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5"
+        >
+          {products.map((product, idx) => (
+            <motion.div
               key={product.id}
-              className="cursor-pointer transition-all hover:shadow-lg hover:border-primary/40 hover:-translate-y-0.5 group"
-              onClick={() => handleProductClick(product)}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: idx * 0.05 }}
             >
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <Badge variant="outline" className={certColor(product.certification)}>
-                    {product.certification}
-                  </Badge>
-                  <span className="text-xs text-muted-foreground font-mono">{product.sku}</span>
-                </div>
-                <CardTitle className="text-base mt-2 group-hover:text-primary transition-colors">
-                  {product.name}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-baseline gap-2">
-                  <span className="text-3xl font-bold text-foreground">{product.quantity_in_stock}</span>
-                  <span className="text-sm text-muted-foreground">in stock</span>
-                </div>
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <Package className="h-3.5 w-3.5" />
-                  Lead time: {product.supplier_lead_time_days} days
-                </div>
-                <div className="flex items-center gap-1 text-xs text-primary opacity-0 group-hover:opacity-100 transition-opacity">
-                  Click for details <ArrowRight className="h-3 w-3" />
-                </div>
-              </CardContent>
-            </Card>
+              <Card
+                className="cursor-pointer premium-card group"
+                onClick={() => handleProductClick(product)}
+              >
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <Badge variant="outline" className={certColor(product.certification)}>
+                      {product.certification}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground font-mono">{product.sku}</span>
+                  </div>
+                  <CardTitle className="text-base mt-2 group-hover:text-primary transition-colors">
+                    {product.name}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl font-bold text-foreground">{product.quantity_in_stock}</span>
+                    <span className="text-sm text-muted-foreground">in stock</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Package className="h-3.5 w-3.5" />
+                    Lead time: {product.supplier_lead_time_days} days
+                  </div>
+                  <div className="flex items-center gap-1 text-xs text-primary opacity-0 group-hover:opacity-100 transition-opacity">
+                    Click for details <ArrowRight className="h-3 w-3" />
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       )}
 
       <Dialog
@@ -330,6 +401,47 @@ export default function Inventory() {
                                 </TableCell>
                               </TableRow>
                             ))}
+                        </TableBody>
+                      </Table>
+                    )}
+                  </div>
+
+                  <Separator />
+
+                  <div>
+                    <h4 className="text-sm font-semibold text-foreground mb-3">
+                      Serialized Items ({breakdown.serialized_items.length})
+                    </h4>
+                    {breakdown.serialized_items.length === 0 ? (
+                      <div className="bg-muted/30 border border-dashed rounded-lg p-8 text-center">
+                        <p className="text-sm text-muted-foreground mb-2">No serialized items found for this product.</p>
+                        <p className="text-xs text-muted-foreground">Transition to Serialized Tracking is required.</p>
+                      </div>
+                    ) : (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Serial Number</TableHead>
+                            <TableHead>MAC Address</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Location</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {breakdown.serialized_items.map((item) => (
+                            <TableRow key={item.id}>
+                              <TableCell className="font-mono text-xs">{item.device_id}</TableCell>
+                              <TableCell className="font-mono text-xs">{item.mac_address || "-"}</TableCell>
+                              <TableCell>
+                                <Badge variant="secondary" className="text-[10px] uppercase font-bold">
+                                  {item.status}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-xs text-muted-foreground">
+                                {sites.find(s => s.id === item.site_id)?.name || "Warehouse"}
+                              </TableCell>
+                            </TableRow>
+                          ))}
                         </TableBody>
                       </Table>
                     )}
