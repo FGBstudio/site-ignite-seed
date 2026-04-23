@@ -1527,56 +1527,139 @@ export type Database = {
           },
         ]
       }
+      hardware_status_history: {
+        Row: {
+          changed_by: string | null
+          created_at: string | null
+          hardware_id: string | null
+          id: string
+          new_status:
+            | Database["public"]["Enums"]["hardware_fulfillment_status"]
+            | null
+          notes: string | null
+          previous_status:
+            | Database["public"]["Enums"]["hardware_fulfillment_status"]
+            | null
+        }
+        Insert: {
+          changed_by?: string | null
+          created_at?: string | null
+          hardware_id?: string | null
+          id?: string
+          new_status?:
+            | Database["public"]["Enums"]["hardware_fulfillment_status"]
+            | null
+          notes?: string | null
+          previous_status?:
+            | Database["public"]["Enums"]["hardware_fulfillment_status"]
+            | null
+        }
+        Update: {
+          changed_by?: string | null
+          created_at?: string | null
+          hardware_id?: string | null
+          id?: string
+          new_status?:
+            | Database["public"]["Enums"]["hardware_fulfillment_status"]
+            | null
+          notes?: string | null
+          previous_status?:
+            | Database["public"]["Enums"]["hardware_fulfillment_status"]
+            | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hardware_status_history_hardware_id_fkey"
+            columns: ["hardware_id"]
+            isOneToOne: false
+            referencedRelation: "hardwares"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       hardwares: {
         Row: {
+          carrier_name: string | null
           category: string | null
           country: string | null
           created_at: string
+          delivery_person: string | null
           device_id: string
+          fulfillment_status:
+            | Database["public"]["Enums"]["hardware_fulfillment_status"]
+            | null
           hardware_type: string | null
           id: string
+          logistics_details: string | null
           mac_address: string | null
           notes: string | null
           po: string | null
           product_id: string | null
           region: string | null
           shipment_date: string | null
+          shipment_group_id: string | null
+          shipment_mode: string | null
+          shipped_by: string | null
+          shipping_cost: number | null
           site_id: string | null
           status: string | null
+          tracking_number: string | null
           updated_at: string
         }
         Insert: {
+          carrier_name?: string | null
           category?: string | null
           country?: string | null
           created_at?: string
+          delivery_person?: string | null
           device_id: string
+          fulfillment_status?:
+            | Database["public"]["Enums"]["hardware_fulfillment_status"]
+            | null
           hardware_type?: string | null
           id?: string
+          logistics_details?: string | null
           mac_address?: string | null
           notes?: string | null
           po?: string | null
           product_id?: string | null
           region?: string | null
           shipment_date?: string | null
+          shipment_group_id?: string | null
+          shipment_mode?: string | null
+          shipped_by?: string | null
+          shipping_cost?: number | null
           site_id?: string | null
           status?: string | null
+          tracking_number?: string | null
           updated_at?: string
         }
         Update: {
+          carrier_name?: string | null
           category?: string | null
           country?: string | null
           created_at?: string
+          delivery_person?: string | null
           device_id?: string
+          fulfillment_status?:
+            | Database["public"]["Enums"]["hardware_fulfillment_status"]
+            | null
           hardware_type?: string | null
           id?: string
+          logistics_details?: string | null
           mac_address?: string | null
           notes?: string | null
           po?: string | null
           product_id?: string | null
           region?: string | null
           shipment_date?: string | null
+          shipment_group_id?: string | null
+          shipment_mode?: string | null
+          shipped_by?: string | null
+          shipping_cost?: number | null
           site_id?: string | null
           status?: string | null
+          tracking_number?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -3693,6 +3776,8 @@ export type Database = {
           status: string
         }[]
       }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
       sync_site_settings_to_rules: {
         Args: { p_site_id: string }
         Returns: undefined
@@ -3728,6 +3813,11 @@ export type Database = {
         | "other"
       event_severity: "info" | "warning" | "critical"
       event_status: "active" | "acknowledged" | "resolved"
+      hardware_fulfillment_status:
+        | "Available"
+        | "Allocated"
+        | "In_Transit"
+        | "Delivered"
       milestone_category: "scorecard" | "timeline"
       permission_level: "view" | "edit" | "admin"
       scope_type: "project" | "site" | "brand" | "holding" | "region"
@@ -3890,6 +3980,12 @@ export const Constants = {
       ],
       event_severity: ["info", "warning", "critical"],
       event_status: ["active", "acknowledged", "resolved"],
+      hardware_fulfillment_status: [
+        "Available",
+        "Allocated",
+        "In_Transit",
+        "Delivered",
+      ],
       milestone_category: ["scorecard", "timeline"],
       permission_level: ["view", "edit", "admin"],
       scope_type: ["project", "site", "brand", "holding", "region"],
