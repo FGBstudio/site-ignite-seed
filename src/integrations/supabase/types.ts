@@ -1527,6 +1527,75 @@ export type Database = {
           },
         ]
       }
+      hardwares: {
+        Row: {
+          category: string | null
+          country: string | null
+          created_at: string
+          device_id: string
+          hardware_type: string | null
+          id: string
+          mac_address: string | null
+          notes: string | null
+          po: string | null
+          product_id: string | null
+          region: string | null
+          shipment_date: string | null
+          site_id: string | null
+          status: string | null
+          updated_at: string
+        }
+        Insert: {
+          category?: string | null
+          country?: string | null
+          created_at?: string
+          device_id: string
+          hardware_type?: string | null
+          id?: string
+          mac_address?: string | null
+          notes?: string | null
+          po?: string | null
+          product_id?: string | null
+          region?: string | null
+          shipment_date?: string | null
+          site_id?: string | null
+          status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          category?: string | null
+          country?: string | null
+          created_at?: string
+          device_id?: string
+          hardware_type?: string | null
+          id?: string
+          mac_address?: string | null
+          notes?: string | null
+          po?: string | null
+          product_id?: string | null
+          region?: string | null
+          shipment_date?: string | null
+          site_id?: string | null
+          status?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hardwares_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hardwares_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       historical_energy: {
         Row: {
           circuit_name: string | null
