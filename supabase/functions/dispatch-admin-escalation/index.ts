@@ -152,34 +152,38 @@ Deno.serve(async (req) => {
     ctaUrl,
   }
 
+  // Fire all sends in parallel and return fast.
+  // The actual email sending is async (queued by send-transactional-email),
+  // so we don't need to await delivery — only the enqueue.
+  const results = await Promise.allSettled(
+    recipients.map((admin: any) =>
+      supabase.functions.invoke('send-transactional-email', {
+        body: {
+          templateName: 'escalation-alert',
+          recipientEmail: admin.email,
+          idempotencyKey: `escalation-${alert.id}-${admin.id}`,
+          templateData,
+        },
+      }),
+    ),
+  )
+
   let sent = 0
   const failures: Array<{ adminId: string; error: string }> = []
-
-  for (const admin of recipients) {
-    try {
-      const { error: sendErr } = await supabase.functions.invoke(
-        'send-transactional-email',
-        {
-          body: {
-            templateName: 'escalation-alert',
-            recipientEmail: admin.email,
-            idempotencyKey: `escalation-${alert.id}-${admin.id}`,
-            templateData,
-          },
-        },
-      )
-      if (sendErr) {
-        failures.push({ adminId: admin.id, error: sendErr.message })
-      } else {
-        sent++
-      }
-    } catch (e) {
-      failures.push({
-        adminId: admin.id,
-        error: e instanceof Error ? e.message : String(e),
-      })
+  results.forEach((r, idx) => {
+    const admin = recipients[idx] as any
+    if (r.status === 'fulfilled' && !r.value.error) {
+      sent++
+    } else {
+      const errMsg =
+        r.status === 'rejected'
+          ? r.reason instanceof Error
+            ? r.reason.message
+            : String(r.reason)
+          : r.value.error?.message ?? 'unknown error'
+      failures.push({ adminId: admin.id, error: errMsg })
     }
-  }
+  })
 
   if (failures.length > 0) {
     console.warn('Some escalation emails failed', { alertId, failures })
