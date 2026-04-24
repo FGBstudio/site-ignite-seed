@@ -28,6 +28,58 @@ interface AlertRow {
   created_by: string
 }
 
+interface CertificationRow {
+  name: string | null
+  client: string | null
+}
+
+interface ProfileRow {
+  full_name: string | null
+  display_name: string | null
+  email: string | null
+}
+
+interface AdminRoleRow {
+  user_id: string
+}
+
+interface AdminProfileRow {
+  id: string
+  email: string | null
+  notify_escalations_email: boolean | null
+}
+
+async function invokeSendTransactionalEmail(
+  supabaseUrl: string,
+  supabaseServiceKey: string,
+  body: Record<string, unknown>,
+) {
+  const response = await fetch(
+    `${supabaseUrl}/functions/v1/send-transactional-email`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${supabaseServiceKey}`,
+        apikey: supabaseServiceKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    },
+  )
+
+  const data = await response.json().catch(() => null)
+
+  if (!response.ok) {
+    const errorMessage =
+      data && typeof data === 'object' && 'error' in data
+        ? String(data.error)
+        : `HTTP ${response.status}`
+    throw new Error(errorMessage)
+  }
+
+  return data
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -92,14 +144,14 @@ Deno.serve(async (req) => {
     .from('certifications')
     .select('name, client')
     .eq('id', alert.certification_id)
-    .maybeSingle()
+    .maybeSingle<CertificationRow>()
 
   // Load PM profile
   const { data: pmProfile } = await supabase
     .from('profiles')
     .select('full_name, display_name, email')
     .eq('id', alert.created_by)
-    .maybeSingle()
+    .maybeSingle<ProfileRow>()
 
   const pmName =
     pmProfile?.full_name || pmProfile?.display_name || pmProfile?.email || '—'
@@ -108,7 +160,9 @@ Deno.serve(async (req) => {
   const { data: adminRoles, error: rolesErr } = await supabase
     .from('user_roles')
     .select('user_id')
-    .in('role', ['ADMIN', 'admin'] as any)
+    .in('role', ['ADMIN', 'admin'])
+
+  const typedAdminRoles = (adminRoles ?? []) as AdminRoleRow[]
 
   if (rolesErr) {
     console.error('Failed to load admin roles', rolesErr)
@@ -118,7 +172,7 @@ Deno.serve(async (req) => {
     })
   }
 
-  const adminIds = [...new Set((adminRoles ?? []).map((r: any) => r.user_id))]
+  const adminIds = [...new Set(typedAdminRoles.map((role) => role.user_id))]
   if (adminIds.length === 0) {
     return new Response(JSON.stringify({ ok: true, sent: 0 }), {
       status: 200,
@@ -132,8 +186,8 @@ Deno.serve(async (req) => {
     .select('id, email, notify_escalations_email')
     .in('id', adminIds)
 
-  const recipients = (adminProfiles ?? []).filter(
-    (p: any) => p.email && p.notify_escalations_email !== false,
+  const recipients = ((adminProfiles ?? []) as AdminProfileRow[]).filter(
+    (profile) => profile.email && profile.notify_escalations_email !== false,
   )
 
   const alertTypeLabel = ALERT_TYPE_LABELS[alert.alert_type] ?? 'Escalation'
@@ -156,14 +210,12 @@ Deno.serve(async (req) => {
   // The actual email sending is async (queued by send-transactional-email),
   // so we don't need to await delivery — only the enqueue.
   const results = await Promise.allSettled(
-    recipients.map((admin: any) =>
-      supabase.functions.invoke('send-transactional-email', {
-        body: {
-          templateName: 'escalation-alert',
-          recipientEmail: admin.email,
-          idempotencyKey: `escalation-${alert.id}-${admin.id}`,
-          templateData,
-        },
+    recipients.map((admin) =>
+      invokeSendTransactionalEmail(supabaseUrl, supabaseServiceKey, {
+        templateName: 'escalation-alert',
+        recipientEmail: admin.email,
+        idempotencyKey: `escalation-${alert.id}-${admin.id}`,
+        templateData,
       }),
     ),
   )
@@ -171,8 +223,8 @@ Deno.serve(async (req) => {
   let sent = 0
   const failures: Array<{ adminId: string; error: string }> = []
   results.forEach((r, idx) => {
-    const admin = recipients[idx] as any
-    if (r.status === 'fulfilled' && !r.value.error) {
+    const admin = recipients[idx]
+    if (r.status === 'fulfilled') {
       sent++
     } else {
       const errMsg =
@@ -180,7 +232,7 @@ Deno.serve(async (req) => {
           ? r.reason instanceof Error
             ? r.reason.message
             : String(r.reason)
-          : r.value.error?.message ?? 'unknown error'
+          : 'unknown error'
       failures.push({ adminId: admin.id, error: errMsg })
     }
   })
