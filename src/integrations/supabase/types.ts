@@ -3954,6 +3954,10 @@ export type Database = {
           power_w: number
         }[]
       }
+      delete_email: {
+        Args: { msg_id: number; queue_name: string }
+        Returns: boolean
+      }
       delete_stale_energy_latest: { Args: never; Returns: undefined }
       enqueue_email:
         | { Args: { payload: Json; queue_name: string }; Returns: number }
@@ -4067,6 +4071,10 @@ export type Database = {
           records_created: number
         }[]
       }
+      move_to_dlq: {
+        Args: { msg_id: number; queue_name: string }
+        Returns: boolean
+      }
       normalize_device_id: { Args: { p_device_id: string }; Returns: string }
       purge_old_telemetry: {
         Args: {
@@ -4078,6 +4086,20 @@ export type Database = {
           hourly_deleted: number
           mqtt_raw_deleted: number
           raw_deleted: number
+        }[]
+      }
+      read_email_batch: {
+        Args: {
+          batch_size?: number
+          queue_name: string
+          visibility_timeout?: number
+        }
+        Returns: {
+          enqueued_at: string
+          message: Json
+          msg_id: number
+          read_ct: number
+          vt: string
         }[]
       }
       refresh_correlation_cache: { Args: never; Returns: undefined }
