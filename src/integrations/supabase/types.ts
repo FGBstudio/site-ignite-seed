@@ -1594,13 +1594,16 @@ export type Database = {
           mac_address: string | null
           notes: string | null
           po: string | null
+          po_number_link: string | null
           product_id: string | null
+          purchase_order_id: string | null
           region: string | null
           shipment_date: string | null
           shipment_group_id: string | null
           shipment_mode: string | null
           shipped_by: string | null
           shipping_cost: number | null
+          shipping_currency: string | null
           site_id: string | null
           status: string | null
           tracking_number: string | null
@@ -1622,13 +1625,16 @@ export type Database = {
           mac_address?: string | null
           notes?: string | null
           po?: string | null
+          po_number_link?: string | null
           product_id?: string | null
+          purchase_order_id?: string | null
           region?: string | null
           shipment_date?: string | null
           shipment_group_id?: string | null
           shipment_mode?: string | null
           shipped_by?: string | null
           shipping_cost?: number | null
+          shipping_currency?: string | null
           site_id?: string | null
           status?: string | null
           tracking_number?: string | null
@@ -1650,13 +1656,16 @@ export type Database = {
           mac_address?: string | null
           notes?: string | null
           po?: string | null
+          po_number_link?: string | null
           product_id?: string | null
+          purchase_order_id?: string | null
           region?: string | null
           shipment_date?: string | null
           shipment_group_id?: string | null
           shipment_mode?: string | null
           shipped_by?: string | null
           shipping_cost?: number | null
+          shipping_currency?: string | null
           site_id?: string | null
           status?: string | null
           tracking_number?: string | null
@@ -1668,6 +1677,13 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hardwares_purchase_order_id_fkey"
+            columns: ["purchase_order_id"]
+            isOneToOne: false
+            referencedRelation: "ops_purchase_orders"
             referencedColumns: ["id"]
           },
           {
@@ -1782,6 +1798,190 @@ export type Database = {
           topic?: string
         }
         Relationships: []
+      }
+      ops_hardware_movements: {
+        Row: {
+          action: string | null
+          created_at: string | null
+          hardware_id: string | null
+          id: string
+          shipment_id: string | null
+        }
+        Insert: {
+          action?: string | null
+          created_at?: string | null
+          hardware_id?: string | null
+          id?: string
+          shipment_id?: string | null
+        }
+        Update: {
+          action?: string | null
+          created_at?: string | null
+          hardware_id?: string | null
+          id?: string
+          shipment_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ops_hardware_movements_hardware_id_fkey"
+            columns: ["hardware_id"]
+            isOneToOne: false
+            referencedRelation: "hardwares"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ops_hardware_movements_shipment_id_fkey"
+            columns: ["shipment_id"]
+            isOneToOne: false
+            referencedRelation: "ops_shipments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ops_locations: {
+        Row: {
+          country: string | null
+          created_at: string | null
+          id: string
+          name: string
+          region: string | null
+          type: string | null
+        }
+        Insert: {
+          country?: string | null
+          created_at?: string | null
+          id?: string
+          name: string
+          region?: string | null
+          type?: string | null
+        }
+        Update: {
+          country?: string | null
+          created_at?: string | null
+          id?: string
+          name?: string
+          region?: string | null
+          type?: string | null
+        }
+        Relationships: []
+      }
+      ops_purchase_orders: {
+        Row: {
+          category: string | null
+          created_at: string
+          currency: string | null
+          id: string
+          notes: string | null
+          payment_date: string | null
+          payment_status: string | null
+          po_cost: number | null
+          po_issued_date: string | null
+          po_number: string | null
+          status: string | null
+          supplier: string | null
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          currency?: string | null
+          id?: string
+          notes?: string | null
+          payment_date?: string | null
+          payment_status?: string | null
+          po_cost?: number | null
+          po_issued_date?: string | null
+          po_number?: string | null
+          status?: string | null
+          supplier?: string | null
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          currency?: string | null
+          id?: string
+          notes?: string | null
+          payment_date?: string | null
+          payment_status?: string | null
+          po_cost?: number | null
+          po_issued_date?: string | null
+          po_number?: string | null
+          status?: string | null
+          supplier?: string | null
+        }
+        Relationships: []
+      }
+      ops_shipments: {
+        Row: {
+          carrier_name: string | null
+          created_at: string | null
+          currency: string | null
+          customs_cost: number | null
+          destination_location_id: string | null
+          id: string
+          notes: string | null
+          origin_location_id: string | null
+          purchase_order_id: string | null
+          shipment_type: string | null
+          shipped_date: string | null
+          status: string | null
+          total_shipping_cost: number | null
+          tracking_number: string | null
+        }
+        Insert: {
+          carrier_name?: string | null
+          created_at?: string | null
+          currency?: string | null
+          customs_cost?: number | null
+          destination_location_id?: string | null
+          id?: string
+          notes?: string | null
+          origin_location_id?: string | null
+          purchase_order_id?: string | null
+          shipment_type?: string | null
+          shipped_date?: string | null
+          status?: string | null
+          total_shipping_cost?: number | null
+          tracking_number?: string | null
+        }
+        Update: {
+          carrier_name?: string | null
+          created_at?: string | null
+          currency?: string | null
+          customs_cost?: number | null
+          destination_location_id?: string | null
+          id?: string
+          notes?: string | null
+          origin_location_id?: string | null
+          purchase_order_id?: string | null
+          shipment_type?: string | null
+          shipped_date?: string | null
+          status?: string | null
+          total_shipping_cost?: number | null
+          tracking_number?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ops_shipments_destination_location_id_fkey"
+            columns: ["destination_location_id"]
+            isOneToOne: false
+            referencedRelation: "ops_locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ops_shipments_origin_location_id_fkey"
+            columns: ["origin_location_id"]
+            isOneToOne: false
+            referencedRelation: "ops_locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ops_shipments_purchase_order_id_fkey"
+            columns: ["purchase_order_id"]
+            isOneToOne: false
+            referencedRelation: "ops_purchase_orders"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       panel_config: {
         Row: {
