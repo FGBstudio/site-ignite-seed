@@ -1047,6 +1047,111 @@ export type Database = {
           },
         ]
       }
+      email_send_log: {
+        Row: {
+          attempts: number
+          created_at: string
+          error_message: string | null
+          id: string
+          message_id: string
+          metadata: Json
+          provider_message_id: string | null
+          queue_name: string | null
+          recipient_email: string
+          status: string
+          template_name: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          message_id: string
+          metadata?: Json
+          provider_message_id?: string | null
+          queue_name?: string | null
+          recipient_email: string
+          status?: string
+          template_name: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          message_id?: string
+          metadata?: Json
+          provider_message_id?: string | null
+          queue_name?: string | null
+          recipient_email?: string
+          status?: string
+          template_name?: string
+        }
+        Relationships: []
+      }
+      email_send_state: {
+        Row: {
+          auth_email_ttl_minutes: number
+          batch_size: number
+          created_at: string
+          id: number
+          max_attempts: number
+          rate_limited_until: string | null
+          send_delay_ms: number
+          transactional_email_ttl_minutes: number
+          updated_at: string
+        }
+        Insert: {
+          auth_email_ttl_minutes?: number
+          batch_size?: number
+          created_at?: string
+          id?: number
+          max_attempts?: number
+          rate_limited_until?: string | null
+          send_delay_ms?: number
+          transactional_email_ttl_minutes?: number
+          updated_at?: string
+        }
+        Update: {
+          auth_email_ttl_minutes?: number
+          batch_size?: number
+          created_at?: string
+          id?: number
+          max_attempts?: number
+          rate_limited_until?: string | null
+          send_delay_ms?: number
+          transactional_email_ttl_minutes?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      email_unsubscribe_tokens: {
+        Row: {
+          created_at: string
+          email: string
+          expires_at: string | null
+          id: string
+          token: string
+          used_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          expires_at?: string | null
+          id?: string
+          token: string
+          used_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          expires_at?: string | null
+          id?: string
+          token?: string
+          used_at?: string | null
+        }
+        Relationships: []
+      }
       energy_daily: {
         Row: {
           device_id: string
@@ -3069,6 +3174,36 @@ export type Database = {
           },
         ]
       }
+      suppressed_emails: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          metadata: Json
+          provider: string | null
+          provider_event_id: string | null
+          reason: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          metadata?: Json
+          provider?: string | null
+          provider_event_id?: string | null
+          reason?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          metadata?: Json
+          provider?: string | null
+          provider_event_id?: string | null
+          reason?: string
+        }
+        Relationships: []
+      }
       task_alerts: {
         Row: {
           alert_type: Database["public"]["Enums"]["task_alert_type"]
@@ -3820,6 +3955,9 @@ export type Database = {
         }[]
       }
       delete_stale_energy_latest: { Args: never; Returns: undefined }
+      enqueue_email:
+        | { Args: { payload: Json; queue_name: string }; Returns: number }
+        | { Args: { payload: Json; queue_name: string }; Returns: number }
       evaluate_daily_alerts: { Args: never; Returns: undefined }
       evaluate_instant_alerts: { Args: never; Returns: undefined }
       evaluate_sensor_health: { Args: never; Returns: undefined }
