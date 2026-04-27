@@ -37,7 +37,7 @@ export function PittoCard({ section, onClick }: Props) {
           }}
         />
         <img
-          src="/green.png"
+          src="/green_pittogramma.png"
           alt={section.name}
           className="w-full h-full object-contain"
           style={{
