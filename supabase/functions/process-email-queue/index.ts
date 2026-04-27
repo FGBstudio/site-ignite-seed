@@ -1,11 +1,11 @@
 // Email queue dispatcher.
 // Triggered by pg_cron every 5 seconds. Drains `auth_emails` (priority) then
-// `transactional_emails`. Sends via Resend through the Lovable connector gateway.
+// `transactional_emails`. Sends via Resend's official API directly.
 // Handles rate-limit (429), retries (5xx), TTL expiry, and DLQ routing.
 
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
-const RESEND_GATEWAY = 'https://connector-gateway.lovable.dev/resend'
+const RESEND_API_URL = 'https://api.resend.com'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -44,14 +44,13 @@ Deno.serve(async (req) => {
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-  const lovableApiKey = Deno.env.get('LOVABLE_API_KEY')
   const resendApiKey = Deno.env.get('RESEND_ALERTS_API_KEY')
 
   if (!supabaseUrl || !supabaseServiceKey) {
     return json({ error: 'Server misconfigured' }, 500)
   }
-  if (!lovableApiKey || !resendApiKey) {
-    console.error('Missing email provider credentials (LOVABLE_API_KEY / RESEND_ALERTS_API_KEY)')
+  if (!resendApiKey) {
+    console.error('Missing RESEND_ALERTS_API_KEY')
     return json({ error: 'Email provider not configured' }, 500)
   }
 
@@ -131,12 +130,11 @@ Deno.serve(async (req) => {
         }
       }
 
-      const resp = await fetch(`${RESEND_GATEWAY}/emails`, {
+      const resp = await fetch(`${RESEND_API_URL}/emails`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${lovableApiKey}`,
-          'X-Connection-Api-Key': resendApiKey,
+          'Authorization': `Bearer ${resendApiKey}`,
         },
         body: JSON.stringify(resendBody),
       })
