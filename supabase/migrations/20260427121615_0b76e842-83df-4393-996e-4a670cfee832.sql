@@ -1,0 +1,1 @@
+DROP FUNCTION IF EXISTS public.enqueue_email(text, json);

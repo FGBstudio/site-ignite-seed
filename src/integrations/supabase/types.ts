@@ -3959,9 +3959,10 @@ export type Database = {
         Returns: boolean
       }
       delete_stale_energy_latest: { Args: never; Returns: undefined }
-      enqueue_email:
-        | { Args: { payload: Json; queue_name: string }; Returns: number }
-        | { Args: { payload: Json; queue_name: string }; Returns: number }
+      enqueue_email: {
+        Args: { payload: Json; queue_name: string }
+        Returns: number
+      }
       evaluate_daily_alerts: { Args: never; Returns: undefined }
       evaluate_instant_alerts: { Args: never; Returns: undefined }
       evaluate_sensor_health: { Args: never; Returns: undefined }
