@@ -61,7 +61,7 @@ export default function Login() {
         {/* ── Top: pittogramma + brand ── */}
         <div className="flex flex-col items-center gap-3 text-center mb-8">
           <img
-            src="/white (1).png"
+            src="/green_pittogramma.png"
             alt="FGB"
             className="object-contain transition-transform duration-500"
             style={{
