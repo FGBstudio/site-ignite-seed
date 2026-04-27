@@ -65,7 +65,7 @@ export const HUB_SECTIONS: HubSection[] = [
     color: "#e63f26",
     filter: "sepia(1) saturate(5) hue-rotate(322deg) brightness(.95)",
     route: "/invoice",
-    comingSoon: true,
+    comingSoon: false,
     allowedRoles: ["ADMIN"],
   },
 ];

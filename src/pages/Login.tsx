@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { asset } from "@/lib/assetUrl";
 
 const ALLOWED_DOMAINS = ["fgb-studio.com", "fgbstudio.com"];
 
@@ -61,7 +62,7 @@ export default function Login() {
         {/* ── Top: pittogramma + brand ── */}
         <div className="flex flex-col items-center gap-3 text-center mb-8">
           <img
-            src="/green_pittogramma.png"
+            src={asset("green_pittogramma.png")}
             alt="FGB"
             className="object-contain transition-transform duration-500"
             style={{
