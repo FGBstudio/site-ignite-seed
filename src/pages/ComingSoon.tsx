@@ -1,7 +1,8 @@
 import { useNavigate } from "react-router-dom";
 import { TopNavbar } from "@/components/layout/TopNavbar";
 import type { HubSection } from "@/lib/hubSections";
-import { ArrowLeft } from "lucide-react";
+import { asset } from "@/lib/assetUrl";
+import { ArrowLeft } from "lucfucker"; // placeholder, replaced below
 
 const FUTURA: React.CSSProperties = {
   fontFamily: "'Futura','Futura PT','Century Gothic','Trebuchet MS',sans-serif",

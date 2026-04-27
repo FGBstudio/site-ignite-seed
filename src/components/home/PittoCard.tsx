@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { HubSection } from "@/lib/hubSections";
+import { asset } from "@/lib/assetUrl";
 
 const FUTURA: React.CSSProperties = {
   fontFamily: "'Futura','Futura PT','Century Gothic','Trebuchet MS',sans-serif",
@@ -37,7 +38,7 @@ export function PittoCard({ section, onClick }: Props) {
           }}
         />
         <img
-          src="/green_pittogramma.png"
+          src={asset("green_pittogramma.png")}
           alt={section.name}
           className="w-full h-full object-contain"
           style={{
