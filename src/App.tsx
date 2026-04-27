@@ -9,6 +9,7 @@ import type { AppRole } from "@/types/custom-tables";
 import Home from "./pages/Home";
 import ProjectsHub from "./pages/ProjectsHub";
 import ComingSoon from "./pages/ComingSoon";
+import InvoicePage from "./pages/Invoice/InvoicePage";
 import { HUB_SECTIONS } from "@/lib/hubSections";
 import Projects from "./pages/Projects";
 import ProjectCreateWizard from "./pages/ProjectCreateWizard";
@@ -63,7 +64,7 @@ function AppRoutes() {
       <Route path="/office" element={<ProtectedRoute allowedRoles={R("ADMIN")}><ComingSoon section={section("office")} /></ProtectedRoute>} />
       <Route path="/hr" element={<ProtectedRoute allowedRoles={R("ADMIN", "PM")}><ComingSoon section={section("hr")} /></ProtectedRoute>} />
       <Route path="/monitor" element={<ProtectedRoute allowedRoles={R("ADMIN")}><ComingSoon section={section("monitor")} /></ProtectedRoute>} />
-      <Route path="/invoice" element={<ProtectedRoute allowedRoles={R("ADMIN")}><ComingSoon section={section("invoice")} /></ProtectedRoute>} />
+      <Route path="/invoice" element={<ProtectedRoute allowedRoles={R("ADMIN")}><InvoicePage /></ProtectedRoute>} />
 
       {/* ── Admin routes (Projects section) ── */}
       <Route path="/ceo-dashboard" element={<ProtectedRoute allowedRoles={R("ADMIN")}><CeoDashboard /></ProtectedRoute>} />
