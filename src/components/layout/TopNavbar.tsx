@@ -2,11 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
-import {
-  isInProjectsSection,
-  getSectionForPath,
-  HUB_SECTIONS,
-} from "@/lib/hubSections";
+import { isInProjectsSection, getSectionForPath } from "@/lib/hubSections";
 import {
   Crown,
   FolderKanban,
