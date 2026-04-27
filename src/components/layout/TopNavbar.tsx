@@ -96,7 +96,12 @@ export function TopNavbar() {
     return location.pathname.startsWith(path);
   };
 
-  // Current page label for breadcrumb
+  // Section context: are we inside the "Projects" macro-section, or one of the
+  // standalone hub sections (Office, HR, Monitor, Invoice)?
+  const inProjects = isInProjectsSection(location.pathname);
+  const standaloneSection = getSectionForPath(location.pathname);
+
+  // Current page label for breadcrumb (only meaningful inside Projects)
   const currentPage = navItems.find((item) => isActive(item.url));
 
   useEffect(() => {
@@ -124,7 +129,7 @@ export function TopNavbar() {
         className="max-w-[1440px] mx-auto px-6 flex items-center h-full gap-0"
         style={{ height: 52 }}
       >
-        {/* ── Logo + brand ── */}
+        {/* ── Logo + brand → always back to Home Hub ── */}
         <NavLink
           to="/"
           className="flex items-center gap-[9px] shrink-0 transition-opacity hover:opacity-70"
@@ -156,39 +161,61 @@ export function TopNavbar() {
           className="flex items-center gap-[5px] text-[13px] shrink-0"
           style={{ fontFamily: "'DM Sans',sans-serif" }}
         >
-          <span className="text-muted-foreground">Home</span>
-          {currentPage && (
+          <NavLink to="/" className="text-muted-foreground hover:text-[#009193] transition-colors">
+            Home
+          </NavLink>
+
+          {/* Inside Projects macro-section */}
+          {inProjects && (
             <>
               <span className="text-muted-foreground/50 mx-0.5">/</span>
-              <span className="text-foreground font-medium">{currentPage.title}</span>
+              <span className="text-foreground font-medium">Projects</span>
+              {currentPage && (
+                <>
+                  <span className="text-muted-foreground/50 mx-0.5">/</span>
+                  <span className="text-muted-foreground">{currentPage.title}</span>
+                </>
+              )}
+            </>
+          )}
+
+          {/* Inside a Coming-Soon standalone hub section */}
+          {!inProjects && standaloneSection && (
+            <>
+              <span className="text-muted-foreground/50 mx-0.5">/</span>
+              <span className="text-foreground font-medium" style={{ textTransform: "capitalize" }}>
+                {standaloneSection.name.toLowerCase()}
+              </span>
             </>
           )}
         </div>
 
-        {/* ── Nav items (center/left overflow) ── */}
+        {/* ── Spacer ── */}
         <div className="flex-1" />
 
-        {/* ── Nav links: hidden on small screens ── */}
-        <div className="hidden lg:flex items-center gap-[2px] mr-4">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.url}
-              to={item.url}
-              className={cn(
-                "relative flex items-center gap-[5px] px-3 h-[52px]",
-                "text-[11px] transition-colors duration-150 border-b-2",
-                // Gestionale .fat-tab style
-                isActive(item.url)
-                  ? "text-[#009193] border-[#009193]"
-                  : "text-muted-foreground border-transparent hover:text-foreground"
-              )}
-              style={{ ...FUTURA, letterSpacing: "0.08em", textTransform: "uppercase" }}
-            >
-              <item.icon className="h-3.5 w-3.5 shrink-0" strokeWidth={1.7} />
-              <span className="whitespace-nowrap">{item.title}</span>
-            </NavLink>
-          ))}
-        </div>
+        {/* ── Functional tabs: only inside the Projects macro-section ── */}
+        {inProjects && (
+          <div className="hidden lg:flex items-center gap-[2px] mr-4">
+            {navItems.map((item) => (
+              <NavLink
+                key={item.url}
+                to={item.url}
+                className={cn(
+                  "relative flex items-center gap-[5px] px-3 h-[52px]",
+                  "text-[11px] transition-colors duration-150 border-b-2",
+                  // Gestionale .fat-tab style
+                  isActive(item.url)
+                    ? "text-[#009193] border-[#009193]"
+                    : "text-muted-foreground border-transparent hover:text-foreground"
+                )}
+                style={{ ...FUTURA, letterSpacing: "0.08em", textTransform: "uppercase" }}
+              >
+                <item.icon className="h-3.5 w-3.5 shrink-0" strokeWidth={1.7} />
+                <span className="whitespace-nowrap">{item.title}</span>
+              </NavLink>
+            ))}
+          </div>
+        )}
 
         {/* ── User area (Gestionale .nav-usr) ── */}
         <div className="flex items-center gap-[10px] shrink-0" ref={userMenuRef}>
