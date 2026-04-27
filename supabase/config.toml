@@ -14,3 +14,6 @@ verify_jwt = false
 
 [functions.dispatch-admin-escalation]
 verify_jwt = false
+
+[functions.process-email-queue]
+verify_jwt = false
