@@ -45,13 +45,13 @@ Deno.serve(async (req) => {
   const supabaseUrl = Deno.env.get('SUPABASE_URL')
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
   const lovableApiKey = Deno.env.get('LOVABLE_API_KEY')
-  const resendApiKey = Deno.env.get('RESEND_API_KEY')
+  const resendApiKey = Deno.env.get('RESEND_ALERTS_API_KEY')
 
   if (!supabaseUrl || !supabaseServiceKey) {
     return json({ error: 'Server misconfigured' }, 500)
   }
   if (!lovableApiKey || !resendApiKey) {
-    console.error('Missing email provider credentials (LOVABLE_API_KEY / RESEND_API_KEY)')
+    console.error('Missing email provider credentials (LOVABLE_API_KEY / RESEND_ALERTS_API_KEY)')
     return json({ error: 'Email provider not configured' }, 500)
   }
 

@@ -1,60 +1,49 @@
+# Piano: switch alert email a dominio root + segreto dedicato
 
-Obiettivo: ripristinare davvero le email di escalation admin end-to-end.
+Refactoring chirurgico per disaccoppiare il sistema di alert (transactional/Resend) dal sistema Auth esistente, usando il dominio root `fgb-studio.com` e un API key Resend separato.
 
-Diagnosi trovata:
-1. Il DNS del sottodominio `notify.fgb-studio.com` ora sembra corretto lato registrar, ma il progetto lo vede ancora come `Pending`, quindi il dominio email non è ancora attivo.
-2. Anche ignorando il DNS, l’infrastruttura delle app emails non è stata completata nel database: mancano `email_send_log`, `email_send_state`, `suppressed_emails`, `email_unsubscribe_tokens`, le RPC tipo `enqueue_email` e il cron `process-email-queue`.
-3. Il codice di `send-transactional-email` dipende proprio da questi oggetti, quindi oggi fallirebbe comunque.
-4. Non risultano invocazioni/log recenti di `dispatch-admin-escalation` o `send-transactional-email`, quindi serve anche riallineare deploy e test del flusso.
+## Modifiche richieste
 
-Piano di risoluzione:
-1. Verificare e riallineare il dominio email in Cloud
-   - Forzare il check del dominio email e confermare che passi da `Pending` ad `Active`.
-   - Se resta bloccato, rieseguire la verifica dal pannello email senza cambiare DNS, perché dai record caricati il setup sembra corretto.
+### 1. `supabase/functions/process-email-queue/index.ts`
 
-2. Completare l’infrastruttura email mancante
-   - Eseguire il setup ufficiale dell’infrastruttura email del progetto.
-   - Creare automaticamente queue, tabelle, funzioni RPC e cron job necessari.
-   - Non usare migrazioni SQL manuali per questa parte, perché il flusso richiede provisioning runtime.
+Sostituire il riferimento all'environment variable Resend:
 
-3. Riallineare le funzioni Edge già presenti
-   - Verificare che `send-transactional-email` punti al dominio mittente corretto (`notify.fgb-studio.com`).
-   - Verificare che `dispatch-admin-escalation` usi il percorso atteso e sia deployata.
-   - Ridistribuire le funzioni email coinvolte per assicurarsi che il codice effettivamente attivo sia quello corretto.
+- **Prima**: `Deno.env.get('RESEND_API_KEY')`
+- **Dopo**: `Deno.env.get('RESEND_ALERTS_API_KEY')`
 
-4. Validare i destinatari admin
-   - Controllare che gli admin abbiano ruolo valido in `user_roles`.
-   - Controllare che nei `profiles` esistano email valorizzate e che `notify_escalations_email` non sia disattivato.
+Aggiornare anche il messaggio di errore "Email provider not configured" per riflettere il nuovo nome della variabile, e l'header `X-Connection-Api-Key` userà la nuova costante.
 
-5. Testare il flusso completo
-   - Generare un’escalation di prova.
-   - Verificare:
-     - trigger su `task_alerts`
-     - chiamata a `dispatch-admin-escalation`
-     - enqueue tramite `send-transactional-email`
-     - consumo coda via `process-email-queue`
-     - creazione log in `email_send_log`
-     - ricezione dell’email finale
+### 2. `supabase/functions/send-transactional-email/index.ts`
 
-6. Rifinire eventuali ultimi punti
-   - Se il trigger SQL risulta troppo fragile, sostituire l’URL hardcoded con una configurazione più sicura/manutenibile.
-   - Aggiungere logging migliore solo se serve per evitare future diagnosi “al buio”.
+Aggiornare le costanti di dominio (riga ~10-18):
 
-File/aree coinvolte:
-- `supabase/functions/send-transactional-email/index.ts`
-- `supabase/functions/dispatch-admin-escalation/index.ts`
-- `supabase/functions/_shared/transactional-email-templates/escalation-alert.tsx`
-- `supabase/config.toml`
-- eventuale nuova migrazione solo se serve correggere logica applicativa, non per creare l’infrastruttura email di base
+- **Prima**: `SENDER_DOMAIN = "notify.fgb-studio.com"`, `FROM_DOMAIN = "notify.fgb-studio.com"`
+- **Dopo**: `SENDER_DOMAIN = "fgb-studio.com"`, `FROM_DOMAIN = "fgb-studio.com"`
 
-Dettagli tecnici:
-- Il problema non è solo DNS.
-- Il blocco reale è soprattutto l’assenza dell’infrastruttura email runtime richiesta dal sender asincrono.
-- Oggi il progetto contiene il codice delle funzioni, ma nel database non esistono ancora gli oggetti su cui quel codice si appoggia.
-- Finché non vengono creati queue/RPC/tabelle/cron, le email di escalation non potranno funzionare in modo affidabile.
+Aggiornare il `from` header generato nell'enqueue payload da:
 
-Risultato atteso dopo l’intervento:
-- ogni nuova escalation admin crea la notifica realtime
-- parte la chiamata backend corretta
-- l’email viene messa in coda e inviata
-- il flusso è tracciabile nei log e stabile anche in caso di retry
+- **Prima**: `${SITE_NAME} <noreply@${FROM_DOMAIN}>` → `"site-ignite-seed <noreply@notify.fgb-studio.com>"`
+- **Dopo**: `"FGB Studio Alerts <noreply@fgb-studio.com>"`
+
+Modificherò anche la costante `SITE_NAME` a `"FGB Studio Alerts"` per coerenza nel branding del mittente.
+
+## Deploy
+
+Dopo le modifiche, deploy immediato di entrambe le Edge Function:
+
+- `process-email-queue`
+- `send-transactional-email`
+
+## Cosa NON viene toccato
+
+- Sistema Auth (`auth-email-hook`) e relativo `RESEND_API_KEY` esistente — restano invariati per non interferire
+- Infrastruttura DB (queue, tabelle, cron)
+- Template React Email
+- Configurazione DNS / dominio Lovable Emails (`notify.fgb-studio.com` resta attivo per Auth) - questo è un errore non credo che [notify.fgb-studio.com](http://notify.fgb-studio.com) serva più a nulla, se è più usato può essere rimosso
+- Logica di coda, retry, DLQ, suppression, unsubscribe
+
+## Note tecniche
+
+- Il segreto `RESEND_ALERTS_API_KEY` è già configurato (visibile nello screenshot Supabase Edge Function secrets)
+- Il dominio root `fgb-studio.com` deve essere verificato lato Resend (responsabilità utente — DNS non viene toccato come richiesto)
+- Le due Edge Function continueranno a usare `LOVABLE_API_KEY` come bearer per il connector gateway Resend
