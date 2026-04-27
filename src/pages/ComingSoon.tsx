@@ -2,7 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { TopNavbar } from "@/components/layout/TopNavbar";
 import type { HubSection } from "@/lib/hubSections";
 import { asset } from "@/lib/assetUrl";
-import { ArrowLeft } from "lucfucker"; // placeholder, replaced below
+import { ArrowLeft } from "lucide-react";
 
 const FUTURA: React.CSSProperties = {
   fontFamily: "'Futura','Futura PT','Century Gothic','Trebuchet MS',sans-serif",
@@ -32,7 +32,7 @@ export default function ComingSoon({ section }: Props) {
       >
         {/* Pittogramma colorato (grande, opacità ridotta) */}
         <img
-          src="/green.png"
+          src={asset("green.png")}
           alt={section.name}
           style={{
             width: 120,
