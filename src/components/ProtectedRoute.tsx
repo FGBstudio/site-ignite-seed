@@ -9,10 +9,10 @@ interface ProtectedRouteProps {
 
 function getDefaultRoute(role: AppRole | null): string {
   switch (role) {
+    // ADMIN and PM land on the Home Hub (5 pictograms)
     case "ADMIN":
-      return "/ceo-dashboard";
     case "PM":
-      return "/projects";
+      return "/";
     case "document_manager":
     case "specialist":
     case "energy_modeler":
