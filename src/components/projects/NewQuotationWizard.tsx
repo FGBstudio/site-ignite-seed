@@ -309,24 +309,37 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved }: Props) {
         {/* Holding */}
         <div className="space-y-1.5">
           <Label className="text-xs font-medium">Holding *</Label>
-          <Select value={site.holdingId} onValueChange={onHoldingChange}>
-            <SelectTrigger className={cn(errors.holdingId && "border-destructive")}>
-              {loadingHoldings ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <SelectValue placeholder="Select holding" />}
-            </SelectTrigger>
-            <SelectContent>{holdings.map((h: any) => <SelectItem key={h.id} value={h.id}>{h.name}</SelectItem>)}</SelectContent>
-          </Select>
+          <div className="flex gap-1.5">
+            <Select value={site.holdingId} onValueChange={onHoldingChange}>
+              <SelectTrigger className={cn("flex-1", errors.holdingId && "border-destructive")}>
+                {loadingHoldings ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <SelectValue placeholder="Select holding" />}
+              </SelectTrigger>
+              <SelectContent>{holdings.map((h: any) => <SelectItem key={h.id} value={h.id}>{h.name}</SelectItem>)}</SelectContent>
+            </Select>
+            {isAdmin && (
+              <NewHoldingButton onCreated={(id) => setSite({ ...emptySite(), holdingId: id })} />
+            )}
+          </div>
           {errors.holdingId && <p className="text-xs text-destructive">{errors.holdingId}</p>}
         </div>
 
         {/* Brand */}
         <div className="space-y-1.5">
           <Label className="text-xs font-medium">Brand *</Label>
-          <Select value={site.brandId} onValueChange={onBrandChange} disabled={!site.holdingId}>
-            <SelectTrigger className={cn(errors.brandId && "border-destructive")}>
-              {loadingBrands && site.holdingId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <SelectValue placeholder="Select brand" />}
-            </SelectTrigger>
-            <SelectContent>{brands.map((b: any) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}</SelectContent>
-          </Select>
+          <div className="flex gap-1.5">
+            <Select value={site.brandId} onValueChange={onBrandChange} disabled={!site.holdingId}>
+              <SelectTrigger className={cn("flex-1", errors.brandId && "border-destructive")}>
+                {loadingBrands && site.holdingId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <SelectValue placeholder="Select brand" />}
+              </SelectTrigger>
+              <SelectContent>{brands.map((b: any) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}</SelectContent>
+            </Select>
+            {isAdmin && (
+              <NewBrandButton
+                holdingId={site.holdingId}
+                onCreated={(id) => setSite((s) => ({ ...s, brandId: id, siteId: "", isNew: false, newName: "", newAddress: "", newCity: "", newCountry: "" }))}
+              />
+            )}
+          </div>
           {errors.brandId && <p className="text-xs text-destructive">{errors.brandId}</p>}
         </div>
 
