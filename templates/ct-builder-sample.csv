@@ -1,0 +1,5 @@
+Electrical Panel,To monitor,Load Type,Phase Configuration,Current [A],Wire Dimensions,Contemporary Power
+QGBT,Main,Main,Tri,400,240 sqmm,
+QGBT,Lighting Floor 1,Light,Tri,32,6 sqmm,
+QGBT,HVAC AHU-1,HVAC,Tri,125,35 sqmm,
+QGBT,Plugs Office,Plug,Mono,16,2.5 sqmm,
