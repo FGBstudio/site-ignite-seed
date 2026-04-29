@@ -19,6 +19,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { FGBPlanner, type GanttRowData, type GanttSegment } from "@/components/dashboard/FGBPlanner";
+import { EnergyMonitoringPanel } from "@/components/projects/EnergyMonitoring/EnergyMonitoringPanel";
 
 const statusColors: Record<string, string> = {
   Design: "bg-primary/10 text-primary border-primary/20",
@@ -256,40 +257,54 @@ export default function ProjectDetail() {
         </TabsContent>
 
         <TabsContent value="hardware">
-          {!allocations || allocations.length === 0 ? (
-            <Card>
-              <CardContent className="py-12 text-center text-muted-foreground">
-                No hardware allocated to this project.
-              </CardContent>
-            </Card>
-          ) : (
-            <Card>
-              <CardContent className="pt-6">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="text-left p-3 font-medium text-muted-foreground">Product</th>
-                      <th className="text-left p-3 font-medium text-muted-foreground">SKU</th>
-                      <th className="text-left p-3 font-medium text-muted-foreground">Certification</th>
-                      <th className="text-center p-3 font-medium text-muted-foreground">Quantity</th>
-                      <th className="text-center p-3 font-medium text-muted-foreground">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {allocations.map((a: any) => (
-                      <tr key={a.id} className="border-b last:border-b-0">
-                        <td className="p-3 font-medium text-foreground">{a.products?.name || "—"}</td>
-                        <td className="p-3 text-muted-foreground font-mono text-xs">{a.products?.sku}</td>
-                        <td className="p-3"><Badge variant="outline">{a.products?.certification}</Badge></td>
-                        <td className="p-3 text-center font-medium">{a.quantity}</td>
-                        <td className="p-3 text-center"><Badge variant="outline">{a.status}</Badge></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </CardContent>
-            </Card>
-          )}
+          <Tabs defaultValue="allocated" className="space-y-4">
+            <TabsList>
+              <TabsTrigger value="allocated">Allocated Hardware</TabsTrigger>
+              <TabsTrigger value="energy">Energy Monitoring</TabsTrigger>
+            </TabsList>
+            <TabsContent value="allocated">
+              {!allocations || allocations.length === 0 ? (
+                <Card>
+                  <CardContent className="py-12 text-center text-muted-foreground">
+                    No hardware allocated to this project.
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card>
+                  <CardContent className="pt-6">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left p-3 font-medium text-muted-foreground">Product</th>
+                          <th className="text-left p-3 font-medium text-muted-foreground">SKU</th>
+                          <th className="text-left p-3 font-medium text-muted-foreground">Certification</th>
+                          <th className="text-center p-3 font-medium text-muted-foreground">Quantity</th>
+                          <th className="text-center p-3 font-medium text-muted-foreground">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {allocations.map((a: any) => (
+                          <tr key={a.id} className="border-b last:border-b-0">
+                            <td className="p-3 font-medium text-foreground">{a.products?.name || "—"}</td>
+                            <td className="p-3 text-muted-foreground font-mono text-xs">{a.products?.sku}</td>
+                            <td className="p-3"><Badge variant="outline">{a.products?.certification}</Badge></td>
+                            <td className="p-3 text-center font-medium">{a.quantity}</td>
+                            <td className="p-3 text-center"><Badge variant="outline">{a.status}</Badge></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+            <TabsContent value="energy">
+              <EnergyMonitoringPanel
+                certificationId={projectId!}
+                isAdmin={role === "ADMIN"}
+              />
+            </TabsContent>
+          </Tabs>
         </TabsContent>
 
         {hasCert && (
