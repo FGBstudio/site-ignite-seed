@@ -1,8 +1,7 @@
+@import "leaflet/dist/leaflet.css";
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-@import "leaflet/dist/leaflet.css";
 
 .map-tiles-filter {
   filter: brightness(1.02) contrast(0.9) saturate(0.8);
