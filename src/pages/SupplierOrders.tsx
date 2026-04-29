@@ -43,7 +43,6 @@ import {
   CheckCircle2,
   X,
   TrendingUp,
-  Map as MapIcon,
   Minus
 } from "lucide-react";
 import { 
