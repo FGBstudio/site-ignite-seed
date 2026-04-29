@@ -51,8 +51,10 @@ import {
   CircleMarker, 
   Polyline, 
   Tooltip,
-  GeoJSON
+  GeoJSON,
+  Marker
 } from "react-leaflet";
+import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
 const WORLD_GEO_URL = "https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json";
@@ -424,6 +426,11 @@ export default function SupplierOrders() {
         });
         countsByLoc[s.origin_location_id] = (countsByLoc[s.origin_location_id] || 0) + (s.ops_hardware_movements?.length || 0);
         countsByLoc[s.destination_location_id] = (countsByLoc[s.destination_location_id] || 0) + (s.ops_hardware_movements?.length || 0);
+        
+        // Mark origin as inbound source if type is inbound
+        if (s.shipment_type === 'inbound') {
+          locMap.set(s.origin_location_id, { ...origin, isInboundOrigin: true });
+        }
       }
     });
 
@@ -501,11 +508,11 @@ export default function SupplierOrders() {
                       <span className="text-[10px] font-bold uppercase text-slate-500 tracking-tighter">Inbound</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className="h-2 w-2 rounded-full bg-[#009193]" />
+                      <div className="h-2 w-2 rounded-full bg-[#ef4444]" />
                       <span className="text-[10px] font-bold uppercase text-slate-500 tracking-tighter">Internal</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className="h-2 w-2 rounded-full bg-amber-500" />
+                      <div className="h-2 w-2 rounded-full bg-[#009193]" />
                       <span className="text-[10px] font-bold uppercase text-slate-500 tracking-tighter">Outbound</span>
                     </div>
                   </div>
@@ -536,8 +543,8 @@ export default function SupplierOrders() {
                 {/* Shipment Connections */}
                 {mapData.connections.map((conn, i) => {
                   const lineColor = conn.type === 'inbound' ? '#18181b' : 
-                                    conn.type === 'outbound' ? '#f59e0b' : 
-                                    '#009193';
+                                    conn.type === 'outbound' ? '#009193' : 
+                                    '#ef4444';
                   const isDelivered = conn.status === 'delivered';
                   const isInternal = conn.type === 'internal';
                   
@@ -549,15 +556,15 @@ export default function SupplierOrders() {
                         [conn.to[1], conn.to[0]]
                       ] as any}
                       color={lineColor}
-                      weight={1.5}
-                      opacity={isDelivered ? 0.2 : 0.7}
-                      dashArray={isInternal ? "2, 6" : "0"}
+                      weight={2.5}
+                      opacity={isDelivered ? 0.3 : 0.8}
+                      dashArray={isInternal ? "5, 5" : "0"}
                     >
                       <Tooltip sticky>
                         <div className="text-[10px] font-bold uppercase tracking-tight">
                           <span className={cn("px-2 py-0.5 rounded-full text-white mr-2", 
-                            conn.type === 'inbound' ? 'bg-blue-500' : 
-                            conn.type === 'outbound' ? 'bg-amber-500' : 'bg-[#009193]')}>
+                            conn.type === 'inbound' ? 'bg-zinc-900' : 
+                            conn.type === 'outbound' ? 'bg-[#009193]' : 'bg-[#ef4444]')}>
                             {conn.type}
                           </span>
                           {conn.status}
@@ -567,15 +574,42 @@ export default function SupplierOrders() {
                   );
                 })}
 
-                {/* Office/Site Markers */}
+                {/* Office/Warehouse/Site Markers */}
                 {mapData.markers.map((loc, i) => {
-                  const isOffice = loc.type?.includes('office');
+                  const isOffice = loc.type?.toLowerCase().includes('office');
+                  const isInboundOrigin = loc.isInboundOrigin;
+                  
+                  if (isOffice) {
+                    const icon = L.divIcon({
+                      html: `<div class="flex items-center justify-center w-10 h-10 rounded-full bg-[#18181b] border-2 border-white text-white shadow-xl hover:scale-110 transition-all">
+                               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-warehouse"><path d="M3 21V10l9-6 9 6v11"/><path d="M9 21V11h6v10"/><path d="M2 10l10-7 10 7"/><path d="m11 13 1 1 1-1"/></svg>
+                             </div>`,
+                      className: 'custom-div-icon',
+                      iconSize: [40, 40],
+                      iconAnchor: [20, 20],
+                    });
+
+                    return (
+                      <Marker key={`marker-${i}`} position={[loc.coords[1], loc.coords[0]] as any} icon={icon}>
+                        <Tooltip direction="top" offset={[0, -20]} className="premium-tooltip">
+                          <div className="p-1">
+                            <div className="text-[10px] font-black uppercase tracking-widest text-[#009193] leading-none mb-1">{loc.type}</div>
+                            <div className="text-sm font-bold text-slate-800">{loc.name}</div>
+                            <div className="mt-2 flex items-center gap-2">
+                              <span className="text-[10px] font-bold px-2 py-0.5 bg-[#18181b] text-white rounded-full">{loc.value} Units</span>
+                            </div>
+                          </div>
+                        </Tooltip>
+                      </Marker>
+                    );
+                  }
+
                   return (
                     <CircleMarker
                       key={`marker-${i}`}
                       center={[loc.coords[1], loc.coords[0]] as any}
-                      radius={isOffice ? 10 : 6}
-                      fillColor={isOffice ? "#18181b" : "#009193"}
+                      radius={6}
+                      fillColor={isInboundOrigin ? "#18181b" : "#009193"}
                       color="white"
                       weight={2}
                       opacity={1}
