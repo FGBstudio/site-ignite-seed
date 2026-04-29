@@ -1,130 +1,130 @@
 ## Goal
 
-1. Replace the `/invoice` "Coming Soon" placeholder with a fully working **Invoice / Fatturazione** module that mirrors the structure, UX and calculations of the `Gestionale_v8.html` mockup. No DB integration yet — data is held client-side (per user: "vedremo in futuro come allineare il db").
-2. Fix the **green_pittogramma.png** images that fail to render in production.
+Port the `app_ct_builder_1.py` Streamlit script into the **Hardware tab** of the Project Detail page as an **Energy Monitoring** sub-section. Admins see everything (sensors, costs, BOM, totals); PMs see only the technical strategy (no costs, no $ widgets, no BOM cost columns).
 
----
+The module is shown only when the project requires energy monitoring (we'll surface it via a toggle/flag on the tab — see Q below).  
 
-## 1) Image rendering fix (small but blocking)
 
-**Cause** — `vite.config.ts` sets `base: '/site-ignite-seed/'` in production, but the pittogramma images are loaded with absolute paths (`src="/green_pittogramma.png"`). In production the browser requests `/green_pittogramma.png` instead of `/site-ignite-seed/green_pittogramma.png`, so the asset 404s.
+!only the admins have the botton tu upload the csv and dowload the final output!
 
-**Fix** — replace every hard-coded `/...png` with a `BASE_URL`-aware path. Introduce a tiny helper:
+&nbsp;
 
-```ts
-// src/lib/assetUrl.ts
-export const asset = (p: string) =>
-  `${import.meta.env.BASE_URL.replace(/\/$/, "")}/${p.replace(/^\//, "")}`;
-```
+## UX
 
-Apply to:
-- `src/pages/Login.tsx` → `src={asset("green_pittogramma.png")}`
-- `src/components/home/PittoCard.tsx` → idem
-- `src/pages/ComingSoon.tsx` → `asset("green.png")`
-- `src/components/layout/TopNavbar.tsx` (if/when it gains a logo image)
-
-This is the only change needed — favicon and the `dev` mode `/` path stay correct because `BASE_URL` is `/` in dev.
-
----
-
-## 2) Invoice / Fatturazione module
-
-The mockup has 6 tabs under one section. We will build the same architecture, kept entirely inside `src/pages/Invoice/`, accessible from the Hub via the existing **INVOICE** card (currently routed to `/invoice` → `ComingSoon`).
-
-### Structure
+Inside the existing `Hardware` tab we add a secondary segmented control:
 
 ```text
-src/pages/Invoice/
-  InvoicePage.tsx            ← top-level: header, KPI strip, tab switcher
-  tabs/
-    InvoicesEmesse.tsx       ← main invoices table (27 cols, scroll-x)
-    InvoicesDaEmettere.tsx   ← steps ready for invoicing
-    InvoicesSolleciti.tsx    ← recall list
-    InvoicesBloccati.tsx     ← blocked recalls (cards)
-    InvoicesInsoluti.tsx     ← unpaid archive
-    InvoicesNoteCredito.tsx  ← credit notes
-  components/
-    InvoiceTable.tsx         ← shared sticky-header table shell
-    KpiStrip.tsx
-    TabBar.tsx
-    InvoiceModal.tsx         ← "Nuova fattura" / edit (same fields as mockup)
-    DaEmettereModal.tsx
-    SollecitoModal.tsx
-    BloccatoModal.tsx
-    InsolutoModal.tsx
-    NoteCreditoModal.tsx
-    IvaFab.tsx               ← floating "?" button + IVA cheat-sheet panel
-  store/
-    useInvoiceStore.ts       ← zustand store, persisted in localStorage
-  types.ts                   ← Invoice, DaEmettere, Sollecito, Bloccato, Insoluto, NotaCredito
-  utils.ts                   ← fEur, fD, calcDPO, exportCSV, sortBy
+[ Allocated Hardware ]   [ Energy Monitoring (CT Builder) ]
 ```
 
-### Data layer (no DB yet)
+The existing allocations table stays as-is. The new view adds:
 
-A single `useInvoiceStore` (zustand + `persist` middleware → `localStorage` key `fgb-invoices-v1`) holds:
+1. **Settings panel** (collapsible, top-right "Settings" button → Sheet/Drawer):
+  - Power Factor slider (0.5–1.0, default 0.8)
+  - Impact Threshold slider (5–50%, default 10)
+  - Editable Load Profiles table (Use, Kc%, Hours, Days)
+  - Bridge Connectivity (LAN / LTE / None)
+  - Include Mango Gateway (checkbox)
+  - Strategy radio: Individual Load > Threshold | End-Use Group > Threshold
+2. **CSV Upload zone** (drag & drop, `.csv` only) — accepts the SLD input.
+3. **KPI strip** (4 cards, mirrors `KpiStrip.tsx` from Invoice module):
+  - Total Facility Energy (kWh/y) — visible to all
+  - No. of Sensors — visible to all
+  - **Sensors Cost ($)** — admin only
+  - **Total Hardware Cost ($)** — admin only
+4. **Detailed Strategy table** with sticky header, horizontal scroll, critical rows highlighted in red. Columns:
+  Electrical Panel, To monitor, Load Type, Amps, Power [W], Energy [kWh/y], CT Model, Sensors, Percentage [%], **Hardware Cost [$]** (admin only).
+5. **Bill of Materials** card (admin only — full hidden for PM):
+  - Aggregated CT models + Bridges + Mango with quantities and unit/total cost.
+  - "Download BOM CSV" + "Download Full Strategy CSV" buttons.
 
-```ts
-{ invoices: Invoice[]; daEmettere: DaEmettere[]; solleciti: Sollecito[];
-  bloccati: Bloccato[]; insoluti: Insoluto[]; nc: NotaCredito[]; }
+PM view: items 4 keeps cost column hidden; item 5 entirely hidden; KPI strip shows only the 2 non-cost cards.
+
+## Visual identity
+
+- Use existing tokens: `Card`, `Badge`, `Button`, `Tabs`, `Slider`, `Switch`, `RadioGroup`, `Input`, `Table` (shadcn).
+- Match Apple-aesthetic minimal style already in the project (frosted glass cards, rounded-lg, `text-foreground`/`text-muted-foreground`).
+- Reuse `KpiStrip` pattern from `src/pages/Invoice/components/KpiStrip.tsx` for consistency.
+- Critical row: `bg-destructive/10` (matches existing `is_deadline_critical` styling on PM cards).
+
+## Technical plan
+
+### 1. New folder: `src/components/projects/EnergyMonitoring/`
+
+- `EnergyMonitoringPanel.tsx` — entry component, takes `{ certificationId, isAdmin }`.
+- `CTBuilderSettings.tsx` — settings drawer (Sheet) with sliders + load profile editor.
+- `CTBuilderUpload.tsx` — CSV dropzone using native `<input type="file">` + drag handlers.
+- `CTBuilderResults.tsx` — KPI strip + results table + BOM (conditionally rendered by role).
+- `lib/ctBuilder.ts` — pure TS port of the Python logic:
+  - `PRICES`, `LOAD_PROFILES` defaults
+  - `getSensorCountAndType(phase)`
+  - `parseWireDimension(wire)` — regex `/[-+]?\d*\.\d+|\d+/g`
+  - `determineCtModel(amps, wireSqmm)`
+  - `processRows(rows, settings)` → `{ rows: ProcessedRow[], totalEnergy, sensorCost, totalSensors, bridgesNeeded, infraCost, totalProject, bom }`
+- `lib/csvParser.ts` — small CSV parser (no new dep; handles `,` delim, quoted fields, header trimming). Required headers: `Electrical Panel`, `To monitor`, `Load Type`, `Phase Configuration`, `Current [A]`, `Wire Dimensions`, optional `Contemporary Power`.
+- `lib/csvExport.ts` — toCSV + download helper.
+- `types.ts` — `RawRow`, `ProcessedRow`, `Settings`, `BomItem`.
+
+### 2. Settings persistence (per-certification)
+
+Use Zustand with `localStorage` (same pattern as Invoice module): `useCTBuilderStore.ts` keyed by `certificationId` so each project keeps its own settings + last uploaded dataset. **No DB changes** — strictly client-side, consistent with the user's "we'll align DB later" preference for the Invoice module.
+
+### 3. Wire into ProjectDetail
+
+In `src/pages/ProjectDetail.tsx`, replace the current `<TabsContent value="hardware">` block with a new `<HardwareTab>` component that renders:
+
+```tsx
+<Tabs defaultValue="allocated">
+  <TabsList>
+    <TabsTrigger value="allocated">Allocated Hardware</TabsTrigger>
+    <TabsTrigger value="energy">Energy Monitoring</TabsTrigger>
+  </TabsList>
+  <TabsContent value="allocated">{/* current table */}</TabsContent>
+  <TabsContent value="energy">
+    <EnergyMonitoringPanel certificationId={projectId} isAdmin={role === "ADMIN"} />
+  </TabsContent>
+</Tabs>
 ```
 
-Each entity matches the mockup field-for-field (see `saveInv()` in the HTML for the canonical Invoice shape: `date, clientEntity, invoiceNumber, projectActivity, activity, currency, exchangeRate, totPaid, vat, paymentMethod, dueDate, notPaid, notPaidVat, dateOfPayment, paymentDay, state, refOrderPO, totCommessa, percFatturato, percProgressivo, entrateVere, emailRef, decurtBancarie, recall, statementOfAccount, entity, dpo`). DPO is auto-computed.
+### 4. Role gating
 
-CSV export and inline editing keep the mockup behavior. Empty state on first load (no seed data).
+- `isAdmin = role === "ADMIN"` from `useAuth()`.
+- All cost-bearing UI is conditionally rendered (`{isAdmin && ...}`) — never relies on CSS hiding.
+- KPI strip receives a filtered items array based on role.
 
-### UI parity with the mockup
+### 5. Sample CSV template
 
-- **Header**: "Fatturazione" title, KPI strip (5 cards: Tot. Insoluto, Solleciti, Bloccati, Da emettere, Note credito) clickable to jump to the relevant tab.
-- **Tab bar**: Fatture Emesse · Da Emettere · Solleciti · Recall Bloccati · Insoluti · Note di Credito, each with a colored count badge.
-- **Main invoice table**: horizontal scroll, sticky header, sortable columns, per-currency formatting, overdue row tint, group-total + grand-total rows.
-- **Modals**: same field grouping as the mockup (`f2/f3/f4` grids → tailwind `grid-cols-{2,3,4}`), cancel/save with toast.
-- **IVA cheat-sheet FAB** (bottom-right), only visible on `/invoice`.
-- All copy stays in **Italian** for this module (mockup is in Italian and matches FGB's accounting jargon).
+Add `public/templates/ct-builder-sample.csv` with the expected columns + one example row, exposed via a "Download template" link next to the upload zone (uses `asset()` helper).
 
-### Styling
+## Files to create/modify
 
-Reuse existing design tokens (Futura, teal `#009193`, ivory bg, 0.5px borders, `border-radius: 12/8px`). All components will use existing shadcn `Card`, `Button`, `Input`, `Select`, `Dialog`, `Badge`, `Table` primitives where possible to keep the look consistent with the rest of the app, while replicating the dense layout from the mockup.
+**Create:**
 
-### Routing changes (`src/App.tsx`)
+- `src/components/projects/EnergyMonitoring/EnergyMonitoringPanel.tsx`
+- `src/components/projects/EnergyMonitoring/CTBuilderSettings.tsx`
+- `src/components/projects/EnergyMonitoring/CTBuilderUpload.tsx`
+- `src/components/projects/EnergyMonitoring/CTBuilderResults.tsx`
+- `src/components/projects/EnergyMonitoring/types.ts`
+- `src/components/projects/EnergyMonitoring/lib/ctBuilder.ts`
+- `src/components/projects/EnergyMonitoring/lib/csvParser.ts`
+- `src/components/projects/EnergyMonitoring/lib/csvExport.ts`
+- `src/components/projects/EnergyMonitoring/store/useCTBuilderStore.ts`
+- `public/templates/ct-builder-sample.csv`
 
-```diff
-- <Route path="/invoice" element={<ProtectedRoute allowedRoles={R("ADMIN")}><ComingSoon section={section("invoice")} /></ProtectedRoute>} />
-+ <Route path="/invoice" element={<ProtectedRoute allowedRoles={R("ADMIN")}><InvoicePage /></ProtectedRoute>} />
-```
+**Modify:**
 
-`hubSections.ts` → flip `comingSoon: false` for the `invoice` entry so the Hub card no longer shows the "Coming soon" pill.
+- `src/pages/ProjectDetail.tsx` — replace Hardware tab content with sub-tabs.
 
-### Navigation
+## Out of scope (confirm to defer)
 
-`src/lib/hubSections.ts` already declares `/invoice`; the Hub `PittoCard` will navigate there. The `TopNavbar` breadcrumb becomes `Home / Invoice`. No "Projects" sub-tabs are shown (Invoice lives outside the PROJECTS section).
+- DB persistence of strategies / BOM — **client-side only for now** (per existing pattern with Invoice module).
+- Auto-creating `project_allocations` rows from BOM — left as a future "Push to Allocations" admin-only button.
 
----
+## One small clarification
 
-## Out of scope
+The user said *"per i siti per cui è previsto un monitoraggio dell'energia"*. There isn't yet a flag on `certifications`/`sites` for this. Two options:
 
-- DB schema, RLS, Supabase tables for invoices (will be addressed in a future iteration as the user requested).
-- Import of legacy invoice data.
-- Email/PDF generation for "Sollecito" (the modal records the message but does not send it).
-- Other Hub sections (Office, HR, Monitor) remain "Coming Soon".
+- **A.** Always show the "Energy Monitoring" sub-tab on every project (simplest, no schema change).
+- **B.** Add a client-side toggle (admin only, persisted in localStorage) "This site requires energy monitoring" that gates visibility for everyone.
 
----
-
-## Files touched (summary)
-
-**Created**
-- `src/lib/assetUrl.ts`
-- `src/pages/Invoice/InvoicePage.tsx`
-- `src/pages/Invoice/tabs/*.tsx` (6 files)
-- `src/pages/Invoice/components/*.tsx` (modals, KpiStrip, TabBar, InvoiceTable, IvaFab)
-- `src/pages/Invoice/store/useInvoiceStore.ts`
-- `src/pages/Invoice/types.ts`
-- `src/pages/Invoice/utils.ts`
-
-**Edited**
-- `src/App.tsx` (route swap)
-- `src/lib/hubSections.ts` (invoice `comingSoon: false`)
-- `src/pages/Login.tsx`, `src/pages/ComingSoon.tsx`, `src/components/home/PittoCard.tsx` (asset URL fix)
-- `package.json` (+ `zustand` if not already present)
-
-After approval I will implement the above end-to-end and verify the build.
+I'll proceed with **A** unless you prefer B — it's the lowest-friction option and matches how the rest of the Hardware tab behaves today.

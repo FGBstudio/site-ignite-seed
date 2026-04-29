@@ -1948,6 +1948,8 @@ export type Database = {
           country: string | null
           created_at: string | null
           id: string
+          lat: number | null
+          lng: number | null
           name: string
           region: string | null
           type: string | null
@@ -1956,6 +1958,8 @@ export type Database = {
           country?: string | null
           created_at?: string | null
           id?: string
+          lat?: number | null
+          lng?: number | null
           name: string
           region?: string | null
           type?: string | null
@@ -1964,6 +1968,8 @@ export type Database = {
           country?: string | null
           created_at?: string | null
           id?: string
+          lat?: number | null
+          lng?: number | null
           name?: string
           region?: string | null
           type?: string | null
