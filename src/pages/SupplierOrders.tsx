@@ -126,6 +126,8 @@ export default function SupplierOrders() {
   const [editingPoId, setEditingPoId] = useState<string | null>(null);
   const [editingShipmentId, setEditingShipmentId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [deliveryMode, setDeliveryMode] = useState<"carrier" | "in_person">("carrier");
+  const [deliveryDetail, setDeliveryDetail] = useState("");
   const [selectedHwIds, setSelectedHwIds] = useState<string[]>([]);
   const [showAllHardware, setShowAllHardware] = useState(false);
   const [outboundOriginFilter, setOutboundOriginFilter] = useState<string>("ALL");
@@ -174,7 +176,7 @@ export default function SupplierOrders() {
     try {
       const [poRes, shipRes, locRes, hwRes, siteRes] = await Promise.all([
         (supabase as any).from("ops_purchase_orders").select("*").order("created_at", { ascending: false }),
-        (supabase as any).from("ops_shipments").select("*, origin:ops_locations!origin_location_id(name), destination:ops_locations!destination_location_id(name), ops_hardware_movements(hardwares(hardware_type))").order("created_at", { ascending: false }),
+        (supabase as any).from("ops_shipments").select("*, origin:ops_locations!origin_location_id(name), destination:ops_locations!destination_location_id(name), ops_hardware_movements(hardwares(hardware_type, category))").order("created_at", { ascending: false }),
         (supabase as any).from("ops_locations").select("*").order("name"),
         supabase.from("hardwares").select("*, purchase_order:ops_purchase_orders(*)").order("created_at", { ascending: false }),
         supabase.from("sites").select("*")
@@ -250,6 +252,15 @@ export default function SupplierOrders() {
       notes: ship.notes || "",
       shipped_date: ship.shipped_date || ""
     });
+
+    const carrierStr = ship.carrier_name || "";
+    if (carrierStr.includes("(In Person)")) {
+      setDeliveryMode("in_person");
+      setDeliveryDetail(carrierStr.replace(" (In Person)", ""));
+    } else {
+      setDeliveryMode("carrier");
+      setDeliveryDetail(carrierStr.replace(" (Carrier)", ""));
+    }
     
     // Fetch associated hardwares for this shipment
     const { data: movements } = await (supabase as any)
@@ -290,8 +301,13 @@ export default function SupplierOrders() {
   const handleSaveShipment = async () => {
     setIsSaving(true);
     try {
+      const finalCarrier = deliveryMode === 'carrier' 
+        ? `${deliveryDetail} (Carrier)` 
+        : `${deliveryDetail} (In Person)`;
+
       const payload = {
         ...shipmentForm,
+        carrier_name: finalCarrier,
         total_shipping_cost: parseFloat(shipmentForm.total_shipping_cost) || 0,
         customs_cost: parseFloat(shipmentForm.customs_cost) || 0,
         purchase_order_id: shipmentForm.purchase_order_id || null,
@@ -362,8 +378,12 @@ export default function SupplierOrders() {
   }, [purchaseOrders, portfolioFilter, searchQuery]);
 
   const internalShipments = useMemo(() => {
-    return shipments.filter(s => s.shipment_type === 'internal');
-  }, [shipments]);
+    return shipments.filter(s => {
+      if (s.shipment_type !== 'internal') return false;
+      const matchesPortfolio = portfolioFilter === "ALL" || s.ops_hardware_movements?.some((m: any) => m.hardwares?.category?.toUpperCase() === portfolioFilter);
+      return matchesPortfolio;
+    });
+  }, [shipments, portfolioFilter]);
 
   const outboundShipments = useMemo(() => {
     return shipments.filter(s => {
@@ -372,9 +392,11 @@ export default function SupplierOrders() {
       const isFulfilled = s.status === 'delivered';
       const matchesSubTab = outboundSubTab === 'shipped' ? isFulfilled : !isFulfilled;
       const matchesOrigin = outboundOriginFilter === "ALL" || s.origin_location_id === outboundOriginFilter;
-      return matchesSearch && matchesSubTab && matchesOrigin;
+      const matchesPortfolio = portfolioFilter === "ALL" || s.ops_hardware_movements?.some((m: any) => m.hardwares?.category?.toUpperCase() === portfolioFilter);
+      
+      return matchesSearch && matchesSubTab && matchesOrigin && matchesPortfolio;
     });
-  }, [shipments, searchQuery, outboundSubTab, outboundOriginFilter]);
+  }, [shipments, searchQuery, outboundSubTab, outboundOriginFilter, portfolioFilter]);
 
   const selectableHardware = useMemo(() => {
     return hardwares.filter(h => {
@@ -757,8 +779,8 @@ export default function SupplierOrders() {
               <div className="flex items-center gap-4">
                 <Tabs value={outboundSubTab} onValueChange={(v)=>setParam("sub", v)} className="w-fit">
                   <TabsList className="bg-slate-100 p-1 h-9">
-                    <TabsTrigger value="awaiting" className="text-xs px-4 data-[state=active]:bg-white">Awaiting Dispatch ({shipments.filter(s => s.shipment_type === 'outbound' && s.status !== 'delivered').length})</TabsTrigger>
-                    <TabsTrigger value="shipped" className="text-xs px-4 data-[state=active]:bg-white">Fulfilled ({shipments.filter(s => s.shipment_type === 'outbound' && s.status === 'delivered').length})</TabsTrigger>
+                    <TabsTrigger value="awaiting" className="text-xs px-4 data-[state=active]:bg-white">Awaiting Dispatch ({shipments.filter(s => s.shipment_type === 'outbound' && s.status !== 'delivered' && (portfolioFilter === "ALL" || s.ops_hardware_movements?.some((m: any) => m.hardwares?.category?.toUpperCase() === portfolioFilter))).length})</TabsTrigger>
+                    <TabsTrigger value="shipped" className="text-xs px-4 data-[state=active]:bg-white">Fulfilled ({shipments.filter(s => s.shipment_type === 'outbound' && s.status === 'delivered' && (portfolioFilter === "ALL" || s.ops_hardware_movements?.some((m: any) => m.hardwares?.category?.toUpperCase() === portfolioFilter))).length})</TabsTrigger>
                   </TabsList>
                 </Tabs>
                 {outboundSubTab === 'shipped' && (
@@ -825,11 +847,49 @@ export default function SupplierOrders() {
           <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8 max-h-[75vh] overflow-y-auto">
             <div className="space-y-4">
                <p className="text-[10px] font-bold uppercase text-[#009193] tracking-widest border-b pb-1">1. Logistics Route</p>
-               <div className="grid grid-cols-2 gap-4">
+               <div className="grid grid-cols-1 gap-4">
                   <div className="space-y-2"><Label className="text-[10px] font-bold uppercase text-slate-400">Origin Office</Label><Select value={shipmentForm.origin_location_id} onValueChange={(v)=>setShipmentForm({...shipmentForm, origin_location_id: v})}><SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Pick Office" /></SelectTrigger><SelectContent>{internalOffices.map(l=><SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent></Select></div>
-                  <div className="space-y-2"><Label className="text-[10px] font-bold uppercase text-slate-400">Destination</Label><Select value={shipmentForm.destination_location_id} onValueChange={(v)=>setShipmentForm({...shipmentForm, destination_location_id: v})}><SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Pick Target" /></SelectTrigger><SelectContent>{internalOffices.map(l=><SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent></Select></div>
+
                </div>
-               <div className="space-y-2"><Label className="text-[10px] font-bold uppercase text-slate-400">Carrier / Forwarder</Label><Input placeholder="FedEx, UPS, Staff Delivery..." className="h-9 text-xs" value={shipmentForm.carrier_name} onChange={(e)=>setShipmentForm({...shipmentForm, carrier_name: e.target.value})} /></div>
+               <div className="space-y-4 pt-2">
+                 <div className="grid grid-cols-2 gap-4">
+                   <div className="space-y-2">
+                     <Label className="text-[10px] font-bold uppercase text-slate-400">Delivery Mode</Label>
+                     <Select value={deliveryMode} onValueChange={(v: any)=>setDeliveryMode(v)}>
+                       <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+                       <SelectContent>
+                         <SelectItem value="carrier">Via Carrier</SelectItem>
+                         <SelectItem value="in_person">Deliver In Person</SelectItem>
+                       </SelectContent>
+                     </Select>
+                   </div>
+                   <div className="space-y-2">
+                     <Label className="text-[10px] font-bold uppercase text-slate-400">
+                       {deliveryMode === 'carrier' ? 'Select Carrier' : 'Person Name'}
+                     </Label>
+                     {deliveryMode === 'carrier' ? (
+                       <Select value={deliveryDetail} onValueChange={setDeliveryDetail}>
+                         <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Select..." /></SelectTrigger>
+                         <SelectContent>
+                           <SelectItem value="DHL">DHL</SelectItem>
+                           <SelectItem value="FedEx">FedEx</SelectItem>
+                           <SelectItem value="UPS">UPS</SelectItem>
+                           <SelectItem value="TNT">TNT</SelectItem>
+                           <SelectItem value="Other">Other</SelectItem>
+                         </SelectContent>
+                       </Select>
+                     ) : (
+                       <Input 
+                        placeholder="John Doe..." 
+                        className="h-9 text-xs" 
+                        value={deliveryDetail} 
+                        onChange={(e)=>setDeliveryDetail(e.target.value)} 
+                       />
+                     )}
+                   </div>
+                 </div>
+               </div>
+
                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2"><Label className="text-[10px] font-bold uppercase text-slate-400">Freight Cost</Label><Input type="number" className="h-9 text-xs" value={shipmentForm.total_shipping_cost} onChange={(e)=>setShipmentForm({...shipmentForm, total_shipping_cost: e.target.value})} /></div>
                   <div className="space-y-2"><Label className="text-[10px] font-bold uppercase text-slate-400">Status</Label><Select value={shipmentForm.status} onValueChange={(v)=>setShipmentForm({...shipmentForm, status: v})}><SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger><SelectContent>{SHIPMENT_STATUSES.map(s=><SelectItem key={s} value={s}>{s.replace('_',' ')}</SelectItem>)}</SelectContent></Select></div>
