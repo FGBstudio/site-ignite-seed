@@ -27,6 +27,7 @@ import Contacts from "./pages/Contacts";
 import Login from "./pages/Login";
 import Unsubscribe from "./pages/Unsubscribe";
 import NotFound from "./pages/NotFound";
+import Monitor from "./pages/Monitor";
 
 const queryClient = new QueryClient();
 
@@ -63,7 +64,7 @@ function AppRoutes() {
       {/* ── Coming Soon sections ── */}
       <Route path="/office" element={<ProtectedRoute allowedRoles={R("ADMIN")}><ComingSoon section={section("office")} /></ProtectedRoute>} />
       <Route path="/hr" element={<ProtectedRoute allowedRoles={R("ADMIN", "PM")}><ComingSoon section={section("hr")} /></ProtectedRoute>} />
-      <Route path="/monitor" element={<ProtectedRoute allowedRoles={R("ADMIN")}><ComingSoon section={section("monitor")} /></ProtectedRoute>} />
+      <Route path="/monitor" element={<ProtectedRoute allowedRoles={R("ADMIN", "PM")}><Monitor /></ProtectedRoute>} />
       <Route path="/invoice" element={<ProtectedRoute allowedRoles={R("ADMIN")}><InvoicePage /></ProtectedRoute>} />
 
       {/* ── Admin routes (Projects section) ── */}

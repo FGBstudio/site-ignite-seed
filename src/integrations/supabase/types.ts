@@ -1684,17 +1684,23 @@ export type Database = {
       }
       hardwares: {
         Row: {
+          assigned_port: string | null
           carrier_name: string | null
           category: string | null
           country: string | null
           created_at: string
           delivery_person: string | null
           device_id: string
+          dns1: string | null
+          dns2: string | null
           fulfillment_status:
             | Database["public"]["Enums"]["hardware_fulfillment_status"]
             | null
+          gateway: string | null
           hardware_type: string | null
           id: string
+          ip_address: string | null
+          ip_configuration: string | null
           logistics_details: string | null
           mac_address: string | null
           notes: string | null
@@ -1711,21 +1717,28 @@ export type Database = {
           shipping_currency: string | null
           site_id: string | null
           status: string | null
+          subnet_mask: string | null
           tracking_number: string | null
           updated_at: string
         }
         Insert: {
+          assigned_port?: string | null
           carrier_name?: string | null
           category?: string | null
           country?: string | null
           created_at?: string
           delivery_person?: string | null
           device_id: string
+          dns1?: string | null
+          dns2?: string | null
           fulfillment_status?:
             | Database["public"]["Enums"]["hardware_fulfillment_status"]
             | null
+          gateway?: string | null
           hardware_type?: string | null
           id?: string
+          ip_address?: string | null
+          ip_configuration?: string | null
           logistics_details?: string | null
           mac_address?: string | null
           notes?: string | null
@@ -1742,21 +1755,28 @@ export type Database = {
           shipping_currency?: string | null
           site_id?: string | null
           status?: string | null
+          subnet_mask?: string | null
           tracking_number?: string | null
           updated_at?: string
         }
         Update: {
+          assigned_port?: string | null
           carrier_name?: string | null
           category?: string | null
           country?: string | null
           created_at?: string
           delivery_person?: string | null
           device_id?: string
+          dns1?: string | null
+          dns2?: string | null
           fulfillment_status?:
             | Database["public"]["Enums"]["hardware_fulfillment_status"]
             | null
+          gateway?: string | null
           hardware_type?: string | null
           id?: string
+          ip_address?: string | null
+          ip_configuration?: string | null
           logistics_details?: string | null
           mac_address?: string | null
           notes?: string | null
@@ -1773,6 +1793,7 @@ export type Database = {
           shipping_currency?: string | null
           site_id?: string | null
           status?: string | null
+          subnet_mask?: string | null
           tracking_number?: string | null
           updated_at?: string
         }
@@ -2287,29 +2308,38 @@ export type Database = {
       }
       project_allocations: {
         Row: {
+          category: string | null
           certification_id: string
           created_at: string
           id: string
           product_id: string
           quantity: number
+          requested_quantity: number | null
+          source: string | null
           status: string
           target_date: string | null
         }
         Insert: {
+          category?: string | null
           certification_id: string
           created_at?: string
           id?: string
           product_id: string
           quantity?: number
+          requested_quantity?: number | null
+          source?: string | null
           status?: string
           target_date?: string | null
         }
         Update: {
+          category?: string | null
           certification_id?: string
           created_at?: string
           id?: string
           product_id?: string
           quantity?: number
+          requested_quantity?: number | null
+          source?: string | null
           status?: string
           target_date?: string | null
         }
@@ -2765,6 +2795,226 @@ export type Database = {
           site_id?: string
         }
         Relationships: []
+      }
+      site_energy_records: {
+        Row: {
+          additional_bridge: number | null
+          additional_pan42: number | null
+          additional_sensors: number | null
+          assigned_port: string | null
+          brand_id: string | null
+          brand_name: string | null
+          bridge_total_cost: number | null
+          category: string | null
+          certification_id: string
+          city: string | null
+          company_cost_pct: number | null
+          contracted: string | null
+          country: string | null
+          created_at: string
+          customized_package: boolean | null
+          dns1: string | null
+          dns2: string | null
+          duty_customs_inbound: number | null
+          fgb_resource: number | null
+          free_software_year: number | null
+          frequency: number | null
+          gateway: string | null
+          handover_date: string | null
+          id: string
+          installation_cost: number | null
+          installation_date: string | null
+          installer: string | null
+          ip_address: string | null
+          ip_configuration: string | null
+          locked: boolean
+          no_ct: number | null
+          no_pan10: number | null
+          no_pan12: number | null
+          no_pan14: number | null
+          notes: string | null
+          online_status: string | null
+          outbound_custom_cost: number | null
+          package_a: boolean | null
+          package_b: boolean | null
+          pickup_cost: number | null
+          planned_remaining_value: number | null
+          pm_id: string | null
+          po_number: string | null
+          profit: number | null
+          project_name: string | null
+          quotation_value: number | null
+          reference_contact: string | null
+          region: string | null
+          roi_pct: number | null
+          sensor_total_cost: number | null
+          shipment_cost: number | null
+          site_id: string | null
+          status: string | null
+          subnet_mask: string | null
+          taxes: number | null
+          total_bridges: number | null
+          total_cost: number | null
+          total_package_cost_eur: number | null
+          total_package_cost_usd: number | null
+          total_sensors: number | null
+          tracking_number: string | null
+          updated_at: string
+          vat_fee: number | null
+        }
+        Insert: {
+          additional_bridge?: number | null
+          additional_pan42?: number | null
+          additional_sensors?: number | null
+          assigned_port?: string | null
+          brand_id?: string | null
+          brand_name?: string | null
+          bridge_total_cost?: number | null
+          category?: string | null
+          certification_id: string
+          city?: string | null
+          company_cost_pct?: number | null
+          contracted?: string | null
+          country?: string | null
+          created_at?: string
+          customized_package?: boolean | null
+          dns1?: string | null
+          dns2?: string | null
+          duty_customs_inbound?: number | null
+          fgb_resource?: number | null
+          free_software_year?: number | null
+          frequency?: number | null
+          gateway?: string | null
+          handover_date?: string | null
+          id?: string
+          installation_cost?: number | null
+          installation_date?: string | null
+          installer?: string | null
+          ip_address?: string | null
+          ip_configuration?: string | null
+          locked?: boolean
+          no_ct?: number | null
+          no_pan10?: number | null
+          no_pan12?: number | null
+          no_pan14?: number | null
+          notes?: string | null
+          online_status?: string | null
+          outbound_custom_cost?: number | null
+          package_a?: boolean | null
+          package_b?: boolean | null
+          pickup_cost?: number | null
+          planned_remaining_value?: number | null
+          pm_id?: string | null
+          po_number?: string | null
+          profit?: number | null
+          project_name?: string | null
+          quotation_value?: number | null
+          reference_contact?: string | null
+          region?: string | null
+          roi_pct?: number | null
+          sensor_total_cost?: number | null
+          shipment_cost?: number | null
+          site_id?: string | null
+          status?: string | null
+          subnet_mask?: string | null
+          taxes?: number | null
+          total_bridges?: number | null
+          total_cost?: number | null
+          total_package_cost_eur?: number | null
+          total_package_cost_usd?: number | null
+          total_sensors?: number | null
+          tracking_number?: string | null
+          updated_at?: string
+          vat_fee?: number | null
+        }
+        Update: {
+          additional_bridge?: number | null
+          additional_pan42?: number | null
+          additional_sensors?: number | null
+          assigned_port?: string | null
+          brand_id?: string | null
+          brand_name?: string | null
+          bridge_total_cost?: number | null
+          category?: string | null
+          certification_id?: string
+          city?: string | null
+          company_cost_pct?: number | null
+          contracted?: string | null
+          country?: string | null
+          created_at?: string
+          customized_package?: boolean | null
+          dns1?: string | null
+          dns2?: string | null
+          duty_customs_inbound?: number | null
+          fgb_resource?: number | null
+          free_software_year?: number | null
+          frequency?: number | null
+          gateway?: string | null
+          handover_date?: string | null
+          id?: string
+          installation_cost?: number | null
+          installation_date?: string | null
+          installer?: string | null
+          ip_address?: string | null
+          ip_configuration?: string | null
+          locked?: boolean
+          no_ct?: number | null
+          no_pan10?: number | null
+          no_pan12?: number | null
+          no_pan14?: number | null
+          notes?: string | null
+          online_status?: string | null
+          outbound_custom_cost?: number | null
+          package_a?: boolean | null
+          package_b?: boolean | null
+          pickup_cost?: number | null
+          planned_remaining_value?: number | null
+          pm_id?: string | null
+          po_number?: string | null
+          profit?: number | null
+          project_name?: string | null
+          quotation_value?: number | null
+          reference_contact?: string | null
+          region?: string | null
+          roi_pct?: number | null
+          sensor_total_cost?: number | null
+          shipment_cost?: number | null
+          site_id?: string | null
+          status?: string | null
+          subnet_mask?: string | null
+          taxes?: number | null
+          total_bridges?: number | null
+          total_cost?: number | null
+          total_package_cost_eur?: number | null
+          total_package_cost_usd?: number | null
+          total_sensors?: number | null
+          tracking_number?: string | null
+          updated_at?: string
+          vat_fee?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "site_energy_records_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "site_energy_records_certification_id_fkey"
+            columns: ["certification_id"]
+            isOneToOne: false
+            referencedRelation: "certifications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "site_energy_records_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       site_kpis: {
         Row: {

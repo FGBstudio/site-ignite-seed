@@ -244,8 +244,11 @@ export function DataImporter() {
                 certification_id: (certData as any).id,
                 product_id: productId,
                 quantity: row.quantity,
+                requested_quantity: row.quantity,
                 status: "Requested" as const,
                 target_date: row.handoverDate,
+                category: "AIR",
+                source: "pm_request",
               });
 
               if (allocError) {

@@ -373,7 +373,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
           if (alloc.id) {
             await supabase.from("project_allocations" as any).update({ product_id: alloc.product_id, quantity: alloc.quantity, status: alloc.status } as any).eq("id", alloc.id);
           } else {
-            await supabase.from("project_allocations" as any).insert({ certification_id: firstCertId, product_id: alloc.product_id, quantity: alloc.quantity, status: (alloc.status || "Draft") as any, target_date: targetDate });
+            await supabase.from("project_allocations" as any).insert({ certification_id: firstCertId, product_id: alloc.product_id, quantity: alloc.quantity, requested_quantity: alloc.quantity, status: (alloc.status || "Draft") as any, target_date: targetDate, category: "AIR", source: "pm_request" });
           }
         }
       }

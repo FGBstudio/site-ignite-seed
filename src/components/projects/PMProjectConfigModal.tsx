@@ -741,7 +741,10 @@ function HardwareTab({ project }: { project: PMProject }) {
         certification_id: project.id,
         product_id: newProductId,
         quantity: newQty,
+        requested_quantity: newQty,
         status: "Requested",
+        category: "AIR",
+        source: "pm_request",
       });
       setNewProductId("");
       setQty(1);

@@ -55,7 +55,7 @@ export const HUB_SECTIONS: HubSection[] = [
     color: "#a0d5d6",
     filter: "brightness(1.1) saturate(.65)",
     route: "/monitor",
-    comingSoon: true,
+    comingSoon: false,
     allowedRoles: ["ADMIN"],
   },
   {

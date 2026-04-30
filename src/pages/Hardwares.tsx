@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Plus, Table as TableIcon, LayoutGrid, Upload, Search, Package } from "lucide-react";
+import { AssignToSiteDialog } from "@/components/hardwares/AssignToSiteDialog";
 import {
   Table,
   TableBody,
@@ -337,60 +338,19 @@ export default function Hardwares() {
               </DialogContent>
             </Dialog>
 
-          <Dialog open={isAssigning} onOpenChange={setIsAssigning}>
-            <DialogTrigger asChild>
-              <Button variant="outline" className="border-[#009193]/30 text-[#009193] hover:bg-[#009193]/5">
-                <Package className="h-4 w-4 mr-2" /> Assign to Site
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="glass-heavy sm:max-w-[425px]">
-              <DialogHeader>
-                <DialogTitle>Project Assignment</DialogTitle>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid gap-2">
-                  <Label>Available Device ID (Stock Only)</Label>
-                  <Select onValueChange={(val) => setAssignment({ ...assignment, hardware_id: val })}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Search available inventory..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {hardwares
-                        .filter(h => h.status === 'In Stock')
-                        .map(h => (
-                          <SelectItem key={h.id} value={h.id}>
-                            {h.device_id} ({h.hardware_type})
-                          </SelectItem>
-                        ))
-                      }
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-2">
-                  <Label>Destination Project / Site</Label>
-                  <Select onValueChange={(val) => setAssignment({ ...assignment, site_id: val })}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select target site" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {sites.map(s => (
-                        <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-2">
-                  <Label>Assignment Notes (PM)</Label>
-                  <Input 
-                    placeholder="e.g. For Phase 2 deployment" 
-                    value={assignment.notes} 
-                    onChange={(e) => setAssignment({ ...assignment, notes: e.target.value })} 
-                  />
-                </div>
-              </div>
-              <Button onClick={handleAssignHardware} className="w-full tb-button primary">Confirm Allocation</Button>
-            </DialogContent>
-          </Dialog>
+          <Button
+            variant="outline"
+            className="border-[#009193]/30 text-[#009193] hover:bg-[#009193]/5"
+            onClick={() => setIsAssigning(true)}
+          >
+            <Package className="h-4 w-4 mr-2" /> Assign to Site
+          </Button>
+          <AssignToSiteDialog
+            open={isAssigning}
+            onOpenChange={setIsAssigning}
+            hardwares={hardwares}
+            onSaved={fetchData}
+          />
           </div>
         </div>
       </div>
