@@ -1,130 +1,147 @@
-## Goal
+# Monitor / Energy — End-to-end flow
 
-Port the `app_ct_builder_1.py` Streamlit script into the **Hardware tab** of the Project Detail page as an **Energy Monitoring** sub-section. Admins see everything (sensors, costs, BOM, totals); PMs see only the technical strategy (no costs, no $ widgets, no BOM cost columns).
+The goal is a Monitor section whose first view is a filterable **Energy** table with KPIs on top, fed automatically by the existing project flow. Air will get its own table later (same pattern). This plan covers the full chain that produces each row.
 
-The module is shown only when the project requires energy monitoring (we'll surface it via a toggle/flag on the tab — see Q below).  
+## 1. Database changes (new migration)
 
+Two small additions, no destructive changes:
 
-!only the admins have the botton tu upload the csv and dowload the final output!
+- `**project_allocations**` — add columns (all nullable, no default behavior change):
+  - `category` text — `"AIR"` | `"ENERGY"` (used to drive the Air/Energy slider in the assign form and the Monitor split).
+  - `requested_quantity` integer — what the PM (Air) or Monitoring Team (Energy) asked for. Existing `quantity` keeps meaning "assigned".
+  - `source` text — `"pm_request"` | `"ct_builder"` (so we know if the row came from the project config form or the CT Builder quote).
+- `**site_energy_records**` — new table feeding the Monitor → Energy view. One row per (certification_id, site_id) once the quote is accepted; subsequently editable inline by Admin. Columns mirror the spreadsheet headers the user shared:
+  ```text
+  id, certification_id, site_id, brand_id, region, country, city,
+  status, frequency, free_software_year,
+  installation_date, contracted, pm_id, handover_date,
+  category, po_number, installer, reference_contact,
+  package_a, package_b, customized_package,
+  additional_sensors, additional_bridge, additional_pan42,
+  total_sensors, total_bridges, no_pan10, no_pan12, no_pan14, no_ct,
+  bridge_total_cost, sensor_total_cost,
+  total_package_cost_usd, total_package_cost_eur,
+  duty_customs_inbound, vat_fee, pickup_cost, shipment_cost,
+  outbound_custom_cost, installation_cost,
+  quotation_value, company_cost_pct, fgb_resource, total_cost,
+  planned_remaining_value, taxes, profit, roi_pct,
+  tracking_number,
+  ip_configuration, assigned_port, ip_address, subnet_mask, gateway, dns1, dns2,
+  online_status, notes,
+  locked boolean default true, created_at, updated_at
+  ```
+  RLS: ADMIN full access; PM read-only on rows whose certification they manage (via `is_cert_pm`).
+- `**task_alerts**` — no schema change, we just emit a new alert kind `"quote_accepted"` from the CT Builder confirm action so it appears in the existing site history feed (same pattern as other alerts).
 
-&nbsp;
+## 2. Admin: "Quote accepted" button on the Energy Monitoring panel
 
-## UX
+In `src/components/projects/EnergyMonitoring/EnergyMonitoringPanel.tsx` (admin only, after CSV upload + computed result):
 
-Inside the existing `Hardware` tab we add a secondary segmented control:
+- Add a primary **"Confirm quote accepted"** button next to the existing Settings/Export controls.
+- On click:
+  1. Insert one `project_allocations` row per BOM line (`category="ENERGY"`, `source="ct_builder"`, `requested_quantity=qty`, `quantity=0`, `status="Requested"`, `product_id` resolved by mapping CT model / Bridge / Mango → existing `products.name` (PAN-10/12/14, Bridge LAN/LTE, MANGO Gateway). If a product is missing, show a toast listing the missing SKUs and abort.
+  2. Insert a `task_alerts` entry of kind `quote_accepted` tied to the certification (visible to Admin + assigned PM, same surface as existing site-history alerts).
+  3. Insert/upsert a `site_energy_records` row prefilled from the certification + BOM aggregates (sensors, bridges, costs from `CTResult`). Status defaults to `"Upcoming"`.
+- Once accepted, the panel shows a small "Quote accepted on …" banner and disables the button (idempotent — re-clicking does nothing). An admin-only "Re-run / Replace quote" link allows re-confirming, which deletes prior `ct_builder`-source allocations for this cert and replaces them.
+
+## 3. Project Detail → Hardware tab → "Allocated Hardware"
+
+The existing list already reads `project_allocations`. We add:
+
+- A **category badge** (Air / Energy) on each row, using the new `category` column.
+- A small "Requested by" sub-label: `PM` for `pm_request`, `Monitoring Team` for `ct_builder`.
+- No other change — the rows just appear automatically because they're standard allocations.
+
+## 4. PM project configuration form — backfill `category`
+
+`PMProjectConfigModal` and `ProjectFormModal` already create allocations from PM's air-monitor request. Set `category="AIR"`, `source="pm_request"`, `requested_quantity = quantity` on insert. Existing rows are left unchanged (treated as Air by default in queries via `coalesce(category,'AIR')`).
+
+## 5. Hardwares page → "Assign to Site" form rewrite
+
+Replace the current dialog body in `src/pages/Hardwares.tsx` (lines ~340–393) with a richer form:
 
 ```text
-[ Allocated Hardware ]   [ Energy Monitoring (CT Builder) ]
+[ Air | Energy ]   ← segmented slider at the top (controls the rest)
+
+Project (filterable by PM)        [select]
+  PM filter: [all PMs ▾]          [project select ▾]
+
+Hint card (appears once project picked):
+  Air    → "For this project {PM name} asked for {n} {monitor type} monitors."
+  Energy → "For this project Monitoring Team asked for {n} Bridge,
+            {n} PAN-10, {n} PAN-12, {n} PAN-14, {n} MANGO."
+
+Per requested unit, render N assignment rows:
+  [ type filter ▾ ]  [ available device id ▾ ]
+  (default type = requested type, but admin can pick any other available device)
+
+Energy only — collapsible "Bridge configuration" section:
+  IP configuration | Assigned Port | IP address | Subnet Mask
+  Gateway | DNS 1 | DNS 2
+
+[ Confirm Allocation ]
 ```
 
-The existing allocations table stays as-is. The new view adds:
+Submit logic:
 
-1. **Settings panel** (collapsible, top-right "Settings" button → Sheet/Drawer):
-  - Power Factor slider (0.5–1.0, default 0.8)
-  - Impact Threshold slider (5–50%, default 10)
-  - Editable Load Profiles table (Use, Kc%, Hours, Days)
-  - Bridge Connectivity (LAN / LTE / None)
-  - Include Mango Gateway (checkbox)
-  - Strategy radio: Individual Load > Threshold | End-Use Group > Threshold
-2. **CSV Upload zone** (drag & drop, `.csv` only) — accepts the SLD input.
-3. **KPI strip** (4 cards, mirrors `KpiStrip.tsx` from Invoice module):
-  - Total Facility Energy (kWh/y) — visible to all
-  - No. of Sensors — visible to all
-  - **Sensors Cost ($)** — admin only
-  - **Total Hardware Cost ($)** — admin only
-4. **Detailed Strategy table** with sticky header, horizontal scroll, critical rows highlighted in red. Columns:
-  Electrical Panel, To monitor, Load Type, Amps, Power [W], Energy [kWh/y], CT Model, Sensors, Percentage [%], **Hardware Cost [$]** (admin only).
-5. **Bill of Materials** card (admin only — full hidden for PM):
-  - Aggregated CT models + Bridges + Mango with quantities and unit/total cost.
-  - "Download BOM CSV" + "Download Full Strategy CSV" buttons.
+1. For each filled assignment row, `update hardwares set site_id, status='Assigned'` and bump the matching `project_allocations.quantity` (the assigned counter) by 1, keeping `requested_quantity` as the requested target.
+2. If Energy and bridge config is filled, write those fields onto the bridge `hardwares` row(s) (we add nullable columns `ip_configuration`, `assigned_port`, `ip_address`, `subnet_mask`, `gateway`, `dns1`, `dns2` to `hardwares`).
+3. Upsert the `site_energy_records` row for this certification with the resulting totals (sensors, bridges, models breakdown, plus the bridge config). This is the trigger that **populates the Monitor → Energy table**.
 
-PM view: items 4 keeps cost column hidden; item 5 entirely hidden; KPI strip shows only the 2 non-cost cards.
+## 6. Monitor section: route + Energy table
 
-## Visual identity
+- Flip `monitor` in `src/lib/hubSections.ts` to `comingSoon: false`.
+- New route `/monitor` (default) → `MonitorEnergy` page (Energy is the landing tab; an "Air" tab is stubbed `ComingSoon`).
+- Page layout:
+  ```text
+  [ Energy | Air ]   (tabs)
 
-- Use existing tokens: `Card`, `Badge`, `Button`, `Tabs`, `Slider`, `Switch`, `RadioGroup`, `Input`, `Table` (shadcn).
-- Match Apple-aesthetic minimal style already in the project (frosted glass cards, rounded-lg, `text-foreground`/`text-muted-foreground`).
-- Reuse `KpiStrip` pattern from `src/pages/Invoice/components/KpiStrip.tsx` for consistency.
-- Critical row: `bg-destructive/10` (matches existing `is_deadline_critical` styling on PM cards).
+  KPI strip (recomputed live from current filtered rows):
+    Sites · Total Sensors · Total Bridges · Total Cost (€) · Avg ROI %
 
-## Technical plan
+  Filter bar: brand, region, country, city, status, PM, frequency,
+              installation year, online status, free-text search
 
-### 1. New folder: `src/components/projects/EnergyMonitoring/`
+  Table: all columns from `site_energy_records`, sticky header,
+         horizontal scroll, sortable, column visibility menu.
+         Each row: leading [pencil] button → unlocks inline editing
+         for that row only (admin only). PM sees read-only.
+         Save / Cancel inline buttons commit via UPDATE on the row.
+  ```
+- Export CSV button reuses the same util as the Invoice/CT Builder modules.
 
-- `EnergyMonitoringPanel.tsx` — entry component, takes `{ certificationId, isAdmin }`.
-- `CTBuilderSettings.tsx` — settings drawer (Sheet) with sliders + load profile editor.
-- `CTBuilderUpload.tsx` — CSV dropzone using native `<input type="file">` + drag handlers.
-- `CTBuilderResults.tsx` — KPI strip + results table + BOM (conditionally rendered by role).
-- `lib/ctBuilder.ts` — pure TS port of the Python logic:
-  - `PRICES`, `LOAD_PROFILES` defaults
-  - `getSensorCountAndType(phase)`
-  - `parseWireDimension(wire)` — regex `/[-+]?\d*\.\d+|\d+/g`
-  - `determineCtModel(amps, wireSqmm)`
-  - `processRows(rows, settings)` → `{ rows: ProcessedRow[], totalEnergy, sensorCost, totalSensors, bridgesNeeded, infraCost, totalProject, bom }`
-- `lib/csvParser.ts` — small CSV parser (no new dep; handles `,` delim, quoted fields, header trimming). Required headers: `Electrical Panel`, `To monitor`, `Load Type`, `Phase Configuration`, `Current [A]`, `Wire Dimensions`, optional `Contemporary Power`.
-- `lib/csvExport.ts` — toCSV + download helper.
-- `types.ts` — `RawRow`, `ProcessedRow`, `Settings`, `BomItem`.
+## 7. Roles & visibility
 
-### 2. Settings persistence (per-certification)
+- ADMIN: full create/edit on `site_energy_records`, sees costs, can run "Confirm quote".
+- PM: sees the Energy row only for their certifications, all cost columns hidden (same gate already used in `EnergyMonitoringPanel`).
 
-Use Zustand with `localStorage` (same pattern as Invoice module): `useCTBuilderStore.ts` keyed by `certificationId` so each project keeps its own settings + last uploaded dataset. **No DB changes** — strictly client-side, consistent with the user's "we'll align DB later" preference for the Invoice module.
+## Files
 
-### 3. Wire into ProjectDetail
+**New**
 
-In `src/pages/ProjectDetail.tsx`, replace the current `<TabsContent value="hardware">` block with a new `<HardwareTab>` component that renders:
+- `supabase/migrations/<ts>_monitor_energy.sql` — schema additions + RLS.
+- `src/pages/Monitor/MonitorPage.tsx` — tabs shell.
+- `src/pages/Monitor/Energy/EnergyTable.tsx`, `EnergyKpiStrip.tsx`, `EnergyFilters.tsx`, `EnergyRow.tsx` (inline edit), `useEnergyRecords.ts`.
+- `src/pages/Monitor/Air/ComingSoon.tsx`.
+- `src/components/hardwares/AssignToSiteDialog.tsx` — extracted, with Air/Energy slider, requested-vs-available logic, bridge config block.
+- `src/lib/productMap.ts` — CT model / Bridge / Mango → `products.id` resolver.
 
-```tsx
-<Tabs defaultValue="allocated">
-  <TabsList>
-    <TabsTrigger value="allocated">Allocated Hardware</TabsTrigger>
-    <TabsTrigger value="energy">Energy Monitoring</TabsTrigger>
-  </TabsList>
-  <TabsContent value="allocated">{/* current table */}</TabsContent>
-  <TabsContent value="energy">
-    <EnergyMonitoringPanel certificationId={projectId} isAdmin={role === "ADMIN"} />
-  </TabsContent>
-</Tabs>
-```
+**Modified**
 
-### 4. Role gating
+- `src/lib/hubSections.ts` — `monitor.comingSoon = false`.
+- `src/App.tsx` — `/monitor` route (admin + PM read-only).
+- `src/pages/Hardwares.tsx` — replace inline assign dialog with the new component.
+- `src/components/projects/EnergyMonitoring/EnergyMonitoringPanel.tsx` — "Confirm quote accepted" button + state.
+- `src/components/projects/PMProjectConfigModal.tsx`, `ProjectFormModal.tsx` — set `category="AIR"`, `source="pm_request"`, `requested_quantity`.
+- `src/integrations/supabase/types.ts` — regenerated types.
+- `src/types/custom-tables.ts` — `SiteEnergyRecord` interface.
 
-- `isAdmin = role === "ADMIN"` from `useAuth()`.
-- All cost-bearing UI is conditionally rendered (`{isAdmin && ...}`) — never relies on CSS hiding.
-- KPI strip receives a filtered items array based on role.
+## Open question (one)
 
-### 5. Sample CSV template
+For the `site_energy_records` rows that already exist conceptually (the ~600 sites in the spreadsheet you pasted), do you want me to:
 
-Add `public/templates/ct-builder-sample.csv` with the expected columns + one example row, exposed via a "Download template" link next to the upload zone (uses `asset()` helper).
+- **A.** Leave the table empty and let new quote-accepted projects populate it organically, or
+- **B.** Add an admin-only "Import CSV" button on the Monitor → Energy page so you can paste/import that historical dataset in one shot?
 
-## Files to create/modify
-
-**Create:**
-
-- `src/components/projects/EnergyMonitoring/EnergyMonitoringPanel.tsx`
-- `src/components/projects/EnergyMonitoring/CTBuilderSettings.tsx`
-- `src/components/projects/EnergyMonitoring/CTBuilderUpload.tsx`
-- `src/components/projects/EnergyMonitoring/CTBuilderResults.tsx`
-- `src/components/projects/EnergyMonitoring/types.ts`
-- `src/components/projects/EnergyMonitoring/lib/ctBuilder.ts`
-- `src/components/projects/EnergyMonitoring/lib/csvParser.ts`
-- `src/components/projects/EnergyMonitoring/lib/csvExport.ts`
-- `src/components/projects/EnergyMonitoring/store/useCTBuilderStore.ts`
-- `public/templates/ct-builder-sample.csv`
-
-**Modify:**
-
-- `src/pages/ProjectDetail.tsx` — replace Hardware tab content with sub-tabs.
-
-## Out of scope (confirm to defer)
-
-- DB persistence of strategies / BOM — **client-side only for now** (per existing pattern with Invoice module).
-- Auto-creating `project_allocations` rows from BOM — left as a future "Push to Allocations" admin-only button.
-
-## One small clarification
-
-The user said *"per i siti per cui è previsto un monitoraggio dell'energia"*. There isn't yet a flag on `certifications`/`sites` for this. Two options:
-
-- **A.** Always show the "Energy Monitoring" sub-tab on every project (simplest, no schema change).
-- **B.** Add a client-side toggle (admin only, persisted in localStorage) "This site requires energy monitoring" that gates visibility for everyone.
-
-I'll proceed with **A** unless you prefer B — it's the lowest-friction option and matches how the rest of the Hardware tab behaves today.
+I'll proceed with **A** by default (cleanest, no DB import noise) unless you prefer B. -> PROCEED WITH **A**  
+  
