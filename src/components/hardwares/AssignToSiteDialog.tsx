@@ -249,7 +249,8 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
         }
         const { error: hwErr } = await supabase
           .from("hardwares")
-          .update(update)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .update(update as any)
           .eq("id", slot.hardwareId!);
         if (hwErr) throw hwErr;
       }
