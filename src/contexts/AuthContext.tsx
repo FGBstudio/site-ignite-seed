@@ -77,18 +77,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
+        // Only react to actual sign-in / sign-out. Ignore TOKEN_REFRESHED,
+        // USER_UPDATED, INITIAL_SESSION etc. — otherwise we reset loading/role
+        // periodically and ProtectedRoute bounces the user back to the default page.
         setSession(session);
         setUser(session?.user ?? null);
 
-        if (session?.user) {
+        if (event === "SIGNED_IN" && session?.user) {
           setLoading(true);
           setProfile(null);
           setRole(null);
           setTimeout(() => {
             void fetchUserData(session.user.id).finally(() => setLoading(false));
           }, 0);
-        } else {
+        } else if (event === "SIGNED_OUT") {
           setProfile(null);
           setRole(null);
           setLoading(false);

@@ -120,12 +120,12 @@ export default function Projects() {
 
   return (
     <MainLayout title="All Projects" subtitle="Project management and hardware allocations">
-      <Tabs defaultValue="timeline" className="space-y-6">
+      <Tabs defaultValue="projects" className="space-y-6">
         <TabsList>
+          <TabsTrigger value="projects">Projects</TabsTrigger>
           <TabsTrigger value="timeline" className="gap-2">
             <GanttChartSquare className="h-4 w-4" /> Timeline
           </TabsTrigger>
-          <TabsTrigger value="projects">Projects</TabsTrigger>
           <TabsTrigger value="forecast" className="gap-2">
             <BarChart3 className="h-4 w-4" /> Device Demand Analysis
           </TabsTrigger>
@@ -139,10 +139,10 @@ export default function Projects() {
           {/* Status category tabs */}
           <Tabs value={statusTab} onValueChange={setStatusTab} className="space-y-4">
             <TabsList className="grid w-full grid-cols-6">
+              <TabsTrigger value="all">All ({allProjects.length})</TabsTrigger>
               <TabsTrigger value="quotation" className="gap-1.5">
                 <FileText className="h-3.5 w-3.5" /> Quotation ({counts.quotation})
               </TabsTrigger>
-              <TabsTrigger value="all">All ({allProjects.length})</TabsTrigger>
               <TabsTrigger value="da_configurare" className="gap-1.5">
                 <AlertTriangle className="h-3.5 w-3.5" /> To Configure ({counts.da_configurare})
               </TabsTrigger>
