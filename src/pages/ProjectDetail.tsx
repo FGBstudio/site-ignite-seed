@@ -345,7 +345,7 @@ export default function ProjectDetail() {
                                   <div className="text-[10px] text-muted-foreground font-mono">{a.products?.sku}</div>
                                 </td>
                                 <td className="p-3"><Badge variant="outline" className="text-[9px] uppercase">{a.products?.certification}</Badge></td>
-                                <td className="p-3 text-center font-bold text-sm text-[#009193]">{a.quantity}</td>
+                                <td className="p-3 text-center font-bold text-sm text-[#009193]">{a.requested_quantity ?? a.quantity ?? 0}</td>
                                 <td className="p-3 text-center text-muted-foreground">
                                   {a.target_date ? format(new Date(a.target_date), "dd MMM yyyy") : "—"}
                                 </td>
