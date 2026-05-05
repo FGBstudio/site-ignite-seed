@@ -558,7 +558,7 @@ export default function CeoDashboard() {
   const { data: tasks = [], isLoading: loadingTasks } = useCertTasks();
   const { data: payments = [], isLoading: loadingPayments } = useCertPayments();
   const { data: projects = [], isLoading: loadingProjects } = useActiveProjects();
-  const { data: calendarProjects = [], isLoading: loadingCalendar } = useAdminCalendarData();
+  const { data: calendarProjects = [], isLoading: loadingCalendar } = useAdminPlannerData();
   const { total: alertTotal, counts: alertCounts } = useTaskAlertCounts(role, user?.id);
 
   const isLoading = loadingTasks || loadingPayments || loadingProjects;
