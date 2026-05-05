@@ -131,7 +131,25 @@ export default function SupplierOrders() {
   const [selectedHwIds, setSelectedHwIds] = useState<string[]>([]);
   const [showAllHardware, setShowAllHardware] = useState(false);
   const [outboundOriginFilter, setOutboundOriginFilter] = useState<string>("ALL");
+  const [monthFilter, setMonthFilter] = useState<string>("ALL");
   const [mapZoom, setMapZoom] = useState(1);
+
+  const availableMonths = useMemo(() => {
+    const months = new Set<string>();
+    shipments.forEach(s => {
+      if (s.shipped_date) {
+        const d = new Date(s.shipped_date);
+        const month = d.toLocaleString('en-US', { month: 'long' });
+        const year = d.getFullYear();
+        months.add(`${month} ${year}`);
+      }
+    });
+    return Array.from(months).sort((a, b) => {
+      const dateA = new Date(a);
+      const dateB = new Date(b);
+      return dateB.getTime() - dateA.getTime();
+    });
+  }, [shipments]);
 
   // Form States
   const initialPoForm = {
@@ -381,9 +399,17 @@ export default function SupplierOrders() {
     return shipments.filter(s => {
       if (s.shipment_type !== 'internal') return false;
       const matchesPortfolio = portfolioFilter === "ALL" || s.ops_hardware_movements?.some((m: any) => m.hardwares?.category?.toUpperCase() === portfolioFilter);
-      return matchesPortfolio;
+      
+      let matchesMonth = true;
+      if (monthFilter !== "ALL" && s.shipped_date) {
+        const d = new Date(s.shipped_date);
+        const label = `${d.toLocaleString('en-US', { month: 'long' })} ${d.getFullYear()}`;
+        matchesMonth = label === monthFilter;
+      }
+
+      return matchesPortfolio && matchesMonth;
     });
-  }, [shipments, portfolioFilter]);
+  }, [shipments, portfolioFilter, monthFilter]);
 
   const outboundShipments = useMemo(() => {
     return shipments.filter(s => {
@@ -394,9 +420,16 @@ export default function SupplierOrders() {
       const matchesOrigin = outboundOriginFilter === "ALL" || s.origin_location_id === outboundOriginFilter;
       const matchesPortfolio = portfolioFilter === "ALL" || s.ops_hardware_movements?.some((m: any) => m.hardwares?.category?.toUpperCase() === portfolioFilter);
       
-      return matchesSearch && matchesSubTab && matchesOrigin && matchesPortfolio;
+      let matchesMonth = true;
+      if (monthFilter !== "ALL" && s.shipped_date) {
+        const d = new Date(s.shipped_date);
+        const label = `${d.toLocaleString('en-US', { month: 'long' })} ${d.getFullYear()}`;
+        matchesMonth = label === monthFilter;
+      }
+      
+      return matchesSearch && matchesSubTab && matchesOrigin && matchesPortfolio && matchesMonth;
     });
-  }, [shipments, searchQuery, outboundSubTab, outboundOriginFilter, portfolioFilter]);
+  }, [shipments, searchQuery, outboundSubTab, outboundOriginFilter, portfolioFilter, monthFilter]);
 
   const selectableHardware = useMemo(() => {
     return hardwares.filter(h => {
@@ -736,7 +769,21 @@ export default function SupplierOrders() {
           <TabsContent value="internal" className="mt-0 space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider flex items-center gap-2"><ArrowRightLeft className="h-4 w-4 text-[#009193]" /> Office Transfers ({internalShipments.length} Total)</h3>
-              <div className="relative w-64"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-400" /><Input placeholder="Search moves..." className="pl-8 h-8 text-xs" /></div>
+              <div className="flex items-center gap-2">
+                <Select value={monthFilter} onValueChange={setMonthFilter}>
+                  <SelectTrigger className="h-8 w-[160px] text-xs bg-slate-50 border-slate-200">
+                    <Calendar className="h-3 w-3 mr-2 text-slate-400" />
+                    <SelectValue placeholder="All Months" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All Time</SelectItem>
+                    {availableMonths.map(m => (
+                      <SelectItem key={m} value={m}>{m}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="relative w-64"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-400" /><Input placeholder="Search moves..." className="pl-8 h-8 text-xs" /></div>
+              </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {internalShipments.map(s => {
@@ -796,6 +843,18 @@ export default function SupplierOrders() {
                     </SelectContent>
                   </Select>
                 )}
+                <Select value={monthFilter} onValueChange={setMonthFilter}>
+                  <SelectTrigger className="h-9 w-[180px] text-xs bg-slate-50 border-slate-200">
+                    <Calendar className="h-3 w-3 mr-2 text-slate-400" />
+                    <SelectValue placeholder="All Months" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All Time</SelectItem>
+                    {availableMonths.map(m => (
+                      <SelectItem key={m} value={m}>{m}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="relative w-full md:w-80"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" /><Input placeholder="Search destinations..." className="pl-9 h-9 text-xs" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} /></div>
             </div>
