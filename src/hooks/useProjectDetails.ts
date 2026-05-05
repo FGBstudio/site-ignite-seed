@@ -137,3 +137,31 @@ export function useBrands(holdingId?: string) {
     enabled: !!holdingId,
   });
 }
+
+export function usePhysicalHardware(siteId: string | undefined | null) {
+  return useQuery({
+    queryKey: ["site-physical-hardware", siteId],
+    queryFn: async () => {
+      if (!siteId) return [];
+      const { data, error } = await supabase
+        .from("hardwares")
+        .select("*")
+        .eq("site_id", siteId)
+        .neq("status", "In Stock");
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!siteId,
+  });
+}
+
+export function useProducts() {
+  return useQuery({
+    queryKey: ["all-products"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("products").select("*").order("name");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+}
