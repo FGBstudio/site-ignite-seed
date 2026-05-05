@@ -159,6 +159,7 @@ export function EnergyMonitoringPanel({ certificationId, isAdmin }: Props) {
         sensor_total_cost: result.sensorCost,
         total_package_cost_usd: result.totalProject,
         locked: true,
+        ct_builder_snapshot: { rawRows, settings, fileName },
       };
 
       await supabase
