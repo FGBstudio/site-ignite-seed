@@ -597,7 +597,7 @@ export default function CeoDashboard() {
           />
 
 
-          <PMCalendar projects={calendarProjects} adminMode pmNames={pmNames} />
+          <PMCalendar projects={calendarProjects as any} adminMode pmNames={pmNames} />
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
             <TabsList>
