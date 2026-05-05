@@ -89,6 +89,17 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
 
   const { data: pms = [] } = useProjectManagers();
 
+  // Reset state when dialog is closed to prevent stale data on reopen
+  useEffect(() => {
+    if (!open) {
+      setCertificationId("");
+      setSlots([]);
+      setStockCountry("all");
+      setPmFilter("all");
+      setMode("AIR");
+    }
+  }, [open]);
+
   const { data: certifications = [] } = useQuery({
     queryKey: ["certs-for-assign"],
     queryFn: async () => {
