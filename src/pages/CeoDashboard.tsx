@@ -3,7 +3,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PMCalendar } from "@/components/dashboard/PMCalendar";
-import { useAdminCalendarData } from "@/hooks/useAdminCalendarData";
+import { useAdminPlannerData } from "@/hooks/useAdminPlannerData";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -558,7 +558,7 @@ export default function CeoDashboard() {
   const { data: tasks = [], isLoading: loadingTasks } = useCertTasks();
   const { data: payments = [], isLoading: loadingPayments } = useCertPayments();
   const { data: projects = [], isLoading: loadingProjects } = useActiveProjects();
-  const { data: calendarProjects = [], isLoading: loadingCalendar } = useAdminCalendarData();
+  const { data: calendarProjects = [], isLoading: loadingCalendar } = useAdminPlannerData();
   const { total: alertTotal, counts: alertCounts } = useTaskAlertCounts(role, user?.id);
 
   const isLoading = loadingTasks || loadingPayments || loadingProjects;
@@ -597,7 +597,7 @@ export default function CeoDashboard() {
           />
 
 
-          <PMCalendar projects={calendarProjects} adminMode pmNames={pmNames} />
+          <PMCalendar projects={calendarProjects as any} adminMode pmNames={pmNames} />
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
             <TabsList>
