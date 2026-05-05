@@ -2361,7 +2361,6 @@ export type Database = {
           created_at: string
           id: string
           name: string
-          quantity_in_stock: number
           sku: string
           supplier_lead_time_days: number
           unit_price: number | null
@@ -2372,7 +2371,6 @@ export type Database = {
           created_at?: string
           id?: string
           name: string
-          quantity_in_stock?: number
           sku: string
           supplier_lead_time_days?: number
           unit_price?: number | null
@@ -2383,7 +2381,6 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string
-          quantity_in_stock?: number
           sku?: string
           supplier_lead_time_days?: number
           unit_price?: number | null
