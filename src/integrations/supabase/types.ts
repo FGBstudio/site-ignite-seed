@@ -2941,6 +2941,7 @@ export type Database = {
           contracted: string | null
           country: string | null
           created_at: string
+          ct_builder_snapshot: Json | null
           customized_package: boolean | null
           dns1: string | null
           dns2: string | null
@@ -3006,6 +3007,7 @@ export type Database = {
           contracted?: string | null
           country?: string | null
           created_at?: string
+          ct_builder_snapshot?: Json | null
           customized_package?: boolean | null
           dns1?: string | null
           dns2?: string | null
@@ -3071,6 +3073,7 @@ export type Database = {
           contracted?: string | null
           country?: string | null
           created_at?: string
+          ct_builder_snapshot?: Json | null
           customized_package?: boolean | null
           dns1?: string | null
           dns2?: string | null
