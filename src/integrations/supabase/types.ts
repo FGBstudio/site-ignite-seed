@@ -2364,6 +2364,7 @@ export type Database = {
           quantity_in_stock: number
           sku: string
           supplier_lead_time_days: number
+          unit_price: number | null
         }
         Insert: {
           category?: string | null
@@ -2374,6 +2375,7 @@ export type Database = {
           quantity_in_stock?: number
           sku: string
           supplier_lead_time_days?: number
+          unit_price?: number | null
         }
         Update: {
           category?: string | null
@@ -2384,6 +2386,7 @@ export type Database = {
           quantity_in_stock?: number
           sku?: string
           supplier_lead_time_days?: number
+          unit_price?: number | null
         }
         Relationships: []
       }
