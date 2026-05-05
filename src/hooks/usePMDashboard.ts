@@ -171,7 +171,7 @@ export function usePMDashboard() {
         let setup_status: SetupStatus;
         if (isCertified) {
           setup_status = "certificato";
-        } else if (hasTimeline && hasScorecard && isTimelineConfigured) {
+        } else if (hasTimeline && isTimelineConfigured) {
           setup_status = "in_corso";
         } else {
           setup_status = "da_configurare";

@@ -1212,6 +1212,51 @@ export type Database = {
           },
         ]
       }
+      energy_daily_backup_tz_fix_v1: {
+        Row: {
+          device_id: string
+          id: string
+          labels: Json | null
+          metric: string
+          sample_count: number | null
+          site_id: string | null
+          ts_day: string
+          unit: string | null
+          value_avg: number | null
+          value_max: number | null
+          value_min: number | null
+          value_sum: number | null
+        }
+        Insert: {
+          device_id: string
+          id?: string
+          labels?: Json | null
+          metric: string
+          sample_count?: number | null
+          site_id?: string | null
+          ts_day: string
+          unit?: string | null
+          value_avg?: number | null
+          value_max?: number | null
+          value_min?: number | null
+          value_sum?: number | null
+        }
+        Update: {
+          device_id?: string
+          id?: string
+          labels?: Json | null
+          metric?: string
+          sample_count?: number | null
+          site_id?: string | null
+          ts_day?: string
+          unit?: string | null
+          value_avg?: number | null
+          value_max?: number | null
+          value_min?: number | null
+          value_sum?: number | null
+        }
+        Relationships: []
+      }
       energy_hourly: {
         Row: {
           device_id: string
@@ -1271,6 +1316,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      energy_hourly_backup_tz_fix_v1: {
+        Row: {
+          device_id: string
+          id: string
+          labels: Json | null
+          metric: string
+          sample_count: number | null
+          site_id: string | null
+          ts_hour: string
+          unit: string | null
+          value_avg: number | null
+          value_max: number | null
+          value_min: number | null
+          value_sum: number | null
+        }
+        Insert: {
+          device_id: string
+          id?: string
+          labels?: Json | null
+          metric: string
+          sample_count?: number | null
+          site_id?: string | null
+          ts_hour: string
+          unit?: string | null
+          value_avg?: number | null
+          value_max?: number | null
+          value_min?: number | null
+          value_sum?: number | null
+        }
+        Update: {
+          device_id?: string
+          id?: string
+          labels?: Json | null
+          metric?: string
+          sample_count?: number | null
+          site_id?: string | null
+          ts_hour?: string
+          unit?: string | null
+          value_avg?: number | null
+          value_max?: number | null
+          value_min?: number | null
+          value_sum?: number | null
+        }
+        Relationships: []
       }
       energy_latest: {
         Row: {
@@ -1484,6 +1574,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      energy_telemetry_backup_tz_fix_v1: {
+        Row: {
+          device_id: string
+          id: string
+          labels: Json | null
+          metric: string
+          quality: string | null
+          site_id: string | null
+          ts: string
+          unit: string | null
+          value: number
+        }
+        Insert: {
+          device_id: string
+          id?: string
+          labels?: Json | null
+          metric: string
+          quality?: string | null
+          site_id?: string | null
+          ts?: string
+          unit?: string | null
+          value: number
+        }
+        Update: {
+          device_id?: string
+          id?: string
+          labels?: Json | null
+          metric?: string
+          quality?: string | null
+          site_id?: string | null
+          ts?: string
+          unit?: string | null
+          value?: number
+        }
+        Relationships: []
       }
       energy_telemetry_swapfix_backup: {
         Row: {
@@ -2230,6 +2356,7 @@ export type Database = {
       }
       products: {
         Row: {
+          category: string | null
           certification: string
           created_at: string
           id: string
@@ -2239,6 +2366,7 @@ export type Database = {
           supplier_lead_time_days: number
         }
         Insert: {
+          category?: string | null
           certification?: string
           created_at?: string
           id?: string
@@ -2248,6 +2376,7 @@ export type Database = {
           supplier_lead_time_days?: number
         }
         Update: {
+          category?: string | null
           certification?: string
           created_at?: string
           id?: string
@@ -3732,6 +3861,33 @@ export type Database = {
           },
         ]
       }
+      tz_fix_log: {
+        Row: {
+          applied_at: string
+          fix_version: string
+          id: number
+          rows_hourly: number | null
+          rows_raw: number | null
+          site_id: string
+        }
+        Insert: {
+          applied_at?: string
+          fix_version: string
+          id?: number
+          rows_hourly?: number | null
+          rows_raw?: number | null
+          site_id: string
+        }
+        Update: {
+          applied_at?: string
+          fix_version?: string
+          id?: number
+          rows_hourly?: number | null
+          rows_raw?: number | null
+          site_id?: string
+        }
+        Relationships: []
+      }
       user_memberships: {
         Row: {
           allowed_regions: string[] | null
@@ -4080,6 +4236,13 @@ export type Database = {
       }
     }
     Functions: {
+      _apply_tz_fix: {
+        Args: { p_site_id: string; p_tz: string }
+        Returns: {
+          rows_hourly: number
+          rows_raw: number
+        }[]
+      }
       aggregate_daily: { Args: { p_date?: string }; Returns: number }
       aggregate_energy_daily: {
         Args: { p_date?: string }

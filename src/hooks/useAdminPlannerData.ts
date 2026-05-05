@@ -151,7 +151,7 @@ export function useAdminPlannerData() {
 
         let setup_status: SetupStatus;
         if (isCertified) setup_status = "certificato";
-        else if (hasTimeline && hasScorecard) setup_status = "in_corso";
+        else if (hasTimeline) setup_status = "in_corso";
         else setup_status = "da_configurare";
 
         const is_deadline_critical = !isCertified && checkDeadlineCritical(certMilestones, today);
