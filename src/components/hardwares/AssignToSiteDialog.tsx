@@ -33,6 +33,7 @@ interface Hardware {
   product_id: string | null;
   status: string | null;
   site_id?: string | null;
+  country?: string | null;
 }
 
 interface Allocation {
@@ -43,20 +44,19 @@ interface Allocation {
   status: string;
   category: string | null;
   source: string | null;
-  products?: { id: string; name: string; sku: string | null } | null;
+  products?: { id: string; name: string; sku: string | null; category: string | null } | null;
 }
 
 interface Certification {
   id: string;
   pm_id: string | null;
   site_id: string | null;
-  sites?: { name: string | null } | null;
+  sites?: { name: string | null; country: string | null; region: string | null } | null;
 }
 
 interface AssignmentSlot {
   productId: string;
   productName: string;
-  selectedTypeFilter: string;
   hardwareId: string | null;
 }
 
@@ -85,6 +85,7 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
     dns2: "",
   });
   const [saving, setSaving] = useState(false);
+  const [stockCountry, setStockCountry] = useState<string>("all");
 
   const { data: pms = [] } = useProjectManagers();
 
@@ -93,7 +94,7 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
     queryFn: async () => {
       const { data, error } = await supabase
         .from("certifications")
-        .select("id, pm_id, site_id, sites(name)")
+        .select("id, pm_id, site_id, sites(name, country, region)")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as unknown as Certification[];
@@ -109,7 +110,7 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
     queryFn: async () => {
       const { data, error } = await supabase
         .from("project_allocations")
-        .select("*, products(id, name, sku)")
+        .select("*, products(id, name, sku, category)")
         .eq("certification_id", certificationId);
       if (error) throw error;
       return (data ?? []) as unknown as Allocation[];
@@ -132,7 +133,10 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
   });
 
   const modeAllocations = useMemo(
-    () => allocations.filter((a) => (a.category ?? "AIR") === mode),
+    () => allocations.filter((a) => {
+      const productCategory = a.products?.category?.toUpperCase() || "AIR";
+      return productCategory === mode;
+    }),
     [allocations, mode],
   );
 
@@ -170,21 +174,35 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
     return rows;
   }, [modeAllocations, physicalCountByProduct]);
 
+  const totalRequested = productSummary.reduce((s, r) => s + r.requested, 0);
+  const totalOnSite = productSummary.reduce((s, r) => s + r.onSite, 0);
+  const totalRemaining = productSummary.reduce((s, r) => s + r.remaining, 0);
+
   // Slot: uno per pezzo da assegnare ancora
   useEffect(() => {
-    const next: AssignmentSlot[] = [];
-    for (const r of productSummary) {
-      for (let i = 0; i < r.remaining; i++) {
-        next.push({
-          productId: r.productId,
-          productName: r.productName,
-          selectedTypeFilter: "any",
-          hardwareId: null,
-        });
+    setSlots(prev => {
+      // If we already have slots and the project hasn't changed, don't reset them
+      // This prevents wiping out selections when productSummary recalculates
+      const currentHash = productSummary.map(r => `${r.productId}:${r.requested}`).join('|');
+      const prevHash = prev.map(s => s.productId).join('|'); // Simplified check
+      
+      if (prev.length > 0 && prev.length === totalRemaining) {
+        return prev;
       }
-    }
-    setSlots(next);
-  }, [productSummary]);
+
+      const next: AssignmentSlot[] = [];
+      for (const r of productSummary) {
+        for (let i = 0; i < r.remaining; i++) {
+          next.push({
+            productId: r.productId,
+            productName: r.productName,
+            hardwareId: null,
+          });
+        }
+      }
+      return next;
+    });
+  }, [productSummary, totalRemaining]);
 
   const filteredCerts = useMemo(
     () => (pmFilter === "all" ? certifications : certifications.filter((c) => c.pm_id === pmFilter)),
@@ -193,13 +211,10 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
 
   const selectedPm = pms.find((p) => p.id === selectedCert?.pm_id);
 
-  // Stock disponibile (esclude i device già scelti in altri slot)
-  const stock = useMemo(
-    () =>
-      hardwares.filter(
-        (h) => h.status === "In Stock" && !slots.some((s) => s.hardwareId === h.id),
-      ),
-    [hardwares, slots],
+  // Stock disponibile (fonte grezza filtrata solo per status)
+  const allStock = useMemo(
+    () => hardwares.filter((h) => h.status === "In Stock"),
+    [hardwares],
   );
   const allTypes = useMemo(
     () => Array.from(new Set(hardwares.map((h) => h.hardware_type).filter(Boolean) as string[])),
@@ -208,10 +223,6 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
 
   const updateSlot = (idx: number, patch: Partial<AssignmentSlot>) =>
     setSlots((prev) => prev.map((s, i) => (i === idx ? { ...s, ...patch } : s)));
-
-  const totalRequested = productSummary.reduce((s, r) => s + r.requested, 0);
-  const totalOnSite = productSummary.reduce((s, r) => s + r.onSite, 0);
-  const totalRemaining = productSummary.reduce((s, r) => s + r.remaining, 0);
 
   const summarize = (): string => {
     if (modeAllocations.length === 0) return "No requests yet for this project.";
@@ -263,8 +274,8 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
         const alloc = modeAllocations.find((a) => a.product_id === r.productId);
         if (!alloc) continue;
         let newStatus: string = alloc.status;
-        if (newOnSite >= r.requested && r.requested > 0) newStatus = "Allocated";
-        else if (newOnSite > 0) newStatus = "Partially Allocated";
+        if (newOnSite >= r.requested && r.requested > 0) newStatus = "Confirmed";
+        else if (newOnSite > 0) newStatus = "Partially Confirmed";
         await supabase
           .from("project_allocations")
           .update({ status: newStatus })
@@ -346,10 +357,10 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
 
         <div className="grid gap-4 py-2">
           <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-1.5">
-              <Label className="text-xs">Filter by PM</Label>
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-[10px] font-bold uppercase text-slate-400">Filter by PM</Label>
               <Select value={pmFilter} onValueChange={setPmFilter}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-9 text-xs bg-slate-50 border-slate-200"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All PMs</SelectItem>
                   {pms.map((p) => (
@@ -358,14 +369,19 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid gap-1.5">
-              <Label className="text-xs">Project</Label>
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-[10px] font-bold uppercase text-slate-400">Project</Label>
               <Select value={certificationId} onValueChange={setCertificationId}>
-                <SelectTrigger><SelectValue placeholder="Select project" /></SelectTrigger>
+                <SelectTrigger className="h-9 text-xs bg-slate-50 border-slate-200">
+                  <SelectValue placeholder="Select project" />
+                </SelectTrigger>
                 <SelectContent>
                   {filteredCerts.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
-                      {c.sites?.name ?? c.id.slice(0, 6)}
+                      <div className="flex flex-col">
+                        <span className="font-medium">{c.sites?.name || "Unnamed Site"}</span>
+                        {c.sites?.country && <span className="text-[10px] opacity-60 italic">{c.sites.country} {c.sites.region ? `(${c.sites.region})` : ""}</span>}
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -373,10 +389,36 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
             </div>
           </div>
 
+          {selectedCert && (
+            <div className="flex items-center gap-4 px-4 py-2 bg-slate-50 rounded-xl border border-slate-200/50 mb-1">
+              <div className="flex flex-col">
+                <span className="text-[9px] uppercase font-bold text-slate-400 leading-tight">Project Location</span>
+                <span className="text-xs font-semibold text-slate-700">
+                  {selectedCert.sites?.country || "—"} {selectedCert.sites?.region ? `· ${selectedCert.sites.region}` : ""}
+                </span>
+              </div>
+              <div className="h-8 w-px bg-slate-200" />
+              <div className="flex flex-col flex-1">
+                <span className="text-[9px] uppercase font-bold text-slate-400 leading-tight">Filter Stock by Country</span>
+                <Select value={stockCountry} onValueChange={setStockCountry}>
+                  <SelectTrigger className="h-6 border-none bg-transparent p-0 text-xs font-bold text-[#009193] focus:ring-0">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Global Inventory</SelectItem>
+                    {[...new Set(hardwares.filter(h => h.status === 'In Stock').map(h => h.country).filter(Boolean))].sort().map(country => (
+                      <SelectItem key={country} value={country!}>{country}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+
           {certificationId && (
-            <div className="rounded-md border border-primary/20 bg-primary/5 p-3 flex items-start gap-2">
-              <Sparkles className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-              <p className="text-xs text-foreground">{summarize()}</p>
+            <div className="rounded-xl border border-[#009193]/20 bg-[#009193]/5 p-3 flex items-start gap-2">
+              <Sparkles className="h-4 w-4 text-[#009193] mt-0.5 shrink-0" />
+              <p className="text-xs text-[#009193]/90 font-medium leading-relaxed">{summarize()}</p>
             </div>
           )}
 
@@ -455,51 +497,44 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
                 Pick physical devices from stock
               </p>
               {slots.map((slot, idx) => {
-                const candidates = stock.filter(
-                  (h) =>
-                    slot.selectedTypeFilter === "any" || h.hardware_type === slot.selectedTypeFilter,
+                const candidates = allStock.filter(
+                  (h) => h.product_id === slot.productId && 
+                         (stockCountry === "all" || h.country === stockCountry) &&
+                         (h.id === slot.hardwareId || !slots.some(s => s.hardwareId === h.id))
                 );
                 return (
-                  <div key={idx} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-end">
+                  <div key={idx} className="grid grid-cols-[1fr_auto] gap-2 items-end">
                     <div className="grid gap-1">
                       <Label className="text-[11px] text-muted-foreground">
                         Slot {idx + 1} · for: <Badge variant="outline" className="ml-1">{slot.productName}</Badge>
                       </Label>
                       <Select
-                        value={slot.selectedTypeFilter}
-                        onValueChange={(v) => updateSlot(idx, { selectedTypeFilter: v, hardwareId: null })}
+                        value={slot.hardwareId ?? ""}
+                        onValueChange={(v) => updateSlot(idx, { hardwareId: v })}
                       >
-                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="h-9">
+                          <SelectValue placeholder="Pick physical device (serial · MAC)" />
+                        </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="any">Any type</SelectItem>
-                          {allTypes.map((t) => (
-                            <SelectItem key={t} value={t}>{t}</SelectItem>
+                          {candidates.length === 0 && (
+                            <div className="px-2 py-1.5 text-xs text-muted-foreground">No matching {slot.productName} in stock</div>
+                          )}
+                          {candidates.map((h) => (
+                            <SelectItem key={h.id} value={h.id}>
+                              <div className="flex flex-col">
+                                <span className="font-mono font-bold text-[#009193]">{h.device_id}</span>
+                                {h.mac_address && <span className="text-[10px] text-muted-foreground opacity-70">MAC: {h.mac_address}</span>}
+                              </div>
+                            </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
-                    <Select
-                      value={slot.hardwareId ?? ""}
-                      onValueChange={(v) => updateSlot(idx, { hardwareId: v })}
-                    >
-                      <SelectTrigger><SelectValue placeholder="Pick device (serial · MAC)" /></SelectTrigger>
-                      <SelectContent>
-                        {candidates.length === 0 && (
-                          <div className="px-2 py-1.5 text-xs text-muted-foreground">No stock available</div>
-                        )}
-                        {candidates.map((h) => (
-                          <SelectItem key={h.id} value={h.id}>
-                            {h.device_id}
-                            {h.mac_address ? ` · ${h.mac_address}` : ""}
-                            {h.hardware_type ? ` (${h.hardware_type})` : ""}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => updateSlot(idx, { hardwareId: null, selectedTypeFilter: "any" })}
+                      className="h-9"
+                      onClick={() => updateSlot(idx, { hardwareId: null })}
                     >
                       Clear
                     </Button>
