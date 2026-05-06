@@ -65,7 +65,7 @@ const CURRENCIES = [
   { code: 'CNY', symbol: '¥' }
 ];
 
-const SHIPMENT_STATUSES = ["upcoming", "in_transit", "delivered", "cancelled"];
+const SHIPMENT_STATUSES = ["awaiting dispatch", "upcoming", "in_transit", "delivered", "cancelled"];
 
 function StatCard({ number, label, change, color, icon: Icon }: any) {
   const bg = color === "black" ? "bg-zinc-900 text-white" :
@@ -901,14 +901,14 @@ export default function SupplierOrders() {
         <DialogContent className="sm:max-w-[700px] p-0 overflow-hidden bg-white border-none shadow-2xl">
           <DialogHeader className="p-6 bg-slate-50 border-b border-slate-100">
             <DialogTitle className="flex items-center gap-3 text-[#009193] font-bold text-xl"><Truck className="h-6 w-6" /> {editingShipmentId ? "Edit Logistics Record" : "New Movement Cycle"}</DialogTitle>
-            <DialogDescription className="text-[10px] text-slate-500 uppercase tracking-widest mt-1">Select Origin/Destination (Offices Only) and pick devices.</DialogDescription>
+            <DialogDescription className="text-[10px] text-slate-500 uppercase tracking-widest mt-1">Select Origin/Destination and pick devices to fulfill.</DialogDescription>
           </DialogHeader>
           <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8 max-h-[75vh] overflow-y-auto">
             <div className="space-y-4">
                <p className="text-[10px] font-bold uppercase text-[#009193] tracking-widest border-b pb-1">1. Logistics Route</p>
-               <div className="grid grid-cols-1 gap-4">
-                  <div className="space-y-2"><Label className="text-[10px] font-bold uppercase text-slate-400">Origin Office</Label><Select value={shipmentForm.origin_location_id} onValueChange={(v)=>setShipmentForm({...shipmentForm, origin_location_id: v})}><SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Pick Office" /></SelectTrigger><SelectContent>{internalOffices.map(l=><SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent></Select></div>
-
+               <div className="grid grid-cols-2 gap-4">
+                   <div className="space-y-2"><Label className="text-[10px] font-bold uppercase text-slate-400">Origin (Warehouse/Office)</Label><Select value={shipmentForm.origin_location_id} onValueChange={(v)=>setShipmentForm({...shipmentForm, origin_location_id: v})}><SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Pick Origin" /></SelectTrigger><SelectContent>{internalOffices.map(l=><SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent></Select></div>
+                   <div className="space-y-2"><Label className="text-[10px] font-bold uppercase text-slate-400">Destination (Site/Office)</Label><Select value={shipmentForm.destination_location_id} onValueChange={(v)=>setShipmentForm({...shipmentForm, destination_location_id: v})}><SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Pick Destination" /></SelectTrigger><SelectContent>{locations.map(l=><SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent></Select></div>
                </div>
                <div className="space-y-4 pt-2">
                  <div className="grid grid-cols-2 gap-4">
