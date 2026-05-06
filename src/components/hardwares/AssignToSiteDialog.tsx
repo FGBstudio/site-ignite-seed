@@ -173,7 +173,7 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
       // Hard override: If the product name indicates it's an Air monitor, force it to AIR mode.
       const name = a.products?.name?.toUpperCase() || "";
       const isAirProduct = name.includes("CLAIR") || name.includes("WELL") || name.includes("LEED") || name.includes("CO2");
-      
+
       const productCategory = isAirProduct ? "AIR" : (a.category?.toUpperCase() || a.products?.category?.toUpperCase() || "AIR");
       return productCategory === mode;
     }),
@@ -281,12 +281,51 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
 
     setSaving(true);
     try {
-      // 1. Aggiorno gli hardware fisici: site_id + status=Assigned + product_id (in case of override)
+      console.log("Logistics Trigger: Starting. Site ID:", selectedSiteId, "Name:", selectedCert?.sites?.name);
+      toast({ title: "Logistics Sync Started", description: "Creating automated shipment record..." });
+
+      // 1. Automated Logistics Trigger: Create Outbound Shipment (Do this first!)
+      let newShipmentId: string | null = null;
+      try {
+        // Try matching by name (Case-Insensitive) OR by ID (if they share UUIDs)
+        const { data: locations, error: locErr } = await (supabase as any)
+          .from("ops_locations")
+          .select("id")
+          .or(`name.ilike."${selectedCert?.sites?.name || "___NOT_FOUND___"}",id.eq."${selectedSiteId || "00000000-0000-0000-0000-000000000000"}"`)
+          .limit(1);
+        
+        if (locErr) console.error("Logistics Trigger: Location search error:", locErr);
+        
+        const destinationId = locations?.[0]?.id;
+        const shipmentPayload = {
+          shipment_type: "outbound",
+          status: "awaiting dispatch",
+          destination_location_id: destinationId || null,
+          notes: `Automated shipment triggered by hardware assignment to site: ${selectedCert?.sites?.name || "Unknown"}`
+        };
+
+        const { data: shipData, error: shipErr } = await (supabase as any)
+          .from("ops_shipments")
+          .insert([shipmentPayload])
+          .select();
+
+        if (shipErr) {
+          console.error("Logistics Trigger: Shipment creation failed:", shipErr);
+          toast({ title: "Logistics Error", description: `Shipment failed: ${shipErr.message}`, variant: "destructive" });
+        } else if (shipData && shipData[0]) {
+          newShipmentId = shipData[0].id;
+          console.log("Logistics Trigger: Shipment created:", newShipmentId);
+        }
+      } catch (logisticsErr) {
+        console.error("Logistics trigger inner error:", logisticsErr);
+      }
+
+      // 2. Update physical hardware
       for (const slot of filledSlots) {
         const update: Record<string, unknown> = {
           site_id: selectedSiteId,
           status: "Assigned",
-          product_id: slot.productId, // Ensure the hardware record reflects the selected product type
+          product_id: slot.productId,
         };
         if (mode === "ENERGY" && bridgeOpen) {
           const isBridge = /bridge/i.test(slot.productName);
@@ -294,13 +333,21 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
         }
         const { error: hwErr } = await supabase
           .from("hardwares")
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .update(update as any)
           .eq("id", slot.hardwareId!);
         if (hwErr) throw hwErr;
+
+        // Link to shipment if created
+        if (newShipmentId) {
+          await (supabase as any).from("ops_hardware_movements").insert({
+            hardware_id: slot.hardwareId,
+            shipment_id: newShipmentId,
+            action: "dispatched"
+          });
+        }
       }
 
-      // 2. Aggiorno SOLO lo status delle allocation (basato sulla richiesta originale).
+      // 3. Update allocations
       for (const r of productSummary) {
         const justAssignedForThisRequest = filledSlots.filter((s) => s.requestedProductId === r.productId).length;
         const newOnSite = r.onSite + justAssignedForThisRequest;
@@ -315,7 +362,7 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
           .eq("id", alloc.id);
       }
 
-      // 3. Energy: ricalcolo i contatori del site_energy_records dai device REALI sul sito
+      // 4. Energy metrics
       if (mode === "ENERGY") {
         const { data: refreshed } = await supabase
           .from("hardwares")
@@ -349,6 +396,9 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
       qc.invalidateQueries({ queryKey: ["project-allocations", certificationId] });
       qc.invalidateQueries({ queryKey: ["hardwares-on-site", selectedSiteId] });
       qc.invalidateQueries({ queryKey: ["site-energy-records"] });
+      qc.invalidateQueries({ queryKey: ["ops_shipments"] }); // Refresh logistics too
+
+
       toast({
         title: "Devices assigned",
         description: `${filledSlots.length} physical device(s) linked to site.`,
@@ -535,7 +585,7 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
                     const matchesCategory = (h.category?.toUpperCase() || "AIR") === mode;
                     const matchesCountry = stockCountry === "all" || h.country === stockCountry;
                     const notTaken = h.id === slot.hardwareId || !slots.some(s => s.hardwareId === h.id);
-                    
+
                     return matchesProduct && matchesCategory && matchesCountry && notTaken;
                   }
                 );
@@ -552,15 +602,15 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
                           </Badge>
                         )}
                       </div>
-                      
+
                       <div className="flex gap-2">
                         <div className="flex-1">
                           <Select
                             value={slot.productId}
                             onValueChange={(v) => {
                               const p = modeProducts.find(mp => mp.id === v);
-                              updateSlot(idx, { 
-                                productId: v, 
+                              updateSlot(idx, {
+                                productId: v,
                                 productName: p?.name || slot.productName,
                                 hardwareId: null
                               });
