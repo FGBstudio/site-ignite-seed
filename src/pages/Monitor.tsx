@@ -238,6 +238,48 @@ function EnergyTable() {
   );
 }
 
+interface RowFragmentProps {
+  record: SiteEnergyRecord;
+  isOpen: boolean;
+  isAdmin: boolean;
+  colSpan: number;
+  onToggle: () => void;
+  onSaved: () => void;
+  onError: (msg: string) => void;
+}
+
+function RowFragment({ record: r, isOpen, isAdmin, colSpan, onToggle, onSaved, onError }: RowFragmentProps) {
+  return (
+    <>
+      <tr
+        className={cn("border-t border-border cursor-pointer hover:bg-muted/30", isOpen && "bg-primary/5")}
+        onClick={onToggle}
+      >
+        <td className="p-2">
+          {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+        </td>
+        <td className="p-2 font-medium">{r.project_name ?? "—"}</td>
+        <td className="p-2 text-muted-foreground">{r.brand_name ?? "—"}</td>
+        <td className="p-2">{r.country ?? "—"}</td>
+        <td className="p-2">{r.city ?? "—"}</td>
+        <td className="p-2"><Badge variant="outline">{r.status ?? "—"}</Badge></td>
+        <td className="p-2 text-right tabular-nums">{fmtNum(r.total_sensors)}</td>
+        <td className="p-2 text-right tabular-nums">{fmtNum(r.total_bridges)}</td>
+        <td className="p-2 text-right tabular-nums">{fmtNum(r.no_mango)}</td>
+        {isAdmin && <td className="p-2 text-right tabular-nums">{fmtEUR(r.total_cost)}</td>}
+        {isAdmin && <td className="p-2 text-right tabular-nums">{fmtPct(r.roi_pct)}</td>}
+      </tr>
+      {isOpen && (
+        <tr className="border-t border-border bg-muted/20">
+          <td colSpan={colSpan} className="p-4">
+            <RecordDetails record={r} isAdmin={isAdmin} onSaved={onSaved} onError={onError} />
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
 function Kpi({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg border border-border bg-card px-4 py-3">
