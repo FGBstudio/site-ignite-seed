@@ -28,6 +28,7 @@ export interface SiteEnergyRecord {
   package_a: boolean | null;
   package_b: boolean | null;
   customized_package: boolean | null;
+  package_type: "A" | "B" | "Customized" | null;
 
   additional_sensors: number | null;
   additional_bridge: number | null;

@@ -2984,6 +2984,7 @@ export type Database = {
           outbound_custom_cost: number | null
           package_a: boolean | null
           package_b: boolean | null
+          package_type: string | null
           pickup_cost: number | null
           planned_remaining_value: number | null
           pm_id: string | null
@@ -3052,6 +3053,7 @@ export type Database = {
           outbound_custom_cost?: number | null
           package_a?: boolean | null
           package_b?: boolean | null
+          package_type?: string | null
           pickup_cost?: number | null
           planned_remaining_value?: number | null
           pm_id?: string | null
@@ -3120,6 +3122,7 @@ export type Database = {
           outbound_custom_cost?: number | null
           package_a?: boolean | null
           package_b?: boolean | null
+          package_type?: string | null
           pickup_cost?: number | null
           planned_remaining_value?: number | null
           pm_id?: string | null
