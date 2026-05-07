@@ -17,6 +17,8 @@ import {
   resolveCTBuilderProductIds,
   type CTBuilderHardware,
 } from "@/lib/productMap";
+import { useEnergyProductPrices } from "@/lib/productPricing";
+import { useEnergyFinanceSettings, computeFinance } from "@/lib/energyFinance";
 import type { CTResult } from "./types";
 
 interface Props {
@@ -34,9 +36,12 @@ export function EnergyMonitoringPanel({ certificationId, isAdmin }: Props) {
   const rawRows = state?.rawRows ?? null;
   const fileName = state?.fileName ?? null;
 
+  const { data: priceInfo } = useEnergyProductPrices();
+  const { data: financeSettings } = useEnergyFinanceSettings();
+
   const result = useMemo(
-    () => (rawRows ? processRows(rawRows, settings) : null),
-    [rawRows, settings],
+    () => (rawRows ? processRows(rawRows, settings, priceInfo?.prices) : null),
+    [rawRows, settings, priceInfo],
   );
 
   const { user } = useAuth();
