@@ -38,7 +38,12 @@ export function determineCTModel(amps: number, wireSqmm: number): CTModel {
   return rank[ctWire] > rank[ctAmp] ? ctWire : ctAmp;
 }
 
-export function processRows(rows: RawRow[], settings: CTSettings): CTResult {
+export function processRows(
+  rows: RawRow[],
+  settings: CTSettings,
+  priceOverrides?: Partial<Record<string, number>>,
+): CTResult {
+  const PRICES: Record<string, number> = { ...DEFAULT_PRICES, ...(priceOverrides ?? {}) };
   const profileMap = new Map<string, { kc: number; hoursY: number }>();
   for (const lp of settings.loadProfiles) {
     profileMap.set(lp.use, { kc: lp.kcPct / 100, hoursY: lp.hours * lp.days });
@@ -69,7 +74,7 @@ export function processRows(rows: RawRow[], settings: CTSettings): CTResult {
       energyKWhY: Math.round(energyKWhY * 10) / 10,
       ctModel,
       sensors: sensorInfo.count,
-      hardwareCost: Math.round(DEFAULT_PRICES[ctModel] * sensorInfo.count * 100) / 100,
+      hardwareCost: Math.round(PRICES[ctModel] * sensorInfo.count * 100) / 100,
       percentage: 0,
       isCritical: false,
     };
@@ -107,9 +112,9 @@ export function processRows(rows: RawRow[], settings: CTSettings): CTResult {
   const bridgesNeeded = totalSensors > 0 ? Math.floor(totalSensors / 30) + 1 : 0;
 
   let infraCost = 0;
-  if (settings.bridgeType === "LAN") infraCost = DEFAULT_PRICES.BRIDGE_LAN * bridgesNeeded;
-  else if (settings.bridgeType === "LTE") infraCost = DEFAULT_PRICES.BRIDGE_LTE * bridgesNeeded;
-  if (settings.useMango) infraCost += DEFAULT_PRICES.MANGO;
+  if (settings.bridgeType === "LAN") infraCost = PRICES.BRIDGE_LAN * bridgesNeeded;
+  else if (settings.bridgeType === "LTE") infraCost = PRICES.BRIDGE_LTE * bridgesNeeded;
+  if (settings.useMango) infraCost += PRICES.MANGO;
 
   // BOM (only critical sensors are deployed)
   const bomMap = new Map<CTModel, number>();
@@ -117,24 +122,24 @@ export function processRows(rows: RawRow[], settings: CTSettings): CTResult {
   const bom: BomItem[] = [...bomMap.entries()].map(([model, qty]) => ({
     hardware: model,
     quantity: qty,
-    unitCost: DEFAULT_PRICES[model],
-    totalCost: Math.round(DEFAULT_PRICES[model] * qty * 100) / 100,
+    unitCost: PRICES[model],
+    totalCost: Math.round(PRICES[model] * qty * 100) / 100,
   }));
   if (settings.bridgeType !== "None" && bridgesNeeded > 0) {
     const key = settings.bridgeType === "LAN" ? "BRIDGE_LAN" : "BRIDGE_LTE";
     bom.push({
       hardware: `${settings.bridgeType} Bridge`,
       quantity: bridgesNeeded,
-      unitCost: DEFAULT_PRICES[key],
-      totalCost: Math.round(DEFAULT_PRICES[key] * bridgesNeeded * 100) / 100,
+      unitCost: PRICES[key],
+      totalCost: Math.round(PRICES[key] * bridgesNeeded * 100) / 100,
     });
   }
   if (settings.useMango) {
     bom.push({
       hardware: "MANGO Gateway",
       quantity: 1,
-      unitCost: DEFAULT_PRICES.MANGO,
-      totalCost: DEFAULT_PRICES.MANGO,
+      unitCost: PRICES.MANGO,
+      totalCost: PRICES.MANGO,
     });
   }
 

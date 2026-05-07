@@ -39,6 +39,8 @@ export interface SiteEnergyRecord {
   no_pan12: number | null;
   no_pan14: number | null;
   no_ct: number | null;
+  no_mango: number | null;
+  fx_rate_usd_eur: number | null;
 
   bridge_total_cost: number | null;
   sensor_total_cost: number | null;

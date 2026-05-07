@@ -17,6 +17,8 @@ import {
   resolveCTBuilderProductIds,
   type CTBuilderHardware,
 } from "@/lib/productMap";
+import { useEnergyProductPrices } from "@/lib/productPricing";
+import { useEnergyFinanceSettings, computeFinance } from "@/lib/energyFinance";
 import type { CTResult } from "./types";
 
 interface Props {
@@ -34,9 +36,12 @@ export function EnergyMonitoringPanel({ certificationId, isAdmin }: Props) {
   const rawRows = state?.rawRows ?? null;
   const fileName = state?.fileName ?? null;
 
+  const { data: priceInfo } = useEnergyProductPrices();
+  const { data: financeSettings } = useEnergyFinanceSettings();
+
   const result = useMemo(
-    () => (rawRows ? processRows(rawRows, settings) : null),
-    [rawRows, settings],
+    () => (rawRows ? processRows(rawRows, settings, priceInfo?.prices) : null),
+    [rawRows, settings, priceInfo],
   );
 
   const { user } = useAuth();
@@ -136,6 +141,15 @@ export function EnergyMonitoringPanel({ certificationId, isAdmin }: Props) {
       const site = (cert as { sites?: { name?: string; city?: string; country?: string; region?: string; brand_id?: string; brands?: { name?: string } } } | null)?.sites ?? undefined;
 
       const counts = countersFromResult(result);
+      const mangoQty = settings.useMango ? 1 : 0;
+      const finance = computeFinance(
+        { hardwareUsd: result.totalProject },
+        financeSettings ?? {
+          vat_pct: 22, customs_inbound_pct: 5, customs_outbound_pct: 0,
+          pickup_default_usd: 0, shipment_default_usd: 0, installation_default_usd: 0,
+          company_cost_pct: 20, fx_rate_usd_eur: 0.86, quotation_markup_pct: 30,
+        },
+      );
       const recordPayload = {
         certification_id: certificationId,
         site_id: cert?.site_id ?? null,
@@ -155,9 +169,10 @@ export function EnergyMonitoringPanel({ certificationId, isAdmin }: Props) {
         no_pan12: counts.pan12,
         no_pan14: counts.pan14,
         no_ct: counts.totalSensors,
+        no_mango: mangoQty,
         bridge_total_cost: result.infraCost,
         sensor_total_cost: result.sensorCost,
-        total_package_cost_usd: result.totalProject,
+        ...finance,
         locked: true,
         ct_builder_snapshot: { rawRows, settings, fileName },
       };
