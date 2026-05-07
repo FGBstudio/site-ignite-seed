@@ -1257,6 +1257,48 @@ export type Database = {
         }
         Relationships: []
       }
+      energy_finance_settings: {
+        Row: {
+          company_cost_pct: number
+          customs_inbound_pct: number
+          customs_outbound_pct: number
+          fx_rate_usd_eur: number
+          id: number
+          installation_default_usd: number
+          pickup_default_usd: number
+          quotation_markup_pct: number
+          shipment_default_usd: number
+          updated_at: string
+          vat_pct: number
+        }
+        Insert: {
+          company_cost_pct?: number
+          customs_inbound_pct?: number
+          customs_outbound_pct?: number
+          fx_rate_usd_eur?: number
+          id?: number
+          installation_default_usd?: number
+          pickup_default_usd?: number
+          quotation_markup_pct?: number
+          shipment_default_usd?: number
+          updated_at?: string
+          vat_pct?: number
+        }
+        Update: {
+          company_cost_pct?: number
+          customs_inbound_pct?: number
+          customs_outbound_pct?: number
+          fx_rate_usd_eur?: number
+          id?: number
+          installation_default_usd?: number
+          pickup_default_usd?: number
+          quotation_markup_pct?: number
+          shipment_default_usd?: number
+          updated_at?: string
+          vat_pct?: number
+        }
+        Relationships: []
+      }
       energy_hourly: {
         Row: {
           device_id: string
@@ -2922,6 +2964,7 @@ export type Database = {
           fgb_resource: number | null
           free_software_year: number | null
           frequency: number | null
+          fx_rate_usd_eur: number | null
           gateway: string | null
           handover_date: string | null
           id: string
@@ -2932,6 +2975,7 @@ export type Database = {
           ip_configuration: string | null
           locked: boolean
           no_ct: number | null
+          no_mango: number | null
           no_pan10: number | null
           no_pan12: number | null
           no_pan14: number | null
@@ -2988,6 +3032,7 @@ export type Database = {
           fgb_resource?: number | null
           free_software_year?: number | null
           frequency?: number | null
+          fx_rate_usd_eur?: number | null
           gateway?: string | null
           handover_date?: string | null
           id?: string
@@ -2998,6 +3043,7 @@ export type Database = {
           ip_configuration?: string | null
           locked?: boolean
           no_ct?: number | null
+          no_mango?: number | null
           no_pan10?: number | null
           no_pan12?: number | null
           no_pan14?: number | null
@@ -3054,6 +3100,7 @@ export type Database = {
           fgb_resource?: number | null
           free_software_year?: number | null
           frequency?: number | null
+          fx_rate_usd_eur?: number | null
           gateway?: string | null
           handover_date?: string | null
           id?: string
@@ -3064,6 +3111,7 @@ export type Database = {
           ip_configuration?: string | null
           locked?: boolean
           no_ct?: number | null
+          no_mango?: number | null
           no_pan10?: number | null
           no_pan12?: number | null
           no_pan14?: number | null
