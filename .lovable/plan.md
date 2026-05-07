@@ -1,73 +1,102 @@
-# Fix modulo "Assign to Site"
+# Energy Monitoring — Cost Pipeline & Monitor Table Refactor
 
-## Il problema
+## Problemi rilevati
 
-Nel dialog **Project Assignment** (`AssignToSiteDialog.tsx`) la logica di calcolo degli slot da assegnare è sbagliata. Confonde due concetti diversi:
+1. **Prezzi disallineati**: la CT Builder usa `DEFAULT_PRICES` hardcoded in `types.ts` (PAN-10/12/14 = 104.30, Bridge LAN = 237.30, ecc.) invece di leggere da `products.unit_price` (single source of truth, già allineata sui valori giusti). Il MANGO è già a $38 nel DB.
+2. **Mango assente nella riconciliazione DB**: in `EnergyMonitoringPanel.handleConfirmQuote`, il counter `no_pan*` viene salvato ma NON viene salvato `no_mango` (colonna mancante) né `additional_*`.
+3. **Allocation con quantity 0**: gli `project_allocations` vengono inseriti con `quantity: 0` e `requested_quantity: b.quantity` — corretto a livello logico, ma le card Hardware Request Log mostravano lo zero. Verificheremo che il fix del `requested_quantity` (in `ProjectDetail.tsx`) copra anche eventuali altri consumer.
+4. **`site_energy_records` mancante di `no_mango`** come colonna dedicata. Va aggiunta.
+5. **Monitor table** (`src/pages/Monitor.tsx`) mostra solo ~10 colonne su 55+ richieste; nessuna sezione finanziaria/network. Va riprogettata a tab.
+6. **FX, VAT, customs, profit, ROI** non sono calcolati: nessuna pipeline esiste.
 
-- **Richiesta** = quanti dispositivi servono al sito (decisa da PM o CT Builder).
-- **Assegnazione fisica** = un hardware reale, con `device_id` e `mac_address`, viene linkato al sito (status → `Assigned`, `site_id` → quel sito).
+## Decisioni confermate
+- Prezzi: **sempre da `products.unit_price`** (warning admin se 0 o prodotto mancante).
+- FX: **0.86 EUR/USD fisso** all'acquisto. VAT/customs/company-cost % configurabili. Taxes/Profit/ROI auto-calcolati ed editabili da admin.
+- UI Monitor: **tabella unica + riga espandibile a tab** (Site info, Hardware, Costs, Network).
 
-Oggi entrambi i concetti vivono nella stessa colonna `project_allocations.quantity`:
-- Quando un PM crea il progetto, viene scritto `quantity = requested_quantity` (vedi `ProjectFormModal`, `PMProjectConfigModal`, `DataImporter`).
-- Risultato: il dialog calcola `remaining = requested - quantity = 0` e mostra il messaggio *"All requested air devices are already assigned"* anche se in realtà **nessun hardware fisico è mai stato collegato al sito**.
+---
 
-Si vede chiaramente nello screenshot: 4× WELL CIAir + 1× CO2 + 1× LEED richiesti per "Casa FGB", ma nessuno slot di assegnazione disponibile e nessun pulsante per scegliere un device dallo stock.
+## Piano di implementazione
 
-## Cosa cambia
+### 1. Migrazione DB
+- Aggiungere `no_mango integer` a `site_energy_records`.
+- Aggiungere `fx_rate_usd_eur numeric default 0.86` a `site_energy_records` (storicizza il tasso usato).
+- Creare tabella `energy_finance_settings` (singleton) con: `vat_pct`, `customs_inbound_pct`, `customs_outbound_pct`, `pickup_default_usd`, `shipment_default_usd`, `installation_default_usd`, `company_cost_pct` (default 20). RLS: SELECT authenticated, ALL admin. Seed con valori di default.
 
-Calcoliamo l'assegnazione fisica **dalla tabella `hardwares`**, non da `project_allocations.quantity`. La fonte di verità per "questo device è sul sito X" è la riga in `hardwares` con `site_id = X` e `status = 'Assigned'`.
+### 2. Pipeline prezzi unificata (`src/lib/productPricing.ts` — nuovo)
+- Hook `useProductPrices()` che fa `SELECT id, sku, name, unit_price FROM products WHERE category='Energy'` e ritorna mappa `{ "PAN-10": 104.30, ... , "MANGO Gateway": 38, "LAN Bridge": 237.30, "LTE Bridge": 307.30 }`.
+- Refactor `processRows` in `lib/ctBuilder.ts`: accettare un parametro opzionale `prices: Record<string, number>` che sostituisce `DEFAULT_PRICES`. Se non fornito, fallback ai valori attuali (sicurezza).
+- `EnergyMonitoringPanel`: caricare prezzi via hook; passarli a `processRows`. Se un prezzo è 0/mancante mostrare warning con `<Alert>` ma permettere comunque il calcolo.
 
-### 1. `AssignToSiteDialog.tsx` — riscrittura della logica slot
+### 3. Confirm quote — completare il payload
+- Aggiungere `no_mango: settings.useMango ? 1 : 0` al payload `recordPayload`.
+- Calcolare e salvare:
+  - `bridge_total_cost`, `sensor_total_cost` (già OK)
+  - `total_package_cost_usd` = sensorCost + infraCost (già OK)
+  - `total_package_cost_eur` = USD × `fx_rate_usd_eur` (0.86)
+  - `fx_rate_usd_eur: 0.86`
+  - `company_cost_pct` da settings finance (default 20)
+  - Default per `duty_customs_inbound`, `vat_fee`, `pickup_cost`, `shipment_cost`, `outbound_custom_cost`, `installation_cost` calcolati dai % di `energy_finance_settings`
+  - `total_cost` = somma di tutti i cost components
+  - `quotation_value`, `planned_remaining_value`, `taxes`, `profit`, `roi_pct` calcolati con la formula admin (esposta in helper `computeFinance()`).
+- Inserire anche un `MANGO Gateway` allocation row (anche se BOM già lo include — verificato in `ctBuilder.ts` riga 132-138).
 
-- Caricare anche gli hardware già assegnati al sito selezionato:
-  ```ts
-  supabase.from("hardwares")
-    .select("id, device_id, mac_address, product_id, hardware_type, status")
-    .eq("site_id", selectedCert.site_id)
-    .eq("status", "Assigned")
-  ```
-- Per ogni allocation della modalità corrente (AIR/ENERGY):
-  - `requested = allocation.requested_quantity ?? allocation.quantity`
-  - `physicallyAssigned = count(hardwares assigned to site con product_id matching)`
-  - `remaining = max(requested - physicallyAssigned, 0)`
-- Mostrare in cima un riepilogo a 3 colonne per ogni prodotto richiesto:
-  *Requested · Already on site · To assign now*.
-- Generare uno slot per ciascun pezzo `remaining`: dropdown "Pick available device" che attinge dallo stock (`status = 'In Stock'`) filtrabile per `hardware_type`. Il PM/admin sceglie il **device fisico** (serial + MAC).
-- Mostrare anche, in sola lettura, la lista dei device già fisicamente sul sito (con device_id/MAC) così l'admin vede cosa c'è già.
+### 4. Helper finanziario `src/lib/energyFinance.ts`
+```text
+totalHardwareUsd  = sensor + bridge + mango
+totalHardwareEur  = totalHardwareUsd × fx
+duties            = totalHardwareEur × customs_inbound_pct
+vat               = (totalHardwareEur + duties) × vat_pct
+shippingTotal     = pickup + shipment + outboundCustom
+installation      = installation_default
+companyCost       = (totalHardwareEur + duties + vat + shipping + installation) × company_cost_pct
+totalCost         = sum of all above + fgb_resource
+quotationValue    = (provided by admin or default = totalCost × 1.3)
+profit            = quotationValue − totalCost − taxes
+roi               = profit / totalCost × 100
+```
+Tutti i campi restano editabili manualmente nella Monitor table.
 
-### 2. Submit: non toccare più `project_allocations.quantity`
+### 5. Monitor table — refactor (`src/pages/Monitor.tsx`)
+Layout:
+```text
+┌─ KPI strip (Sites, Sensors, Bridges, Mango, Total Cost €, Avg ROI) ─┐
+├─ Filters: search, status, region, country ─────────────────────────┤
+├─ Tabella principale (colonne pinned: Project, Brand, Country, City,│
+│   Status) + Total Cost €, ROI%, Online, ▸ Expand                   │
+└─ Riga espansa = Tabs:                                               │
+    • Site info     (Region/Country/City/Frequency/Free SW year/      │
+                     Installation/Contracted/PM/Handover/Category/    │
+                     PO/Installer/Reference Contact)                  │
+    • Hardware      (Package A/B/Custom, Add. Sensors/Bridge/PAN-42, │
+                     Total Sensors/Bridges, PAN-10/12/14, CT, Mango) │
+    • Costs (admin) (Bridge/Sensor cost, Total $/€, Duty, VAT,       │
+                     Pickup, Shipment, Outbound, Installation,       │
+                     Quotation, Company 20%, FGB resource, Total,    │
+                     Planned remaining, Taxes, Profit, ROI)           │
+    • Network       (Tracking#, IP cfg, Port, IP, Subnet, Gateway,   │
+                     DNS1, DNS2, Online status)
+```
+- Edit inline per campo (admin-only su sezione Costs).
+- PM: tabs Site/Hardware/Network visibili; tab Costs nascosta.
 
-Oggi alla conferma il dialog fa `quantity = quantity + count` su `project_allocations`. Questo va rimosso: la quantità "richiesta" non deve cambiare quando assegniamo fisicamente. L'unica scrittura necessaria è:
+### 6. Tipi TS
+- Aggiornare `src/types/site-energy.ts` con `no_mango`, `fx_rate_usd_eur`.
+- Aggiungere `EnergyFinanceSettings` in `src/types/custom-tables.ts`.
 
-- `hardwares` → set `site_id`, `status = 'Assigned'`, e (per i bridge in modalità Energy) i campi network.
-- `project_allocations.status`: aggiornarlo dinamicamente:
-  - se `physicallyAssigned >= requested` → `Allocated` (fulfilled)
-  - se `physicallyAssigned > 0` ma `< requested` → `Partially Allocated`
-  - altrimenti resta `Requested` / `Draft`.
-- `site_energy_records` (solo Energy): ricalcolare i contatori `total_sensors`, `no_pan10/12/14`, `total_bridges` dai device **realmente** sul sito (query su `hardwares` con join `products`), non da incrementi locali.
+### 7. Verifiche post-merge
+- Confermare quote su un progetto test → check `site_energy_records` ha tutti i campi numerici popolati correttamente.
+- Monitor table: verificare KPI Total Cost ≠ $0.
+- PM view: tab Costs nascosta; nessun prezzo visibile.
 
-### 3. Copy / UX
-
-- Banner blu sostituito con tre stati possibili:
-  - **Tutto da assegnare**: *"PM ha richiesto X dispositivi. Seleziona dallo stock i device fisici da inviare al sito."*
-  - **Parzialmente assegnato**: *"Y di X dispositivi già installati. Restano Z da assegnare."*
-  - **Completato**: *"Tutti i X dispositivi richiesti sono fisicamente sul sito."* (in questo caso mostriamo solo la lista read-only dei device assegnati, niente slot vuoti).
-- Pulsante "Confirm Allocation" → "Assign Devices to Site".
+---
 
 ## File toccati
-
-- `src/components/hardwares/AssignToSiteDialog.tsx` — logica e UI rifatte.
-- (Opzionale, nessuna modifica DB) Nessuna migrazione richiesta: la tabella `hardwares` ha già tutto. Volutamente **non** modifichiamo gli inserimenti PM in `ProjectFormModal`/`PMProjectConfigModal`/`DataImporter` per non rompere altre parti che leggono `quantity` come "richiesto".
-
-## Dettagli tecnici
-
-```text
-allocations (richiesta)          hardwares (stato fisico)
-────────────────────             ────────────────────────
-requested_quantity = 4    ◄──►   COUNT(hardwares WHERE
-quantity (legacy)                  site_id = cert.site_id
-                                   AND product_id = X
-                                   AND status='Assigned')
-```
-
-`remaining_slots = requested_quantity − physical_count`. Quando `remaining = 0`, lo slot non viene generato (riga read-only "completato"). Quando `> 0`, generiamo N dropdown sullo stock disponibile.
+- **DB migration**: `site_energy_records` + nuova `energy_finance_settings`
+- `src/components/projects/EnergyMonitoring/types.ts` — rimuovere DEFAULT_PRICES (o tenerlo come fallback con commento)
+- `src/components/projects/EnergyMonitoring/lib/ctBuilder.ts` — `processRows(rows, settings, prices?)`
+- `src/components/projects/EnergyMonitoring/EnergyMonitoringPanel.tsx` — fetch prezzi, payload completo, alert prodotti mancanti
+- `src/lib/productPricing.ts` — **nuovo** hook
+- `src/lib/energyFinance.ts` — **nuovo** helper calcoli
+- `src/pages/Monitor.tsx` — refactor tabella + tabs espandibili
+- `src/types/site-energy.ts`, `src/types/custom-tables.ts`
