@@ -136,7 +136,7 @@ function EnergyTable() {
   };
 
   // counts for grouped header colspans
-  const COL_SITE = 12; // Project + 11
+  const COL_SITE = 13; // edit handle + Project + 11
   const COL_HW = 9;
   const COL_COST = 9;
   const COL_FIN = 9;
