@@ -272,8 +272,8 @@ function Th({ children, right, sticky, tone }: { children: React.ReactNode; righ
     <th className={cn(
       "px-3 py-2 font-semibold text-[10.5px] uppercase tracking-wide whitespace-nowrap border-b border-border",
       right ? "text-right" : "text-left",
-      sticky && "sticky left-0 z-10 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]",
-      tone,
+      // Sticky cells MUST have an opaque background so non-sticky columns don't show through during horizontal scroll.
+      sticky ? "sticky left-0 z-30 bg-card shadow-[2px_0_4px_-2px_rgba(0,0,0,0.12)]" : tone,
     )}>
       {children}
     </th>
@@ -290,11 +290,12 @@ interface RowProps {
 
 function Row({ r, idx, isAdmin, showNetwork, onUpdate }: RowProps) {
   const isFendi24 = r.category === "Fendi Energy Project 2024";
-  const zebra = idx % 2 === 0 ? "bg-background" : "bg-muted/20";
+  // Use solid backgrounds (no alpha) so the sticky first column doesn't bleed through.
+  const zebra = idx % 2 === 0 ? "bg-card" : "bg-muted";
 
   return (
-    <tr className={cn("group transition-colors hover:bg-primary/5", zebra)}>
-      <td className={cn("px-3 py-2 font-medium sticky left-0 z-[5] whitespace-nowrap border-b border-border shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]", zebra, "group-hover:bg-primary/5")}>
+    <tr className={cn("group transition-colors", zebra, "hover:bg-primary/5")}>
+      <td className={cn("px-3 py-2 font-medium sticky left-0 z-[15] whitespace-nowrap border-b border-border shadow-[2px_0_4px_-2px_rgba(0,0,0,0.12)]", zebra, "group-hover:bg-primary/5")}>
         {r.project_name ?? "—"}
         {r.city && <div className="text-[10px] text-muted-foreground font-normal">{r.city}{r.country ? `, ${r.country}` : ""}</div>}
       </td>
