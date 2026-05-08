@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Check, Download, Eye, EyeOff, Loader2, Pencil, Search } from "lucide-react";
+import { Check, Download, Eye, EyeOff, Loader2, Pencil, Search, X } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { supabase } from "@/integrations/supabase/client";
@@ -33,9 +33,9 @@ const fmtDate = (s: string | null | undefined) => {
 
 const statusTone = (s: string | null | undefined) => {
   switch ((s ?? "").toLowerCase()) {
-    case "active": case "online": return "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30";
-    case "to install": case "pending": return "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30";
-    case "offline": case "issue": return "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30";
+    case "active": case "online": case "completed": case "installed": return "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30";
+    case "to install": case "pending": case "upcoming": return "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30";
+    case "offline": case "issue": case "deleted": return "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30";
     default: return "bg-muted text-foreground/70 border-border";
   }
 };
@@ -59,13 +59,12 @@ export default function Monitor() {
   );
 }
 
-// Section colour palette — subtle pastel banding similar to spreadsheet groups.
 const SEC = {
-  site:    { head: "bg-slate-100/80 dark:bg-slate-800/40 text-slate-700 dark:text-slate-200",     cell: "bg-slate-50/40 dark:bg-slate-900/20" },
-  hw:      { head: "bg-sky-100/80 dark:bg-sky-900/30 text-sky-800 dark:text-sky-200",             cell: "bg-sky-50/40 dark:bg-sky-950/20" },
-  cost:    { head: "bg-amber-100/80 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200",     cell: "bg-amber-50/40 dark:bg-amber-950/20" },
-  finance: { head: "bg-emerald-100/80 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-200", cell: "bg-emerald-50/40 dark:bg-emerald-950/20" },
-  net:     { head: "bg-violet-100/80 dark:bg-violet-900/30 text-violet-800 dark:text-violet-200", cell: "bg-violet-50/40 dark:bg-violet-950/20" },
+  site:    { head: "bg-slate-100/80 dark:bg-slate-800/40 text-slate-700 dark:text-slate-200" },
+  hw:      { head: "bg-sky-100/80 dark:bg-sky-900/30 text-sky-800 dark:text-sky-200" },
+  cost:    { head: "bg-amber-100/80 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200" },
+  finance: { head: "bg-emerald-100/80 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-200" },
+  net:     { head: "bg-violet-100/80 dark:bg-violet-900/30 text-violet-800 dark:text-violet-200" },
 };
 
 function EnergyTable() {
@@ -106,10 +105,17 @@ function EnergyTable() {
     });
   }, [rows, search, filters]);
 
-  const update = async (id: string, patch: SiteEnergyRecordPatch): Promise<boolean> => {
+  const update = async (id: string, patch: SiteEnergyRecordPatch, projectName: string | null): Promise<boolean> => {
+    const fields = Object.keys(patch);
     const { error } = await supabase.from("site_energy_records" as never).update(patch as never).eq("id", id);
-    if (error) { toast({ title: "Save failed", description: error.message, variant: "destructive" }); return false; }
-    toast({ title: "Saved", description: "Row updated." });
+    if (error) {
+      toast({ title: "Save failed", description: error.message, variant: "destructive" });
+      return false;
+    }
+    toast({
+      title: "Row updated",
+      description: `${projectName ?? "Row"} — ${fields.length} field${fields.length === 1 ? "" : "s"} changed (${fields.join(", ")}).`,
+    });
     await qc.invalidateQueries({ queryKey: ["monitor-energy-rows"] });
     return true;
   };
@@ -135,8 +141,7 @@ function EnergyTable() {
     URL.revokeObjectURL(url);
   };
 
-  // counts for grouped header colspans
-  const COL_SITE = 13; // edit handle + Project + 11
+  const COL_SITE = 13;
   const COL_HW = 9;
   const COL_COST = 9;
   const COL_FIN = 9;
@@ -144,7 +149,6 @@ function EnergyTable() {
 
   return (
     <div className="space-y-4">
-      {/* Filters card */}
       <Card>
         <CardContent className="py-4">
           <div className="flex flex-wrap items-center gap-2">
@@ -171,7 +175,7 @@ function EnergyTable() {
             </div>
           </div>
           <p className="mt-2 text-[11px] text-muted-foreground inline-flex items-center gap-1">
-            <Pencil className="h-3 w-3" /> Hover a row to reveal the edit pencil, or click any cell directly — changes save automatically.
+            <Pencil className="h-3 w-3" /> Click the pencil on a row to enable editing, change any field, then save to confirm.
           </p>
         </CardContent>
       </Card>
@@ -185,7 +189,6 @@ function EnergyTable() {
           <div className="overflow-x-auto">
             <table className="text-[11px] w-full border-separate border-spacing-0">
               <thead className="sticky top-0 z-20">
-                {/* Group row */}
                 <tr>
                   <th colSpan={COL_SITE} className={cn("px-3 py-1.5 text-left text-[10px] uppercase tracking-wider font-semibold border-b border-border", SEC.site.head)}>Site Info</th>
                   <th colSpan={COL_HW} className={cn("px-3 py-1.5 text-left text-[10px] uppercase tracking-wider font-semibold border-b border-l border-border", SEC.hw.head)}>Hardware</th>
@@ -194,7 +197,6 @@ function EnergyTable() {
                   {showNetwork && <th colSpan={COL_NET} className={cn("px-3 py-1.5 text-left text-[10px] uppercase tracking-wider font-semibold border-b border-l border-border", SEC.net.head)}>Network</th>}
                   <th className="px-3 py-1.5 border-b border-l border-border bg-muted/40" />
                 </tr>
-                {/* Column row */}
                 <tr className="bg-background">
                   <Th tone={SEC.site.head}><span className="sr-only">Edit</span></Th>
                   <Th sticky tone={SEC.site.head}>Project</Th>
@@ -273,7 +275,6 @@ function Th({ children, right, sticky, tone }: { children: React.ReactNode; righ
     <th className={cn(
       "px-3 py-2 font-semibold text-[10.5px] uppercase tracking-wide whitespace-nowrap border-b border-border",
       right ? "text-right" : "text-left",
-      // Sticky cells MUST have an opaque background so non-sticky columns don't show through during horizontal scroll.
       sticky ? "sticky left-0 z-30 bg-card shadow-[2px_0_4px_-2px_rgba(0,0,0,0.12)]" : tone,
     )}>
       {children}
@@ -286,63 +287,113 @@ interface RowProps {
   idx: number;
   isAdmin: boolean;
   showNetwork: boolean;
-  onUpdate: (id: string, patch: SiteEnergyRecordPatch) => Promise<boolean>;
+  onUpdate: (id: string, patch: SiteEnergyRecordPatch, projectName: string | null) => Promise<boolean>;
 }
 
 function Row({ r, idx, isAdmin, showNetwork, onUpdate }: RowProps) {
   const isFendi24 = r.category === "Fendi Energy Project 2024";
-  const [autoEdit, setAutoEdit] = useState(false);
-  // Use solid backgrounds (no alpha) so the sticky first column doesn't bleed through.
+  const [editing, setEditing] = useState(false);
+  const [patch, setPatch] = useState<SiteEnergyRecordPatch>({});
+  const [saving, setSaving] = useState(false);
+
   const zebra = idx % 2 === 0 ? "bg-card" : "bg-muted";
+  const rowBg = editing ? "bg-primary/5 ring-1 ring-inset ring-primary/30" : zebra;
+
+  type SK = keyof SiteEnergyRecordPatch;
+  function setField<K extends SK>(k: K, v: SiteEnergyRecordPatch[K]) {
+    setPatch((p) => ({ ...p, [k]: v }));
+  }
+  function cur<K extends keyof MonitorRow>(k: K): MonitorRow[K] {
+    return (k in patch ? (patch as Record<string, unknown>)[k as string] : r[k]) as MonitorRow[K];
+  }
+
+  const dirty = Object.keys(patch).length > 0;
+
+  const startEdit = () => { setPatch({}); setEditing(true); };
+  const cancel = () => { setPatch({}); setEditing(false); };
+  const save = async () => {
+    if (!dirty) { setEditing(false); return; }
+    setSaving(true);
+    const ok = await onUpdate(r.id, patch, r.project_name);
+    setSaving(false);
+    if (ok) { setPatch({}); setEditing(false); }
+  };
 
   return (
-    <tr className={cn("group transition-colors", zebra, "hover:bg-primary/5")}>
-      <td className={cn("px-1.5 py-2 border-b border-border align-middle text-center", zebra, "group-hover:bg-primary/5")}>
-        <button
-          type="button"
-          onClick={() => setAutoEdit(true)}
-          className="opacity-30 group-hover:opacity-100 transition-opacity inline-flex items-center justify-center h-6 w-6 rounded-md hover:bg-primary/10 text-muted-foreground hover:text-primary"
-          title="Edit row"
-          aria-label="Edit row"
-        >
-          <Pencil className="h-3.5 w-3.5" />
-        </button>
+    <tr className={cn("group transition-colors", rowBg, !editing && "hover:bg-primary/5")}>
+      <td className={cn("px-1.5 py-2 border-b border-border align-middle text-center sticky left-0 z-[14]", rowBg)}>
+        {editing ? (
+          <div className="inline-flex items-center gap-0.5">
+            <button
+              type="button" onClick={save} disabled={saving}
+              className="inline-flex items-center justify-center h-6 w-6 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              title={dirty ? "Save changes" : "No changes"} aria-label="Save"
+            >
+              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+            </button>
+            <button
+              type="button" onClick={cancel} disabled={saving}
+              className="inline-flex items-center justify-center h-6 w-6 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+              title="Cancel" aria-label="Cancel"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button" onClick={startEdit}
+            className="opacity-30 group-hover:opacity-100 transition-opacity inline-flex items-center justify-center h-6 w-6 rounded-md hover:bg-primary/10 text-muted-foreground hover:text-primary"
+            title="Edit row" aria-label="Edit row"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+        )}
       </td>
-      <td className={cn("px-3 py-2 font-medium sticky left-0 z-[15] border-b border-border shadow-[2px_0_4px_-2px_rgba(0,0,0,0.12)] min-w-[200px] max-w-[240px]", zebra, "group-hover:bg-primary/5")}>
+      <td className={cn("px-3 py-2 font-medium sticky left-[34px] z-[13] border-b border-border shadow-[2px_0_4px_-2px_rgba(0,0,0,0.12)] min-w-[200px] max-w-[240px]", rowBg)}>
         <div className="truncate">{r.project_name ?? "—"}</div>
         {r.city && <div className="text-[10px] text-muted-foreground font-normal truncate">{r.city}{r.country ? `, ${r.country}` : ""}</div>}
       </td>
-      <EditCell value={r.status} options={STATUS_OPTIONS as readonly string[]} forceEdit={autoEdit} onForceEditDone={() => setAutoEdit(false)} minWidth={110} onSave={(v) => onUpdate(r.id, { status: v })}
+
+      <EditCell editing={editing} value={cur("status") as string | null} options={STATUS_OPTIONS as readonly string[]} onChange={(v) => setField("status", v)} minWidth={110}
         render={(v) => <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full border text-[10.5px] font-medium whitespace-nowrap", statusTone(v))}>{v ?? "—"}</span>} />
-      <EditCell value={r.frequency != null ? String(r.frequency) : null} options={["50", "60"]} onSave={(v) => onUpdate(r.id, { frequency: v ? Number(v) : null })} render={(v) => <span>{v ? `${v} Hz` : "—"}</span>} />
-      <EditCell value={r.free_software_year != null ? String(r.free_software_year) : "3"} type="number" onSave={(v) => onUpdate(r.id, { free_software_year: v ? Number(v) : null })} />
-      <EditCell value={r.installation_date} type="date" onSave={(v) => onUpdate(r.id, { installation_date: v || null })} render={(v) => <span>{fmtDate(v)}</span>} />
-      <EditCell value={r.contracted ?? "yes"} options={["yes", "no"]} onSave={(v) => onUpdate(r.id, { contracted: v })}
+      <EditCell editing={editing} value={cur("frequency") != null ? String(cur("frequency")) : null} options={["50", "60"]}
+        onChange={(v) => setField("frequency", v ? Number(v) : null)} render={(v) => <span>{v ? `${v} Hz` : "—"}</span>} />
+      <EditCell editing={editing} value={cur("free_software_year") != null ? String(cur("free_software_year")) : ""} type="number"
+        onChange={(v) => setField("free_software_year", v ? Number(v) : null)} />
+      <EditCell editing={editing} value={cur("installation_date") as string | null} type="date"
+        onChange={(v) => setField("installation_date", v || null)} render={(v) => <span>{fmtDate(v)}</span>} />
+      <EditCell editing={editing} value={(cur("contracted") as string | null) ?? "yes"} options={["yes", "no"]}
+        onChange={(v) => setField("contracted", v)}
         render={(v) => <Badge variant="outline" className={cn("font-normal", v === "yes" ? "border-emerald-500/40 text-emerald-700 dark:text-emerald-300" : "border-rose-500/40 text-rose-700 dark:text-rose-300")}>{v ?? "—"}</Badge>} />
       <td className="px-3 py-2 whitespace-nowrap border-b border-border">{r.pm_name ?? "—"}</td>
-      <EditCell value={r.handover_date} type="date" onSave={(v) => onUpdate(r.id, { handover_date: v || null })} render={(v) => <span>{fmtDate(v)}</span>} />
-      <EditCell value={r.category} options={CATEGORY_OPTIONS as readonly string[]} onSave={(v) => onUpdate(r.id, { category: v })} render={(v) => <Badge variant="secondary" className="font-normal">{v ?? "—"}</Badge>} />
+      <EditCell editing={editing} value={cur("handover_date") as string | null} type="date"
+        onChange={(v) => setField("handover_date", v || null)} render={(v) => <span>{fmtDate(v)}</span>} />
+      <EditCell editing={editing} value={cur("category") as string | null} options={CATEGORY_OPTIONS as readonly string[]}
+        onChange={(v) => setField("category", v)} render={(v) => <Badge variant="secondary" className="font-normal">{v ?? "—"}</Badge>} />
       <td className="px-3 py-2 whitespace-nowrap border-b border-border">
         {r.po_numbers.length === 0 ? "—" : r.po_numbers.map((po) => <Badge key={po} variant="outline" className="mr-1 font-mono text-[10px]">{po}</Badge>)}
       </td>
-      <EditCell value={r.installer} onSave={(v) => onUpdate(r.id, { installer: v })} />
+      <EditCell editing={editing} value={cur("installer") as string | null} onChange={(v) => setField("installer", v)} />
       <td className="px-3 py-2 whitespace-nowrap border-b border-border">
         {isFendi24 ? (
-          <Select value={r.package_type ?? ""} onValueChange={(v) => onUpdate(r.id, { package_type: v as "A" | "B" })}>
-            <SelectTrigger className="h-7 w-20 text-xs"><SelectValue placeholder="—" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="A">A</SelectItem>
-              <SelectItem value="B">B</SelectItem>
-            </SelectContent>
-          </Select>
+          editing ? (
+            <Select value={(cur("package_type") as string | null) ?? ""} onValueChange={(v) => setField("package_type", v as "A" | "B")}>
+              <SelectTrigger className="h-7 w-20 text-xs"><SelectValue placeholder="—" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="A">A</SelectItem>
+                <SelectItem value="B">B</SelectItem>
+              </SelectContent>
+            </Select>
+          ) : (
+            <Badge variant="outline">{r.package_type ?? "—"}</Badge>
+          )
         ) : (
           <Badge variant="outline" className="border-primary/30 text-primary">Customized</Badge>
         )}
       </td>
 
-      {/* Hardware — editable counters */}
-      <EditCell right type="number" value={r.additional_sensors != null ? String(r.additional_sensors) : ""} onSave={(v) => onUpdate(r.id, { additional_sensors: v ? Number(v) : 0 })} render={() => <span>{fmtNum(r.additional_sensors)}</span>} />
-      <EditCell right type="number" value={r.additional_bridge != null ? String(r.additional_bridge) : ""} onSave={(v) => onUpdate(r.id, { additional_bridge: v ? Number(v) : 0 })} render={() => <span>{fmtNum(r.additional_bridge)}</span>} />
+      <EditCell editing={editing} right type="number" value={cur("additional_sensors") != null ? String(cur("additional_sensors")) : ""} onChange={(v) => setField("additional_sensors", v ? Number(v) : 0)} render={() => <span>{fmtNum(cur("additional_sensors") as number | null)}</span>} />
+      <EditCell editing={editing} right type="number" value={cur("additional_bridge") != null ? String(cur("additional_bridge")) : ""} onChange={(v) => setField("additional_bridge", v ? Number(v) : 0)} render={() => <span>{fmtNum(cur("additional_bridge") as number | null)}</span>} />
       <NumCell n={r.no_pan10} />
       <NumCell n={r.no_pan12} />
       <NumCell n={r.no_pan14} />
@@ -362,8 +413,8 @@ function Row({ r, idx, isAdmin, showNetwork, onUpdate }: RowProps) {
         <NumCell n={r.outbound.shipping_cost} fmt={fmtEUR} />
         <NumCell n={r.outbound.customs_cost} fmt={fmtEUR} />
 
-        <EditCell right type="number" value={r.installation_cost != null ? String(r.installation_cost) : ""} onSave={(v) => onUpdate(r.id, { installation_cost: v ? Number(v) : null })} render={() => <span>{fmtEUR(r.installation_cost)}</span>} />
-        <EditCell right type="number" value={r.quotation_value != null ? String(r.quotation_value) : ""} onSave={(v) => onUpdate(r.id, { quotation_value: v ? Number(v) : null })} render={() => <span>{fmtEUR(r.quotation_value)}</span>} />
+        <EditCell editing={editing} right type="number" value={cur("installation_cost") != null ? String(cur("installation_cost")) : ""} onChange={(v) => setField("installation_cost", v ? Number(v) : null)} render={() => <span>{fmtEUR(cur("installation_cost") as number | null)}</span>} />
+        <EditCell editing={editing} right type="number" value={cur("quotation_value") != null ? String(cur("quotation_value")) : ""} onChange={(v) => setField("quotation_value", v ? Number(v) : null)} render={() => <span>{fmtEUR(cur("quotation_value") as number | null)}</span>} />
         <NumCell n={r.live_company_cost} fmt={fmtEUR} />
         <NumCell n={r.live_fgb_resource} fmt={fmtEUR} />
         <NumCell n={r.live_total_cost} fmt={fmtEUR} bold />
@@ -375,15 +426,15 @@ function Row({ r, idx, isAdmin, showNetwork, onUpdate }: RowProps) {
 
       {showNetwork && <>
         <td className="px-3 py-2 whitespace-nowrap border-b border-border font-mono text-[10px]">{r.outbound.tracking.join(", ") || "—"}</td>
-        <EditCell value={r.ip_configuration} onSave={(v) => onUpdate(r.id, { ip_configuration: v })} />
-        <EditCell value={r.assigned_port} onSave={(v) => onUpdate(r.id, { assigned_port: v })} />
-        <EditCell value={r.ip_address} onSave={(v) => onUpdate(r.id, { ip_address: v })} mono />
-        <EditCell value={r.subnet_mask} onSave={(v) => onUpdate(r.id, { subnet_mask: v })} mono />
-        <EditCell value={r.gateway} onSave={(v) => onUpdate(r.id, { gateway: v })} mono />
-        <EditCell value={r.dns1} onSave={(v) => onUpdate(r.id, { dns1: v })} mono />
-        <EditCell value={r.dns2} onSave={(v) => onUpdate(r.id, { dns2: v })} mono />
+        <EditCell editing={editing} value={cur("ip_configuration") as string | null} onChange={(v) => setField("ip_configuration", v)} />
+        <EditCell editing={editing} value={cur("assigned_port") as string | null} onChange={(v) => setField("assigned_port", v)} />
+        <EditCell editing={editing} value={cur("ip_address") as string | null} onChange={(v) => setField("ip_address", v)} mono />
+        <EditCell editing={editing} value={cur("subnet_mask") as string | null} onChange={(v) => setField("subnet_mask", v)} mono />
+        <EditCell editing={editing} value={cur("gateway") as string | null} onChange={(v) => setField("gateway", v)} mono />
+        <EditCell editing={editing} value={cur("dns1") as string | null} onChange={(v) => setField("dns1", v)} mono />
+        <EditCell editing={editing} value={cur("dns2") as string | null} onChange={(v) => setField("dns2", v)} mono />
       </>}
-      <EditCell value={r.online_status} options={["Online", "Offline", "Pending"]} onSave={(v) => onUpdate(r.id, { online_status: v })}
+      <EditCell editing={editing} value={cur("online_status") as string | null} options={["Online", "Offline", "Pending"]} onChange={(v) => setField("online_status", v)}
         render={(v) => <span className={cn("inline-flex items-center gap-1.5 text-[11px]", (v ?? "").toLowerCase() === "online" ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground")}>
           <span className={cn("h-1.5 w-1.5 rounded-full", (v ?? "").toLowerCase() === "online" ? "bg-emerald-500" : "bg-muted-foreground/40")} />{v ?? "—"}
         </span>} />
@@ -400,60 +451,25 @@ function NumCell({ n, fmt = fmtNum, bold, tone }: { n: number | null | undefined
 }
 
 interface EditCellProps {
+  editing: boolean;
   value: string | null | undefined;
-  onSave: (v: string) => Promise<boolean> | boolean | void;
+  onChange: (v: string) => void;
   type?: "text" | "number" | "date";
   options?: readonly string[];
   right?: boolean;
   mono?: boolean;
   render?: (v: string | null | undefined) => React.ReactNode;
-  forceEdit?: boolean;
-  onForceEditDone?: () => void;
   minWidth?: number;
 }
 
-function EditCell({ value, onSave, type = "text", options, right, mono, render, forceEdit, onForceEditDone, minWidth }: EditCellProps) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(value ?? "");
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-
-  useEffect(() => {
-    if (!editing) setDraft(value ?? "");
-  }, [editing, value]);
-
-  useEffect(() => {
-    if (forceEdit) {
-      setDraft(value ?? "");
-      setEditing(true);
-      onForceEditDone?.();
-    }
-  }, [forceEdit, value, onForceEditDone]);
-
-  const commit = async (next: string) => {
-    if (next === (value ?? "")) {
-      setEditing(false);
-      return;
-    }
-    setSaving(true);
-    try {
-      const ok = await onSave(next);
-      if (ok === false) return;
-      setSaved(true);
-      window.setTimeout(() => setSaved(false), 900);
-      setEditing(false);
-    } finally {
-      setSaving(false);
-    }
-  };
-
+function EditCell({ editing, value, onChange, type = "text", options, right, mono, render, minWidth }: EditCellProps) {
   const style = minWidth ? { minWidth } : undefined;
 
   if (editing && options) {
     return (
       <td className="px-2 py-1 border-b border-border" style={style}>
-        <Select value={draft} disabled={saving} onValueChange={(v) => { setDraft(v); void commit(v); }}>
-          <SelectTrigger className="h-7 text-xs w-full ring-1 ring-primary/40"><SelectValue /></SelectTrigger>
+        <Select value={value ?? ""} onValueChange={onChange}>
+          <SelectTrigger className="h-7 text-xs w-full ring-1 ring-primary/30"><SelectValue placeholder="—" /></SelectTrigger>
           <SelectContent>
             {options.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
           </SelectContent>
@@ -465,14 +481,9 @@ function EditCell({ value, onSave, type = "text", options, right, mono, render, 
     return (
       <td className={cn("px-2 py-1 border-b border-border", right && "text-right")} style={style}>
         <Input
-          type={type} value={draft} autoFocus disabled={saving}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={() => { void commit(draft); }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") { (e.target as HTMLInputElement).blur(); }
-            if (e.key === "Escape") { setDraft(value ?? ""); setEditing(false); }
-          }}
-          className="h-7 text-xs ring-1 ring-primary/40"
+          type={type} value={value ?? ""}
+          onChange={(e) => onChange(e.target.value)}
+          className={cn("h-7 text-xs ring-1 ring-primary/30", mono && "font-mono")}
         />
       </td>
     );
@@ -481,21 +492,11 @@ function EditCell({ value, onSave, type = "text", options, right, mono, render, 
     <td
       style={style}
       className={cn(
-        "group/cell relative px-3 py-2 cursor-text whitespace-nowrap border-b border-border hover:bg-primary/10 hover:ring-1 hover:ring-inset hover:ring-primary/30 transition-colors",
-        saved && "bg-primary/10 ring-1 ring-inset ring-primary/30",
+        "px-3 py-2 whitespace-nowrap border-b border-border",
         right && "text-right tabular-nums",
         mono && "font-mono text-[10.5px]",
       )}
-      onClick={() => { setDraft(value ?? ""); setEditing(true); }}
-      title="Click to edit"
     >
-      {saving ? (
-        <Loader2 className="absolute right-1 top-1 h-3 w-3 animate-spin text-primary pointer-events-none" />
-      ) : saved ? (
-        <Check className="absolute right-1 top-1 h-3 w-3 text-primary pointer-events-none" />
-      ) : (
-        <Pencil className="absolute right-1 top-1 h-2.5 w-2.5 text-muted-foreground/60 opacity-0 group-hover/cell:opacity-100 transition-opacity pointer-events-none" />
-      )}
       {render ? render(value) : (value ?? <span className="text-muted-foreground/60">—</span>)}
     </td>
   );
