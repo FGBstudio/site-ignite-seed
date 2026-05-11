@@ -721,6 +721,10 @@ export type Database = {
           fgb_monitor: boolean
           gbci_fees: number | null
           handover_date: string
+          has_energy_monitoring: boolean
+          has_hardware_redirection: boolean
+          has_iaq_monitoring: boolean
+          has_water_monitoring: boolean
           id: string
           is_commissioning: boolean | null
           issued_date: string | null
@@ -755,6 +759,10 @@ export type Database = {
           fgb_monitor?: boolean
           gbci_fees?: number | null
           handover_date?: string
+          has_energy_monitoring?: boolean
+          has_hardware_redirection?: boolean
+          has_iaq_monitoring?: boolean
+          has_water_monitoring?: boolean
           id?: string
           is_commissioning?: boolean | null
           issued_date?: string | null
@@ -789,6 +797,10 @@ export type Database = {
           fgb_monitor?: boolean
           gbci_fees?: number | null
           handover_date?: string
+          has_energy_monitoring?: boolean
+          has_hardware_redirection?: boolean
+          has_iaq_monitoring?: boolean
+          has_water_monitoring?: boolean
           id?: string
           is_commissioning?: boolean | null
           issued_date?: string | null
@@ -2504,8 +2516,10 @@ export type Database = {
           certification_id: string
           created_at: string
           id: string
+          is_generic_placeholder: boolean
           product_id: string
           quantity: number
+          replaced_by_allocation_id: string | null
           requested_quantity: number | null
           source: string | null
           status: string
@@ -2516,8 +2530,10 @@ export type Database = {
           certification_id: string
           created_at?: string
           id?: string
+          is_generic_placeholder?: boolean
           product_id: string
           quantity?: number
+          replaced_by_allocation_id?: string | null
           requested_quantity?: number | null
           source?: string | null
           status?: string
@@ -2528,8 +2544,10 @@ export type Database = {
           certification_id?: string
           created_at?: string
           id?: string
+          is_generic_placeholder?: boolean
           product_id?: string
           quantity?: number
+          replaced_by_allocation_id?: string | null
           requested_quantity?: number | null
           source?: string | null
           status?: string
@@ -2555,6 +2573,13 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_allocations_replaced_by_allocation_id_fkey"
+            columns: ["replaced_by_allocation_id"]
+            isOneToOne: false
+            referencedRelation: "project_allocations"
             referencedColumns: ["id"]
           },
         ]
@@ -3787,6 +3812,7 @@ export type Database = {
           is_resolved: boolean
           resolved_at: string | null
           scheduled_date: string | null
+          target_route: string | null
           title: string
         }
         Insert: {
@@ -3800,6 +3826,7 @@ export type Database = {
           is_resolved?: boolean
           resolved_at?: string | null
           scheduled_date?: string | null
+          target_route?: string | null
           title: string
         }
         Update: {
@@ -3813,6 +3840,7 @@ export type Database = {
           is_resolved?: boolean
           resolved_at?: string | null
           scheduled_date?: string | null
+          target_route?: string | null
           title?: string
         }
         Relationships: [
@@ -4890,6 +4918,10 @@ export type Database = {
         }[]
       }
       reset_sensor_health_daily: { Args: never; Returns: undefined }
+      rpc_confirm_energy_ct_build: {
+        Args: { p_cert_id: string; p_components: Json }
+        Returns: Json
+      }
       run_daily_jobs: {
         Args: never
         Returns: {
@@ -4958,6 +4990,10 @@ export type Database = {
         | "pm_operational"
         | "other_critical"
         | "extra_canone"
+        | "monitoring_iaq_requested"
+        | "monitoring_energy_requested"
+        | "monitoring_water_requested"
+        | "monitoring_energy_ready_to_assign"
       wiring_type: "WYE" | "DELTA"
     }
     CompositeTypes: {
@@ -5126,6 +5162,10 @@ export const Constants = {
         "pm_operational",
         "other_critical",
         "extra_canone",
+        "monitoring_iaq_requested",
+        "monitoring_energy_requested",
+        "monitoring_water_requested",
+        "monitoring_energy_ready_to_assign",
       ],
       wiring_type: ["WYE", "DELTA"],
     },
