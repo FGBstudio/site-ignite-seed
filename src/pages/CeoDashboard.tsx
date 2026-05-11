@@ -27,6 +27,7 @@ import {
 import { format, differenceInDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
+import { ProjectBurnRate, ResourceMonitor } from "@/components/dashboard/HoursAnalytics";
 
 const COLORS = {
   late: "hsl(0, 84%, 60%)",
@@ -604,6 +605,7 @@ export default function CeoDashboard() {
               <TabsTrigger value="resources">Resources</TabsTrigger>
               <TabsTrigger value="projects">Projects</TabsTrigger>
               <TabsTrigger value="payments">Payments</TabsTrigger>
+              <TabsTrigger value="hours">Hours</TabsTrigger>
             </TabsList>
 
             <TabsContent value="resources">
@@ -616,6 +618,11 @@ export default function CeoDashboard() {
 
             <TabsContent value="payments">
               <TabPagamenti payments={payments} projects={projects} />
+            </TabsContent>
+
+            <TabsContent value="hours" className="space-y-4">
+              <ProjectBurnRate />
+              <ResourceMonitor />
             </TabsContent>
           </Tabs>
         </>

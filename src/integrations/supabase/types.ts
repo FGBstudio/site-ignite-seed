@@ -240,6 +240,13 @@ export type Database = {
             referencedRelation: "certifications"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "audit_logs_certification_id_fkey"
+            columns: ["certification_id"]
+            isOneToOne: false
+            referencedRelation: "view_cert_hours_burn"
+            referencedColumns: ["certification_id"]
+          },
         ]
       }
       bill_data: {
@@ -456,6 +463,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "cert_payment_milestones_certification_id_fkey"
+            columns: ["certification_id"]
+            isOneToOne: false
+            referencedRelation: "view_cert_hours_burn"
+            referencedColumns: ["certification_id"]
+          },
+          {
             foreignKeyName: "cert_payment_milestones_trigger_task_id_fkey"
             columns: ["trigger_task_id"]
             isOneToOne: false
@@ -552,6 +566,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "cert_tasks_certification_id_fkey"
+            columns: ["certification_id"]
+            isOneToOne: false
+            referencedRelation: "view_cert_hours_burn"
+            referencedColumns: ["certification_id"]
+          },
+          {
             foreignKeyName: "cert_tasks_phase_id_fkey"
             columns: ["phase_id"]
             isOneToOne: false
@@ -593,11 +614,19 @@ export type Database = {
             referencedRelation: "certifications"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "cert_wbs_phases_certification_id_fkey"
+            columns: ["certification_id"]
+            isOneToOne: false
+            referencedRelation: "view_cert_hours_burn"
+            referencedColumns: ["certification_id"]
+          },
         ]
       }
       certification_milestones: {
         Row: {
           actual_date: string | null
+          allocated_hours: number | null
           category: string
           certification_id: string
           completed_date: string | null
@@ -619,6 +648,7 @@ export type Database = {
         }
         Insert: {
           actual_date?: string | null
+          allocated_hours?: number | null
           category: string
           certification_id: string
           completed_date?: string | null
@@ -640,6 +670,7 @@ export type Database = {
         }
         Update: {
           actual_date?: string | null
+          allocated_hours?: number | null
           category?: string
           certification_id?: string
           completed_date?: string | null
@@ -667,11 +698,19 @@ export type Database = {
             referencedRelation: "certifications"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "certification_milestones_certification_id_fkey"
+            columns: ["certification_id"]
+            isOneToOne: false
+            referencedRelation: "view_cert_hours_burn"
+            referencedColumns: ["certification_id"]
+          },
         ]
       }
       certifications: {
         Row: {
           actual_handover_date: string | null
+          allocated_hours: number | null
           categories: Json | null
           cert_level: string | null
           cert_rating: string | null
@@ -705,6 +744,7 @@ export type Database = {
         }
         Insert: {
           actual_handover_date?: string | null
+          allocated_hours?: number | null
           categories?: Json | null
           cert_level?: string | null
           cert_rating?: string | null
@@ -738,6 +778,7 @@ export type Database = {
         }
         Update: {
           actual_handover_date?: string | null
+          allocated_hours?: number | null
           categories?: Json | null
           cert_level?: string | null
           cert_rating?: string | null
@@ -2367,6 +2408,13 @@ export type Database = {
             referencedRelation: "certifications"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "payment_milestones_certification_id_fkey"
+            columns: ["certification_id"]
+            isOneToOne: false
+            referencedRelation: "view_cert_hours_burn"
+            referencedColumns: ["certification_id"]
+          },
         ]
       }
       products: {
@@ -2496,6 +2544,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "project_allocations_certification_id_fkey"
+            columns: ["certification_id"]
+            isOneToOne: false
+            referencedRelation: "view_cert_hours_burn"
+            referencedColumns: ["certification_id"]
+          },
+          {
             foreignKeyName: "project_allocations_product_id_fkey"
             columns: ["product_id"]
             isOneToOne: false
@@ -2546,6 +2601,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "certifications"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_canvas_entries_certification_id_fkey"
+            columns: ["certification_id"]
+            isOneToOne: false
+            referencedRelation: "view_cert_hours_burn"
+            referencedColumns: ["certification_id"]
           },
         ]
       }
@@ -2600,6 +2662,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "certifications"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_tasks_certification_id_fkey"
+            columns: ["certification_id"]
+            isOneToOne: false
+            referencedRelation: "view_cert_hours_burn"
+            referencedColumns: ["certification_id"]
           },
           {
             foreignKeyName: "project_tasks_dependency_id_fkey"
@@ -2672,6 +2741,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "certifications"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projects_certification_id_fkey"
+            columns: ["certification_id"]
+            isOneToOne: false
+            referencedRelation: "view_cert_hours_burn"
+            referencedColumns: ["certification_id"]
           },
           {
             foreignKeyName: "projects_site_id_fkey"
@@ -3162,6 +3238,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "certifications"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "site_energy_records_certification_id_fkey"
+            columns: ["certification_id"]
+            isOneToOne: false
+            referencedRelation: "view_cert_hours_burn"
+            referencedColumns: ["certification_id"]
           },
           {
             foreignKeyName: "site_energy_records_site_id_fkey"
@@ -3664,6 +3747,13 @@ export type Database = {
             referencedRelation: "certifications"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "task_alerts_certification_id_fkey"
+            columns: ["certification_id"]
+            isOneToOne: false
+            referencedRelation: "view_cert_hours_burn"
+            referencedColumns: ["certification_id"]
+          },
         ]
       }
       telemetry: {
@@ -3887,6 +3977,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      time_entries: {
+        Row: {
+          certification_id: string
+          created_at: string
+          description: string | null
+          entry_date: string
+          hours: number
+          id: string
+          is_overbudget: boolean
+          milestone_id: string | null
+          overbudget_note: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          certification_id: string
+          created_at?: string
+          description?: string | null
+          entry_date: string
+          hours: number
+          id?: string
+          is_overbudget?: boolean
+          milestone_id?: string | null
+          overbudget_note?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          certification_id?: string
+          created_at?: string
+          description?: string | null
+          entry_date?: string
+          hours?: number
+          id?: string
+          is_overbudget?: boolean
+          milestone_id?: string | null
+          overbudget_note?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       tz_fix_log: {
         Row: {
@@ -4253,11 +4385,67 @@ export type Database = {
           },
         ]
       }
+      view_cert_hours_burn: {
+        Row: {
+          allocated_hours: number | null
+          certification_id: string | null
+          certification_name: string | null
+          client: string | null
+          consumed_hours: number | null
+          overrun_alerts: number | null
+          pct_used: number | null
+          pm_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "certifications_pm_id_fkey"
+            columns: ["pm_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      view_milestone_hours_burn: {
+        Row: {
+          allocated_hours: number | null
+          certification_id: string | null
+          consumed_hours: number | null
+          milestone_id: string | null
+          pct_used: number | null
+          requirement: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "certification_milestones_certification_id_fkey"
+            columns: ["certification_id"]
+            isOneToOne: false
+            referencedRelation: "certifications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "certification_milestones_certification_id_fkey"
+            columns: ["certification_id"]
+            isOneToOne: false
+            referencedRelation: "view_cert_hours_burn"
+            referencedColumns: ["certification_id"]
+          },
+        ]
+      }
       view_resource_saturation: {
         Row: {
           next_deadline: string | null
           total_active_tasks: number | null
           user_id: string | null
+        }
+        Relationships: []
+      }
+      view_user_weekly_saturation: {
+        Row: {
+          active_projects: number | null
+          total_hours: number | null
+          user_id: string | null
+          week_start: string | null
         }
         Relationships: []
       }
