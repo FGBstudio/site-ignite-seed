@@ -417,7 +417,7 @@ function AlertCard({ alert, navigate, resolveAlert, isResolving }: any) {
             </div>
           </div>
           <div className="flex flex-col gap-2 shrink-0">
-            <Button size="icon" variant="ghost" className="h-8 w-8 hover:bg-background/80" onClick={() => navigate(`/projects/${alert.certification_id}`)}>
+            <Button size="icon" variant="ghost" className="h-8 w-8 hover:bg-background/80" onClick={() => navigate(alert.target_route || `/projects/${alert.certification_id}`)}>
               <ExternalLink className="h-4 w-4" />
             </Button>
             {!alert.is_resolved && (
