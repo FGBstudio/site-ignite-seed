@@ -278,7 +278,11 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved }: Props) {
           level: cert.cert_rating || null,
           score: 0,
           sqm: services.sqm ? Number(services.sqm) : null,
-          fgb_monitor: services.fgbMonitor,
+          fgb_monitor: cert.flags.energy, // legacy mirror
+          has_iaq_monitoring: cert.flags.iaq,
+          has_energy_monitoring: cert.flags.energy,
+          has_water_monitoring: cert.flags.water,
+          has_hardware_redirection: cert.flags.hardwareRedirect,
           services_fees: services.servicesFees ? Number(services.servicesFees) : null,
           gbci_fees: services.gbciFees ? Number(services.gbciFees) : null,
           total_fees: services.totalFees ? Number(services.totalFees) : null,
