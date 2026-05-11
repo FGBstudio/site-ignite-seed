@@ -60,11 +60,30 @@ interface SiteState {
   newCountry: string;
 }
 
+interface MonitoringFlags {
+  iaq: boolean;
+  energy: boolean;
+  water: boolean;
+  hardwareRedirect: boolean;
+}
+
 interface CertConfig {
   cert_type: CertType;
   cert_rating: string;
   cert_level: string;
   project_subtype: string;
+  flags: MonitoringFlags;
+}
+
+function emptyFlags(): MonitoringFlags {
+  return { iaq: false, energy: false, water: false, hardwareRedirect: false };
+}
+
+function showsIaqEnergyWater(t: CertType) {
+  return t === "LEED" || t === "WELL" || t === "BREEAM";
+}
+function showsEnergyRedirect(t: CertType) {
+  return t === "Energy_Audit";
 }
 
 interface ServicesState {
