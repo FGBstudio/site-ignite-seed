@@ -41,7 +41,6 @@ const statusTone = (s: string | null | undefined) => {
   }
 };
 
-import { MonitoringAlertsWidget } from "@/components/monitor/MonitoringAlertsWidget";
 
 export default function Monitor() {
   return (
