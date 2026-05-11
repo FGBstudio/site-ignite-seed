@@ -170,13 +170,22 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved }: Props) {
     }
   };
 
-  const updateCert = (type: CertType, field: keyof Omit<CertConfig, "cert_type">, value: string) => {
+  const updateCert = (type: CertType, field: keyof Omit<CertConfig, "cert_type" | "flags">, value: string) => {
     setServices((s) => ({
       ...s,
       certifications: s.certifications.map((c) =>
         c.cert_type === type
           ? { ...c, [field]: value, ...(field === "cert_rating" ? { project_subtype: "" } : {}) }
           : c
+      ),
+    }));
+  };
+
+  const updateCertFlag = (type: CertType, flag: keyof MonitoringFlags, value: boolean) => {
+    setServices((s) => ({
+      ...s,
+      certifications: s.certifications.map((c) =>
+        c.cert_type === type ? { ...c, flags: { ...c.flags, [flag]: value } } : c
       ),
     }));
   };
