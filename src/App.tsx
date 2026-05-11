@@ -90,6 +90,7 @@ function AppRoutes() {
 
       {/* ── Operative inbox ── */}
       <Route path="/my-tasks" element={<ProtectedRoute allowedRoles={R("ADMIN", "PM", "document_manager", "specialist", "energy_modeler", "cxa")}><MyTasks /></ProtectedRoute>} />
+      <Route path="/timesheet" element={<ProtectedRoute allowedRoles={R("ADMIN", "PM")}><MyTimesheet /></ProtectedRoute>} />
 
       <Route path="*" element={<NotFound />} />
     </Routes>
