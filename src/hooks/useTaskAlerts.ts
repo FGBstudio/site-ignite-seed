@@ -9,7 +9,11 @@ export type TaskAlertType =
   | "pm_operational"
   | "other_critical"
   | "extra_canone"
-  | "billing_due";
+  | "billing_due"
+  | "monitoring_iaq_requested"
+  | "monitoring_energy_requested"
+  | "monitoring_water_requested"
+  | "monitoring_energy_ready_to_assign";
 
 export interface TaskAlert {
   id: string;
@@ -21,6 +25,7 @@ export interface TaskAlert {
   is_resolved: boolean;
   escalate_to_admin: boolean;
   scheduled_date: string | null;
+  target_route: string | null;
   created_at: string;
   resolved_at: string | null;
   // joined
@@ -37,6 +42,10 @@ const ALERT_TYPE_LABELS: Record<TaskAlertType, string> = {
   other_critical: "Critical Issue",
   extra_canone: "Extra-Canone",
   billing_due: "Billing Due",
+  monitoring_iaq_requested: "IAQ Monitoring Requested",
+  monitoring_energy_requested: "Energy Monitoring Requested",
+  monitoring_water_requested: "Water Monitoring Requested",
+  monitoring_energy_ready_to_assign: "Energy Ready to Assign",
 };
 
 const ALERT_TYPE_COLORS: Record<TaskAlertType, string> = {
@@ -47,6 +56,10 @@ const ALERT_TYPE_COLORS: Record<TaskAlertType, string> = {
   other_critical: "bg-destructive/10 text-destructive border-destructive/20",
   extra_canone: "bg-destructive/10 text-destructive border-destructive/30",
   billing_due: "bg-success/10 text-success border-success/30",
+  monitoring_iaq_requested: "bg-primary/10 text-primary border-primary/20",
+  monitoring_energy_requested: "bg-warning/10 text-warning border-warning/20",
+  monitoring_water_requested: "bg-primary/10 text-primary border-primary/20",
+  monitoring_energy_ready_to_assign: "bg-success/10 text-success border-success/30",
 };
 
 export { ALERT_TYPE_LABELS, ALERT_TYPE_COLORS };
