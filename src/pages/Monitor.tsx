@@ -17,6 +17,7 @@ import {
 import { useMonitorRows, STATUS_OPTIONS, CATEGORY_OPTIONS, type MonitorRow } from "@/hooks/useMonitorRows";
 import type { SiteEnergyRecordPatch } from "@/types/site-energy";
 import { cn } from "@/lib/utils";
+import { MonitoringAlertsWidget } from "@/components/monitor/MonitoringAlertsWidget";
 
 const fmtEUR = (n: number | null | undefined) =>
   typeof n === "number" ? n.toLocaleString("en-US", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }) : "—";
