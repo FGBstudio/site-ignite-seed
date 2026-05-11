@@ -705,14 +705,25 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved }: Props) {
             <p className="text-sm text-muted-foreground italic">No services selected.</p>
           ) : (
             <div className="flex flex-wrap gap-2">
-              {services.certifications.map((c) => (
-                <div key={c.cert_type} className="px-3 py-1.5 rounded-lg border bg-primary/5 border-primary/20 text-sm">
-                  <span className="font-semibold text-primary">{c.cert_type}</span>
-                  {c.cert_rating && <span className="text-muted-foreground ml-1">· {c.cert_rating}</span>}
-                  {c.cert_level && <span className="text-muted-foreground ml-1">· {c.cert_level}</span>}
-                  {c.project_subtype && <span className="text-muted-foreground ml-1">· {c.project_subtype}</span>}
-                </div>
-              ))}
+              {services.certifications.map((c) => {
+                const monitoring = [
+                  c.flags.iaq && "IAQ",
+                  c.flags.energy && "Energy",
+                  c.flags.water && "Water",
+                  c.flags.hardwareRedirect && "HW Redirect",
+                ].filter(Boolean) as string[];
+                return (
+                  <div key={c.cert_type} className="px-3 py-1.5 rounded-lg border bg-primary/5 border-primary/20 text-sm">
+                    <span className="font-semibold text-primary">{c.cert_type}</span>
+                    {c.cert_rating && <span className="text-muted-foreground ml-1">· {c.cert_rating}</span>}
+                    {c.cert_level && <span className="text-muted-foreground ml-1">· {c.cert_level}</span>}
+                    {c.project_subtype && <span className="text-muted-foreground ml-1">· {c.project_subtype}</span>}
+                    {monitoring.length > 0 && (
+                      <span className="ml-2 text-emerald-700">· {monitoring.join(" + ")}</span>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </CardContent>
