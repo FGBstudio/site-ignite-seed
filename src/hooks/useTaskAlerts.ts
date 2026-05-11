@@ -133,6 +133,10 @@ export function useTaskAlertCounts(role: AppRole | null, userId: string | undefi
       other_critical: 0,
       extra_canone: 0,
       billing_due: 0,
+      monitoring_iaq_requested: 0,
+      monitoring_energy_requested: 0,
+      monitoring_water_requested: 0,
+      monitoring_energy_ready_to_assign: 0,
     }
   );
 
