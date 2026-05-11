@@ -765,6 +765,7 @@ function HardwareTab({ project }: { project: PMProject }) {
 
   return (
     <div className="space-y-4">
+      <MonitoringSuggestionBanner cert={project.certifications?.[0] ?? project as any} />
       <div className="flex items-end gap-3 p-4 bg-muted/30 rounded-lg border">
         <div className="flex-1">
           <Label className="text-xs">Select Sensor / Device</Label>
