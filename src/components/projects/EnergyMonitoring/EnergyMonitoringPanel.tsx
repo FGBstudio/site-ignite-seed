@@ -101,35 +101,28 @@ export function EnergyMonitoringPanel({ certificationId, isAdmin }: Props) {
         return;
       }
 
-      // 2. Replace any prior ct_builder allocations for this certification
-      await supabase
-        .from("project_allocations")
-        .delete()
-        .eq("certification_id", certificationId)
-        .eq("source", "ct_builder");
-
-      const allocRows = result.bom
+      // 2. Build components payload and call atomic RPC
+      //    The RPC replaces any generic placeholder, inserts the BOM components,
+      //    resolves the energy_requested alert, and emits a ready_to_assign follow-up.
+      const components = result.bom
         .map((b) => {
           const hw = bomLabelToHardware(b.hardware);
           if (!hw || !map[hw]) return null;
-          return {
-            certification_id: certificationId,
-            product_id: map[hw],
-            quantity: 0,
-            requested_quantity: b.quantity,
-            status: "Requested",
-            category: "ENERGY",
-            source: "ct_builder",
-          };
+          return { product_id: map[hw], quantity: b.quantity };
         })
-        .filter(Boolean) as Array<Record<string, unknown>>;
+        .filter(Boolean) as Array<{ product_id: string; quantity: number }>;
 
-      if (allocRows.length > 0) {
-        const { error: allocErr } = await supabase
-          .from("project_allocations")
-          .insert(allocRows as never);
-        if (allocErr) throw allocErr;
+      if (components.length === 0) {
+        toast({ title: "Nothing to confirm", description: "No BOM components could be resolved.", variant: "destructive" });
+        setConfirming(false);
+        return;
       }
+
+      const { error: rpcErr } = await (supabase as any).rpc("rpc_confirm_energy_ct_build", {
+        p_cert_id: certificationId,
+        p_components: components,
+      });
+      if (rpcErr) throw rpcErr;
 
       // 3. Upsert site_energy_records
       const { data: cert } = await supabase
@@ -181,17 +174,8 @@ export function EnergyMonitoringPanel({ certificationId, isAdmin }: Props) {
         .from("site_energy_records" as never)
         .upsert(recordPayload as never, { onConflict: "certification_id" });
 
-      // 4. Emit alert
-      await supabase.from("task_alerts").insert({
-        certification_id: certificationId,
-        created_by: user.id,
-        alert_type: "pm_operational",
-        title: "Energy quote accepted — devices requested for site",
-        description: `Monitoring Team confirmed: ${result.bom
-          .map((b) => `${b.quantity}× ${b.hardware}`)
-          .join(", ")}.`,
-        escalate_to_admin: true,
-      });
+      // 4. Alerts: handled atomically by rpc_confirm_energy_ct_build
+      //    (resolves monitoring_energy_requested and inserts monitoring_energy_ready_to_assign).
 
       qc.invalidateQueries({ queryKey: ["task-alerts"] });
       qc.invalidateQueries({ queryKey: ["site-energy-records"] });

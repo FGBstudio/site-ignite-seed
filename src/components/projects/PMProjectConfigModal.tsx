@@ -18,6 +18,7 @@ import { addDays, format, parseISO } from "date-fns";
 import { getTemplateOrFallback, type TimelineStep } from "@/data/certificationTemplates";
 import type { PMProject } from "@/hooks/usePMDashboard";
 import { TimelineSetupWizard } from "./TimelineSetupWizard";
+import { MonitoringSuggestionBanner } from "./MonitoringSuggestionBanner";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface Props {
@@ -764,6 +765,7 @@ function HardwareTab({ project }: { project: PMProject }) {
 
   return (
     <div className="space-y-4">
+      <MonitoringSuggestionBanner cert={project.certifications?.[0] ?? project as any} />
       <div className="flex items-end gap-3 p-4 bg-muted/30 rounded-lg border">
         <div className="flex-1">
           <Label className="text-xs">Select Sensor / Device</Label>

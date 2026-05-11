@@ -26,7 +26,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { CheckCircle, ExternalLink, Inbox, AlertTriangle, Clock, Pause, FolderKanban, CalendarDays, Settings2, ChevronDown, Plus, TrendingUp, Receipt } from "lucide-react";
+import { CheckCircle, ExternalLink, Inbox, AlertTriangle, Clock, Pause, FolderKanban, CalendarDays, Settings2, ChevronDown, Plus, TrendingUp, Receipt, Zap, Wind, Droplet, PackageCheck } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
@@ -38,6 +38,10 @@ const TYPE_ICONS: Record<TaskAlertType, typeof AlertTriangle> = {
   other_critical: AlertTriangle,
   extra_canone: TrendingUp,
   billing_due: Receipt,
+  monitoring_iaq_requested: Wind,
+  monitoring_energy_requested: Zap,
+  monitoring_water_requested: Droplet,
+  monitoring_energy_ready_to_assign: PackageCheck,
 };
 
 export default function AdminTasks() {
@@ -413,7 +417,7 @@ function AlertCard({ alert, navigate, resolveAlert, isResolving }: any) {
             </div>
           </div>
           <div className="flex flex-col gap-2 shrink-0">
-            <Button size="icon" variant="ghost" className="h-8 w-8 hover:bg-background/80" onClick={() => navigate(`/projects/${alert.certification_id}`)}>
+            <Button size="icon" variant="ghost" className="h-8 w-8 hover:bg-background/80" onClick={() => navigate(alert.target_route || `/projects/${alert.certification_id}`)}>
               <ExternalLink className="h-4 w-4" />
             </Button>
             {!alert.is_resolved && (

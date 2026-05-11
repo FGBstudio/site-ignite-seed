@@ -33,7 +33,7 @@ export function useAdminEscalationNotifications() {
         description: row.description ?? undefined,
         action: {
           label: "View",
-          onClick: () => navigate("/admin-tasks"),
+          onClick: () => navigate(row.target_route || "/admin-tasks"),
         },
         duration: 8000,
       });

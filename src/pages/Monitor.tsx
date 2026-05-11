@@ -17,6 +17,7 @@ import {
 import { useMonitorRows, STATUS_OPTIONS, CATEGORY_OPTIONS, type MonitorRow } from "@/hooks/useMonitorRows";
 import type { SiteEnergyRecordPatch } from "@/types/site-energy";
 import { cn } from "@/lib/utils";
+import { MonitoringAlertsWidget } from "@/components/monitor/MonitoringAlertsWidget";
 
 const fmtEUR = (n: number | null | undefined) =>
   typeof n === "number" ? n.toLocaleString("en-US", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }) : "—";
@@ -40,21 +41,25 @@ const statusTone = (s: string | null | undefined) => {
   }
 };
 
+
 export default function Monitor() {
   return (
     <MainLayout title="Monitor" subtitle="Energy & Air monitoring across the portfolio">
-      <Tabs defaultValue="energy">
-        <TabsList>
-          <TabsTrigger value="energy">Energy</TabsTrigger>
-          <TabsTrigger value="air">Air</TabsTrigger>
-        </TabsList>
-        <TabsContent value="energy" className="mt-4">
-          <EnergyTable />
-        </TabsContent>
-        <TabsContent value="air" className="mt-4">
-          <Card><CardContent className="py-16 text-center text-sm text-muted-foreground">Air monitoring — coming next.</CardContent></Card>
-        </TabsContent>
-      </Tabs>
+      <div className="space-y-4">
+        <MonitoringAlertsWidget />
+        <Tabs defaultValue="energy">
+          <TabsList>
+            <TabsTrigger value="energy">Energy</TabsTrigger>
+            <TabsTrigger value="air">Air</TabsTrigger>
+          </TabsList>
+          <TabsContent value="energy" className="mt-4">
+            <EnergyTable />
+          </TabsContent>
+          <TabsContent value="air" className="mt-4">
+            <Card><CardContent className="py-16 text-center text-sm text-muted-foreground">Air monitoring — coming next.</CardContent></Card>
+          </TabsContent>
+        </Tabs>
+      </div>
     </MainLayout>
   );
 }
