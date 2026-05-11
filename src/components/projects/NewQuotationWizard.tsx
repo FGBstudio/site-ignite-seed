@@ -29,7 +29,7 @@ import {
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 const REGIONS = ["Europe", "America", "APAC", "ME"] as const;
-const AVAILABLE_CERTS = ["LEED", "WELL", "BREEAM", "ESG", "GRESB", "Energy Audit"] as const;
+const AVAILABLE_CERTS = ["LEED", "WELL", "BREEAM", "ESG", "GRESB", "Energy_Audit"] as const;
 type CertType = (typeof AVAILABLE_CERTS)[number];
 
 const CERT_LEVELS: Record<CertType, string[]> = {
@@ -38,6 +38,7 @@ const CERT_LEVELS: Record<CertType, string[]> = {
   BREEAM: ["Pass", "Good", "Very Good", "Excellent", "Outstanding"],
   ESG: [],
   GRESB: [],
+  Energy_Audit: [],
 };
 
 const STEPS = [
