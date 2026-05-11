@@ -2821,6 +2821,82 @@ export type Database = {
           },
         ]
       }
+      site_air_records: {
+        Row: {
+          certification_id: string
+          created_at: string
+          device_ids: string[] | null
+          id: string
+          mac_addresses: string[] | null
+          notes: string | null
+          online_status: string | null
+          pm_id: string | null
+          po_numbers: string[] | null
+          project_name: string | null
+          shipment_dates: string[] | null
+          site_id: string | null
+          status: string | null
+          total_sensors: number | null
+          updated_at: string
+        }
+        Insert: {
+          certification_id: string
+          created_at?: string
+          device_ids?: string[] | null
+          id?: string
+          mac_addresses?: string[] | null
+          notes?: string | null
+          online_status?: string | null
+          pm_id?: string | null
+          po_numbers?: string[] | null
+          project_name?: string | null
+          shipment_dates?: string[] | null
+          site_id?: string | null
+          status?: string | null
+          total_sensors?: number | null
+          updated_at?: string
+        }
+        Update: {
+          certification_id?: string
+          created_at?: string
+          device_ids?: string[] | null
+          id?: string
+          mac_addresses?: string[] | null
+          notes?: string | null
+          online_status?: string | null
+          pm_id?: string | null
+          po_numbers?: string[] | null
+          project_name?: string | null
+          shipment_dates?: string[] | null
+          site_id?: string | null
+          status?: string | null
+          total_sensors?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "site_air_records_certification_id_fkey"
+            columns: ["certification_id"]
+            isOneToOne: false
+            referencedRelation: "certifications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "site_air_records_certification_id_fkey"
+            columns: ["certification_id"]
+            isOneToOne: false
+            referencedRelation: "view_cert_hours_burn"
+            referencedColumns: ["certification_id"]
+          },
+          {
+            foreignKeyName: "site_air_records_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       site_alerts: {
         Row: {
           acknowledged_at: string | null
