@@ -561,8 +561,49 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved }: Props) {
                       </Select>
                     </div>
                   </div>
+
+                  {/* Monitoring services */}
+                  {(showsIaqEnergyWater(cert.cert_type) || showsEnergyRedirect(cert.cert_type)) && (
+                    <div className="mt-4 pt-3 border-t border-border/50">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Monitoring services</p>
+                      <div className="flex flex-wrap gap-x-5 gap-y-2">
+                        {showsIaqEnergyWater(cert.cert_type) && (
+                          <>
+                            <label className="flex items-center gap-2 text-sm cursor-pointer">
+                              <Checkbox checked={cert.flags.iaq} onCheckedChange={(v) => updateCertFlag(cert.cert_type, "iaq", !!v)} />
+                              ClAir IAQ
+                            </label>
+                            <label className="flex items-center gap-2 text-sm cursor-pointer">
+                              <Checkbox checked={cert.flags.energy} onCheckedChange={(v) => updateCertFlag(cert.cert_type, "energy", !!v)} />
+                              Greeny Energy
+                            </label>
+                            <label className="flex items-center gap-2 text-sm cursor-pointer">
+                              <Checkbox checked={cert.flags.water} onCheckedChange={(v) => updateCertFlag(cert.cert_type, "water", !!v)} />
+                              Water
+                            </label>
+                          </>
+                        )}
+                        {showsEnergyRedirect(cert.cert_type) && (
+                          <>
+                            <label className="flex items-center gap-2 text-sm cursor-pointer">
+                              <Checkbox checked={cert.flags.energy} onCheckedChange={(v) => updateCertFlag(cert.cert_type, "energy", !!v)} />
+                              Greeny Energy
+                            </label>
+                            <label className="flex items-center gap-2 text-sm cursor-pointer">
+                              <Checkbox checked={cert.flags.hardwareRedirect} onCheckedChange={(v) => updateCertFlag(cert.cert_type, "hardwareRedirect", !!v)} />
+                              Hardware Redirection
+                            </label>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
+            );
+          })}
+        </div>
+      )}
             );
           })}
         </div>
