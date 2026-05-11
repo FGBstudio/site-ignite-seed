@@ -644,14 +644,6 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved }: Props) {
             </PopoverContent>
           </Popover>
         </div>
-        <div className="flex items-center gap-3 pt-5">
-          <Checkbox
-            id="fgb-monitor"
-            checked={services.fgbMonitor}
-            onCheckedChange={(v) => setServices((s) => ({ ...s, fgbMonitor: !!v }))}
-          />
-          <Label htmlFor="fgb-monitor" className="text-sm cursor-pointer">FGB Monitor</Label>
-        </div>
       </div>
 
       <div className="space-y-1.5">
