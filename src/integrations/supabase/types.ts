@@ -2861,6 +2861,7 @@ export type Database = {
           shipment_dates: string[] | null
           site_id: string | null
           status: string | null
+          status_details: string[] | null
           total_sensors: number | null
           updated_at: string
         }
@@ -2878,6 +2879,7 @@ export type Database = {
           shipment_dates?: string[] | null
           site_id?: string | null
           status?: string | null
+          status_details?: string[] | null
           total_sensors?: number | null
           updated_at?: string
         }
@@ -2895,6 +2897,7 @@ export type Database = {
           shipment_dates?: string[] | null
           site_id?: string | null
           status?: string | null
+          status_details?: string[] | null
           total_sensors?: number | null
           updated_at?: string
         }
