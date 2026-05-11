@@ -4259,6 +4259,42 @@ export type Database = {
           },
         ]
       }
+      weekly_reports: {
+        Row: {
+          content: Json
+          created_at: string
+          id: string
+          last_edited_at: string
+          locked_at: string | null
+          status: string
+          updated_at: string
+          user_id: string
+          week_start: string
+        }
+        Insert: {
+          content?: Json
+          created_at?: string
+          id?: string
+          last_edited_at?: string
+          locked_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+          week_start: string
+        }
+        Update: {
+          content?: Json
+          created_at?: string
+          id?: string
+          last_edited_at?: string
+          locked_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+          week_start?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       energy_phase_latest: {

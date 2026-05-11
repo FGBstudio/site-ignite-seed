@@ -43,10 +43,16 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { WeeklyReportCanvas } from "@/components/timesheet/WeeklyReportCanvas";
+import { AdminWeeklyReportsBrowser } from "@/components/timesheet/AdminWeeklyReportsBrowser";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAuth } from "@/contexts/AuthContext";
 
 const fmtDb = (d: Date) => format(d, "yyyy-MM-dd");
 
 export default function MyTimesheet() {
+  const { role } = useAuth();
+  const isAdmin = role === "ADMIN";
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(selectedDate, { weekStartsOn: 1 });
@@ -169,6 +175,20 @@ export default function MyTimesheet() {
 
           {/* Quick add */}
           <QuickAddBar selectedDate={selectedDate} />
+
+          {/* Weekly report canvas */}
+          {isAdmin ? (
+            <Tabs defaultValue="mine" className="space-y-3">
+              <TabsList>
+                <TabsTrigger value="mine">My weekly report</TabsTrigger>
+                <TabsTrigger value="team">Team reports</TabsTrigger>
+              </TabsList>
+              <TabsContent value="mine"><WeeklyReportCanvas /></TabsContent>
+              <TabsContent value="team"><AdminWeeklyReportsBrowser /></TabsContent>
+            </Tabs>
+          ) : (
+            <WeeklyReportCanvas />
+          )}
         </div>
       </TooltipProvider>
     </MainLayout>
