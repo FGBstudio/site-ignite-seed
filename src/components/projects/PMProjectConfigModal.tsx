@@ -711,6 +711,16 @@ function HardwareTab({ project }: { project: PMProject }) {
   const { toast } = useToast();
   const qc = useQueryClient();
 
+  const cert = project.certifications?.[0] ?? (project as any);
+  const flags = {
+    iaq: !!cert?.has_iaq_monitoring,
+    energy: !!cert?.has_energy_monitoring,
+    water: !!cert?.has_water_monitoring,
+    hwRedirect: !!cert?.has_hardware_redirection,
+  };
+  const energyEnabled = flags.energy || flags.hwRedirect;
+
+  // Full catalog (used to look up SYS-* placeholder ids and to populate the AIR dropdown)
   const { data: products = [] } = useQuery({
     queryKey: ["products"],
     queryFn: async () => {
@@ -719,26 +729,84 @@ function HardwareTab({ project }: { project: PMProject }) {
     },
   });
 
+  const sysEnergy = products.find((p: any) => p.sku === "SYS-ENERGY");
+  const sysWater = products.find((p: any) => p.sku === "SYS-WATER");
+  const airProducts = products.filter(
+    (p: any) => p.category === "AIR" && !p.is_system_placeholder,
+  );
+
   const { data: allocations = [], refetch } = useQuery({
     queryKey: ["project-allocations", project.id],
     queryFn: async () => {
       const { data } = await (supabase as any)
         .from("project_allocations")
-        .select("*, products(name, sku)")
+        .select("*, products(name, sku, category, is_system_placeholder)")
         .eq("certification_id", project.id);
       return data || [];
     },
   });
 
+  const energyRequest = allocations.find(
+    (a: any) => a.products?.sku === "SYS-ENERGY" && a.status !== "Replaced",
+  );
+  const waterRequest = allocations.find(
+    (a: any) => a.products?.sku === "SYS-WATER" && a.status !== "Replaced",
+  );
+  const airAllocations = allocations.filter(
+    (a: any) => a.products?.category === "AIR" && !a.products?.is_system_placeholder,
+  );
+
   const [newProductId, setNewProductId] = useState("");
   const [newQty, setQty] = useState(1);
   const [saving, setSaving] = useState(false);
 
-  const handleAdd = async () => {
+  const invalidate = () => {
+    refetch();
+    qc.invalidateQueries({ queryKey: ["pm-dashboard"] });
+    qc.invalidateQueries({ queryKey: ["task-alerts"] });
+  };
+
+  const requestSystem = async (sku: "SYS-ENERGY" | "SYS-WATER") => {
+    const product = sku === "SYS-ENERGY" ? sysEnergy : sysWater;
+    if (!product) {
+      toast({
+        title: "Catalog missing placeholder",
+        description: `Add product ${sku} to the catalog first.`,
+        variant: "destructive",
+      });
+      return;
+    }
+    setSaving(true);
+    try {
+      const { error } = await (supabase as any).from("project_allocations").insert({
+        certification_id: project.id,
+        product_id: product.id,
+        quantity: 1,
+        requested_quantity: 1,
+        status: "Requested",
+        category: product.category,
+        source: "pm_request",
+        is_generic_placeholder: true,
+      });
+      if (error) throw error;
+      invalidate();
+      toast({ title: "System requested", description: `${product.name} sent to Admin.` });
+    } catch (err) {
+      toast({
+        title: "Request failed",
+        description: err instanceof Error ? err.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const addAirProduct = async () => {
     if (!newProductId) return;
     setSaving(true);
     try {
-      await (supabase as any).from("project_allocations").insert({
+      const { error } = await (supabase as any).from("project_allocations").insert({
         certification_id: project.id,
         product_id: newProductId,
         quantity: newQty,
@@ -747,10 +815,10 @@ function HardwareTab({ project }: { project: PMProject }) {
         category: "AIR",
         source: "pm_request",
       });
+      if (error) throw error;
       setNewProductId("");
       setQty(1);
-      refetch();
-      qc.invalidateQueries({ queryKey: ["pm-dashboard"] });
+      invalidate();
       toast({ title: "Hardware requested successfully" });
     } finally {
       setSaving(false);
@@ -759,70 +827,159 @@ function HardwareTab({ project }: { project: PMProject }) {
 
   const handleDelete = async (id: string) => {
     await supabase.from("project_allocations").delete().eq("id", id);
-    refetch();
-    qc.invalidateQueries({ queryKey: ["pm-dashboard"] });
+    invalidate();
   };
 
-  return (
-    <div className="space-y-4">
-      <MonitoringSuggestionBanner cert={project.certifications?.[0] ?? project as any} />
-      <div className="flex items-end gap-3 p-4 bg-muted/30 rounded-lg border">
-        <div className="flex-1">
-          <Label className="text-xs">Select Sensor / Device</Label>
-          <Select value={newProductId} onValueChange={setNewProductId}>
-            <SelectTrigger className="bg-background">
-              <SelectValue placeholder="Choose from catalog..." />
-            </SelectTrigger>
-            <SelectContent>
-              {products.map((p: any) => (
-                <SelectItem key={p.id} value={p.id}>
-                  {p.name} ({p.sku})
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="w-24">
-          <Label className="text-xs">Quantity</Label>
-          <Input
-            type="number"
-            min={1}
-            value={newQty}
-            onChange={(e) => setQty(Number(e.target.value) || 1)}
-            className="bg-background"
-          />
-        </div>
-        <Button onClick={handleAdd} disabled={saving || !newProductId}>
-          <Plus className="h-4 w-4 mr-2" /> Add
-        </Button>
+  const SystemCard = ({
+    title,
+    description,
+    request,
+    onRequest,
+    disabled,
+  }: {
+    title: string;
+    description: string;
+    request: any;
+    onRequest: () => void;
+    disabled?: boolean;
+  }) => (
+    <div className="flex items-center justify-between p-4 rounded-lg border bg-background">
+      <div>
+        <p className="text-sm font-semibold text-foreground">{title}</p>
+        <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
       </div>
+      <div className="flex items-center gap-2">
+        {request ? (
+          <>
+            <Badge>{request.status}</Badge>
+            {request.status === "Requested" && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-destructive hover:bg-destructive/10"
+                onClick={() => handleDelete(request.id)}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
+          </>
+        ) : (
+          <Button size="sm" onClick={onRequest} disabled={saving || disabled}>
+            <Plus className="h-4 w-4 mr-1" /> Request
+          </Button>
+        )}
+      </div>
+    </div>
+  );
 
-      {allocations.length === 0 ? (
-        <p className="text-sm text-muted-foreground text-center py-6">
-          No hardware requested currently.
+  const noServices = !flags.iaq && !energyEnabled && !flags.water;
+
+  return (
+    <div className="space-y-6">
+      <MonitoringSuggestionBanner cert={cert} />
+
+      {noServices && (
+        <p className="text-sm text-muted-foreground text-center py-6 border rounded-lg">
+          No monitoring services enabled for this certification.
         </p>
-      ) : (
-        <div className="border rounded-lg divide-y">
-          {allocations.map((a: any) => (
-            <div key={a.id} className="flex items-center justify-between px-4 py-3 bg-background">
-              <div>
-                <span className="text-sm font-bold text-foreground">{a.products?.name || "—"}</span>
-                <span className="text-xs text-muted-foreground ml-2">SKU: {a.products?.sku}</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <Badge variant="outline">Qty: {a.quantity}</Badge>
-                <Badge>{a.status}</Badge>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="text-destructive hover:bg-destructive/10"
-                  onClick={() => handleDelete(a.id)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
+      )}
+
+      {/* Energy + Water systems → single placeholder request */}
+      {(energyEnabled || flags.water) && (
+        <div className="space-y-2">
+          <h3 className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">
+            Monitoring systems
+          </h3>
+          <div className="space-y-2">
+            {energyEnabled && (
+              <SystemCard
+                title="Greeny Energy Monitoring System"
+                description={
+                  flags.hwRedirect
+                    ? "Energy monitoring + hardware redirection. Admin will design the BOM via CT Builder."
+                    : "Admin will design the BOM via CT Builder after your request."
+                }
+                request={energyRequest}
+                onRequest={() => requestSystem("SYS-ENERGY")}
+              />
+            )}
+            {flags.water && (
+              <SystemCard
+                title="Water Monitoring System"
+                description="Admin will configure the water monitoring kit after your request."
+                request={waterRequest}
+                onRequest={() => requestSystem("SYS-WATER")}
+              />
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* IAQ → free per-SKU selection from the AIR catalog */}
+      {flags.iaq && (
+        <div className="space-y-2">
+          <h3 className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">
+            Air quality (ClAir) sensors
+          </h3>
+          <div className="flex items-end gap-3 p-4 bg-muted/30 rounded-lg border">
+            <div className="flex-1">
+              <Label className="text-xs">Select sensor</Label>
+              <Select value={newProductId} onValueChange={setNewProductId}>
+                <SelectTrigger className="bg-background">
+                  <SelectValue placeholder="Choose ClAir sensor..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {airProducts.map((p: any) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name} ({p.sku})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          ))}
+            <div className="w-24">
+              <Label className="text-xs">Quantity</Label>
+              <Input
+                type="number"
+                min={1}
+                value={newQty}
+                onChange={(e) => setQty(Number(e.target.value) || 1)}
+                className="bg-background"
+              />
+            </div>
+            <Button onClick={addAirProduct} disabled={saving || !newProductId}>
+              <Plus className="h-4 w-4 mr-2" /> Add
+            </Button>
+          </div>
+
+          {airAllocations.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              No ClAir sensors requested yet.
+            </p>
+          ) : (
+            <div className="border rounded-lg divide-y">
+              {airAllocations.map((a: any) => (
+                <div key={a.id} className="flex items-center justify-between px-4 py-3 bg-background">
+                  <div>
+                    <span className="text-sm font-bold text-foreground">{a.products?.name || "—"}</span>
+                    <span className="text-xs text-muted-foreground ml-2">SKU: {a.products?.sku}</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Badge variant="outline">Qty: {a.quantity}</Badge>
+                    <Badge>{a.status}</Badge>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-destructive hover:bg-destructive/10"
+                      onClick={() => handleDelete(a.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
