@@ -2853,51 +2853,39 @@ export type Database = {
         Row: {
           certification_id: string | null
           created_at: string
-          device_ids: string[] | null
           id: string
-          mac_addresses: string[] | null
           notes: string | null
           online_status: string | null
           pm_id: string | null
-          po_numbers: string[] | null
-          project_name: string | null
-          shipment_dates: string[] | null
+          project_name: string
           site_id: string
-          status: string | null
+          status: string
           total_sensors: number | null
           updated_at: string
         }
         Insert: {
           certification_id?: string | null
           created_at?: string
-          device_ids?: string[] | null
           id?: string
-          mac_addresses?: string[] | null
           notes?: string | null
           online_status?: string | null
           pm_id?: string | null
-          po_numbers?: string[] | null
-          project_name?: string | null
-          shipment_dates?: string[] | null
+          project_name: string
           site_id: string
-          status?: string | null
+          status?: string
           total_sensors?: number | null
           updated_at?: string
         }
         Update: {
           certification_id?: string | null
           created_at?: string
-          device_ids?: string[] | null
           id?: string
-          mac_addresses?: string[] | null
           notes?: string | null
           online_status?: string | null
           pm_id?: string | null
-          po_numbers?: string[] | null
-          project_name?: string | null
-          shipment_dates?: string[] | null
+          project_name?: string
           site_id?: string
-          status?: string | null
+          status?: string
           total_sensors?: number | null
           updated_at?: string
         }
@@ -4777,6 +4765,10 @@ export type Database = {
       extract_mqtt_timestamp: {
         Args: { p_fallback: string; p_payload: Json }
         Returns: string
+      }
+      fn_recalculate_site_air: {
+        Args: { p_site_id: string }
+        Returns: undefined
       }
       generate_standard_leed_timeline: {
         Args: { p_certification_id: string }
