@@ -48,8 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState<AppRole | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // SCUDO ANTI-RESET: Usiamo una ref per tracciare l'ID utente attualmente caricato.
-  // Evita che i ping in background di Supabase causino un re-render distruttivo (loading=true).
+  // Tiene traccia dell'utente loggato per evitare ricaricamenti molesti
   const loadedUserId = useRef<string | null>(null);
 
   const fetchUserData = async (userId: string) => {
@@ -82,46 +81,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    const handleSession = async (currentSession: Session | null, event?: string) => {
+    // 1. Inizializzazione a freddo (avviene solo al primo caricamento della pagina)
+    const initializeAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
       if (!mounted) return;
 
-      setSession(currentSession);
-      setUser(currentSession?.user ?? null);
-
-      if (currentSession?.user) {
-        const userId = currentSession.user.id;
-
-        // Se l'utente è cambiato (o è il primissimo avvio), scarichiamo i dati
-        if (loadedUserId.current !== userId) {
-          loadedUserId.current = userId;
-          setLoading(true);
-          await fetchUserData(userId);
-          if (mounted) setLoading(false);
-        }
-      } else if (event === "SIGNED_OUT" || !currentSession) {
-        // Logout effettivo o sessione inesistente
-        loadedUserId.current = null;
-        setProfile(null);
-        setRole(null);
-        if (mounted) setLoading(false);
+      if (session?.user) {
+        setSession(session);
+        setUser(session.user);
+        loadedUserId.current = session.user.id;
+        await fetchUserData(session.user.id);
       }
+      
+      // Abbassiamo il flag di loading UNA SOLA VOLTA. Non diventerà mai più true.
+      setLoading(false);
     };
 
-    // Ascolta i cambiamenti di stato di Supabase
+    initializeAuth();
+
+    // 2. Listener per eventi in background (Cambio tab, refresh token, ecc.)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      // Ignora silenziosamente gli aggiornamenti minori del token.
-      // Modifica solo la sessione senza innescare ricaricamenti.
-      if (event === "TOKEN_REFRESHED" || event === "USER_UPDATED") {
-        setSession(session);
-        setUser(session?.user ?? null);
+      if (!mounted) return;
+
+      // LOGOUT REALE: Solo se l'utente clicca esplicitamente "Esci"
+      if (event === "SIGNED_OUT") {
+        loadedUserId.current = null;
+        setSession(null);
+        setUser(null);
+        setProfile(null);
+        setRole(null);
         return;
       }
-      void handleSession(session, event);
-    });
 
-    // Controllo iniziale all'apertura dell'app
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      void handleSession(session, "INITIAL");
+      // Se Supabase invia un "ghost event" con sessione vuota (glitch al cambio tab), lo IGNORIAMO completamente.
+      if (!session?.user) return;
+
+      // Aggiorniamo i token in background senza disturbare la UI
+      setSession(session);
+      setUser(session.user);
+
+      // Se per caso cambia l'account (raro), ricarichiamo i dati di profilo 
+      // in background SENZA impostare loading=true, così non smontiamo la pagina.
+      if (loadedUserId.current !== session.user.id) {
+        loadedUserId.current = session.user.id;
+        fetchUserData(session.user.id);
+      }
     });
 
     return () => {
@@ -146,7 +150,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     await supabase.auth.signOut();
-    // Non azzeriamo lo state qui, se ne occupa l'evento "SIGNED_OUT" nell'useEffect
   };
 
   return (
