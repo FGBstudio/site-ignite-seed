@@ -1,64 +1,35 @@
-## Problem
+## Problema
 
-The PM Hardware tab currently exposes the **entire components catalog** (FGB-10, FGB-12, FGB Bridge LAN/LTE, Mango, individual ClAir sensors…). This contradicts the agreed flow:
+Le richieste di monitoring del PM non generano alert sul Monitor Hub perché il trigger DB `create_monitoring_alert_on_allocation` fallisce silenziosamente.
 
-- **PM** must only request **systems** (Greeny Energy, ClAir (all the possibilities like LEED, CO2, CO-CO2, Black, WELL ...), Water).
-- **Admin** is the one who explodes those systems into the actual BOM (via CT Builder for Energy, or by assigning specific ClAir SKUs for IAQ).
+**Root cause**: la function fa
+```sql
+SELECT ... FROM public.profiles pr WHERE pr.user_id = v_cert.pm_id
+```
+ma la tabella `public.profiles` non ha la colonna `user_id` (la chiave è `id`). L'errore viene intercettato dal blocco `EXCEPTION WHEN OTHERS` e la function ritorna `NEW` senza inserire nulla in `task_alerts`. Risultato: zero alert per nessuna allocazione (verificato: `task_alerts` con `alert_type LIKE 'monitoring%'` è vuota, mentre esistono già 3 allocazioni `pm_request` recenti, inclusa quella di "La Tana di FGB").
 
-Right now the PM can pick a Bridge LTE on its own, which breaks the lifecycle (no alert pipeline, no CT Builder confirmation, allocations never get exploded correctly).
+## Fix
 
-RISCRIVI IL PLAN ASSICURANDOTI CHE IL PLACEHOLDER SIA SOLO PER L'ENERGIA, MENTRE INVECE PER L'ARIA DEVONO ESSERE DISPONIBILI TUTTI GLI SKU
+### 1. Migration — correggere il trigger
+- Sostituire `pr.user_id = v_cert.pm_id` con `pr.id = v_cert.pm_id` nella function `create_monitoring_alert_on_allocation`.
+- Lasciare invariata tutta la restante logica (mapping `is_generic_placeholder`/categoria → `alert_type`, route, `escalate_to_admin = true`).
 
-## Goal
+### 2. Backfill — generare gli alert mancanti
+Inserire in `task_alerts` un record per ogni allocazione esistente con `source = 'pm_request'` e `is_resolved = false` priva di alert collegato, con la stessa logica del trigger:
+- `SYS-ENERGY` / `is_generic_placeholder = true` → `monitoring_energy_requested` (route `/projects/{id}/hardware/energy`)
+- categoria AIR/IAQ → `monitoring_iaq_requested` (route `/monitor/assign/{id}`)
+- categoria Water → `monitoring_water_requested` (route `/monitor/assign/{id}`)
 
-Make the PM Hardware tab show **only system-level placeholders**, derived from the certification's `has_*_monitoring` / `has_hardware_redirection` flags. Keep the granular component catalog reserved for the Admin (CT Builder + Assign dialog), where it already lives.
+Tutti con `escalate_to_admin = true`, `created_by = certifications.pm_id`.
 
-## Changes
+### 3. Verifica
+Dopo la migration:
+- Query di controllo su `task_alerts` per confermare che i 3 alert pendenti compaiano.
+- Conferma visiva sul `MonitoringAlertsWidget` in `/monitor` (badge count > 0, riga "La Tana di FGB" → Energy Monitoring Requested).
 
-### 1. Catalog: introduce system-level placeholder products
+Nessuna modifica frontend necessaria: `MonitoringAlertsWidget`, `useTaskAlerts` e `useAdminEscalationNotifications` sono già cablati correttamente — leggevano una tabella vuota perché il trigger non scriveva.
 
-Insert (idempotent) energy and water placeholder rows in `products` with a new `is_system_placeholder boolean` column so they can be filtered, while for air all the sku needs to be available:
+## Dettagli tecnici
 
-
-| name                            | sku        | category |
-| ------------------------------- | ---------- | -------- |
-| Greeny Energy Monitoring System | SYS-ENERGY | Energy   |
-| &nbsp;                          | &nbsp;     | AIR      |
-| &nbsp;                          | &nbsp;     | AIR      |
-| &nbsp;                          | SYS-WATER  | Water    |
-
-
-The existing CT Builder logic (`rpc_confirm_energy_ct_build`) already knows how to replace a generic Energy placeholder with the real BOM — we just normalize the placeholder it looks for to `SYS-ENERGY`.
-
-### 2. PM Hardware tab (`PMProjectConfigModal.tsx` → `HardwareTab`)
-
-- Replace the free dropdown over the full catalog with a **list of system cards** built from the cert flags (`has_iaq_monitoring`, `has_energy_monitoring`, `has_water_monitoring`, `has_hardware_redirection`).
-- Each card shows the system, current request status, and a single **Request** button that inserts one `project_allocations` row for the matching `SYS-*` product (qty 1, status `Requested`, `source = 'pm_request'`).
-- Already-requested systems show status badge + Withdraw button instead of Request.
-- Remove the quantity input and the catalog Select entirely from the PM view.
-- Keep `MonitoringSuggestionBanner` at the top.
-
-### 3. Admin views — no behavioral change
-
-- CT Builder (`EnergyMonitoringPanel`) keeps using `rpc_confirm_energy_ct_build`, which replaces the `SYS-ENERGY` placeholder allocation with the actual PAN/Bridge/Mango allocations.
-- `AssignToSiteDialog` (Admin) is the only place where individual SKUs (FGB-10, ClAir, etc.) can be picked, exactly as today.
-
-### 4. Alert pipeline
-
-No change required. The DB trigger that emits `monitoring_*_requested` alerts already fires on insert into `project_allocations`; with the new placeholder SKUs the alert flow lights up correctly and deep-links the Admin to CT Builder / Assignment.
-
-## Files touched
-
-- **DB migration**: add `products.is_system_placeholder`, seed 4 placeholder rows, update the CT Builder RPC if it currently filters by a different placeholder name.
-- `src/components/projects/PMProjectConfigModal.tsx` — rewrite `HardwareTab` UI + insert logic.
-- `src/integrations/supabase/types.ts` — regenerated after migration.
-
-## Out of scope
-
-- Admin-side hardware assignment UI (already correct).
-- CT Builder upload/confirm flow (already correct).
-- The wizard cert flags (`NewQuotationWizard`) — already correct.
-
-## Open question before I implement
-
-Confirm the four system names/SKUs above are what you want shown to PMs (especially: do you want **one** "ClAir IAQ" system covering both LEED and WELL cases, or keep `LEED ClAir` vs `WELL ClAir` as two separate systems exposed to the PM)?
+File:
+- nuova migration in `supabase/migrations/` con `CREATE OR REPLACE FUNCTION public.create_monitoring_alert_on_allocation` corretta + `INSERT INTO public.task_alerts ... SELECT ... FROM public.project_allocations pa LEFT JOIN public.task_alerts ta ON ta.certification_id = pa.certification_id AND ta.alert_type = ... WHERE pa.source = 'pm_request' AND ta.id IS NULL` per il backfill.
