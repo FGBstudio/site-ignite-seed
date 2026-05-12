@@ -18,6 +18,8 @@ export interface AirMonitorRow {
   status: string;
   total_sensors: number;
   po_numbers: string[];
+  handover_date: string | null;
+  latest_shipment_date: string | null;
   online_status: string | null;
   notes: string | null;
 }
@@ -33,6 +35,8 @@ export function useAirRows() {
           site_id,
           total_sensors,
           po_numbers,
+          handover_date,
+          latest_shipment_date,
           online_status,
           notes,
           status,
@@ -70,6 +74,8 @@ export function useAirRows() {
           status: record.status,
           total_sensors: record.total_sensors ?? 0,
           po_numbers: record.po_numbers ?? [],
+          handover_date: record.handover_date ?? null,
+          latest_shipment_date: record.latest_shipment_date ?? null,
           online_status: record.online_status ?? null,
           notes: record.notes ?? null,
         };
