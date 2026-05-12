@@ -2848,7 +2848,7 @@ export type Database = {
       }
       site_air_records: {
         Row: {
-          certification_id: string
+          certification_id: string | null
           created_at: string
           device_ids: string[] | null
           id: string
@@ -2859,14 +2859,13 @@ export type Database = {
           po_numbers: string[] | null
           project_name: string | null
           shipment_dates: string[] | null
-          site_id: string | null
+          site_id: string
           status: string | null
-          status_details: string[] | null
           total_sensors: number | null
           updated_at: string
         }
         Insert: {
-          certification_id: string
+          certification_id?: string | null
           created_at?: string
           device_ids?: string[] | null
           id?: string
@@ -2877,14 +2876,13 @@ export type Database = {
           po_numbers?: string[] | null
           project_name?: string | null
           shipment_dates?: string[] | null
-          site_id?: string | null
+          site_id: string
           status?: string | null
-          status_details?: string[] | null
           total_sensors?: number | null
           updated_at?: string
         }
         Update: {
-          certification_id?: string
+          certification_id?: string | null
           created_at?: string
           device_ids?: string[] | null
           id?: string
@@ -2895,9 +2893,8 @@ export type Database = {
           po_numbers?: string[] | null
           project_name?: string | null
           shipment_dates?: string[] | null
-          site_id?: string | null
+          site_id?: string
           status?: string | null
-          status_details?: string[] | null
           total_sensors?: number | null
           updated_at?: string
         }
@@ -2917,9 +2914,16 @@ export type Database = {
             referencedColumns: ["certification_id"]
           },
           {
+            foreignKeyName: "site_air_records_pm_id_fkey"
+            columns: ["pm_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "site_air_records_site_id_fkey"
             columns: ["site_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "sites"
             referencedColumns: ["id"]
           },
