@@ -766,6 +766,8 @@ ${n.map(([a,o])=>{var c;const l=((c=o.theme)==null?void 0:c[r])||o.color;return 
           site_id,
           total_sensors,
           po_numbers,
+          handover_date,
+          latest_shipment_date,
           online_status,
           notes,
           status,
@@ -784,7 +786,7 @@ ${n.map(([a,o])=>{var c;const l=((c=o.theme)==null?void 0:c[r])||o.color;return 
             first_name,
             last_name
           )
-        `);if(t)throw t;return e?e.map(n=>{const r=Array.isArray(n.sites)?n.sites[0]:n.sites,i=Array.isArray(n.profiles)?n.profiles[0]:n.profiles;return{id:n.site_id,project_name:(r==null?void 0:r.name)||n.project_name||`Site: ${n.site_id.slice(0,8)}`,pm_name:i?i.full_name||i.display_name||[i.first_name,i.last_name].filter(Boolean).join(" "):null,region:(r==null?void 0:r.region)??null,country:(r==null?void 0:r.country)??null,city:(r==null?void 0:r.city)??null,status:n.status,total_sensors:n.total_sensors??0,po_numbers:n.po_numbers??[],online_status:n.online_status??null,notes:n.notes??null}}):[]}})}function rYe(e){return pt({queryKey:["monitor-air-devices",e],enabled:!!e,staleTime:3e4,queryFn:async()=>{const{data:t,error:n}=await ae.from("hardwares").select(`
+        `);if(t)throw t;return e?e.map(n=>{const r=Array.isArray(n.sites)?n.sites[0]:n.sites,i=Array.isArray(n.profiles)?n.profiles[0]:n.profiles;return{id:n.site_id,project_name:(r==null?void 0:r.name)||n.project_name||`Site: ${n.site_id.slice(0,8)}`,pm_name:i?i.full_name||i.display_name||[i.first_name,i.last_name].filter(Boolean).join(" "):null,region:(r==null?void 0:r.region)??null,country:(r==null?void 0:r.country)??null,city:(r==null?void 0:r.city)??null,status:n.status,total_sensors:n.total_sensors??0,po_numbers:n.po_numbers??[],handover_date:n.handover_date??null,latest_shipment_date:n.latest_shipment_date??null,online_status:n.online_status??null,notes:n.notes??null}}):[]}})}function rYe(e){return pt({queryKey:["monitor-air-devices",e],enabled:!!e,staleTime:3e4,queryFn:async()=>{const{data:t,error:n}=await ae.from("hardwares").select(`
           device_id,
           mac_address,
           shipment_date,
