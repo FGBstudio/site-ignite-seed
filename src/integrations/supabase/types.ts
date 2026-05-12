@@ -2435,6 +2435,7 @@ export type Database = {
           certification: string
           created_at: string
           id: string
+          is_system_placeholder: boolean
           name: string
           sku: string
           supplier_lead_time_days: number
@@ -2445,6 +2446,7 @@ export type Database = {
           certification?: string
           created_at?: string
           id?: string
+          is_system_placeholder?: boolean
           name: string
           sku: string
           supplier_lead_time_days?: number
@@ -2455,6 +2457,7 @@ export type Database = {
           certification?: string
           created_at?: string
           id?: string
+          is_system_placeholder?: boolean
           name?: string
           sku?: string
           supplier_lead_time_days?: number
