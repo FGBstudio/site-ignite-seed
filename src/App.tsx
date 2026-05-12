@@ -30,7 +30,15 @@ import NotFound from "./pages/NotFound";
 import Monitor from "./pages/Monitor";
 import MyTimesheet from "./pages/MyTimesheet";
 
-const queryClient = new QueryClient();
+// MODIFICA QUI: Configurazione del QueryClient per evitare refresh molesti
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false, // <-- Disabilita il refresh al cambio scheda
+      retry: 1,
+    },
+  },
+});
 
 const basename = import.meta.env.BASE_URL.replace(/\/+$/, "") || "/";
 
