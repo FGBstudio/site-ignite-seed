@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Check, Download, Eye, EyeOff, Loader2, Pencil, Search, X } from "lucide-react";
+import { Check, Download, Eye, EyeOff, Loader2, Pencil, Search, X, Zap, Wind } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,6 +18,7 @@ import { useMonitorRows, STATUS_OPTIONS, CATEGORY_OPTIONS, type MonitorRow } fro
 import type { SiteEnergyRecordPatch } from "@/types/site-energy";
 import { cn } from "@/lib/utils";
 import { MonitoringAlertsWidget } from "@/components/monitor/MonitoringAlertsWidget";
+import { AirTable } from "@/components/projects/AirMonitoring/AirTable";
 
 const fmtEUR = (n: number | null | undefined) =>
   typeof n === "number" ? n.toLocaleString("en-US", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }) : "—";
@@ -48,15 +49,19 @@ export default function Monitor() {
       <div className="space-y-4">
         <MonitoringAlertsWidget />
         <Tabs defaultValue="energy">
-          <TabsList>
-            <TabsTrigger value="energy">Energy</TabsTrigger>
-            <TabsTrigger value="air">Air</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-2 max-w-[400px]">
+            <TabsTrigger value="energy" className="gap-2">
+              <Zap className="h-4 w-4" /> Energy
+            </TabsTrigger>
+            <TabsTrigger value="air" className="gap-2">
+              <Wind className="h-4 w-4" /> Air Quality
+            </TabsTrigger>
           </TabsList>
           <TabsContent value="energy" className="mt-4">
             <EnergyTable />
           </TabsContent>
           <TabsContent value="air" className="mt-4">
-            <Card><CardContent className="py-16 text-center text-sm text-muted-foreground">Air monitoring — coming next.</CardContent></Card>
+            <AirTable />
           </TabsContent>
         </Tabs>
       </div>
@@ -216,7 +221,7 @@ function EnergyTable() {
                   <Th tone={SEC.site.head}>PO</Th>
                   <Th tone={SEC.site.head}>Installer</Th>
                   <Th tone={SEC.site.head}>Package</Th>
-
+ 
                   <Th right tone={SEC.hw.head}>Add. Sens</Th>
                   <Th right tone={SEC.hw.head}>Add. Br</Th>
                   <Th right tone={SEC.hw.head}>PAN-10</Th>
@@ -226,7 +231,7 @@ function EnergyTable() {
                   <Th right tone={SEC.hw.head}>Mango</Th>
                   <Th right tone={SEC.hw.head}>Tot Sens</Th>
                   <Th right tone={SEC.hw.head}>Tot Br</Th>
-
+ 
                   {isAdmin && <>
                     <Th right tone={SEC.cost.head}>Bridge $</Th>
                     <Th right tone={SEC.cost.head}>Sensor $</Th>
@@ -237,7 +242,7 @@ function EnergyTable() {
                     <Th right tone={SEC.cost.head}>Pickup</Th>
                     <Th right tone={SEC.cost.head}>Shipment</Th>
                     <Th right tone={SEC.cost.head}>Out. Cust</Th>
-
+ 
                     <Th right tone={SEC.finance.head}>Installation</Th>
                     <Th right tone={SEC.finance.head}>Quotation</Th>
                     <Th right tone={SEC.finance.head}>Co. 20%</Th>
@@ -248,7 +253,7 @@ function EnergyTable() {
                     <Th right tone={SEC.finance.head}>Profit</Th>
                     <Th right tone={SEC.finance.head}>ROI</Th>
                   </>}
-
+ 
                   {showNetwork && <>
                     <Th tone={SEC.net.head}>Tracking #</Th>
                     <Th tone={SEC.net.head}>IP cfg</Th>
