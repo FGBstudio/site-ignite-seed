@@ -198,9 +198,9 @@ export default function Projects() {
           ) : filtered.length === 0 ? (
             <div className="table-container p-12 text-center text-muted-foreground">No projects found.</div>
           ) : (
-            <div className="table-container overflow-auto max-h-[calc(100vh-320px)]">
-              <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-background z-10">
+            <div className="table-container overflow-x-auto overflow-y-auto max-h-[70vh] rounded-md border">
+              <table className="w-full text-sm relative">
+                <thead className="sticky top-0 bg-background z-10 shadow-sm">
                   <tr className="border-b">
                     <th className="text-left p-4 font-medium text-muted-foreground">Project</th>
                     <th className="text-left p-4 font-medium text-muted-foreground">Client</th>
