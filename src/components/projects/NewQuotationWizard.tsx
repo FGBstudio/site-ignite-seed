@@ -23,8 +23,16 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import {
   CalendarIcon, Plus, Loader2, CheckCircle2, Building2, Award,
-  ChevronRight, ChevronLeft, X,
+  ChevronRight, ChevronLeft, X, Calculator,
 } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { QuotationBudgetBuilder } from "@/components/projects/QuotationBudgetBuilder";
+import {
+  type BudgetBuilderState,
+  emptyBuilder,
+  computeBudget,
+  HOURS_PER_DAY,
+} from "@/lib/quotationBudget";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
