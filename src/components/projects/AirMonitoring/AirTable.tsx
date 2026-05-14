@@ -68,6 +68,7 @@ export function AirTable() {
 
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState({ status: "all", region: "all", country: "all" });
+  const [showFinancials, setShowFinancials] = useState(true);
 
   const uniques = useMemo(() => ({
     regions: Array.from(new Set(rows.map(r => r.region).filter(Boolean))).sort() as string[],
@@ -112,6 +113,11 @@ export function AirTable() {
         JSON.stringify(r.city ?? ""),
         r.total_sensors,
         JSON.stringify(r.po_numbers.join(" | ")),
+        r.quotation_value,
+        r.hardware_cost,
+        r.total_cost,
+        r.profit,
+        r.roi,
         JSON.stringify(r.notes ?? ""),
       ].join(",")),
     ];
@@ -137,6 +143,9 @@ export function AirTable() {
         <FilterSelect label="Region" value={filters.region} onChange={(v) => setFilters(p => ({ ...p, region: v }))} options={uniques.regions} />
         <FilterSelect label="Country" value={filters.country} onChange={(v) => setFilters(p => ({ ...p, country: v }))} options={uniques.countries} />
         <div className="ml-auto">
+          <Button variant="outline" size="sm" onClick={() => setShowFinancials(!showFinancials)} className={cn("gap-2 h-10 px-4", showFinancials ? "bg-indigo-50 text-indigo-700 border-indigo-200" : "border-slate-200")}>
+            <Activity className="h-4 w-4" /> {showFinancials ? "Hide Financials" : "Show Financials"}
+          </Button>
           <Button variant="outline" size="sm" onClick={exportCSV} className="gap-2 h-10 px-4 border-slate-200">
             <Download className="h-4 w-4" /> Export
           </Button>
@@ -158,6 +167,16 @@ export function AirTable() {
                   <th className="px-4 py-3.5 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider w-32"><span className="flex items-center gap-1.5"><Package className="w-3.5 h-3.5" /> PO Numbers</span></th>
                   <th className="px-4 py-3.5 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider w-32"><span className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5" /> Handover Date</span></th>
                   <th className="px-4 py-3.5 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider w-32"><span className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5" /> Shipment Date</span></th>
+                  {showFinancials && (
+                    <>
+                      <th className="px-4 py-3.5 text-right text-[11px] font-bold text-indigo-600 uppercase tracking-wider w-24">Quotation</th>
+                      <th className="px-4 py-3.5 text-right text-[11px] font-semibold text-slate-500 uppercase tracking-wider w-24">HW Cost</th>
+                      <th className="px-4 py-3.5 text-right text-[11px] font-semibold text-slate-500 uppercase tracking-wider w-24">Shipping</th>
+                      <th className="px-4 py-3.5 text-right text-[11px] font-semibold text-slate-500 uppercase tracking-wider w-24">Tax/Vat</th>
+                      <th className="px-4 py-3.5 text-right text-[11px] font-bold text-slate-700 uppercase tracking-wider w-24">Profit</th>
+                      <th className="px-4 py-3.5 text-center text-[11px] font-bold text-slate-700 uppercase tracking-wider w-20">ROI</th>
+                    </>
+                  )}
                   <th className="px-4 py-3.5 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider min-w-[180px]">Notes</th>
                   <th className="px-4 py-3.5 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider w-28">Status</th>
                   <th className="px-4 py-3.5 text-center text-[11px] font-semibold text-slate-500 uppercase tracking-wider w-20">Actions</th>
@@ -165,7 +184,7 @@ export function AirTable() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filtered.map((r, i) => (
-                  <AirRow key={r.id} r={r} idx={i} isAdmin={isAdmin} onUpdate={update} />
+                  <AirRow key={r.id} r={r} idx={i} isAdmin={isAdmin} onUpdate={update} showFinancials={showFinancials} />
                 ))}
               </tbody>
             </table>
@@ -190,7 +209,7 @@ function FilterSelect({ label, value, onChange, options }: { label: string; valu
   );
 }
 
-function AirRow({ r, idx, isAdmin, onUpdate }: { r: AirMonitorRow; idx: number; isAdmin: boolean; onUpdate: any; }) {
+function AirRow({ r, idx, isAdmin, onUpdate, showFinancials }: { r: AirMonitorRow & any; idx: number; isAdmin: boolean; onUpdate: any; showFinancials: boolean; }) {
   const [editing, setEditing] = useState(false);
   const [patch, setPatch] = useState<Partial<AirMonitorRow>>({});
   const [saving, setSaving] = useState(false);
@@ -255,6 +274,20 @@ function AirRow({ r, idx, isAdmin, onUpdate }: { r: AirMonitorRow; idx: number; 
           {r.latest_shipment_date ? format(new Date(r.latest_shipment_date), "MMM d, yy") : <span className="text-slate-300 italic">—</span>}
         </span>
       </td>
+      {showFinancials && (
+        <>
+          <td className="px-4 py-4 text-right font-bold text-indigo-600 text-xs">€{r.quotation_value?.toLocaleString() || '0'}</td>
+          <td className="px-4 py-4 text-right text-slate-500 text-xs">€{r.hardware_cost?.toLocaleString() || '0'}</td>
+          <td className="px-4 py-4 text-right text-slate-500 text-xs">€{(r.inbound_cost + r.outbound_cost + r.internal_cost)?.toLocaleString() || '0'}</td>
+          <td className="px-4 py-4 text-right text-slate-500 text-xs">€{(r.customs_cost + r.vat_cost)?.toLocaleString() || '0'}</td>
+          <td className={cn("px-4 py-4 text-right font-bold text-xs", r.profit >= 0 ? "text-emerald-600" : "text-rose-600")}>€{r.profit?.toLocaleString() || '0'}</td>
+          <td className="px-4 py-4 text-center">
+            <Badge variant="outline" className={cn("text-[10px] font-bold h-5 px-1.5", r.roi >= 20 ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-slate-50 text-slate-600")}>
+              {Math.round(r.roi)}%
+            </Badge>
+          </td>
+        </>
+      )}
       <td className="px-4 py-4 max-w-[200px]">
         {!editing ? <p className="text-sm text-slate-600 truncate" title={r.notes ?? undefined}>{r.notes || <span className="text-slate-300 italic">No notes</span>}</p> : <Input value={patch.notes ?? r.notes ?? ""} onChange={e => setPatch(p => ({ ...p, notes: e.target.value }))} className="h-8 text-xs bg-white focus-visible:ring-indigo-500/20" />}
       </td>
