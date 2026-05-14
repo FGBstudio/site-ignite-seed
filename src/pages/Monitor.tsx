@@ -372,9 +372,24 @@ function Row({ r, idx, isAdmin, showNetwork, onUpdate }: RowProps) {
         onChange={(v) => setField("free_software_year", v ? Number(v) : null)} />
       <EditCell editing={editing} value={cur("installation_date") as string | null} type="date"
         onChange={(v) => setField("installation_date", v || null)} render={(v) => <span>{fmtDate(v)}</span>} />
-      <EditCell editing={editing} value={(cur("contracted") as string | null) ?? "yes"} options={["yes", "no"]}
+      <EditCell editing={editing} value={(cur("contracted") as string | null) ?? "Pending"} options={["yes", "no", "To Verify", "Pending"]}
         onChange={(v) => setField("contracted", v)}
-        render={(v) => <Badge variant="outline" className={cn("font-normal", v === "yes" ? "border-emerald-500/40 text-emerald-700 dark:text-emerald-300" : "border-rose-500/40 text-rose-700 dark:text-rose-300")}>{v ?? "—"}</Badge>} />
+        render={(v) => {
+          const val = (v ?? "").toLowerCase();
+          const isYes = val === "yes" || val === "true";
+          const isVerify = val === "to verify";
+          const isPending = val === "pending" || val === "no";
+          
+          let colorClass = "border-rose-500/40 text-rose-700 dark:text-rose-300";
+          if (isYes) colorClass = "border-emerald-500/40 text-emerald-700 dark:text-emerald-300";
+          if (isVerify) colorClass = "border-amber-500/40 text-amber-700 dark:text-amber-300";
+
+          return (
+            <Badge variant="outline" className={cn("font-normal whitespace-nowrap", colorClass)}>
+              {isYes ? "yes" : v ?? "—"}
+            </Badge>
+          );
+        }} />
       <td className="px-3 py-2 whitespace-nowrap border-b border-border">{r.pm_name ?? "—"}</td>
       <EditCell editing={editing} value={cur("handover_date") as string | null} type="date"
         onChange={(v) => setField("handover_date", v || null)} render={(v) => <span>{fmtDate(v)}</span>} />
