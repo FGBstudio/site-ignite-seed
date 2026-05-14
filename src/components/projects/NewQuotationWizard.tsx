@@ -139,7 +139,7 @@ function emptySite(): SiteState {
 function emptyServices(): ServicesState {
   return {
     projectName: "", client: "", region: "Europe", handoverDate: undefined,
-    certifications: [], sqm: "", servicesFees: "", gbciFees: "", totalFees: "",
+    certifications: [], sqm: "",
     quotationSentDate: undefined, notes: "",
     paymentScheme: "quotation_construction_50_50",
     customSal: [{ pct: "100", trigger: "manual_sal", name: "SAL 1" }],
