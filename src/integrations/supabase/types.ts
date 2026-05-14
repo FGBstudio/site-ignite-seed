@@ -2853,10 +2853,13 @@ export type Database = {
         Row: {
           certification_id: string | null
           created_at: string
+          handover_date: string | null
           id: string
+          latest_shipment_date: string | null
           notes: string | null
           online_status: string | null
           pm_id: string | null
+          po_numbers: string[] | null
           project_name: string
           site_id: string
           status: string
@@ -2866,10 +2869,13 @@ export type Database = {
         Insert: {
           certification_id?: string | null
           created_at?: string
+          handover_date?: string | null
           id?: string
+          latest_shipment_date?: string | null
           notes?: string | null
           online_status?: string | null
           pm_id?: string | null
+          po_numbers?: string[] | null
           project_name: string
           site_id: string
           status?: string
@@ -2879,10 +2885,13 @@ export type Database = {
         Update: {
           certification_id?: string | null
           created_at?: string
+          handover_date?: string | null
           id?: string
+          latest_shipment_date?: string | null
           notes?: string | null
           online_status?: string | null
           pm_id?: string | null
+          po_numbers?: string[] | null
           project_name?: string
           site_id?: string
           status?: string
