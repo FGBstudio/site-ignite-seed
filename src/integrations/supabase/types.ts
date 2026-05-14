@@ -2789,6 +2789,57 @@ export type Database = {
           },
         ]
       }
+      quotation_budget_history: {
+        Row: {
+          breakdown: Json
+          certification_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          markup_pct: number
+          total_cost: number
+          total_effort_days: number
+          total_suggested: number
+        }
+        Insert: {
+          breakdown: Json
+          certification_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          markup_pct?: number
+          total_cost: number
+          total_effort_days?: number
+          total_suggested: number
+        }
+        Update: {
+          breakdown?: Json
+          certification_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          markup_pct?: number
+          total_cost?: number
+          total_effort_days?: number
+          total_suggested?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quotation_budget_history_certification_id_fkey"
+            columns: ["certification_id"]
+            isOneToOne: false
+            referencedRelation: "certifications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotation_budget_history_certification_id_fkey"
+            columns: ["certification_id"]
+            isOneToOne: false
+            referencedRelation: "view_cert_hours_burn"
+            referencedColumns: ["certification_id"]
+          },
+        ]
+      }
       sensor_health: {
         Row: {
           flapping_count_24h: number | null
