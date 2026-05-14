@@ -867,17 +867,26 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved }: Props) {
         </CardContent>
       </Card>
 
-      {/* Quotation */}
-      {(services.totalFees || services.servicesFees || services.gbciFees || services.quotationSentDate || services.notes) && (
+      {/* Quotation per certification */}
+      {services.certifications.length > 0 && (
         <Card className="border-blue-200 bg-blue-50/30">
-          <CardContent className="pt-4 pb-3">
-            <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-2">Quotation</p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm">
-              {services.servicesFees && <div><p className="text-muted-foreground text-xs">Services fees</p><p className="font-medium">€{Number(services.servicesFees).toLocaleString()}</p></div>}
-              {services.gbciFees && <div><p className="text-muted-foreground text-xs">GBCI fees</p><p className="font-medium">€{Number(services.gbciFees).toLocaleString()}</p></div>}
-              {services.totalFees && <div><p className="text-muted-foreground text-xs">Total fees</p><p className="font-semibold text-foreground">€{Number(services.totalFees).toLocaleString()}</p></div>}
-              {services.quotationSentDate && <div><p className="text-muted-foreground text-xs">Sent on</p><p className="font-medium">{format(services.quotationSentDate, "dd MMM yyyy")}</p></div>}
-              {services.sqm && <div><p className="text-muted-foreground text-xs">Area</p><p className="font-medium">{services.sqm} sqm</p></div>}
+          <CardContent className="pt-4 pb-3 space-y-3">
+            <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide">Quotation</p>
+            {services.sqm && <p className="text-xs text-muted-foreground">Area: <span className="font-medium text-foreground">{services.sqm} sqm</span>{services.quotationSentDate && <> · Sent on <span className="font-medium text-foreground">{format(services.quotationSentDate, "dd MMM yyyy")}</span></>}</p>}
+            <div className="space-y-2">
+              {services.certifications.map((c) => (
+                <div key={c.cert_type} className="rounded-md border bg-background/60 p-2.5">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Badge variant="secondary" className="font-bold">{c.cert_type}</Badge>
+                    <span className="text-[11px] text-muted-foreground">{c.quote_mode === "builder" ? "Builder" : "Direct"}</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    <div><p className="text-muted-foreground">Services</p><p className="font-medium">{c.services_fees ? `€${Number(c.services_fees).toLocaleString()}` : "—"}</p></div>
+                    <div><p className="text-muted-foreground">GBCI</p><p className="font-medium">{c.gbci_fees ? `€${Number(c.gbci_fees).toLocaleString()}` : "—"}</p></div>
+                    <div><p className="text-muted-foreground">Total</p><p className="font-semibold text-foreground">{c.total_fees ? `€${Number(c.total_fees).toLocaleString()}` : "—"}</p></div>
+                  </div>
+                </div>
+              ))}
             </div>
             {services.notes && <p className="text-xs text-muted-foreground mt-2 italic">"{services.notes}"</p>}
           </CardContent>
