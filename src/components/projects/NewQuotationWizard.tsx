@@ -244,6 +244,11 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved }: Props) {
   const validateStep2 = (): boolean => {
     const errs: Record<string, string> = {};
     if (services.certifications.length === 0) errs.certs = "Select at least one certification service";
+    services.certifications.forEach((c) => {
+      const total = Number(c.total_fees);
+      const ok = c.quote_mode === "builder" ? c.builder_applied && total > 0 : total > 0;
+      if (!ok) errs[`total_${c.cert_type}`] = `Set a Total Quotation for ${c.cert_type}`;
+    });
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
