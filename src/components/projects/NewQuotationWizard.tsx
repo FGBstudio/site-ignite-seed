@@ -662,6 +662,92 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved }: Props) {
                       </div>
                     </div>
                   )}
+
+                  {/* Per-cert Quotation Value */}
+                  <div className="mt-4 pt-3 border-t border-border/50 space-y-3">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Quotation value · {cert.cert_type}</p>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Services Fees (€)</Label>
+                        <Input type="number" className="h-8 text-sm" placeholder="e.g. 15,000"
+                          value={cert.services_fees}
+                          onChange={(e) => patchCert(cert.cert_type, { services_fees: e.target.value })} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">GBCI / IWBI Fees (€)</Label>
+                        <Input type="number" className="h-8 text-sm" placeholder="e.g. 5,000"
+                          value={cert.gbci_fees}
+                          onChange={(e) => patchCert(cert.cert_type, { gbci_fees: e.target.value })} />
+                      </div>
+                    </div>
+
+                    <RadioGroup
+                      value={cert.quote_mode}
+                      onValueChange={(v) => patchCert(cert.cert_type, {
+                        quote_mode: v as "direct" | "builder",
+                        ...(v === "direct" ? { builder_applied: false } : {}),
+                      })}
+                      className="grid grid-cols-1 sm:grid-cols-2 gap-2"
+                    >
+                      <label className={cn(
+                        "flex items-center gap-2 rounded-lg border p-2.5 cursor-pointer transition-colors",
+                        cert.quote_mode === "direct" ? "border-primary bg-primary/5" : "border-border hover:bg-muted/50"
+                      )}>
+                        <RadioGroupItem value="direct" />
+                        <span className="text-sm font-medium">Direct Input</span>
+                      </label>
+                      <label className={cn(
+                        "flex items-center gap-2 rounded-lg border p-2.5 cursor-pointer transition-colors",
+                        cert.quote_mode === "builder" ? "border-primary bg-primary/5" : "border-border hover:bg-muted/50"
+                      )}>
+                        <RadioGroupItem value="builder" />
+                        <Calculator className="h-4 w-4 text-primary" />
+                        <span className="text-sm font-medium">FTE & Budget Builder</span>
+                      </label>
+                    </RadioGroup>
+
+                    {cert.quote_mode === "direct" ? (
+                      <div className="space-y-1 max-w-xs">
+                        <Label className="text-xs font-medium">Total Quotation (€) *</Label>
+                        <Input
+                          type="number"
+                          placeholder="e.g. 20,000"
+                          className={cn("h-8 text-sm", errors[`total_${cert.cert_type}`] && "border-destructive")}
+                          value={cert.total_fees}
+                          onChange={(e) => patchCert(cert.cert_type, { total_fees: e.target.value })}
+                        />
+                        {errors[`total_${cert.cert_type}`] && (
+                          <p className="text-xs text-destructive">{errors[`total_${cert.cert_type}`]}</p>
+                        )}
+                      </div>
+                    ) : (
+                      <>
+                        {cert.builder_applied && cert.total_fees && (
+                          <div className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm">
+                            <span className="font-medium text-emerald-800">Applied: €{Number(cert.total_fees).toLocaleString()}</span>
+                            <span className="text-emerald-700 ml-2 text-xs">— recompute and click "Use this value" again to update.</span>
+                          </div>
+                        )}
+                        <QuotationBudgetBuilder
+                          state={cert.builder}
+                          onChange={(b) => patchCert(cert.cert_type, { builder: b })}
+                          hasIaq={cert.flags.iaq}
+                          hasEnergy={cert.flags.energy}
+                          onApply={(suggested, gbciFees) => {
+                            patchCert(cert.cert_type, {
+                              total_fees: String(suggested),
+                              gbci_fees: gbciFees > 0 ? String(gbciFees) : cert.gbci_fees,
+                              builder_applied: true,
+                            });
+                          }}
+                        />
+                        {errors[`total_${cert.cert_type}`] && (
+                          <p className="text-xs text-destructive">{errors[`total_${cert.cert_type}`]}</p>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             );
