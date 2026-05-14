@@ -298,18 +298,17 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved }: Props) {
 
       const handoverStr = format(services.handoverDate!, "yyyy-MM-dd");
 
-      // Compute builder snapshot once (when builder mode is used).
-      const useBuilder = quoteMode === "builder" && builderApplied;
-      const builderComputation = useBuilder ? computeBudget(builder) : null;
-      const allocatedHours = builderComputation
-        ? Math.round(builderComputation.effort_days * HOURS_PER_DAY * 100) / 100
-        : null;
-
       // 2. Insert one certification row per selected service
       for (const cert of services.certifications) {
         const name = services.certifications.length > 1
           ? `${services.projectName} – ${cert.cert_type}`
           : services.projectName;
+
+        const useBuilder = cert.quote_mode === "builder" && cert.builder_applied;
+        const builderComputation = useBuilder ? computeBudget(cert.builder) : null;
+        const allocatedHours = builderComputation
+          ? Math.round(builderComputation.effort_days * HOURS_PER_DAY * 100) / 100
+          : null;
 
         const { data: insertedCert, error: certErr } = await supabase
           .from("certifications")
@@ -333,9 +332,9 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved }: Props) {
             has_energy_monitoring: cert.flags.energy,
             has_water_monitoring: cert.flags.water,
             has_hardware_redirection: cert.flags.hardwareRedirect,
-            services_fees: services.servicesFees ? Number(services.servicesFees) : null,
-            gbci_fees: services.gbciFees ? Number(services.gbciFees) : null,
-            total_fees: services.totalFees ? Number(services.totalFees) : null,
+            services_fees: cert.services_fees ? Number(cert.services_fees) : null,
+            gbci_fees: cert.gbci_fees ? Number(cert.gbci_fees) : null,
+            total_fees: cert.total_fees ? Number(cert.total_fees) : null,
             allocated_hours: allocatedHours,
             quotation_sent_date: services.quotationSentDate
               ? format(services.quotationSentDate, "yyyy-MM-dd")
@@ -352,8 +351,8 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved }: Props) {
             total_suggested: builderComputation.suggested_total,
             total_cost: builderComputation.total_cost,
             total_effort_days: builderComputation.effort_days,
-            markup_pct: builder.markup_pct,
-            breakdown: { state: builder, computation: builderComputation } as never,
+            markup_pct: cert.builder.markup_pct,
+            breakdown: { state: cert.builder, computation: builderComputation } as never,
           } as never);
         }
       }
