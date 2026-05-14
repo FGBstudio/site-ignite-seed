@@ -18,10 +18,22 @@ export interface AirMonitorRow {
   status: string;
   total_sensors: number;
   po_numbers: string[];
-  handover_date: string | null;
-  latest_shipment_date: string | null;
   online_status: string | null;
   notes: string | null;
+  // Financials
+  inbound_cost: number;
+  outbound_cost: number;
+  internal_cost: number;
+  customs_cost: number;
+  vat_cost: number;
+  hardware_cost: number;
+  working_time_cost: number;
+  total_cost: number;
+  quotation_value: number;
+  planned_remaining: number;
+  taxes: number;
+  profit: number;
+  roi: number;
 }
 
 export function useAirRows() {
@@ -38,10 +50,21 @@ export function useAirRows() {
           handover_date,
           latest_shipment_date,
           online_status,
-          notes,
-          status,
           project_name,
           pm_id,
+          inbound_cost,
+          outbound_cost,
+          internal_cost,
+          customs_cost,
+          vat_cost,
+          hardware_cost,
+          working_time_cost,
+          total_cost,
+          quotation_value,
+          planned_remaining,
+          taxes,
+          profit,
+          roi,
           sites (
             id,
             name,
@@ -78,6 +101,19 @@ export function useAirRows() {
           latest_shipment_date: record.latest_shipment_date ?? null,
           online_status: record.online_status ?? null,
           notes: record.notes ?? null,
+          inbound_cost: record.inbound_cost ?? 0,
+          outbound_cost: record.outbound_cost ?? 0,
+          internal_cost: record.internal_cost ?? 0,
+          customs_cost: record.customs_cost ?? 0,
+          vat_cost: record.vat_cost ?? 0,
+          hardware_cost: record.hardware_cost ?? 0,
+          working_time_cost: record.working_time_cost ?? 0,
+          total_cost: record.total_cost ?? 0,
+          quotation_value: record.quotation_value ?? 0,
+          planned_remaining: record.planned_remaining ?? 0,
+          taxes: record.taxes ?? 0,
+          profit: record.profit ?? 0,
+          roi: record.roi ?? 0,
         };
       });
     },
