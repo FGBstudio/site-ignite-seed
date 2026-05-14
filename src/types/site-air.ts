@@ -19,6 +19,24 @@ export interface SiteAirRecord {
   
   online_status: string | null;
   notes: string | null;
+  
+  handover_date: string | null;
+  latest_shipment_date: string | null;
+
+  // Financials
+  inbound_cost: number;
+  outbound_cost: number;
+  internal_cost: number;
+  customs_cost: number;
+  vat_cost: number;
+  hardware_cost: number;
+  working_time_cost: number;
+  total_cost: number;
+  quotation_value: number;
+  planned_remaining: number;
+  taxes: number;
+  profit: number;
+  roi: number;
 
   created_at: string;
   updated_at: string;
