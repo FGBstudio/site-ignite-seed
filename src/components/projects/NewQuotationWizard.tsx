@@ -270,9 +270,6 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved }: Props) {
       setSite(emptySite());
       setServices(emptyServices());
       setErrors({});
-      setQuoteMode("direct");
-      setBuilder(emptyBuilder());
-      setBuilderApplied(false);
     }, 300);
   };
 
