@@ -143,6 +143,9 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved }: Props) {
   const [services, setServices] = useState<ServicesState>(emptyServices());
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const [quoteMode, setQuoteMode] = useState<"direct" | "builder">("direct");
+  const [builder, setBuilder] = useState<BudgetBuilderState>(emptyBuilder());
+  const [builderApplied, setBuilderApplied] = useState(false);
 
   const { data: holdings = [], isLoading: loadingHoldings } = useHoldings();
   const { data: brands = [], isLoading: loadingBrands } = useBrands(site.holdingId || undefined);
