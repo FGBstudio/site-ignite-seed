@@ -2439,7 +2439,8 @@ export type Database = {
           name: string
           sku: string
           supplier_lead_time_days: number
-          unit_price: number | null
+          unit_cost: number | null
+          unit_sale_price: number | null
         }
         Insert: {
           category?: string | null
@@ -2450,7 +2451,8 @@ export type Database = {
           name: string
           sku: string
           supplier_lead_time_days?: number
-          unit_price?: number | null
+          unit_cost?: number | null
+          unit_sale_price?: number | null
         }
         Update: {
           category?: string | null
@@ -2461,7 +2463,8 @@ export type Database = {
           name?: string
           sku?: string
           supplier_lead_time_days?: number
-          unit_price?: number | null
+          unit_cost?: number | null
+          unit_sale_price?: number | null
         }
         Relationships: []
       }
@@ -2853,50 +2856,89 @@ export type Database = {
         Row: {
           certification_id: string | null
           created_at: string
+          customs_cost: number | null
           handover_date: string | null
+          hardware_cost: number | null
           id: string
+          inbound_cost: number | null
+          internal_cost: number | null
           latest_shipment_date: string | null
           notes: string | null
           online_status: string | null
+          outbound_cost: number | null
+          planned_remaining: number | null
           pm_id: string | null
           po_numbers: string[] | null
+          profit: number | null
           project_name: string
+          quotation_value: number | null
+          roi: number | null
           site_id: string
           status: string
+          taxes: number | null
+          total_cost: number | null
           total_sensors: number | null
           updated_at: string
+          vat_cost: number | null
+          working_time_cost: number | null
         }
         Insert: {
           certification_id?: string | null
           created_at?: string
+          customs_cost?: number | null
           handover_date?: string | null
+          hardware_cost?: number | null
           id?: string
+          inbound_cost?: number | null
+          internal_cost?: number | null
           latest_shipment_date?: string | null
           notes?: string | null
           online_status?: string | null
+          outbound_cost?: number | null
+          planned_remaining?: number | null
           pm_id?: string | null
           po_numbers?: string[] | null
+          profit?: number | null
           project_name: string
+          quotation_value?: number | null
+          roi?: number | null
           site_id: string
           status?: string
+          taxes?: number | null
+          total_cost?: number | null
           total_sensors?: number | null
           updated_at?: string
+          vat_cost?: number | null
+          working_time_cost?: number | null
         }
         Update: {
           certification_id?: string | null
           created_at?: string
+          customs_cost?: number | null
           handover_date?: string | null
+          hardware_cost?: number | null
           id?: string
+          inbound_cost?: number | null
+          internal_cost?: number | null
           latest_shipment_date?: string | null
           notes?: string | null
           online_status?: string | null
+          outbound_cost?: number | null
+          planned_remaining?: number | null
           pm_id?: string | null
           po_numbers?: string[] | null
+          profit?: number | null
           project_name?: string
+          quotation_value?: number | null
+          roi?: number | null
           site_id?: string
           status?: string
+          taxes?: number | null
+          total_cost?: number | null
           total_sensors?: number | null
           updated_at?: string
+          vat_cost?: number | null
+          working_time_cost?: number | null
         }
         Relationships: [
           {

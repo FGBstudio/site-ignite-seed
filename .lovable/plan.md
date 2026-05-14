@@ -1,35 +1,94 @@
-## Problema
+## Obiettivo
 
-Le richieste di monitoring del PM non generano alert sul Monitor Hub perché il trigger DB `create_monitoring_alert_on_allocation` fallisce silenziosamente.
+Aggiungere, nella sezione "Services & Quote" del wizard di nuova quotazione (`NewQuotationWizard`, Step 2), un Accordion che permette all'admin di scegliere tra due modalità di compilazione del campo **Totale Quotazione (€)**:
 
-**Root cause**: la function fa
-```sql
-SELECT ... FROM public.profiles pr WHERE pr.user_id = v_cert.pm_id
+1. **Direct Input** — comportamento attuale: digitazione diretta del valore.
+2. **FTE & Budget Builder** — pannello guidato che calcola un valore suggerito da effort, costi e markup, con bottone *"Use this value"* che popola il campo di Modalità 1.
+
+Nessuna modifica al database: il calcolatore è puramente frontend e produce un singolo numero che finisce in `total_fees` (come oggi). se utilizzato deve generare un record nella "storia" del progetto quotato visibile solo admin in modo che sia sempre consultabile.  
+il totale di budget del PM poi è lo stesso che deve essere associato per il calcolo del fatto che il PM stia o meno sforando il budget a sua disposizione per il progetto.
+
+---
+
+## UX dell'Accordion
+
+```text
+┌─ Quotation Value ─────────────────────────────────┐
+│  ◉ Direct Input                                   │
+│     Total Quotation (€)  [ 15000 ]                │
+│                                                   │
+│  ○ FTE & Budget Builder                           │
+│     [ Calcola budget stimato ▼ ]                  │
+│       └─ pannello con sezioni 1–7 + Riepilogo    │
+└───────────────────────────────────────────────────┘
 ```
-ma la tabella `public.profiles` non ha la colonna `user_id` (la chiave è `id`). L'errore viene intercettato dal blocco `EXCEPTION WHEN OTHERS` e la function ritorna `NEW` senza inserire nulla in `task_alerts`. Risultato: zero alert per nessuna allocazione (verificato: `task_alerts` con `alert_type LIKE 'monitoring%'` è vuota, mentre esistono già 3 allocazioni `pm_request` recenti, inclusa quella di "La Tana di FGB").
 
-## Fix
+Toggle a radio (o due trigger di Accordion mutuamente esclusivi). La modalità attiva determina la sorgente del valore salvato in `services.totalFees`.
 
-### 1. Migration — correggere il trigger
-- Sostituire `pr.user_id = v_cert.pm_id` con `pr.id = v_cert.pm_id` nella function `create_monitoring_alert_on_allocation`.
-- Lasciare invariata tutta la restante logica (mapping `is_generic_placeholder`/categoria → `alert_type`, route, `escalate_to_admin = true`).
+### Sezioni del Budget Builder
 
-### 2. Backfill — generare gli alert mancanti
-Inserire in `task_alerts` un record per ogni allocazione esistente con `source = 'pm_request'` e `is_resolved = false` priva di alert collegato, con la stessa logica del trigger:
-- `SYS-ENERGY` / `is_generic_placeholder = true` → `monitoring_energy_requested` (route `/projects/{id}/hardware/energy`)
-- categoria AIR/IAQ → `monitoring_iaq_requested` (route `/monitor/assign/{id}`)
-- categoria Water → `monitoring_water_requested` (route `/monitor/assign/{id}`)
+1. **Project Effort (per ruolo)** — tabella con righe dinamiche:
+  - Ruolo (select: Partner, CxA, PM, Senior Specialist, Junior Specialist, Energy Modeler, Document Manager)
+  - Giornate allocate (number)
+  - Costo standard giornaliero € (precompilato per ruolo, editabile)
+  - Subtotale riga = giornate × costo
+  - Bottoni "+ Aggiungi ruolo" / "✕ rimuovi"
+2. **Spese Vive (OPE)** — Trasferte e Logistica (singolo importo €).
+3. **Hardware / Attrezzature** — campo calcolato in automatico in base ai flag delle certificazioni selezionate:
+  - Se almeno una cert ha `flags.iaq` → costo ClAir = (prezzo più alto da `products` con categoria air/IAQ) × *N sensori IAQ stimati* (input numerico).
+  - Se almeno una cert ha `flags.energy` → costo Greeny = (1 × bridge LAN) + (12 × sensore PAN12) + (1 × Mango), prezzi presi da `products`.
+  - Valori mostrati in sola lettura con breakdown; un toggle "override manuale" consente di forzare un importo.
+4. **Tasse di Registrazione/Certificazione (GBCI/IWBI fees)** — input €. Il valore inserito qui popola anche il campo esistente `services.gbciFees`.
+5. **Servizi Esterni e Subappalti** — lista dinamica di righe `{ descrizione (text), importo (€) }` con "+ Aggiungi voce".
+6. **Costi indiretti**:
+  - Overhead aziendale: % editabile (default 20%).
+  - Contingency: % editabile (default 10%).  
+   Applicati sul subtotale costi diretti (1+2+3+4+5).
+7. **Margine di Profitto** — % libera (default 25%) applicata sul totale costi (diretti + indiretti).
 
-Tutti con `escalate_to_admin = true`, `created_by = certifications.pm_id`.
+### Riepilogo + Apply
 
-### 3. Verifica
-Dopo la migration:
-- Query di controllo su `task_alerts` per confermare che i 3 alert pendenti compaiano.
-- Conferma visiva sul `MonitoringAlertsWidget` in `/monitor` (badge count > 0, riga "La Tana di FGB" → Energy Monitoring Requested).
+Card finale con:
 
-Nessuna modifica frontend necessaria: `MonitoringAlertsWidget`, `useTaskAlerts` e `useAdminEscalationNotifications` sono già cablati correttamente — leggevano una tabella vuota perché il trigger non scriveva.
+- Subtotale Effort, OPE, Hardware, Fees, Subappalti
+- Overhead, Contingency, Costi totali
+- Markup, **Quotazione suggerita €**
+- Bottone primario **"Usa questo valore"** → scrive il totale in `services.totalFees` e chiude il pannello (o resta aperto in sola lettura, mostrando "Valore applicato").
 
-## Dettagli tecnici
+---
 
-File:
-- nuova migration in `supabase/migrations/` con `CREATE OR REPLACE FUNCTION public.create_monitoring_alert_on_allocation` corretta + `INSERT INTO public.task_alerts ... SELECT ... FROM public.project_allocations pa LEFT JOIN public.task_alerts ta ON ta.certification_id = pa.certification_id AND ta.alert_type = ... WHERE pa.source = 'pm_request' AND ta.id IS NULL` per il backfill.
+## Dettagli Tecnici
+
+### File toccati
+
+- `src/components/projects/NewQuotationWizard.tsx` — aggiungere stato `quoteMode: "direct" | "builder"` e `builder: BudgetBuilderState`; renderizzare l'Accordion al posto / sopra il campo `totalFees` attuale in Step 2.
+- `src/components/projects/QuotationBudgetBuilder.tsx` *(nuovo)* — componente isolato che riceve `flags` aggregati delle certs selezionate + callback `onApply(value: number)`.
+- `src/lib/quotationBudget.ts` *(nuovo)* — funzioni pure: `computeBudget(state) → { subtotal, overhead, contingency, totalCost, markup, suggested }` + costanti default per `ROLE_RATES`.
+- `src/lib/productPricing.ts` *(esistente)* — riusare per leggere prezzi ClAir/Greeny/Mango; se mancano helper specifici, aggiungere `getIaqMaxPrice()` e `getGreenyKitPrice()`.
+
+### Sorgenti dati hardware
+
+Query a `products` filtrando per categoria/SKU noti (Greeny bridge, PAN12, Mango, sensori aria). Cache via TanStack Query (`useQuery(["products-pricing"])`). In assenza di prezzo: mostrare warning "prezzo non disponibile, inserisci manualmente".
+
+### Componenti UI
+
+Accordion / RadioGroup / Card / Input / Button da shadcn già presenti. Niente nuove dipendenze.
+
+### Persistenza
+
+- `total_fees` ← valore applicato (da Direct o da Builder).
+- `gbci_fees` ← se in modalità Builder, valore della sezione 4; altrimenti come oggi.
+- Lo stato del Builder NON viene salvato sul DB in questa iterazione (solo client). Eventuale persistenza in `quotation_notes` come JSON è fuori scope; se richiesta, va aperta come iterazione successiva.
+
+### Validazione
+
+- Se `quoteMode === "direct"` → `totalFees > 0`.
+- Se `quoteMode === "builder"` → richiedere che l'utente abbia premuto "Usa questo valore" almeno una volta (cioè `totalFees` popolato).
+
+---
+
+## Fuori scope
+
+- Salvare il dettaglio del Builder sul DB.
+- Editare i `ROLE_RATES` da UI admin (per ora costanti nel codice; in futuro eventuale tabella `role_daily_rates`).
+- Ricalcolo automatico del valore quando cambiano i flag dopo l'apply (l'utente dovrà ripremere "Usa questo valore").
