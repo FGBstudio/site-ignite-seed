@@ -640,11 +640,7 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved }: Props) {
           <Label className="text-xs font-medium">GBCI Fees (€)</Label>
           <Input type="number" placeholder="e.g. 5,000" value={services.gbciFees} onChange={(e) => setServices((s) => ({ ...s, gbciFees: e.target.value }))} />
         </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs font-medium">Total Fees (€)</Label>
-          <Input type="number" placeholder="e.g. 20,000" value={services.totalFees} onChange={(e) => setServices((s) => ({ ...s, totalFees: e.target.value }))} />
-        </div>
-        <div className="space-y-1.5">
+        <div className="space-y-1.5 sm:col-span-2">
           <Label className="text-xs font-medium">Quotation sent date</Label>
           <Popover>
             <PopoverTrigger asChild>
@@ -659,6 +655,84 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved }: Props) {
           </Popover>
         </div>
       </div>
+
+      {/* Quotation Value: Direct Input vs FTE & Budget Builder */}
+      <Card className="border-primary/20">
+        <CardContent className="pt-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold">Quotation Value</p>
+              <p className="text-xs text-muted-foreground">Type the total directly, or build it from effort, costs and markup.</p>
+            </div>
+          </div>
+
+          <RadioGroup
+            value={quoteMode}
+            onValueChange={(v) => {
+              setQuoteMode(v as "direct" | "builder");
+              if (v === "direct") setBuilderApplied(false);
+            }}
+            className="grid grid-cols-1 sm:grid-cols-2 gap-2"
+          >
+            <label className={cn(
+              "flex items-center gap-2 rounded-lg border p-3 cursor-pointer transition-colors",
+              quoteMode === "direct" ? "border-primary bg-primary/5" : "border-border hover:bg-muted/50"
+            )}>
+              <RadioGroupItem value="direct" />
+              <span className="text-sm font-medium">Direct Input</span>
+            </label>
+            <label className={cn(
+              "flex items-center gap-2 rounded-lg border p-3 cursor-pointer transition-colors",
+              quoteMode === "builder" ? "border-primary bg-primary/5" : "border-border hover:bg-muted/50"
+            )}>
+              <RadioGroupItem value="builder" />
+              <Calculator className="h-4 w-4 text-primary" />
+              <span className="text-sm font-medium">FTE & Budget Builder</span>
+            </label>
+          </RadioGroup>
+
+          {quoteMode === "direct" ? (
+            <div className="space-y-1.5 max-w-xs">
+              <Label className="text-xs font-medium">Total Quotation (€)</Label>
+              <Input
+                type="number"
+                placeholder="e.g. 20,000"
+                value={services.totalFees}
+                onChange={(e) => setServices((s) => ({ ...s, totalFees: e.target.value }))}
+              />
+            </div>
+          ) : (
+            <>
+              {builderApplied && services.totalFees && (
+                <div className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm">
+                  <span className="font-medium text-emerald-800">Applied: €{Number(services.totalFees).toLocaleString()}</span>
+                  <span className="text-emerald-700 ml-2 text-xs">— recompute and click "Use this value" again to update.</span>
+                </div>
+              )}
+              {(() => {
+                const aggIaq = services.certifications.some((c) => c.flags.iaq);
+                const aggEnergy = services.certifications.some((c) => c.flags.energy);
+                return (
+                  <QuotationBudgetBuilder
+                    state={builder}
+                    onChange={setBuilder}
+                    hasIaq={aggIaq}
+                    hasEnergy={aggEnergy}
+                    onApply={(suggested, gbciFees) => {
+                      setServices((s) => ({
+                        ...s,
+                        totalFees: String(suggested),
+                        gbciFees: gbciFees > 0 ? String(gbciFees) : s.gbciFees,
+                      }));
+                      setBuilderApplied(true);
+                    }}
+                  />
+                );
+              })()}
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="space-y-1.5">
         <Label className="text-xs font-medium">Commercial notes</Label>
