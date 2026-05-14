@@ -15,7 +15,7 @@ interface ProductRow {
   id: string;
   sku: string | null;
   name: string;
-  unit_price: number | null;
+  unit_cost: number | null;
 }
 
 function classify(p: ProductRow): EnergyHardwareKey | null {
@@ -47,7 +47,7 @@ export function useEnergyProductPrices() {
     queryFn: async (): Promise<{ prices: EnergyPriceMap; missing: EnergyHardwareKey[] }> => {
       const { data, error } = await supabase
         .from("products" as never)
-        .select("id, sku, name, unit_price, category");
+        .select("id, sku, name, unit_cost, category");
       if (error) throw error;
       const products = (data ?? []) as unknown as ProductRow[];
       const out: EnergyPriceMap = { ...FALLBACK_PRICES };
@@ -55,8 +55,8 @@ export function useEnergyProductPrices() {
       for (const p of products) {
         const key = classify(p);
         if (!key) continue;
-        if (typeof p.unit_price === "number" && p.unit_price > 0) {
-          out[key] = Number(p.unit_price);
+        if (typeof p.unit_cost === "number" && p.unit_cost > 0) {
+          out[key] = Number(p.unit_cost);
           seen.add(key);
         }
       }
