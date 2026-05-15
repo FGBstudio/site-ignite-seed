@@ -167,6 +167,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
       if (project) {
         if (isConfirmMode) {
           // Confirm mode: pre-fill from the project but only PM + po_sign_date are editable
+          const existingHours = (project as any).allocated_hours != null ? Number((project as any).allocated_hours) : undefined;
           form.reset({
             name: project.name, client: project.client, region: project.region as any,
             handover_date: new Date(project.handover_date), status: project.status || "Design",
@@ -175,7 +176,27 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
             confirm_pm_id: "",
             po_sign_date: null,
             site_lat: "", site_lng: "",
+            allocated_hours: existingHours,
           });
+          // Fetch latest builder snapshot to suggest hours from FTE Builder
+          setSuggestedHours(null);
+          supabase
+            .from("quotation_budget_history" as any)
+            .select("total_effort_days, created_at")
+            .eq("certification_id", project.id)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle()
+            .then(({ data }) => {
+              const days = (data as any)?.total_effort_days;
+              if (typeof days === "number" && days > 0) {
+                const sug = Math.round(days * 8 * 100) / 100;
+                setSuggestedHours(sug);
+                if (existingHours == null) {
+                  form.setValue("allocated_hours", sug);
+                }
+              }
+            });
         } else {
           // Edit mode
           const { data: existingCerts, error: certErr } = await supabase
