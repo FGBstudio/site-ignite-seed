@@ -263,6 +263,9 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
         if (data.po_sign_date) {
           updatePayload.po_sign_date = format(data.po_sign_date, "yyyy-MM-dd");
         }
+        if (data.allocated_hours != null && !Number.isNaN(data.allocated_hours)) {
+          updatePayload.allocated_hours = data.allocated_hours;
+        }
         const { error } = await supabase
           .from("certifications")
           .update(updatePayload)
