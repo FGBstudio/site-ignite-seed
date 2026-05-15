@@ -72,10 +72,11 @@ const formSchema = z.object({
   quotation_notes: z.string().optional(),
   quotation_sent_date: z.date().optional().nullable(),
   po_sign_date: z.date().optional().nullable(),
-  // Confirm mode — PM required + site coordinates
+  // Confirm mode — PM required + site coordinates + hourly budget
   confirm_pm_id: z.string().optional(),
   site_lat: z.string().optional(),
   site_lng: z.string().optional(),
+  allocated_hours: z.number().nonnegative().optional(),
 });
 
 type ProjectFormData = z.infer<typeof formSchema>;
@@ -99,6 +100,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
   const [loadingPMs, setLoadingPMs] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dataLoaded, setDataLoaded] = useState(false);
+  const [suggestedHours, setSuggestedHours] = useState<number | null>(null);
 
   const [selectedHoldingId, setSelectedHoldingId] = useState<string>("");
   const [selectedBrandId, setSelectedBrandId] = useState<string>("");
@@ -165,6 +167,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
       if (project) {
         if (isConfirmMode) {
           // Confirm mode: pre-fill from the project but only PM + po_sign_date are editable
+          const existingHours = (project as any).allocated_hours != null ? Number((project as any).allocated_hours) : undefined;
           form.reset({
             name: project.name, client: project.client, region: project.region as any,
             handover_date: new Date(project.handover_date), status: project.status || "Design",
@@ -173,7 +176,27 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
             confirm_pm_id: "",
             po_sign_date: null,
             site_lat: "", site_lng: "",
+            allocated_hours: existingHours,
           });
+          // Fetch latest builder snapshot to suggest hours from FTE Builder
+          setSuggestedHours(null);
+          supabase
+            .from("quotation_budget_history" as any)
+            .select("total_effort_days, created_at")
+            .eq("certification_id", project.id)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle()
+            .then(({ data }) => {
+              const days = (data as any)?.total_effort_days;
+              if (typeof days === "number" && days > 0) {
+                const sug = Math.round(days * 8 * 100) / 100;
+                setSuggestedHours(sug);
+                if (existingHours == null) {
+                  form.setValue("allocated_hours", sug);
+                }
+              }
+            });
         } else {
           // Edit mode
           const { data: existingCerts, error: certErr } = await supabase
@@ -239,6 +262,9 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
         };
         if (data.po_sign_date) {
           updatePayload.po_sign_date = format(data.po_sign_date, "yyyy-MM-dd");
+        }
+        if (data.allocated_hours != null && !Number.isNaN(data.allocated_hours)) {
+          updatePayload.allocated_hours = data.allocated_hours;
         }
         const { error } = await supabase
           .from("certifications")
@@ -453,6 +479,41 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
                       <Calendar mode="single" selected={field.value || undefined} onSelect={field.onChange} initialFocus className="p-3" />
                     </PopoverContent>
                   </Popover>
+                  <FormMessage />
+                </FormItem>
+              )} />
+
+              {/* Hourly Budget */}
+              <FormField control={form.control} name="allocated_hours" render={({ field }) => (
+                <FormItem>
+                  <div className="flex items-center justify-between">
+                    <FormLabel>Hourly Budget (h)</FormLabel>
+                    {suggestedHours != null && (
+                      <button
+                        type="button"
+                        onClick={() => form.setValue("allocated_hours", suggestedHours)}
+                        className="text-xs text-primary hover:underline"
+                      >
+                        Use FTE Builder suggestion: {suggestedHours}h
+                      </button>
+                    )}
+                  </div>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      min={0}
+                      step="0.5"
+                      placeholder="e.g. 240"
+                      value={field.value ?? ""}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        field.onChange(v === "" ? undefined : Number(v));
+                      }}
+                    />
+                  </FormControl>
+                  <FormDescription className="text-xs">
+                    Total hours allocated to this certification. Feeds Project Burn Rate / Hours Analytics.
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )} />
