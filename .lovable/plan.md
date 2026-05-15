@@ -1,35 +1,39 @@
-## Quotation Value per certificazione
+# Budget Orario in fase di Conferma Quotazione → PM
 
-Trasformo l'intera sezione **Quotation Details / Quotation Value** dello step 2 in una serie di pannelli, **uno per ogni certificazione selezionata** (LEED, WELL, BREEAM, ESG, GRESB, Energy_Audit). Ogni pannello è indipendente: ha i suoi Services Fees, GBCI Fees, Quotation Value (Direct o Builder) e flag IAQ/Energy/Water specifiche per quella cert.
+## Obiettivo
+Quando l'Admin conferma una quotazione e la assegna a un PM, deve essere definito il **Budget Orario** (`certifications.allocated_hours`) della certificazione, che alimenta automaticamente la sezione **Project Burn Rate / HoursAnalytics**, senza dover entrare in HoursAnalytics in un secondo momento.
 
-### UX
+Due modalità, in linea con la quotazione:
+1. **Diretta** — l'Admin digita le ore.
+2. **Da FTE Builder** — se in fase di quotazione era stato usato il Budget Builder, il valore viene **pre-calcolato** come `effort_days × 8` e mostrato già compilato (sempre modificabile).
 
-- Sezione globale "Quotation Details" mantiene **solo i campi davvero comuni**: Area (sqm), Quotation sent date, Notes, Payment scheme.
-- Per ogni cert spuntata appare una card dedicata con header `LEED`, `WELL`, ecc., contenente:
-  - Services Fees (€)
-  - GBCI Fees (€)
-  - Toggle **Direct Input / FTE & Budget Builder**
-  - Total Fees (Direct) **oppure** `QuotationBudgetBuilder` (collegato alle flag IAQ/Energy di quella stessa cert).
-- Il pulsante **"Use this value"** del Builder popola il Total Fees + GBCI Fees **solo della propria cert**.
-- Validazione step 2: ogni cert deve avere `total_fees > 0` (Direct) o un Builder applicato.
+## Flusso utente
 
-### Persistenza
+1. Admin clicca **Confirmed** su una riga in stato *Quotation* (pagina Projects).
+2. Si apre il `ProjectFormModal` in modalità `confirm_project` con i campi attuali (PM, PO Sign Date, coordinate sito).
+3. Si aggiunge una nuova sezione **"Hourly Budget"** con:
+   - Campo numerico `allocated_hours` (h).
+   - Se esiste uno snapshot Builder per la cert (`quotation_budget_history`), badge "Suggerito da FTE Builder: N h" + bottone **Use suggested**.
+   - Pre-fill automatico: se `certifications.allocated_hours` già valorizzato (perché salvato dal wizard quando si è usato il builder), usa quello; altrimenti usa il suggerimento se disponibile; altrimenti vuoto.
+4. Al salvataggio, oltre a `pm_id`, `status='in_progress'`, `po_sign_date`, l'update su `certifications` include `allocated_hours`.
 
-In `handleSave`, il loop `for (const cert of services.certifications)` ora usa i campi per-cert:
-- `services_fees`, `gbci_fees`, `total_fees`, `allocated_hours` presi dallo state della cert corrente.
-- Snapshot in `quotation_budget_history` solo per le cert in modalità Builder applicata.
+## Verifica del wizard esistente
+Il wizard `NewQuotationWizard` salva già `allocated_hours = round(effort_days × 8, 2)` quando la cert usa il Builder applicato. Nessuna modifica al wizard.
 
-### File toccati
+## Sezione tecnica
 
-- **`src/components/projects/NewQuotationWizard.tsx`** — refactor mirato:
-  - `CertConfig` esteso con `services_fees`, `gbci_fees`, `total_fees`, `quote_mode: "direct"|"builder"`, `builder: BudgetBuilderState`, `builder_applied: boolean`.
-  - Rimossi i campi globali `servicesFees / gbciFees / totalFees / quoteMode / builder / builderApplied` da `ServicesState`.
-  - Nuovo helper `renderQuotationPanelForCert(cert)`; lo step 2 cicla sulle cert e renderizza un pannello ciascuno.
-  - `handleSave` letture per-cert.
-  - Step 3 (Review) mostra un mini-summary per cert.
+**File modificati**
+- `src/components/projects/ProjectFormModal.tsx`
+  - Estendere lo Zod `formSchema` con `allocated_hours: z.number().nonnegative().optional()`.
+  - In `confirm_project` mode, dopo il caricamento del project, fetch dell'ultima riga di `quotation_budget_history` per `certification_id = project.id` (order by created_at desc, limit 1) per ricavare `total_effort_days`. Calcolare `suggested = total_effort_days × 8`.
+  - Pre-fill di `allocated_hours` con: `project.allocated_hours ?? suggested ?? undefined`.
+  - Nuovo blocco UI "Hourly Budget" sotto PM / PO Sign Date con input number + (se suggested) chip "Suggested: Xh — Use".
+  - In `onSubmit` confirm branch: aggiungere `allocated_hours: data.allocated_hours ?? null` all'`updatePayload`.
 
-### Fuori scope
+**Nessuna migrazione DB**: la colonna `certifications.allocated_hours` esiste già ed è quella consumata dalle view `view_cert_hours_burn` / `view_milestone_hours_burn` usate da `HoursAnalytics` e `ProjectBurnRate`.
 
-- Schema DB (già pronto: `total_fees`, `allocated_hours`, `quotation_budget_history` sono già per-cert).
-- Logica del Builder (`QuotationBudgetBuilder`, `quotationBudget.ts`, `useHardwarePricing.ts`) — riusati identici, una istanza per cert.
-- Prezzo ClAir: confermato funzionante, niente modifiche.
+**Nessun impatto su PMConfirmationDialog** (flusso PM-side separato).
+
+## Out of scope
+- Modifiche alla UI di `HoursAnalytics` / `ProjectBurnRate` (continueranno a leggere `allocated_hours` come oggi, ma troveranno il valore già popolato).
+- Per-milestone allocation (resta come oggi, editabile in HoursAnalytics).
