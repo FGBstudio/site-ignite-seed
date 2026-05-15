@@ -72,10 +72,11 @@ const formSchema = z.object({
   quotation_notes: z.string().optional(),
   quotation_sent_date: z.date().optional().nullable(),
   po_sign_date: z.date().optional().nullable(),
-  // Confirm mode — PM required + site coordinates
+  // Confirm mode — PM required + site coordinates + hourly budget
   confirm_pm_id: z.string().optional(),
   site_lat: z.string().optional(),
   site_lng: z.string().optional(),
+  allocated_hours: z.number().nonnegative().optional(),
 });
 
 type ProjectFormData = z.infer<typeof formSchema>;
