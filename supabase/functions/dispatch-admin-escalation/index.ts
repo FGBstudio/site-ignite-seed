@@ -14,6 +14,9 @@ const ALERT_TYPE_LABELS: Record<string, string> = {
   other_critical: 'Critical Issue',
   extra_canone: 'Extra-Canone',
   billing_due: 'Billing Due',
+  budget_warning_80: 'Budget Warning 80%',
+  budget_overrun: 'Budget Overrun',
+  resource_burnout_warning: 'Resource Burnout',
 }
 
 const APP_BASE_URL = 'https://site-ignite-seed.lovable.app'
