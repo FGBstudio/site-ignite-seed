@@ -4871,6 +4871,18 @@ export type Database = {
         Args: { p_fallback: string; p_payload: Json }
         Returns: string
       }
+      fn_check_budget_erosion: {
+        Args: { p_cert_id: string }
+        Returns: undefined
+      }
+      fn_check_handover_drift: {
+        Args: { p_cert_id: string }
+        Returns: undefined
+      }
+      fn_check_resource_burnout: {
+        Args: { p_cert_id: string; p_user_id: string }
+        Returns: undefined
+      }
       fn_recalculate_site_air: {
         Args: { p_site_id: string }
         Returns: undefined
