@@ -711,6 +711,7 @@ export type Database = {
         Row: {
           actual_handover_date: string | null
           allocated_hours: number | null
+          baseline_handover_date: string | null
           categories: Json | null
           cert_level: string | null
           cert_rating: string | null
@@ -749,6 +750,7 @@ export type Database = {
         Insert: {
           actual_handover_date?: string | null
           allocated_hours?: number | null
+          baseline_handover_date?: string | null
           categories?: Json | null
           cert_level?: string | null
           cert_rating?: string | null
@@ -787,6 +789,7 @@ export type Database = {
         Update: {
           actual_handover_date?: string | null
           allocated_hours?: number | null
+          baseline_handover_date?: string | null
           categories?: Json | null
           cert_level?: string | null
           cert_rating?: string | null
@@ -5098,6 +5101,9 @@ export type Database = {
         | "monitoring_energy_requested"
         | "monitoring_water_requested"
         | "monitoring_energy_ready_to_assign"
+        | "budget_warning_80"
+        | "budget_overrun"
+        | "resource_burnout_warning"
       wiring_type: "WYE" | "DELTA"
     }
     CompositeTypes: {
@@ -5270,6 +5276,9 @@ export const Constants = {
         "monitoring_energy_requested",
         "monitoring_water_requested",
         "monitoring_energy_ready_to_assign",
+        "budget_warning_80",
+        "budget_overrun",
+        "resource_burnout_warning",
       ],
       wiring_type: ["WYE", "DELTA"],
     },
