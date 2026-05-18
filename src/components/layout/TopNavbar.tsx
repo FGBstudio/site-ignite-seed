@@ -14,6 +14,7 @@ import {
   Inbox,
   Contact as ContactIcon,
   Clock,
+  Users,
 } from "lucide-react";
 
 interface NavItem {
@@ -80,6 +81,7 @@ export function TopNavbar() {
         { title: "Projects", url: "/projects", icon: FolderKanban },
         { title: "Contacts", url: "/contacts", icon: ContactIcon },
         { title: "Tasks & Alerts", url: "/admin-tasks", icon: Inbox },
+        { title: "Team Board", url: "/team-board", icon: Users },
         { title: "Timesheet", url: "/timesheet", icon: Clock },
         { title: "Reports", url: "/reports", icon: BarChart3 },
         { title: "Settings", url: "/settings", icon: Settings },
@@ -91,11 +93,13 @@ export function TopNavbar() {
       { title: "My Projects", url: "/projects", icon: FolderKanban },
       { title: "Contacts", url: "/contacts", icon: ContactIcon },
       { title: "My Tasks", url: "/my-tasks", icon: Inbox },
+      { title: "Team Board", url: "/team-board", icon: Users },
       { title: "Timesheet", url: "/timesheet", icon: Clock },
     ];
   } else if (isOperative) {
     navItems = [
       { title: "My Tasks", url: "/my-tasks", icon: Inbox },
+      { title: "Team Board", url: "/team-board", icon: Users },
     ];
   }
 

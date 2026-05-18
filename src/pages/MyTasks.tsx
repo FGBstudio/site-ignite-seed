@@ -24,7 +24,7 @@ import { cn } from "@/lib/utils";
 
 interface TaskRow {
   id: string;
-  certification_id: string;
+  certification_id: string | null;
   task_name: string;
   assigned_to: string | null;
   start_date: string | null;
@@ -38,6 +38,9 @@ interface TaskRow {
   blocking_payment_status?: string;
   blocking_payment_name?: string;
   isSynthetic?: boolean;
+  team_name?: string | null;
+  team_color?: string | null;
+  sprint_label?: string | null;
 }
 
 export default function MyTasks() {
@@ -62,7 +65,7 @@ export default function MyTasks() {
       if (!user?.id) return [];
       const { data, error } = await supabase
         .from("project_tasks" as any)
-        .select("*, certifications!project_tasks_certification_id_fkey(name, client)")
+        .select("*, certifications!project_tasks_certification_id_fkey(name, client), teams:team_id(name, color), team_sprints:sprint_id(label)")
         .eq("assigned_to", user.id)
         .order("end_date", { ascending: true })
         .limit(200); // Safety limit for performance: fetches active + max recent completed tasks
@@ -73,8 +76,11 @@ export default function MyTasks() {
       for (const t of (data || []) as any[]) {
         const row: TaskRow = {
           ...t,
-          project_name: t.certifications?.name || "—",
+          project_name: t.certifications?.name || (t.certification_id ? "—" : null),
           project_client: t.certifications?.client || "",
+          team_name: t.teams?.name ?? null,
+          team_color: t.teams?.color ?? null,
+          sprint_label: t.team_sprints?.label ?? null,
         };
 
         if (t.blocking_payment_id) {
@@ -195,9 +201,18 @@ export default function MyTasks() {
                   {task.task_name}
                 </p>
               </div>
-              <div className="flex items-center gap-2 mt-1">
-                <FolderKanban className="h-3 w-3 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground truncate">{task.project_name}</span>
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                {task.certification_id ? (
+                  <>
+                    <FolderKanban className="h-3 w-3 text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground truncate">{task.project_name}</span>
+                  </>
+                ) : (
+                  <Badge variant="outline" className="text-[10px] gap-1" style={task.team_color ? { borderColor: task.team_color, color: task.team_color } : undefined}>
+                    {task.team_name ? `Team · ${task.team_name}` : "General"}
+                    {task.sprint_label ? ` · ${task.sprint_label}` : ""}
+                  </Badge>
+                )}
               </div>
               {blocked && task.blocking_payment_name && (
                 <p className="text-xs text-destructive mt-1 flex items-center gap-1">
