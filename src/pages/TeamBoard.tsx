@@ -131,9 +131,11 @@ export default function TeamBoard() {
 
   const { data: members = [] } = useTeamMembers(effectiveTeamId);
   const { data: sprints = [] } = useTeamSprints(effectiveTeamId);
+  // auto-select the most recent sprint (sprints arrive sorted desc by start_date)
+  const effectiveSprintId = selectedSprintId ?? sprints[0]?.id;
   const { data: tasks = [], isLoading: tasksLoading } = useTeamTasks(
     effectiveTeamId,
-    selectedSprintId
+    effectiveSprintId
   );
   const { data: users = [] } = useAllUsers();
   const { data: certifications = [] } = useCertificationOptions();
