@@ -2649,38 +2649,59 @@ export type Database = {
         Row: {
           assigned_to: string | null
           blocking_payment_id: string | null
-          certification_id: string
+          certification_id: string | null
           created_at: string
           dependency_id: string | null
+          description: string | null
+          due_date: string | null
           end_date: string | null
           id: string
+          priority: string | null
+          sprint_id: string | null
           start_date: string | null
           status: string
+          task_kind: string
           task_name: string
+          team_id: string | null
+          title: string | null
         }
         Insert: {
           assigned_to?: string | null
           blocking_payment_id?: string | null
-          certification_id: string
+          certification_id?: string | null
           created_at?: string
           dependency_id?: string | null
+          description?: string | null
+          due_date?: string | null
           end_date?: string | null
           id?: string
+          priority?: string | null
+          sprint_id?: string | null
           start_date?: string | null
           status?: string
+          task_kind?: string
           task_name?: string
+          team_id?: string | null
+          title?: string | null
         }
         Update: {
           assigned_to?: string | null
           blocking_payment_id?: string | null
-          certification_id?: string
+          certification_id?: string | null
           created_at?: string
           dependency_id?: string | null
+          description?: string | null
+          due_date?: string | null
           end_date?: string | null
           id?: string
+          priority?: string | null
+          sprint_id?: string | null
           start_date?: string | null
           status?: string
+          task_kind?: string
           task_name?: string
+          team_id?: string | null
+          title?: string | null
         }
         Relationships: [
           {
@@ -2709,6 +2730,20 @@ export type Database = {
             columns: ["dependency_id"]
             isOneToOne: false
             referencedRelation: "project_tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_tasks_sprint_id_fkey"
+            columns: ["sprint_id"]
+            isOneToOne: false
+            referencedRelation: "team_sprints"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_tasks_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
             referencedColumns: ["id"]
           },
         ]
@@ -3963,6 +3998,112 @@ export type Database = {
           },
         ]
       }
+      team_members: {
+        Row: {
+          created_at: string
+          id: string
+          role: string
+          team_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role?: string
+          team_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: string
+          team_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_members_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      team_sprints: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          end_date: string | null
+          id: string
+          label: string
+          meeting_notes: string | null
+          start_date: string | null
+          team_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          end_date?: string | null
+          id?: string
+          label: string
+          meeting_notes?: string | null
+          start_date?: string | null
+          team_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          end_date?: string | null
+          id?: string
+          label?: string
+          meeting_notes?: string | null
+          start_date?: string | null
+          team_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_sprints_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teams: {
+        Row: {
+          color: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       telemetry: {
         Row: {
           device_id: string
@@ -4975,6 +5116,10 @@ export type Database = {
       }
       is_project_pm: {
         Args: { _project_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_team_member: {
+        Args: { _team_id: string; _user_id: string }
         Returns: boolean
       }
       is_valid_measurement: { Args: { val: number }; Returns: boolean }
