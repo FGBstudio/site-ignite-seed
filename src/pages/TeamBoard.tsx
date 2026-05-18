@@ -193,7 +193,7 @@ export default function TeamBoard() {
     createTask.mutate(
       {
         team_id: effectiveTeamId,
-        sprint_id: selectedSprintId ?? null,
+        sprint_id: effectiveSprintId ?? null,
         certification_id,
         assigned_to,
         title: parsed.title,
