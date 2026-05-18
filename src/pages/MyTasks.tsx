@@ -201,9 +201,18 @@ export default function MyTasks() {
                   {task.task_name}
                 </p>
               </div>
-              <div className="flex items-center gap-2 mt-1">
-                <FolderKanban className="h-3 w-3 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground truncate">{task.project_name}</span>
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                {task.certification_id ? (
+                  <>
+                    <FolderKanban className="h-3 w-3 text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground truncate">{task.project_name}</span>
+                  </>
+                ) : (
+                  <Badge variant="outline" className="text-[10px] gap-1" style={task.team_color ? { borderColor: task.team_color, color: task.team_color } : undefined}>
+                    {task.team_name ? `Team · ${task.team_name}` : "General"}
+                    {task.sprint_label ? ` · ${task.sprint_label}` : ""}
+                  </Badge>
+                )}
               </div>
               {blocked && task.blocking_payment_name && (
                 <p className="text-xs text-destructive mt-1 flex items-center gap-1">
