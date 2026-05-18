@@ -14,6 +14,7 @@ import {
   Inbox,
   Contact as ContactIcon,
   Clock,
+  Users,
 } from "lucide-react";
 
 interface NavItem {

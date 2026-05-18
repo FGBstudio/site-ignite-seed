@@ -29,6 +29,7 @@ import Unsubscribe from "./pages/Unsubscribe";
 import NotFound from "./pages/NotFound";
 import Monitor from "./pages/Monitor";
 import MyTimesheet from "./pages/MyTimesheet";
+import TeamBoard from "./pages/TeamBoard";
 
 // MODIFICA QUI: Configurazione del QueryClient per evitare refresh molesti
 const queryClient = new QueryClient({
@@ -99,6 +100,7 @@ function AppRoutes() {
       {/* ── Operative inbox ── */}
       <Route path="/my-tasks" element={<ProtectedRoute allowedRoles={R("ADMIN", "PM", "document_manager", "specialist", "energy_modeler", "cxa")}><MyTasks /></ProtectedRoute>} />
       <Route path="/timesheet" element={<ProtectedRoute allowedRoles={R("ADMIN", "PM")}><MyTimesheet /></ProtectedRoute>} />
+      <Route path="/team-board" element={<ProtectedRoute allowedRoles={R("ADMIN", "PM", "document_manager", "specialist", "energy_modeler", "cxa")}><TeamBoard /></ProtectedRoute>} />
 
       <Route path="*" element={<NotFound />} />
     </Routes>
