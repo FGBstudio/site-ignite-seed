@@ -116,7 +116,8 @@ export default function TeamBoard() {
   const { user } = useAuth();
   const { data: teams = [], isLoading: teamsLoading } = useTeams();
   const [selectedTeamId, setSelectedTeamId] = useState<string | undefined>();
-  const [selectedSprintId, setSelectedSprintId] = useState<string | undefined>();
+  // undefined = not yet chosen (auto-pick latest sprint); null = explicit "All sprints"; string = specific sprint
+  const [selectedSprintId, setSelectedSprintId] = useState<string | null | undefined>();
   const [filterAssignee, setFilterAssignee] = useState<string>("all");
   const [filterProject, setFilterProject] = useState<string>("all"); // all | general | <id>
   const [quickAdd, setQuickAdd] = useState("");
@@ -131,8 +132,9 @@ export default function TeamBoard() {
 
   const { data: members = [] } = useTeamMembers(effectiveTeamId);
   const { data: sprints = [] } = useTeamSprints(effectiveTeamId);
-  // auto-select the most recent sprint (sprints arrive sorted desc by start_date)
-  const effectiveSprintId = selectedSprintId ?? sprints[0]?.id;
+  // auto-pick latest sprint only on first load; once user picks "All sprints" (null) we respect it
+  const effectiveSprintId: string | null =
+    selectedSprintId === undefined ? (sprints[0]?.id ?? null) : selectedSprintId;
   const { data: tasks = [], isLoading: tasksLoading } = useTeamTasks(
     effectiveTeamId,
     effectiveSprintId
@@ -259,7 +261,7 @@ export default function TeamBoard() {
 
         <div className="h-6 w-px bg-border mx-1" />
 
-        <Select value={effectiveSprintId ?? "all"} onValueChange={(v) => setSelectedSprintId(v === "all" ? undefined : v)}>
+        <Select value={effectiveSprintId ?? "all"} onValueChange={(v) => setSelectedSprintId(v === "all" ? null : v)}>
           <SelectTrigger className="w-[240px]">
             <SelectValue placeholder="Sprint" />
           </SelectTrigger>
