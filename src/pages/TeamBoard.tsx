@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useAuth } from "@/contexts/AuthContext";
@@ -152,6 +152,11 @@ export default function TeamBoard() {
 
   const currentTeam = teams.find((t) => t.id === effectiveTeamId);
   const currentSprint = sprints.find((s) => s.id === effectiveSprintId);
+  const isAllSprints = effectiveSprintId === null;
+  const sprintsWithNotes = useMemo(
+    () => sprints.filter((s) => (s.meeting_notes ?? "").trim().length > 0),
+    [sprints]
+  );
 
   // Filtered tasks
   const filteredTasks = useMemo(() => {
@@ -321,6 +326,31 @@ export default function TeamBoard() {
             <Button size="sm" variant="ghost" onClick={() => setShowNotes(true)}>Edit</Button>
           </CardContent>
         </Card>
+      )}
+
+      {isAllSprints && sprintsWithNotes.length > 0 && (
+        <div className="mb-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+          {sprintsWithNotes.map((sprint) => (
+            <Card
+              key={sprint.id}
+              className="bg-muted/30 cursor-pointer hover:border-primary/40 transition-colors"
+              onClick={() => {
+                setSelectedSprintId(sprint.id);
+                setShowNotes(true);
+              }}
+            >
+              <CardContent className="py-3 px-4 flex items-start gap-3">
+                <StickyNote className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                    Meeting notes · {sprint.label}
+                  </p>
+                  <p className="text-sm whitespace-pre-wrap line-clamp-3">{sprint.meeting_notes}</p>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       )}
 
       {/* ── Filters ──────────────────────────────────────────────────── */}
@@ -719,6 +749,11 @@ function NotesSheet({
   onSave: (notes: string) => void;
 }) {
   const [notes, setNotes] = useState(sprint.meeting_notes ?? "");
+
+  useEffect(() => {
+    setNotes(sprint.meeting_notes ?? "");
+  }, [sprint.id, sprint.meeting_notes]);
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full sm:max-w-lg">
