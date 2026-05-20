@@ -22,7 +22,7 @@ export function MainLayout({ children, title, subtitle }: MainLayoutProps) {
         className="bg-card border-b sticky top-[52px] z-30"
         style={{ borderBottomColor: "hsl(var(--border))", borderBottomWidth: "0.5px" }}
       >
-        <div className="max-w-[1440px] mx-auto px-6 py-4">
+        <div className="max-w-[1680px] mx-auto px-8 py-4">
           {/* Title: Futura uppercase (Gestionale fat-sec-title) */}
           <h1
             className="text-[18px] text-foreground leading-none mb-0.5"
@@ -47,7 +47,7 @@ export function MainLayout({ children, title, subtitle }: MainLayoutProps) {
       </div>
 
       {/* ── Main content: avorio background ── */}
-      <div className="max-w-[1440px] mx-auto px-6">
+      <div className="max-w-[1680px] mx-auto px-8">
         <main className="py-6 pb-12">
           {children}
         </main>
