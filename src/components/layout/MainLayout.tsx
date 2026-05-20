@@ -47,7 +47,7 @@ export function MainLayout({ children, title, subtitle }: MainLayoutProps) {
       </div>
 
       {/* ── Main content: avorio background ── */}
-      <div className="max-w-[1440px] mx-auto px-6">
+      <div className="max-w-[1680px] mx-auto px-8">
         <main className="py-6 pb-12">
           {children}
         </main>
