@@ -570,13 +570,30 @@ function TaskCard({
               </span>
             )}
           </div>
-          {task.assignee && (
-            <Avatar className="h-5 w-5">
-              <AvatarFallback className="text-[9px] bg-primary/10 text-primary">
-                {initials(task.assignee.full_name || task.assignee.email)}
-              </AvatarFallback>
-            </Avatar>
-          )}
+          {(() => {
+            const people = task.assignee_profiles && task.assignee_profiles.length > 0
+              ? task.assignee_profiles
+              : task.assignee ? [task.assignee] : [];
+            if (people.length === 0) return null;
+            const shown = people.slice(0, 3);
+            const extra = people.length - shown.length;
+            return (
+              <div className="flex -space-x-1.5">
+                {shown.map((p) => (
+                  <Avatar key={p.id} className="h-5 w-5 ring-2 ring-background">
+                    <AvatarFallback className="text-[9px] bg-primary/10 text-primary">
+                      {initials(p.full_name || p.email)}
+                    </AvatarFallback>
+                  </Avatar>
+                ))}
+                {extra > 0 && (
+                  <div className="h-5 w-5 rounded-full bg-muted text-[9px] text-muted-foreground flex items-center justify-center ring-2 ring-background">
+                    +{extra}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
       </CardContent>
     </Card>
