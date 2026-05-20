@@ -133,7 +133,7 @@ export function TopNavbar() {
       }}
     >
       <div
-        className="max-w-[1440px] mx-auto px-6 flex items-center h-full gap-0"
+        className="max-w-[1680px] mx-auto px-8 flex items-center h-full gap-0"
         style={{ height: 52 }}
       >
         {/* ── Logo + brand → always back to Home Hub ── */}
