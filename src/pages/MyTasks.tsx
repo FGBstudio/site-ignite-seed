@@ -66,7 +66,7 @@ export default function MyTasks() {
       const { data, error } = await supabase
         .from("project_tasks" as any)
         .select("*, certifications!project_tasks_certification_id_fkey(name, client), teams:team_id(name, color), team_sprints:sprint_id(label)")
-        .eq("assigned_to", user.id)
+        .or(`assigned_to.eq.${user.id},assignees.cs.{${user.id}}`)
         .order("end_date", { ascending: true })
         .limit(200); // Safety limit for performance: fetches active + max recent completed tasks
 
