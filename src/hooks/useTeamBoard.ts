@@ -95,9 +95,14 @@ export function useTeamTasks(teamId: string | undefined, sprintId?: string | nul
         team_sprints?: TeamTask["sprint"];
       }>;
 
-      // assignees
+      // assignees (union of primary + array)
       const assigneeIds = [
-        ...new Set(rows.map((r) => r.assigned_to).filter((v): v is string => !!v)),
+        ...new Set(
+          rows.flatMap((r) => {
+            const ids = Array.isArray(r.assignees) ? r.assignees : [];
+            return [...ids, r.assigned_to].filter((v): v is string => !!v);
+          })
+        ),
       ];
       const assigneeMap = new Map<string, NonNullable<TeamTask["assignee"]>>();
       if (assigneeIds.length) {
@@ -110,14 +115,21 @@ export function useTeamTasks(teamId: string | undefined, sprintId?: string | nul
         }
       }
 
-      return rows.map<TeamTask>((r) => ({
-        ...r,
-        title: r.title ?? r.task_name ?? "",
-        certification: r.certifications ?? null,
-        team: r.teams ?? null,
-        sprint: r.team_sprints ?? null,
-        assignee: r.assigned_to ? assigneeMap.get(r.assigned_to) ?? null : null,
-      }));
+      return rows.map<TeamTask>((r) => {
+        const ids = Array.isArray(r.assignees) ? r.assignees : [];
+        return {
+          ...r,
+          assignees: ids,
+          title: r.title ?? r.task_name ?? "",
+          certification: r.certifications ?? null,
+          team: r.teams ?? null,
+          sprint: r.team_sprints ?? null,
+          assignee: r.assigned_to ? assigneeMap.get(r.assigned_to) ?? null : null,
+          assignee_profiles: ids
+            .map((id) => assigneeMap.get(id))
+            .filter((p): p is NonNullable<TeamTask["assignee"]> => !!p),
+        };
+      });
     },
     enabled: !!teamId,
   });
