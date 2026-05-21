@@ -398,6 +398,21 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
             }
           }
         }
+
+        // Persist FTE Builder snapshot if used for this cert
+        const targetCertId = certConf.id || firstCertId;
+        const bState = certConf.id ? builderStates[certConf.id] : undefined;
+        if (targetCertId && bState && bState.effort.length > 0) {
+          const comp = computeBudget(bState);
+          await supabase.from("quotation_budget_history" as never).insert({
+            certification_id: targetCertId,
+            total_suggested: comp.suggested_total,
+            total_cost: comp.total_cost,
+            total_effort_days: comp.effort_days,
+            markup_pct: bState.markup_pct,
+            breakdown: { state: bState, computation: comp } as never,
+          } as never);
+        }
       }
 
       // Hardware allocations (skip in quotation mode)
