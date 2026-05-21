@@ -26,6 +26,10 @@ import { format } from "date-fns";
 import { RATING_SYSTEMS, RATING_SUBTYPES, type RatingSystem } from "@/data/ratingSubtypes";
 import { getCertificationTemplate } from "@/data/certificationTemplates";
 import type { Product, Project, ProjectAllocation } from "@/types/custom-tables";
+import { QuotationBudgetBuilder, emptyBuilder } from "@/components/projects/QuotationBudgetBuilder";
+import { computeBudget, HOURS_PER_DAY, type BudgetBuilderState } from "@/lib/quotationBudget";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Calculator, ChevronDown } from "lucide-react";
 
 const REGIONS = ["Europe", "America", "APAC", "ME"] as const;
 const PROJECT_STATUSES = ["Design", "Construction", "Completed", "Cancelled"] as const;
