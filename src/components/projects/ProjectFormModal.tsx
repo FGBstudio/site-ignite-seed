@@ -108,6 +108,8 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
   const [saving, setSaving] = useState(false);
   const [dataLoaded, setDataLoaded] = useState(false);
   const [suggestedHours, setSuggestedHours] = useState<number | null>(null);
+  const [builderStates, setBuilderStates] = useState<Record<string, BudgetBuilderState>>({});
+  const [builderOpen, setBuilderOpen] = useState<Record<string, boolean>>({});
 
   const [selectedHoldingId, setSelectedHoldingId] = useState<string>("");
   const [selectedBrandId, setSelectedBrandId] = useState<string>("");
