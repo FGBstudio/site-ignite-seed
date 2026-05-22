@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   useCertTasks,
+  useAllProjectTasks,
   useCertPayments,
   useActiveProjects,
   computeProjectStatus,
@@ -557,6 +558,7 @@ function TabPagamenti({ payments, projects }: { payments: CertPaymentRow[]; proj
 export default function CeoDashboard() {
   const { user, role } = useAuth();
   const { data: tasks = [], isLoading: loadingTasks } = useCertTasks();
+  const { data: projectTasks = [] } = useAllProjectTasks();
   const { data: payments = [], isLoading: loadingPayments } = useCertPayments();
   const { data: projects = [], isLoading: loadingProjects } = useActiveProjects();
   const { data: calendarProjects = [], isLoading: loadingCalendar } = useAdminPlannerData();
@@ -609,7 +611,7 @@ export default function CeoDashboard() {
             </TabsList>
 
             <TabsContent value="resources">
-              <TabRisorse tasks={tasks} projects={projects} />
+              <TabRisorse tasks={[...tasks, ...projectTasks]} projects={projects} />
             </TabsContent>
 
             <TabsContent value="projects">

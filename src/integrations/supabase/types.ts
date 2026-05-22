@@ -1208,6 +1208,45 @@ export type Database = {
         }
         Relationships: []
       }
+      energy_benchmarks: {
+        Row: {
+          climate_zone: string
+          day_type: string
+          hour_num: number
+          hvac_pct: number
+          id: string
+          lighting_pct: number
+          month_num: number
+          other_pct: number
+          plugs_pct: number
+          typology: string
+        }
+        Insert: {
+          climate_zone: string
+          day_type: string
+          hour_num: number
+          hvac_pct: number
+          id?: string
+          lighting_pct: number
+          month_num: number
+          other_pct: number
+          plugs_pct: number
+          typology: string
+        }
+        Update: {
+          climate_zone?: string
+          day_type?: string
+          hour_num?: number
+          hvac_pct?: number
+          id?: string
+          lighting_pct?: number
+          month_num?: number
+          other_pct?: number
+          plugs_pct?: number
+          typology?: string
+        }
+        Relationships: []
+      }
       energy_daily: {
         Row: {
           device_id: string
@@ -3802,6 +3841,7 @@ export type Database = {
           area_m2: number | null
           brand_id: string
           city: string | null
+          climate_zone: string | null
           country: string | null
           created_at: string | null
           energy_price_kwh: number | null
@@ -3828,6 +3868,7 @@ export type Database = {
           area_m2?: number | null
           brand_id: string
           city?: string | null
+          climate_zone?: string | null
           country?: string | null
           created_at?: string | null
           energy_price_kwh?: number | null
@@ -3854,6 +3895,7 @@ export type Database = {
           area_m2?: number | null
           brand_id?: string
           city?: string | null
+          climate_zone?: string | null
           country?: string | null
           created_at?: string | null
           energy_price_kwh?: number | null
@@ -5067,6 +5109,19 @@ export type Database = {
           wiring_type: string
         }[]
       }
+      get_simulated_consumption_breakdown: {
+        Args: { p_end_time: string; p_site_id: string; p_start_time: string }
+        Returns: {
+          climate_zone: string
+          hvac_kwh: number
+          lighting_kwh: number
+          other_kwh: number
+          plugs_kwh: number
+          total_kwh: number
+          ts_hour: string
+          typology: string
+        }[]
+      }
       get_site_energy_summary: {
         Args: { p_end: string; p_site_id: string; p_start: string }
         Returns: {
@@ -5142,6 +5197,10 @@ export type Database = {
         Returns: boolean
       }
       is_valid_measurement: { Args: { val: number }; Returns: boolean }
+      lookup_climate_zone: {
+        Args: { p_lat: number; p_lng: number }
+        Returns: string
+      }
       mark_stale_devices_offline: {
         Args: { p_threshold_minutes?: number }
         Returns: number

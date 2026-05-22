@@ -57,6 +57,56 @@ export function useCertTasks() {
   });
 }
 
+// Project tasks (TeamBoard / MyTasks) — operational tasks assigned to one or more users.
+// Returns rows in CertTaskRow shape, expanded per assignee so multi-assignee tasks
+// appear under every user they are assigned to.
+export function useAllProjectTasks() {
+  return useQuery({
+    queryKey: ["ceo-project-tasks"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("project_tasks")
+        .select("id, certification_id, title, task_name, status, start_date, end_date, due_date, assigned_to, assignees, certifications:certification_id(id, name, client)")
+        .order("end_date", { ascending: true });
+      if (error) throw error;
+
+      const statusMap: Record<string, string> = {
+        todo: "Todo",
+        in_progress: "In_Progress",
+        review: "Review",
+        done: "Completed",
+        blocked: "Blocked",
+      };
+
+      const rows: CertTaskRow[] = [];
+      for (const t of (data || []) as any[]) {
+        const ids = new Set<string>();
+        if (t.assigned_to) ids.add(t.assigned_to);
+        for (const a of (t.assignees || []) as string[]) if (a) ids.add(a);
+        if (ids.size === 0) continue;
+        const base = {
+          id: t.id,
+          certification_id: t.certification_id || "general",
+          phase_id: null,
+          title: t.title || t.task_name || "Task",
+          status: statusMap[t.status] || t.status || "Todo",
+          start_date: t.start_date,
+          end_date: t.end_date || t.due_date,
+          dependencies: [] as string[],
+          created_at: "",
+          certifications: t.certifications
+            ? { id: t.certifications.id, name: t.certifications.name, client: t.certifications.client, region: "", pm_id: null, handover_date: "", status: "", site_id: null }
+            : { id: "general", name: "General tasks", client: "", region: "", pm_id: null, handover_date: "", status: "", site_id: null },
+        };
+        for (const uid of ids) {
+          rows.push({ ...base, assignee_id: uid } as CertTaskRow);
+        }
+      }
+      return rows;
+    },
+  });
+}
+
 export function useCertPayments() {
   return useQuery({
     queryKey: ["ceo-cert-payments"],
