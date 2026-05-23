@@ -1,35 +1,51 @@
-## Goal
+# Reports tab — Projects section
 
-Sostituire i due widget Recharts attualmente illeggibili ("Project Status" donut e "Late Projects (days)" barre) con due card minimal in stile Apple iOS, scegliendo la direzione **v2 — Apple minimalista palette iOS**.
+Add a fourth tab **Reports** to `src/pages/Projects.tsx` (next to Projects / Timeline / Device Demand Analysis) that gives Admin a large, detailed operational analysis of project health: who's late, why they're on hold, and the breakdown of statuses.
 
-## Cosa cambia
+## Layout
 
-### Project Status (donut)
-- Donut SVG custom (no Recharts) con 4 archi colorati: Late (rosso iOS), Certified (verde iOS), In Progress (blu iOS), To Configure (grigio chiaro).
-- Numero totale grande al centro + label "TOTAL".
-- Legenda strutturata a destra: per ogni stato, pallino colorato + label + conteggio numerico allineato a destra.
-- Tipografia: titolo uppercase tracking-wider colore muted, valori in font-semibold.
+Single scrollable view, full width, Apple-minimal cards (`rounded-3xl`, `border-border/60`, `shadow-sm`).
 
-### Late Projects (days)
-- Sostituisce il BarChart orizzontale con una lista verticale di righe (Top 5).
-- Ogni riga: nome progetto a sinistra + "N days" a destra, barra di progresso sotto piena/rounded.
-- Colore barra **rosso** per i top 2 progetti più in ritardo (critici), **grigio** per gli altri (meno critici), così la priorità è leggibile a colpo d'occhio.
-- Larghezza barra proporzionale al massimo della serie.
+```text
+┌────────────────────────────────────────────────────────────────┐
+│  KPI strip:  Total  ·  In Progress  ·  Late  ·  On Hold  ·  Certified │
+├──────────────────────────────────┬─────────────────────────────┤
+│  Status Breakdown (donut + list) │  Macro-phase distribution    │
+│  setup_status counts             │  Design / Construction /     │
+│                                  │  Certification / Certified   │
+├──────────────────────────────────┴─────────────────────────────┤
+│  LATE PROJECTS — detailed table                                 │
+│  Project · Client · PM · Handover · Days late · Late milestone │
+│  · Macro phase                                                  │
+├────────────────────────────────────────────────────────────────┤
+│  ON-HOLD PROJECTS — detailed list                               │
+│  Project · PM · On-hold since · Reason (note from task_alert)   │
+│  · Affected milestone                                           │
+├────────────────────────────────────────────────────────────────┤
+│  CRITICAL DEADLINES (<15d) — quick list                         │
+└────────────────────────────────────────────────────────────────┘
+```
 
-### Stile card (entrambe)
-- `rounded-3xl`, padding generoso (`p-6`/`p-8`), bordo soft, shadow leggera.
-- Header: titolo `text-xs uppercase tracking-wider text-muted-foreground`.
-- Usa token semantici del design system (`bg-card`, `text-foreground`, `text-muted-foreground`, `border-border`) invece dei colori hex hardcoded. I 4 colori di stato vengono mappati su token: `destructive`, `success`, `primary`, `muted`.
+## Data sources (no new queries on existing tables logic)
 
-## Dettagli tecnici
+- `useAdminPlannerData()` — already provides per cert: `setup_status`, `macro_phase`, `handover_date`, `is_deadline_critical`, `plannerData.status` (incl. `on_hold`), `pm_name`, `client`.
+- New lightweight hook `useProjectsReportData()` (in `src/hooks/`) extending what's available:
+  - For **late milestones**: query `certification_milestones` where `due_date < today` and `status != 'achieved'`, grouped by `certification_id` → pick worst (most overdue) per cert.
+  - For **on-hold reasons**: query `task_alerts` where `alert_type = 'project_on_hold'`, latest per `certification_id`, take `note` and `created_at`.
+- Combine with the planner data already in cache via `queryClient.getQueryData(["admin-planner-all-certifications"])` to avoid double fetching.
 
-- File toccato: `src/pages/PMPortal.tsx` (solo i due `Card` dei widget Project Status e Late Projects nel grid `md:grid-cols-3`; il widget Financial Alerts resta invariato).
-- Rimuovo gli import non più usati: `PieChart`, `Pie`, `Label`, `BarChart`, `Bar`, `XAxis`, `YAxis`, `ChartContainer`, `ChartTooltip`, `ChartTooltipContent`, `statusChartConfig`, `lateChartConfig`.
-- I dati `statusData`/`lateData` esistenti vengono riutilizzati senza modifiche alla logica di calcolo (`useMemo` rimane).
-- Nessuna modifica a hook, query, schema o business logic — è una sostituzione puramente di presentazione.
-- Colori di stato definiti come array `STATUS_COLORS` mappati ai token: `Late→destructive`, `Certified→success`, `In Progress→primary`, `To Configure→muted-foreground`.
+## Components
+
+New file `src/components/projects/ProjectsReports.tsx` containing all the sections above. Pure presentation + the new hook. Uses existing semantic tokens (`destructive`, `warning`, `success`, `primary`, `muted-foreground`) — no hardcoded colors. Donut is the same custom SVG style already used in PMPortal for consistency.
+
+## Wiring
+
+In `src/pages/Projects.tsx`:
+- Add `<TabsTrigger value="reports">` with a `FileText` icon.
+- Add `<TabsContent value="reports"><ProjectsReports/></TabsContent>`.
 
 ## Out of scope
 
-- Nessuna modifica alle altre card KPI o al widget Financial Alerts.
-- Nessuna modifica al CEO Dashboard (anche se ha widget analoghi).
+- No DB schema changes.
+- No edits to PM view (`PMProjectsBoard`).
+- No changes to existing tabs.
