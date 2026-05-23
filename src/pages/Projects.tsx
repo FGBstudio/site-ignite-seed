@@ -129,11 +129,23 @@ export default function Projects() {
           <TabsTrigger value="forecast" className="gap-2">
             <BarChart3 className="h-4 w-4" /> Device Demand Analysis
           </TabsTrigger>
+          <TabsTrigger value="reports" className="gap-2">
+            <FileText className="h-4 w-4" /> Reports
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="timeline">
           <AdminTimeline />
         </TabsContent>
+
+        <TabsContent value="reports">
+          <ProjectsReports />
+        </TabsContent>
+
+        <TabsContent value="forecast">
+          <ProcurementForecasting />
+        </TabsContent>
+
 
         <TabsContent value="projects" className="space-y-6">
           {/* Status category tabs */}
