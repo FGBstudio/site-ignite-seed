@@ -406,7 +406,7 @@ export function ProjectsReports() {
       <Card className="rounded-3xl border-border/60 shadow-sm">
         <CardHeader className="pb-2 flex flex-row items-center justify-between">
           <CardTitle className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">
-            Critical Deadlines (< 15 days)
+            {"Critical Deadlines (< 15 days)"}
           </CardTitle>
           <Badge variant="outline" className="border-destructive/30 bg-destructive/10 text-destructive">
             {criticalDeadlineProjects.length}
