@@ -70,123 +70,163 @@ function KpiStrip({
   const sortedLate = [...lateProjects].sort((a, b) => b.daysLate - a.daysLate).slice(0, 8);
   const sortedOverdue = [...overdueByProject].sort((a, b) => b.daysOverdue - a.daysOverdue).slice(0, 8);
 
+  const totalProjects = inRitardo + inCorso + daConfigurare + certificati;
+  const segments = [
+    { key: "late", label: "Late", count: inRitardo, stroke: "hsl(var(--destructive))", dot: "bg-destructive" },
+    { key: "in_corso", label: "In Progress", count: inCorso, stroke: "hsl(var(--primary))", dot: "bg-primary" },
+    { key: "da_configurare", label: "To Configure", count: daConfigurare, stroke: "hsl(var(--muted-foreground))", dot: "bg-muted-foreground" },
+    { key: "certificato", label: "Certified", count: certificati, stroke: "hsl(var(--success))", dot: "bg-success" },
+  ];
+
+  const maxLate = sortedLate.length > 0 ? Math.max(...sortedLate.map(p => p.daysLate)) : 0;
+  const topLate = sortedLate.slice(0, 5);
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">Project Status</CardTitle>
-        </CardHeader>
-        <CardContent className="h-[220px]">
-          {pieData.length === 0 ? (
-            <div className="flex items-center justify-center h-full text-sm text-muted-foreground">No data</div>
+      {/* PROJECT STATUS — Donut minimal */}
+      <Card className="flex flex-col rounded-3xl border-border/60 shadow-sm">
+        <CardContent className="flex flex-1 flex-col p-6">
+          <h3 className="mb-6 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Project Status
+          </h3>
+          {totalProjects === 0 ? (
+            <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">No data</div>
           ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={pieData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={3} dataKey="value" label={({ name, value }) => `${name}: ${value}`}>
-                  {pieData.map((entry, i) => (
-                    <Cell key={i} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">Late Projects (days)</CardTitle>
-        </CardHeader>
-        <CardContent className="h-[220px]">
-          {sortedLate.length === 0 ? (
-            <div className="flex items-center justify-center h-full text-sm text-muted-foreground">No delays 🎉</div>
-          ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={sortedLate} layout="vertical" margin={{ left: 10, right: 20, top: 5, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 11 }} />
-                <YAxis dataKey="name" type="category" tick={{ fontSize: 10 }} width={100} />
-                <Tooltip formatter={(v: number) => [`${v} days`, "Delay"]} />
-                <Bar dataKey="daysLate" fill={COLORS.late} radius={[0, 4, 4, 0]} barSize={18} />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card className="cursor-pointer hover:shadow-md transition-all" onClick={onOpenPayments}>
-        <CardHeader className="pb-2 flex-row items-center justify-between space-y-0">
-          <CardTitle className="text-sm font-medium text-muted-foreground">Financial Alerts</CardTitle>
-          {financialAlerts && financialAlerts.totalCount > 0 && (
-            <Badge variant="outline" className="text-[10px]">{financialAlerts.totalCount}</Badge>
-          )}
-        </CardHeader>
-        <CardContent className="h-[220px] flex flex-col">
-          {sortedOverdue.length === 0 && (!financialAlerts || financialAlerts.totalCount === 0) ? (
-            <div className="flex items-center justify-center h-full text-sm text-muted-foreground">None overdue 🎉</div>
-          ) : (
-            <>
-              <div className="flex-1 min-h-0">
-                {sortedOverdue.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={sortedOverdue} layout="vertical" margin={{ left: 10, right: 30, top: 5, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                      <XAxis type="number" tick={{ fontSize: 11 }} />
-                      <YAxis dataKey="name" type="category" tick={{ fontSize: 10 }} width={100} />
-                      <Tooltip formatter={(v: number, name: string) => {
-                        if (name === "daysOverdue") return [`${v} days`, "Delay"];
-                        return [`€${v.toLocaleString("en-US")}`, "Amount"];
-                      }} />
-                      <Bar dataKey="daysOverdue" fill={COLORS.overdue} radius={[0, 4, 4, 0]} barSize={18}>
-                        <LabelList
-                          dataKey="amount"
-                          position="right"
-                          formatter={(v: number) => `€${v.toLocaleString("en-US")}`}
-                          style={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-                        />
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="flex items-center justify-center h-full text-xs text-muted-foreground">
-                    No overdue payments
+            (() => {
+              let offset = 0;
+              return (
+                <div className="flex flex-1 items-center justify-between gap-5">
+                  <div className="relative h-32 w-32 flex-shrink-0">
+                    <svg viewBox="0 0 36 36" className="h-full w-full -rotate-90">
+                      <circle cx="18" cy="18" r="15.9" fill="transparent" stroke="hsl(var(--muted))" strokeWidth="3.5" />
+                      {segments.map(s => {
+                        if (s.count === 0) return null;
+                        const dash = (s.count / totalProjects) * 100;
+                        const el = (
+                          <circle
+                            key={s.key}
+                            cx="18" cy="18" r="15.9"
+                            fill="transparent"
+                            stroke={s.stroke}
+                            strokeWidth="3.8"
+                            strokeDasharray={`${dash} 100`}
+                            strokeDashoffset={-offset}
+                            strokeLinecap="round"
+                          />
+                        );
+                        offset += dash;
+                        return el;
+                      })}
+                    </svg>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                      <span className="text-2xl font-semibold tracking-tight text-foreground">{totalProjects}</span>
+                      <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Total</span>
+                    </div>
                   </div>
-                )}
-              </div>
-              {financialAlerts && (
-                <div className="flex flex-wrap gap-1.5 justify-center pt-2">
-                  {financialAlerts.overduePayments.count > 0 && (
-                    <Badge variant="outline" className="text-[10px] border-destructive/30 bg-destructive/10 text-destructive">
-                      Overdue: {financialAlerts.overduePayments.count}
-                    </Badge>
-                  )}
-                  {financialAlerts.extraCanone.count > 0 && (
-                    <Badge variant="outline" className="text-[10px] border-destructive/30 bg-destructive/10 text-destructive">
-                      Extra-Canone: {financialAlerts.extraCanone.count}
-                    </Badge>
-                  )}
+                  <div className="flex flex-1 flex-col gap-2.5">
+                    {segments.map(s => (
+                      <div key={s.key} className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className={cn("h-2 w-2 rounded-full", s.dot)} />
+                          <span className="text-xs font-medium text-muted-foreground">{s.label}</span>
+                        </div>
+                        <span className="text-sm font-semibold text-foreground tabular-nums">{s.count}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              )}
-            </>
+              );
+            })()
           )}
         </CardContent>
       </Card>
 
-      <Card className="cursor-pointer hover:shadow-md transition-all" onClick={() => navigate("/admin-tasks")}>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">Alerts / Tasks</CardTitle>
-        </CardHeader>
-        <CardContent className="h-[220px]">
-          {alertTotal === 0 ? (
-            <div className="flex items-center justify-center h-full text-sm text-muted-foreground">No open alerts 🎉</div>
+      {/* LATE PROJECTS — clean vertical list */}
+      <Card className="flex flex-col rounded-3xl border-border/60 shadow-sm">
+        <CardContent className="flex flex-1 flex-col p-6">
+          <h3 className="mb-6 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Late Projects (Days)
+          </h3>
+          {topLate.length === 0 ? (
+            <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">No delays 🎉</div>
           ) : (
-            <div className="flex flex-col justify-center h-full space-y-3">
-              <p className="text-4xl font-bold text-foreground text-center">{alertTotal}</p>
-              <p className="text-xs text-muted-foreground text-center">open alerts from PMs</p>
-              <div className="flex flex-wrap gap-1.5 justify-center pt-2">
+            <div className="space-y-3.5">
+              {topLate.map((p, i) => {
+                const critical = i < 2;
+                const width = maxLate > 0 ? Math.max(8, (p.daysLate / maxLate) * 100) : 0;
+                return (
+                  <div key={`${p.name}-${i}`}>
+                    <div className="mb-1.5 flex items-end justify-between gap-2">
+                      <span className="truncate text-[13px] font-medium text-foreground">{p.name}</span>
+                      <span className={cn("text-xs font-semibold tabular-nums", critical ? "text-destructive" : "text-muted-foreground")}>
+                        {p.daysLate}d
+                      </span>
+                    </div>
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                      <div
+                        className={cn("h-full rounded-full transition-all duration-500", critical ? "bg-destructive" : "bg-muted-foreground/40")}
+                        style={{ width: `${width}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* FINANCIAL ALERTS — summary */}
+      <Card
+        className="flex flex-col rounded-3xl border-border/60 shadow-sm cursor-pointer hover:shadow-md transition-all"
+        onClick={onOpenPayments}
+      >
+        <CardContent className="flex flex-1 flex-col p-6">
+          <h3 className="mb-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Financial Alerts
+          </h3>
+          {(!financialAlerts || financialAlerts.totalCount === 0) && sortedOverdue.length === 0 ? (
+            <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">None overdue 🎉</div>
+          ) : (
+            <div className="flex flex-1 flex-col items-center justify-center gap-2">
+              <p className="text-4xl font-semibold tracking-tight text-foreground">{financialAlerts?.totalCount ?? sortedOverdue.length}</p>
+              <p className="text-xs text-muted-foreground">open financial issues</p>
+              <div className="mt-2 flex flex-wrap gap-1.5 justify-center">
+                {financialAlerts?.overduePayments.count ? (
+                  <Badge variant="outline" className="text-[10px] border-destructive/30 bg-destructive/10 text-destructive">
+                    Overdue: {financialAlerts.overduePayments.count}
+                  </Badge>
+                ) : null}
+                {financialAlerts?.extraCanone.count ? (
+                  <Badge variant="outline" className="text-[10px] border-destructive/30 bg-destructive/10 text-destructive">
+                    Extra-Canone: {financialAlerts.extraCanone.count}
+                  </Badge>
+                ) : null}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ALERTS / TASKS */}
+      <Card
+        className="flex flex-col rounded-3xl border-border/60 shadow-sm cursor-pointer hover:shadow-md transition-all"
+        onClick={() => navigate("/admin-tasks")}
+      >
+        <CardContent className="flex flex-1 flex-col p-6">
+          <h3 className="mb-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Alerts / Tasks
+          </h3>
+          {alertTotal === 0 ? (
+            <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">No open alerts 🎉</div>
+          ) : (
+            <div className="flex flex-1 flex-col items-center justify-center gap-2">
+              <p className="text-4xl font-semibold tracking-tight text-foreground">{alertTotal}</p>
+              <p className="text-xs text-muted-foreground">open alerts from PMs</p>
+              <div className="mt-2 flex flex-wrap gap-1.5 justify-center">
                 {Object.entries(alertCounts)
                   .filter(([, v]) => v > 0)
+                  .slice(0, 5)
                   .map(([type, count]) => (
                     <Badge key={type} variant="outline" className="text-[10px]">
                       {ALERT_TYPE_LABELS[type as TaskAlertType]}: {count}
