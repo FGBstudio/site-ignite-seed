@@ -18,6 +18,7 @@ import { ProcurementForecasting } from "@/components/dashboard/ProcurementForeca
 import { DataImporter } from "@/components/admin/DataImporter";
 import { PMProjectsBoard } from "@/components/projects/PMProjectsBoard";
 import { AdminTimeline } from "@/components/admin/AdminTimeline";
+import { ProjectsReports } from "@/components/projects/ProjectsReports";
 import { useAdminPlannerData, type AdminPlannerProject } from "@/hooks/useAdminPlannerData";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -129,11 +130,23 @@ export default function Projects() {
           <TabsTrigger value="forecast" className="gap-2">
             <BarChart3 className="h-4 w-4" /> Device Demand Analysis
           </TabsTrigger>
+          <TabsTrigger value="reports" className="gap-2">
+            <FileText className="h-4 w-4" /> Reports
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="timeline">
           <AdminTimeline />
         </TabsContent>
+
+        <TabsContent value="reports">
+          <ProjectsReports />
+        </TabsContent>
+
+        <TabsContent value="forecast">
+          <ProcurementForecasting />
+        </TabsContent>
+
 
         <TabsContent value="projects" className="space-y-6">
           {/* Status category tabs */}
@@ -375,9 +388,6 @@ export default function Projects() {
           )}
         </TabsContent>
 
-        <TabsContent value="forecast">
-          <ProcurementForecasting />
-        </TabsContent>
 
         <TabsContent value="import">
           <DataImporter />
