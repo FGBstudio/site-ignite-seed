@@ -504,6 +504,10 @@ export default function ProjectDetail() {
           <ProjectWBS projectId={projectId!} role={role} />
         </TabsContent>
 
+        <TabsContent value="stakeholders">
+          <StakeholdersPanel certificationId={projectId!} />
+        </TabsContent>
+
         <TabsContent value="payments">
           <ProjectPayments projectId={projectId!} />
         </TabsContent>
