@@ -274,6 +274,7 @@ export default function ProjectDetail() {
           <TabsTrigger value="planner">Planner (Phases)</TabsTrigger>
           {hasCert && <TabsTrigger value="scorecard">Scorecard {(project as any).project_type}</TabsTrigger>}
           <TabsTrigger value="wbs">Schedule</TabsTrigger>
+          <TabsTrigger value="stakeholders">Stakeholders</TabsTrigger>
           <TabsTrigger value="hardware">Hardware</TabsTrigger>
           <TabsTrigger value="payments">Payments</TabsTrigger>
           <TabsTrigger value="canvas">Canvas</TabsTrigger>
