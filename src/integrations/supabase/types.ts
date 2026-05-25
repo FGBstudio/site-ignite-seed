@@ -5203,6 +5203,10 @@ export type Database = {
           total_kwh: number
         }[]
       }
+      get_strategic_report_data: {
+        Args: { p_end_date: string; p_site_id: string; p_start_date: string }
+        Returns: Json
+      }
       get_telemetry_timeseries: {
         Args: {
           p_bucket?: string

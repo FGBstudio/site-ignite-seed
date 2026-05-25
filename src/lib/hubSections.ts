@@ -83,6 +83,8 @@ export const PROJECTS_SECTION_PATHS = [
   "/settings",
   "/pm-portal",
   "/my-tasks",
+  "/team-board",
+  "/timesheet",
 ];
 
 export function isInProjectsSection(pathname: string): boolean {
