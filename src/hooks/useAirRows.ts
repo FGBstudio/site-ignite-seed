@@ -136,23 +136,32 @@ export function useAirDevices(siteId: string) {
           device_id,
           mac_address,
           shipment_date,
+          category,
+          product_id,
+          products (
+            category
+          ),
           ops_purchase_orders (
             po_number
           )
         `)
         .eq('site_id', siteId)
-        .ilike('category', '%AIR%')
         .neq('status', 'In Stock');
 
       if (error) throw error;
       if (!data) return [];
 
-      return data.map((h: any) => ({
-        device_id: h.device_id,
-        mac_address: h.mac_address,
-        po_number: h.ops_purchase_orders?.po_number ?? null,
-        shipment_date: h.shipment_date
-      }));
+      return (data as any[])
+        .filter((h: any) => {
+          const cat = (h.category || h.products?.category || "AIR").toUpperCase();
+          return cat.includes("AIR");
+        })
+        .map((h: any) => ({
+          device_id: h.device_id,
+          mac_address: h.mac_address,
+          po_number: h.ops_purchase_orders?.po_number ?? null,
+          shipment_date: h.shipment_date
+        }));
     }
   });
 }
