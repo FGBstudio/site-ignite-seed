@@ -88,12 +88,19 @@ export default function Hardwares() {
     fetchData();
   }, []);
 
+  const getHwCategory = (h: any) => {
+    if (!h) return "AIR";
+    if (h.category) return h.category;
+    const prod = products.find((p: any) => p.id === h.product_id);
+    return prod?.category || "AIR";
+  };
+
   const filteredHardwares = hardwares.filter(h => {
     const matchesSearch = h.device_id.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (h.mac_address && h.mac_address.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (products.find((p: any) => p.id === h.product_id)?.name.toLowerCase().includes(searchQuery.toLowerCase()));
     
-    const matchesCategory = !selectedCategory || h.category === selectedCategory;
+    const matchesCategory = !selectedCategory || getHwCategory(h) === selectedCategory;
     const matchesStatus = statusFilter === "all" || h.status === statusFilter;
     const matchesLocation = locationFilter === "all" || h.country === locationFilter;
 
@@ -134,18 +141,18 @@ export default function Hardwares() {
     }
   };
   // AIR Metrics
-  const airTotal = hardwares.filter(h => h.category === 'AIR').length;
-  const airStock = hardwares.filter(h => h.category === 'AIR' && h.status === 'In Stock').length;
-  const airAssigned = hardwares.filter(h => h.category === 'AIR' && h.status !== 'In Stock').length;
+  const airTotal = hardwares.filter(h => getHwCategory(h) === 'AIR').length;
+  const airStock = hardwares.filter(h => getHwCategory(h) === 'AIR' && h.status === 'In Stock').length;
+  const airAssigned = hardwares.filter(h => getHwCategory(h) === 'AIR' && h.status !== 'In Stock').length;
 
   // Energy Metrics
-  const energyTotal = hardwares.filter(h => h.category === 'Energy').length;
-  const energyStock = hardwares.filter(h => h.category === 'Energy' && h.status === 'In Stock').length;
-  const energyAssigned = hardwares.filter(h => h.category === 'Energy' && h.status !== 'In Stock').length;
+  const energyTotal = hardwares.filter(h => getHwCategory(h) === 'Energy').length;
+  const energyStock = hardwares.filter(h => getHwCategory(h) === 'Energy' && h.status === 'In Stock').length;
+  const energyAssigned = hardwares.filter(h => getHwCategory(h) === 'Energy' && h.status !== 'In Stock').length;
 
   const getHierarchicalBreakdown = (cat: string) => {
     // Only show countries/locations that HAVE items "In Stock"
-    const items = hardwares.filter(h => h.category === cat && h.status === 'In Stock');
+    const items = hardwares.filter(h => getHwCategory(h) === cat && h.status === 'In Stock');
     const groups: Record<string, Record<string, number>> = {};
     
     items.forEach(i => {
@@ -600,10 +607,10 @@ export default function Hardwares() {
                 </div>
                 <div>
                   <Label className="text-[10px] uppercase text-muted-foreground">
-                    {detailedHardware?.category === 'Energy' ? 'Primary Serial (Device ID)' : 'MAC Address'}
+                    {getHwCategory(detailedHardware) === 'Energy' ? 'Primary Serial (Device ID)' : 'MAC Address'}
                   </Label>
                   <p className="text-sm font-mono font-medium text-foreground">
-                    {detailedHardware?.category === 'Energy' 
+                    {getHwCategory(detailedHardware) === 'Energy' 
                       ? detailedHardware?.device_id 
                       : (detailedHardware?.mac_address || "-")}
                   </p>
