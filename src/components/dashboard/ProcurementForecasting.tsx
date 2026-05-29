@@ -38,17 +38,19 @@ export function ProcurementForecasting() {
   const [loading, setLoading] = useState(true);
   const [generatingOrder, setGeneratingOrder] = useState<string | null>(null);
 
+  const [hardwares, setHardwares] = useState<any[]>([]);
   const [horizon, setHorizon] = useState("90");
   const [region, setRegion] = useState("all");
   const [pmFilter, setPmFilter] = useState("all");
 
   const fetchAll = async () => {
     setLoading(true);
-    const [prodRes, certRes, allocRes, pmRes] = await Promise.all([
+    const [prodRes, certRes, allocRes, pmRes, hwRes] = await Promise.all([
       supabase.from("products" as any).select("*"),
       supabase.from("certifications").select("*").not("status", "in", '("Completed","Cancelled")'),
       supabase.from("project_allocations" as any).select("*").neq("status", "Installed_Online"),
       supabase.from("profiles").select("id, full_name"),
+      supabase.from("hardwares").select("id, product_id, site_id, status")
     ]);
     if (prodRes.error) toast({ title: "Error", description: prodRes.error.message, variant: "destructive" });
     if (certRes.error) toast({ title: "Error", description: certRes.error.message, variant: "destructive" });
@@ -58,6 +60,7 @@ export function ProcurementForecasting() {
     setCerts((certRes.data || []) as any);
     setAllocations((allocRes.data || []) as any);
     setPmList((pmRes.data || []) as any);
+    setHardwares((hwRes.data || []) as any);
     setLoading(false);
   };
 
@@ -79,25 +82,49 @@ export function ProcurementForecasting() {
     const certIds = new Set(filteredCerts.map((c: any) => c.id));
     const filteredAllocations = allocations.filter((a) => certIds.has((a as any).certification_id));
 
+    // Maps: product_id -> total active unfulfilled demand quantity
     const demandMap = new Map<string, number>();
+    // Maps: product_id -> Map(certification_id -> active unfulfilled quantity)
     const breakdownMap = new Map<string, Map<string, number>>();
+    // Maps: product_id -> list of active allocation IDs (needed to update allocation status on order generation)
     const allocIdMap = new Map<string, string[]>();
     
     for (const a of filteredAllocations) {
-      demandMap.set(a.product_id, (demandMap.get(a.product_id) || 0) + a.quantity);
-      if (!breakdownMap.has(a.product_id)) breakdownMap.set(a.product_id, new Map());
-      const pMap = breakdownMap.get(a.product_id)!;
-      const aId = (a as any).certification_id;
-      pMap.set(aId, (pMap.get(aId) || 0) + a.quantity);
-      if (!allocIdMap.has(a.product_id)) allocIdMap.set(a.product_id, []);
-      allocIdMap.get(a.product_id)!.push(a.id);
+      const totalRequested = a.requested_quantity ?? a.quantity ?? 0;
+      let activeDemand = 0;
+      
+      if (a.status === 'Requested') {
+        activeDemand = totalRequested;
+      } else if (a.status === 'Partially Confirmed') {
+        // Calculate outstanding demand for Partially Confirmed:
+        const cert = filteredCerts.find(c => c.id === (a as any).certification_id);
+        const assigned = cert ? hardwares.filter(h => h.product_id === a.product_id && h.site_id === cert.site_id && h.status === 'Assigned').length : 0;
+        activeDemand = Math.max(0, totalRequested - assigned);
+      } else {
+        // Confirmed or Allocated allocations have 0 outstanding active demand!
+        activeDemand = 0;
+      }
+
+      if (activeDemand > 0) {
+        demandMap.set(a.product_id, (demandMap.get(a.product_id) || 0) + activeDemand);
+        
+        if (!breakdownMap.has(a.product_id)) breakdownMap.set(a.product_id, new Map());
+        const pMap = breakdownMap.get(a.product_id)!;
+        const aId = (a as any).certification_id;
+        pMap.set(aId, (pMap.get(aId) || 0) + activeDemand);
+        
+        if (!allocIdMap.has(a.product_id)) allocIdMap.set(a.product_id, []);
+        allocIdMap.get(a.product_id)!.push(a.id);
+      }
     }
 
     const items: ForecastItem[] = [];
     for (const product of products) {
       const totalDemand = demandMap.get(product.id) || 0;
       if (totalDemand === 0) continue;
-      const currentStock = product.quantity_in_stock;
+      
+      // Calculate current stock: hardwares in the stock pool (status === 'In Stock')
+      const currentStock = hardwares.filter(h => h.product_id === product.id && h.status === 'In Stock').length;
       const coveredByStock = Math.min(totalDemand, currentStock);
       const shortfallToOrder = Math.max(0, totalDemand - currentStock);
 
@@ -122,6 +149,7 @@ export function ProcurementForecasting() {
           }
         }
       }
+      
       // Sort breakdown by Handover Date (closest first)
       projectBreakdown.sort((a, b) => new Date(a.handoverDate).getTime() - new Date(b.handoverDate).getTime());
       
@@ -134,7 +162,7 @@ export function ProcurementForecasting() {
     // Sort ForecastItems by highest shortfall first
     items.sort((a, b) => b.shortfallToOrder - a.shortfallToOrder);
     return items;
-  }, [products, certs, allocations, horizon, region, pmFilter, pmList]);
+  }, [products, certs, allocations, hardwares, horizon, region, pmFilter, pmList]);
 
   const handleGenerateOrder = async (item: ForecastItem) => {
     setGeneratingOrder(item.product.id);
