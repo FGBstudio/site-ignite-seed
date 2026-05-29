@@ -37,19 +37,35 @@ export function useDashboardData(productFilter: string) {
   const [products, setProducts] = useState<Product[]>([]);
   const [certs, setCerts] = useState<any[]>([]);
   const [allocations, setAllocations] = useState<ProjectAllocation[]>([]);
+  const [hardwares, setHardwares] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-      const [prodRes, certRes, allocRes] = await Promise.all([
+      const [prodRes, certRes, allocRes, hwRes] = await Promise.all([
         supabase.from("products" as any).select("*"),
-        supabase.from("certifications").select("id, name, client, region, handover_date, status, pm_id"),
+        supabase.from("certifications").select("id, name, client, region, handover_date, status, pm_id, site_id"),
         supabase.from("project_allocations" as any).select("*"),
+        supabase.from("hardwares").select("id, product_id, site_id, status"),
       ]);
-      setProducts((prodRes.data || []) as any);
+
+      const stockMap: Record<string, number> = {};
+      hwRes.data?.forEach(hw => {
+        if (hw.status === 'In Stock') {
+          stockMap[hw.product_id] = (stockMap[hw.product_id] || 0) + 1;
+        }
+      });
+
+      const enrichedProducts = (prodRes.data || []).map((p: any) => ({
+        ...p,
+        quantity_in_stock: stockMap[p.id] || 0
+      }));
+
+      setProducts(enrichedProducts as any);
       setCerts((certRes.data || []) as any);
       setAllocations((allocRes.data || []) as any);
+      setHardwares((hwRes.data || []) as any);
       setLoading(false);
     };
     fetchData();
@@ -64,27 +80,35 @@ export function useDashboardData(productFilter: string) {
     const relevantProductIds = new Set(filteredProducts.map((p) => p.id));
     const relevantAllocs = allocations.filter((a) => relevantProductIds.has(a.product_id));
 
+    const inStock = filteredProducts.reduce((s, p) => s + (p.quantity_in_stock || 0), 0);
+
     const installed = relevantAllocs
-      .filter((a) => a.status === "Installed_Online")
+      .filter((a) => a.status === "Confirmed")
       .reduce((s, a) => s + a.quantity, 0);
 
-    const confirmed = relevantAllocs
-      .filter((a) => ["Allocated", "Requested", "Shipped"].includes(a.status))
-      .reduce((s, a) => s + a.quantity, 0);
+    const pipelineAllocs = relevantAllocs.map(a => {
+      const cert = certs.find(c => c.id === (a as any).certification_id);
+      const totalRequested = a.requested_quantity ?? a.quantity ?? 0;
+      let outstanding = 0;
+      if (a.status === 'Requested') {
+        outstanding = totalRequested;
+      } else if (a.status === 'Partially Confirmed') {
+        const assigned = cert ? hardwares.filter(h => h.product_id === a.product_id && h.site_id === cert.site_id && h.status === 'Assigned').length : 0;
+        outstanding = Math.max(0, totalRequested - assigned);
+      }
+      return outstanding;
+    });
 
-    const inStock = filteredProducts.reduce((s, p) => s + p.quantity_in_stock, 0);
+    const pipeline = pipelineAllocs.reduce((s, qty) => s + qty, 0);
+    const confirmed = installed;
 
-    const pipeline = relevantAllocs
-      .filter((a) => a.status === "Draft")
-      .reduce((s, a) => s + a.quantity, 0);
-
-    const totalDemand = confirmed + pipeline;
+    const totalDemand = pipeline;
     const toOrder = Math.max(0, totalDemand - inStock);
 
     let dropDeadDate: string | null = null;
     if (toOrder > 0) {
       const activeAllocs = relevantAllocs.filter((a) =>
-        ["Draft", "Allocated", "Requested", "Shipped"].includes(a.status)
+        a.status === "Requested" || a.status === "Partially Confirmed"
       );
       let earliestHandover: Date | null = null;
       for (const alloc of activeAllocs) {
@@ -102,33 +126,44 @@ export function useDashboardData(productFilter: string) {
       }
     }
 
-    return { installed, confirmed, inStock, pipeline, toOrder, dropDeadDate };
-  }, [filteredProducts, allocations, certs]);
+    return { installed: 0, confirmed, inStock, pipeline, toOrder, dropDeadDate };
+  }, [filteredProducts, allocations, certs, hardwares]);
 
   const runway = useMemo<RunwayRow[]>(() => {
     return filteredProducts.map((product) => {
       const prodAllocs = allocations.filter(
-        (a) => a.product_id === product.id && a.status !== "Installed_Online"
+        (a) => a.product_id === product.id
       );
-      const totalDemand = prodAllocs.reduce((s, a) => s + a.quantity, 0);
 
-      const allocsWithDate = prodAllocs
-        .map((a) => {
-          const cert = certs.find((c: any) => c.id === (a as any).certification_id);
-          return { ...a, handoverDate: cert?.handover_date || "9999-12-31", project: cert };
-        })
-        .sort((a, b) => a.handoverDate.localeCompare(b.handoverDate));
+      const allocsWithOutstanding = prodAllocs.map((a) => {
+        const cert = certs.find((c: any) => c.id === (a as any).certification_id);
+        const totalRequested = a.requested_quantity ?? a.quantity ?? 0;
+        let outstanding = 0;
+        if (a.status === 'Requested') {
+          outstanding = totalRequested;
+        } else if (a.status === 'Partially Confirmed') {
+          const assigned = cert ? hardwares.filter(h => h.product_id === a.product_id && h.site_id === cert.site_id && h.status === 'Assigned').length : 0;
+          outstanding = Math.max(0, totalRequested - assigned);
+        } else {
+          outstanding = 0;
+        }
+        return { ...a, outstanding, handoverDate: cert?.handover_date || "9999-12-31", project: cert };
+      }).filter(a => a.outstanding > 0);
 
-      let remaining = product.quantity_in_stock;
+      const totalDemand = allocsWithOutstanding.reduce((s, a) => s + a.outstanding, 0);
+
+      const sortedAllocs = [...allocsWithOutstanding].sort((a, b) => a.handoverDate.localeCompare(b.handoverDate));
+
+      let remaining = product.quantity_in_stock || 0;
       let runwayDate: string | null = null;
-      for (const a of allocsWithDate) {
-        remaining -= a.quantity;
+      for (const a of sortedAllocs) {
+        remaining -= a.outstanding;
         if (remaining < 0 && !runwayDate) {
           runwayDate = a.handoverDate;
         }
       }
 
-      const orderQty = Math.max(0, totalDemand - product.quantity_in_stock);
+      const orderQty = Math.max(0, totalDemand - (product.quantity_in_stock || 0));
       let orderByDate: string | null = null;
       if (orderQty > 0 && runwayDate && runwayDate !== "9999-12-31") {
         const d = new Date(runwayDate);
@@ -137,7 +172,7 @@ export function useDashboardData(productFilter: string) {
       }
 
       const regionMap = new Map<string, RegionBreakdown["projects"]>();
-      for (const a of allocsWithDate) {
+      for (const a of sortedAllocs) {
         if (!a.project) continue;
         const r = a.project.region;
         if (!regionMap.has(r)) regionMap.set(r, []);
@@ -145,7 +180,7 @@ export function useDashboardData(productFilter: string) {
           id: a.project.id,
           name: a.project.name,
           handoverDate: a.project.handover_date,
-          quantity: a.quantity,
+          quantity: a.outstanding,
           status: a.status,
         });
       }
@@ -156,9 +191,9 @@ export function useDashboardData(productFilter: string) {
         totalQty: projs.reduce((s, p) => s + p.quantity, 0),
       }));
 
-      return { product, stock: product.quantity_in_stock, totalDemand, runwayDate, orderQty, orderByDate, regions };
+      return { product, stock: product.quantity_in_stock || 0, totalDemand, runwayDate, orderQty, orderByDate, regions };
     });
-  }, [filteredProducts, allocations, certs]);
+  }, [filteredProducts, allocations, certs, hardwares]);
 
   return { products, kpi, runway, loading };
 }
