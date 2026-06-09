@@ -56,6 +56,7 @@ import {
 } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip as RechartsTooltip } from "recharts";
 
 const WORLD_GEO_URL = "https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json";
 
@@ -592,18 +593,24 @@ export default function SupplierOrders() {
 
   const stats = useMemo(() => {
     return {
-      upcoming: shipments.filter(s => s.status === 'upcoming').length,
-      pending: shipments.filter(s => s.status === 'in_transit' || s.status === 'customs').length,
+      upcoming: shipments.filter(s => s.status === 'awaiting dispatch').length,
+      pending: shipments.filter(s => s.status === 'in_transit').length,
       fulfilled: shipments.filter(s => s.status === 'delivered').length
     };
   }, [shipments]);
 
   const sustainabilityInsights = useMemo(() => {
     const outboundShipments = shipments.filter(s => s.shipment_type === 'outbound' && (Number(s.co2e_lbs) || 0) > 0);
-    
-    const scope3Cat4 = outboundShipments.reduce((sum, s) => sum + (Number(s.co2e_lbs) || 0), 0);
-    const totalDistance = outboundShipments.reduce((sum, s) => sum + (Number(s.distance_miles) || 0), 0);
-    const shipmentsCount = outboundShipments.length;
+    const inboundShipments = shipments.filter(s => s.shipment_type === 'inbound' && (Number(s.co2e_lbs) || 0) > 0);
+    const internalShipments = shipments.filter(s => s.shipment_type === 'internal' && (Number(s.co2e_lbs) || 0) > 0);
+
+    const outboundEmissions = outboundShipments.reduce((sum, s) => sum + (Number(s.co2e_lbs) || 0), 0);
+    const inboundEmissions = inboundShipments.reduce((sum, s) => sum + (Number(s.co2e_lbs) || 0), 0);
+    const internalEmissions = internalShipments.reduce((sum, s) => sum + (Number(s.co2e_lbs) || 0), 0);
+    const totalEmissions = outboundEmissions + inboundEmissions + internalEmissions;
+
+    const totalDistance = shipments.filter(s => (Number(s.co2e_lbs) || 0) > 0).reduce((sum, s) => sum + (Number(s.distance_miles) || 0), 0);
+    const shipmentsCount = shipments.filter(s => (Number(s.co2e_lbs) || 0) > 0).length;
 
     const brandMap: { [key: string]: number } = {};
     outboundShipments.forEach(s => {
@@ -617,7 +624,10 @@ export default function SupplierOrders() {
       .sort((a, b) => b.emissions - a.emissions);
 
     return {
-      scope3Cat4,
+      outboundEmissions,
+      inboundEmissions,
+      internalEmissions,
+      totalEmissions,
       totalDistance,
       shipmentsCount,
       scope3Cat1
@@ -822,18 +832,70 @@ export default function SupplierOrders() {
                       FGB Emissions
                     </span>
                     <h4 className="text-2xl font-bold text-slate-800 tracking-tight mb-2">
-                      FGB Emissions - Category 4
+                      FGB Emissions Summary
                     </h4>
                     <p className="text-xs text-slate-500 leading-relaxed">
-                      Outbound Transportation and Distribution emissions calculated from logistics routes and cargo weight.
+                      Scope 3 logistics emissions breakdown across inbound, outbound, and internal movements.
                     </p>
                   </div>
                   
-                  <div className="my-6 pt-4 flex items-baseline gap-2 border-t border-slate-200/60">
-                    <span className="text-5xl font-extrabold tracking-tighter text-[#009193] font-mono">
-                      {sustainabilityInsights.scope3Cat4.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </span>
-                    <span className="text-xs font-bold uppercase text-slate-400">lbs CO₂e</span>
+                  <div className="h-48 w-full my-6 flex items-center justify-center relative bg-white border border-slate-100 rounded-3xl shadow-sm">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={[
+                            { name: 'Outbound (Cat 4)', value: sustainabilityInsights.outboundEmissions },
+                            { name: 'Inbound (Procurement)', value: sustainabilityInsights.inboundEmissions },
+                            { name: 'Internal Transfers', value: sustainabilityInsights.internalEmissions }
+                          ]}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={60}
+                          outerRadius={80}
+                          paddingAngle={3}
+                          dataKey="value"
+                        >
+                          <Cell fill="#009193" />
+                          <Cell fill="#18181b" />
+                          <Cell fill="#f43f5e" />
+                        </Pie>
+                        <RechartsTooltip 
+                          formatter={(value: any) => [`${Number(value).toFixed(2)} lbs CO₂e`]}
+                          contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', fontSize: '11px', fontFamily: 'monospace' }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="absolute flex flex-col items-center justify-center pointer-events-none">
+                      <span className="text-3xl font-extrabold tracking-tighter text-[#009193] font-mono leading-none">
+                        {Math.round(sustainabilityInsights.totalEmissions).toLocaleString()}
+                      </span>
+                      <span className="text-[8px] font-black uppercase text-slate-400 mt-1.5 tracking-widest leading-none">Total Lbs CO₂e</span>
+                    </div>
+                  </div>
+
+                  {/* Shipment Type Breakdown List */}
+                  <div className="space-y-3 mb-6 bg-white/50 border border-slate-200/60 rounded-2xl p-4 shadow-inner">
+                    <div className="flex justify-between items-center text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="inline-block w-2.5 h-2.5 rounded-full bg-[#009193] shrink-0" />
+                        <span className="text-slate-500 font-medium">Outbound (Category 4)</span>
+                      </div>
+                      <span className="font-mono font-bold text-slate-800">{sustainabilityInsights.outboundEmissions.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} lbs</span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="inline-block w-2.5 h-2.5 rounded-full bg-[#18181b] shrink-0" />
+                        <span className="text-slate-500 font-medium">Inbound (Procurement)</span>
+                      </div>
+                      <span className="font-mono font-bold text-slate-800">{sustainabilityInsights.inboundEmissions.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} lbs</span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs border-t border-slate-100 pt-2">
+                      <div className="flex items-center gap-2">
+                        <span className="inline-block w-2.5 h-2.5 rounded-full bg-[#f43f5e] shrink-0" />
+                        <span className="text-slate-500 font-medium">Internal Transfers</span>
+                      </div>
+                      <span className="font-mono font-bold text-slate-800">{sustainabilityInsights.internalEmissions.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} lbs</span>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4 mt-2">
@@ -856,7 +918,7 @@ export default function SupplierOrders() {
                       <div>
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter leading-none mb-1">Reported Shipments</p>
                         <p className="text-lg font-mono font-bold text-slate-800">
-                          {sustainabilityInsights.shipmentsCount} <span className="text-[10px] font-bold text-slate-400">runs</span>
+                          {sustainabilityInsights.shipmentsCount} <span className="text-[10px] font-bold text-slate-400">shipments</span>
                         </p>
                       </div>
                     </div>
