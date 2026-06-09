@@ -598,6 +598,32 @@ export default function SupplierOrders() {
     };
   }, [shipments]);
 
+  const sustainabilityInsights = useMemo(() => {
+    const outboundShipments = shipments.filter(s => s.shipment_type === 'outbound' && (Number(s.co2e_lbs) || 0) > 0);
+    
+    const scope3Cat4 = outboundShipments.reduce((sum, s) => sum + (Number(s.co2e_lbs) || 0), 0);
+    const totalDistance = outboundShipments.reduce((sum, s) => sum + (Number(s.distance_miles) || 0), 0);
+    const shipmentsCount = outboundShipments.length;
+
+    const brandMap: { [key: string]: number } = {};
+    outboundShipments.forEach(s => {
+      const loc = locations.find(l => l.id === s.destination_location_id);
+      const brandName = loc?.brand || "Other / Unassigned";
+      brandMap[brandName] = (brandMap[brandName] || 0) + (Number(s.co2e_lbs) || 0);
+    });
+
+    const scope3Cat1 = Object.entries(brandMap)
+      .map(([brand, emissions]) => ({ brand, emissions }))
+      .sort((a, b) => b.emissions - a.emissions);
+
+    return {
+      scope3Cat4,
+      totalDistance,
+      shipmentsCount,
+      scope3Cat1
+    };
+  }, [shipments, locations]);
+
   return (
     <MainLayout title="OPS COMMAND CENTER">
       <div className="space-y-6">
@@ -775,6 +801,108 @@ export default function SupplierOrders() {
                 })}
               </MapContainer>
             </div>
+            </div>
+
+            {/* Sustainability Insights Section */}
+            <div className="bg-white rounded-[32px] p-8 shadow-sm border border-slate-100 relative overflow-hidden">
+              <div className="flex justify-between items-center mb-6 relative z-10">
+                <div>
+                  <h3 className="text-xl font-bold text-slate-800 tracking-tight flex items-center gap-2">
+                    <Activity className="h-5 w-5 text-[#009193]" /> Sustainability Insights - Scope 3 Emissions
+                  </h3>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Real-time carbon footprint metrics & scopes</p>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* Left Card: FGB Emissions */}
+                <div className="bg-slate-50 rounded-3xl p-6 border border-slate-100 flex flex-col justify-between">
+                  <div>
+                    <span className="text-[10px] font-extrabold uppercase text-slate-400 tracking-widest block mb-1">
+                      FGB Emissions
+                    </span>
+                    <h4 className="text-2xl font-bold text-slate-800 tracking-tight mb-2">
+                      FGB Emissions - Category 4
+                    </h4>
+                    <p className="text-xs text-slate-500 leading-relaxed">
+                      Outbound Transportation and Distribution emissions calculated from logistics routes and cargo weight.
+                    </p>
+                  </div>
+                  
+                  <div className="my-6 pt-4 flex items-baseline gap-2 border-t border-slate-200/60">
+                    <span className="text-5xl font-extrabold tracking-tighter text-[#009193] font-mono">
+                      {sustainabilityInsights.scope3Cat4.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                    <span className="text-xs font-bold uppercase text-slate-400">lbs CO₂e</span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 mt-2">
+                    <div className="bg-white/80 backdrop-blur-sm shadow-sm border border-slate-100/80 rounded-2xl p-4 flex flex-col justify-between">
+                      <div className="h-8 w-8 rounded-lg bg-[#009193]/10 flex items-center justify-center text-[#009193] mb-3">
+                        <Activity className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter leading-none mb-1">Total Distance</p>
+                        <p className="text-lg font-mono font-bold text-slate-800">
+                          {sustainabilityInsights.totalDistance.toLocaleString(undefined, { maximumFractionDigits: 0 })} <span className="text-[10px] font-bold text-slate-400">mi</span>
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="bg-white/80 backdrop-blur-sm shadow-sm border border-slate-100/80 rounded-2xl p-4 flex flex-col justify-between">
+                      <div className="h-8 w-8 rounded-lg bg-[#009193]/10 flex items-center justify-center text-[#009193] mb-3">
+                        <Truck className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter leading-none mb-1">Reported Shipments</p>
+                        <p className="text-lg font-mono font-bold text-slate-800">
+                          {sustainabilityInsights.shipmentsCount} <span className="text-[10px] font-bold text-slate-400">runs</span>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Card: Clients Section */}
+                <div className="bg-slate-50 rounded-3xl p-6 border border-slate-100">
+                  <div className="mb-4">
+                    <span className="text-[10px] font-extrabold uppercase text-slate-400 tracking-widest block mb-1">
+                      Client Allocated Emissions
+                    </span>
+                    <h4 className="text-2xl font-bold text-slate-800 tracking-tight mb-2">
+                      Client Breakdown
+                    </h4>
+                    <p className="text-xs text-slate-500 leading-relaxed">
+                      For client side Scope 3, this represents Category 1 - Purchased Goods & Services carbon footprint allocated to each client brand.
+                    </p>
+                  </div>
+                  
+                  <div className="space-y-3 mt-6">
+                    {sustainabilityInsights.scope3Cat1.length === 0 ? (
+                      <div className="text-xs text-slate-400 italic text-center py-4">No outbound emissions recorded for brands.</div>
+                    ) : (
+                      sustainabilityInsights.scope3Cat1.map(({ brand, emissions }) => {
+                        const maxEmissions = Math.max(...sustainabilityInsights.scope3Cat1.map(x => x.emissions), 1);
+                        const percentage = (emissions / maxEmissions) * 100;
+                        return (
+                          <div key={brand} className="space-y-1">
+                            <div className="flex justify-between items-center text-xs font-bold">
+                              <span className="text-slate-700">{brand}</span>
+                              <span className="text-slate-500 font-mono">{emissions.toLocaleString(undefined, { maximumFractionDigits: 2 })} lbs</span>
+                            </div>
+                            <div className="w-full h-2 bg-slate-200/50 rounded-full overflow-hidden">
+                              <div 
+                                className="h-full bg-[#009193] rounded-full transition-all duration-500" 
+                                style={{ width: `${percentage}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
           </TabsContent>
 
