@@ -2216,6 +2216,165 @@ export type Database = {
         }
         Relationships: []
       }
+      hr_attendance: {
+        Row: {
+          approved_by: string | null
+          created_at: string
+          device_label: string | null
+          id: string
+          location_lat: number | null
+          location_lng: number | null
+          note: string | null
+          status: Database["public"]["Enums"]["hr_attendance_status"]
+          timestamp_in: string
+          timestamp_out: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          approved_by?: string | null
+          created_at?: string
+          device_label?: string | null
+          id?: string
+          location_lat?: number | null
+          location_lng?: number | null
+          note?: string | null
+          status?: Database["public"]["Enums"]["hr_attendance_status"]
+          timestamp_in?: string
+          timestamp_out?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          approved_by?: string | null
+          created_at?: string
+          device_label?: string | null
+          id?: string
+          location_lat?: number | null
+          location_lng?: number | null
+          note?: string | null
+          status?: Database["public"]["Enums"]["hr_attendance_status"]
+          timestamp_in?: string
+          timestamp_out?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      hr_availability: {
+        Row: {
+          created_at: string
+          date: string
+          hours_planned: number | null
+          id: string
+          note: string | null
+          status: Database["public"]["Enums"]["hr_availability_status"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          hours_planned?: number | null
+          id?: string
+          note?: string | null
+          status?: Database["public"]["Enums"]["hr_availability_status"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          hours_planned?: number | null
+          id?: string
+          note?: string | null
+          status?: Database["public"]["Enums"]["hr_availability_status"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      hr_qr_tokens: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          rotated_at: string
+          token: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          rotated_at?: string
+          token: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          rotated_at?: string
+          token?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      hr_requests: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string
+          end_date: string
+          end_time: string | null
+          id: string
+          manager_note: string | null
+          reason: string | null
+          start_date: string
+          start_time: string | null
+          status: Database["public"]["Enums"]["hr_request_status"]
+          type: Database["public"]["Enums"]["hr_request_type"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          end_date: string
+          end_time?: string | null
+          id?: string
+          manager_note?: string | null
+          reason?: string | null
+          start_date: string
+          start_time?: string | null
+          status?: Database["public"]["Enums"]["hr_request_status"]
+          type: Database["public"]["Enums"]["hr_request_type"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          end_date?: string
+          end_time?: string | null
+          id?: string
+          manager_note?: string | null
+          reason?: string | null
+          start_date?: string
+          start_time?: string | null
+          status?: Database["public"]["Enums"]["hr_request_status"]
+          type?: Database["public"]["Enums"]["hr_request_type"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       mqtt_messages_raw: {
         Row: {
           broker: string
@@ -5547,6 +5706,10 @@ export type Database = {
         | "Allocated"
         | "In_Transit"
         | "Delivered"
+      hr_attendance_status: "auto_qr" | "manual_override"
+      hr_availability_status: "available" | "busy" | "off" | "travel" | "remote"
+      hr_request_status: "pending" | "approved" | "rejected"
+      hr_request_type: "holiday" | "permit" | "travel"
       milestone_category: "scorecard" | "timeline"
       permission_level: "view" | "edit" | "admin"
       scope_type: "project" | "site" | "brand" | "holding" | "region"
@@ -5722,6 +5885,10 @@ export const Constants = {
         "In_Transit",
         "Delivered",
       ],
+      hr_attendance_status: ["auto_qr", "manual_override"],
+      hr_availability_status: ["available", "busy", "off", "travel", "remote"],
+      hr_request_status: ["pending", "approved", "rejected"],
+      hr_request_type: ["holiday", "permit", "travel"],
       milestone_category: ["scorecard", "timeline"],
       permission_level: ["view", "edit", "admin"],
       scope_type: ["project", "site", "brand", "holding", "region"],
