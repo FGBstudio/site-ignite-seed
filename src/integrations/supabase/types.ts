@@ -1289,6 +1289,7 @@ export type Database = {
           month_num: number
           other_pct: number
           plugs_pct: number
+          region: string | null
           typology: string
         }
         Insert: {
@@ -1301,6 +1302,7 @@ export type Database = {
           month_num: number
           other_pct: number
           plugs_pct: number
+          region?: string | null
           typology: string
         }
         Update: {
@@ -1313,6 +1315,7 @@ export type Database = {
           month_num?: number
           other_pct?: number
           plugs_pct?: number
+          region?: string | null
           typology?: string
         }
         Relationships: []
@@ -1965,6 +1968,27 @@ export type Database = {
           },
         ]
       }
+      fx_rates: {
+        Row: {
+          base: string
+          fetched_at: string
+          quote: string
+          rate: number
+        }
+        Insert: {
+          base?: string
+          fetched_at?: string
+          quote: string
+          rate: number
+        }
+        Update: {
+          base?: string
+          fetched_at?: string
+          quote?: string
+          rate?: number
+        }
+        Relationships: []
+      }
       hardware_status_history: {
         Row: {
           changed_by: string | null
@@ -2269,6 +2293,7 @@ export type Database = {
       }
       ops_locations: {
         Row: {
+          brand: string | null
           country: string | null
           created_at: string | null
           id: string
@@ -2279,6 +2304,7 @@ export type Database = {
           type: string | null
         }
         Insert: {
+          brand?: string | null
           country?: string | null
           created_at?: string | null
           id?: string
@@ -2289,6 +2315,7 @@ export type Database = {
           type?: string | null
         }
         Update: {
+          brand?: string | null
           country?: string | null
           created_at?: string | null
           id?: string
@@ -2348,15 +2375,19 @@ export type Database = {
       ops_shipments: {
         Row: {
           carrier_name: string | null
+          co2e_lbs: number | null
           created_at: string | null
           currency: string | null
           customs_cost: number | null
           destination_location_id: string | null
+          distance_miles: number | null
           id: string
+          is_emissions_estimated: boolean | null
           notes: string | null
           origin_location_id: string | null
           purchase_order_id: string | null
           shipment_type: string | null
+          shipped_by: string | null
           shipped_date: string | null
           status: string | null
           total_shipping_cost: number | null
@@ -2365,15 +2396,19 @@ export type Database = {
         }
         Insert: {
           carrier_name?: string | null
+          co2e_lbs?: number | null
           created_at?: string | null
           currency?: string | null
           customs_cost?: number | null
           destination_location_id?: string | null
+          distance_miles?: number | null
           id?: string
+          is_emissions_estimated?: boolean | null
           notes?: string | null
           origin_location_id?: string | null
           purchase_order_id?: string | null
           shipment_type?: string | null
+          shipped_by?: string | null
           shipped_date?: string | null
           status?: string | null
           total_shipping_cost?: number | null
@@ -2382,15 +2417,19 @@ export type Database = {
         }
         Update: {
           carrier_name?: string | null
+          co2e_lbs?: number | null
           created_at?: string | null
           currency?: string | null
           customs_cost?: number | null
           destination_location_id?: string | null
+          distance_miles?: number | null
           id?: string
+          is_emissions_estimated?: boolean | null
           notes?: string | null
           origin_location_id?: string | null
           purchase_order_id?: string | null
           shipment_type?: string | null
+          shipped_by?: string | null
           shipped_date?: string | null
           status?: string | null
           total_shipping_cost?: number | null
@@ -2417,6 +2456,13 @@ export type Database = {
             columns: ["purchase_order_id"]
             isOneToOne: false
             referencedRelation: "ops_purchase_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ops_shipments_shipped_by_fkey"
+            columns: ["shipped_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -2593,6 +2639,7 @@ export type Database = {
           job_title: string | null
           last_name: string | null
           notify_escalations_email: boolean
+          onboarding_completed_count: number
           phone: string | null
           updated_at: string | null
         }
@@ -2608,6 +2655,7 @@ export type Database = {
           job_title?: string | null
           last_name?: string | null
           notify_escalations_email?: boolean
+          onboarding_completed_count?: number
           phone?: string | null
           updated_at?: string | null
         }
@@ -2623,6 +2671,7 @@ export type Database = {
           job_title?: string | null
           last_name?: string | null
           notify_escalations_email?: boolean
+          onboarding_completed_count?: number
           phone?: string | null
           updated_at?: string | null
         }
@@ -3367,6 +3416,50 @@ export type Database = {
         }
         Relationships: []
       }
+      site_energy_price_history: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          currency_at_save: string
+          effective_from: string
+          id: string
+          note: string | null
+          price_eur_per_kwh: number
+          price_in_currency: number | null
+          site_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          currency_at_save?: string
+          effective_from?: string
+          id?: string
+          note?: string | null
+          price_eur_per_kwh: number
+          price_in_currency?: number | null
+          site_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          currency_at_save?: string
+          effective_from?: string
+          id?: string
+          note?: string | null
+          price_eur_per_kwh?: number
+          price_in_currency?: number | null
+          site_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "site_energy_price_history_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       site_energy_records: {
         Row: {
           additional_bridge: number | null
@@ -3914,6 +4007,7 @@ export type Database = {
           climate_zone: string | null
           country: string | null
           created_at: string | null
+          currency: string
           energy_price_kwh: number | null
           id: string
           image_url: string | null
@@ -3941,6 +4035,7 @@ export type Database = {
           climate_zone?: string | null
           country?: string | null
           created_at?: string | null
+          currency?: string
           energy_price_kwh?: number | null
           id?: string
           image_url?: string | null
@@ -3968,6 +4063,7 @@ export type Database = {
           climate_zone?: string | null
           country?: string | null
           created_at?: string | null
+          currency?: string
           energy_price_kwh?: number | null
           id?: string
           image_url?: string | null
@@ -4854,6 +4950,54 @@ export type Database = {
         }
         Relationships: []
       }
+      sensor_health_monitoring: {
+        Row: {
+          health_staleness: string | null
+          is_flatlining: boolean | null
+          is_offline: boolean | null
+          last_evaluated_at: string | null
+          monitor_status: string | null
+          sensor_id: string | null
+          site_id: string | null
+          trust_score: number | null
+        }
+        Insert: {
+          health_staleness?: never
+          is_flatlining?: boolean | null
+          is_offline?: boolean | null
+          last_evaluated_at?: string | null
+          monitor_status?: never
+          sensor_id?: string | null
+          site_id?: string | null
+          trust_score?: number | null
+        }
+        Update: {
+          health_staleness?: never
+          is_flatlining?: boolean | null
+          is_offline?: boolean | null
+          last_evaluated_at?: string | null
+          monitor_status?: never
+          sensor_id?: string | null
+          site_id?: string | null
+          trust_score?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sensor_health_sensor_id_fkey"
+            columns: ["sensor_id"]
+            isOneToOne: true
+            referencedRelation: "devices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sensor_health_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       site_energy_daily: {
         Row: {
           metric: string | null
@@ -5127,12 +5271,17 @@ export type Database = {
         Returns: boolean
       }
       delete_stale_energy_latest: { Args: never; Returns: undefined }
+      detect_flatlines: { Args: never; Returns: undefined }
+      detect_offline_sensors: { Args: never; Returns: undefined }
       enqueue_email: {
         Args: { payload: Json; queue_name: string }
         Returns: number
       }
       evaluate_daily_alerts: { Args: never; Returns: undefined }
-      evaluate_instant_alerts: { Args: never; Returns: undefined }
+      evaluate_instant_alerts: {
+        Args: { p_device_id?: string }
+        Returns: undefined
+      }
       evaluate_sensor_health: { Args: never; Returns: undefined }
       evaluate_sustained_alerts: { Args: never; Returns: undefined }
       extract_mqtt_timestamp: {
@@ -5183,10 +5332,12 @@ export type Database = {
         Args: { p_end_time: string; p_site_id: string; p_start_time: string }
         Returns: {
           climate_zone: string
+          humidity_pct: number
           hvac_kwh: number
           lighting_kwh: number
           other_kwh: number
           plugs_kwh: number
+          temp_c: number
           total_kwh: number
           ts_hour: string
           typology: string
