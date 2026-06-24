@@ -122,7 +122,7 @@ export function AdminTimeline() {
         </span>
       </div>
 
-      <div className="h-[600px] border rounded-lg shadow-sm bg-background">
+      <div className="h-[calc(100vh-220px)] min-h-[500px] border rounded-lg shadow-sm bg-background">
         <FGBPlanner data={filtered.map((p) => p.plannerData)} />
       </div>
     </div>
