@@ -45,6 +45,7 @@ export function useAirRows() {
         .from('site_air_records')
         .select(`
           site_id,
+          status,
           total_sensors,
           po_numbers,
           handover_date,
