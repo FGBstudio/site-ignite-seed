@@ -134,20 +134,33 @@ export default function HrAvailability() {
                   const key = `${p.id}|${format(d, "yyyy-MM-dd")}`;
                   const cell = byKey.get(key);
                   const editable = canEdit(p.id);
+                  const weekend = isWeekend(d);
+                  // Default visual for weekdays without a saved entry → Office
+                  const displayStatus: AvailabilityStatus | null = cell
+                    ? cell.status
+                    : weekend
+                      ? null
+                      : "office";
                   return (
-                    <td key={key} className={`p-0.5 ${isWeekend(d) ? "bg-muted/20" : ""}`}>
+                    <td key={key} className={`p-0.5 ${weekend ? "bg-muted/20" : ""}`}>
                       <Popover>
                         <PopoverTrigger asChild>
                           <button
                             type="button"
                             disabled={!editable}
-                            title={cell ? `${STATUS_LABEL[cell.status]}${cell.note ? ` — ${cell.note}` : ""}` : ""}
+                            title={
+                              cell
+                                ? `${STATUS_LABEL[cell.status]}${cell.note ? ` — ${cell.note}` : ""}`
+                                : displayStatus
+                                  ? `${STATUS_LABEL[displayStatus]} (default)`
+                                  : ""
+                            }
                             className={`w-7 h-7 rounded text-[10px] font-semibold text-foreground/80 flex items-center justify-center transition-all ${
                               editable ? "cursor-pointer hover:ring-2 hover:ring-offset-1 hover:ring-primary/40" : "cursor-not-allowed opacity-60"
-                            }`}
-                            style={{ background: cell ? STATUS_COLOR[cell.status] : "hsl(var(--muted))" }}
+                            } ${!cell && displayStatus ? "opacity-70" : ""}`}
+                            style={{ background: displayStatus ? STATUS_COLOR[displayStatus] : "hsl(var(--muted))" }}
                           >
-                            {cell ? STATUS_SHORT[cell.status] : ""}
+                            {displayStatus ? STATUS_SHORT[displayStatus] : ""}
                           </button>
                         </PopoverTrigger>
                         {editable && (
