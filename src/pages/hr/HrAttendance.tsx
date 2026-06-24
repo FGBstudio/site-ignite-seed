@@ -126,11 +126,15 @@ export default function HrAttendance() {
 }
 
 function QrTokensDialog() {
-  const { data: profiles = [] } = useHrProfiles();
+  const { data: allProfiles = [] } = useHrProfiles();
   const { data: tokens = [] } = useHrQrTokens();
   const rotate = useRotateQrToken();
   const { toast } = useToast();
 
+  const profiles = useMemo(
+    () => allProfiles.filter((p) => p.email?.toLowerCase().endsWith("@fgb-studio.com")),
+    [allProfiles]
+  );
   const tokenFor = (uid: string) => tokens.find((t) => t.user_id === uid);
 
   return (
