@@ -216,7 +216,7 @@ function CellEditor({
   }) => void;
   onDelete?: () => void;
 }) {
-  const [status, setStatus] = useState<AvailabilityStatus>(cell?.status ?? "available");
+  const [status, setStatus] = useState<AvailabilityStatus>(cell?.status ?? "office");
   const [note, setNote] = useState(cell?.note ?? "");
   const [hours, setHours] = useState<string>(cell?.hours_planned?.toString() ?? "");
 
