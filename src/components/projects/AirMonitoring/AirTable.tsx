@@ -215,7 +215,7 @@ function AirRow({ r, idx, isAdmin, onUpdate, showFinancials }: { r: AirMonitorRo
   const [saving, setSaving] = useState(false);
 
   const isEven = idx % 2 === 0;
-  const baseBg = editing ? "bg-sky-50/60" : isEven ? "bg-white" : "bg-slate-50/40";
+  const baseBg = editing ? "bg-sky-50" : isEven ? "bg-white" : "bg-slate-50";
 
   const save = async () => {
     setSaving(true);
@@ -225,8 +225,8 @@ function AirRow({ r, idx, isAdmin, onUpdate, showFinancials }: { r: AirMonitorRo
   };
 
   return (
-    <tr className={cn("group transition-colors duration-150", baseBg, "hover:bg-slate-50/80")}>
-      <td className={cn("px-4 py-4 font-semibold text-slate-800 sticky left-0 z-10", editing ? "bg-sky-50/60" : isEven ? "bg-white" : "bg-slate-50/40", "group-hover:bg-slate-50/80 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.12)]")}>
+    <tr className={cn("group transition-colors duration-150", baseBg, "hover:bg-slate-100/50")}>
+      <td className={cn("px-4 py-4 font-semibold text-slate-800 sticky left-0 z-10", editing ? "bg-sky-50" : isEven ? "bg-white" : "bg-slate-50", "group-hover:bg-slate-100 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.12)]")}>
         <div className="flex flex-col">
           <span className="text-sm font-bold tracking-tight">{r.project_name}</span>
           <span className="text-[10px] text-slate-400 font-normal mt-0.5">{r.city}{r.city && r.country ? ", " : ""}{r.country}</span>
