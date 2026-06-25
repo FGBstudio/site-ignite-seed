@@ -855,6 +855,7 @@ In order to be iterable, non-array objects must have a [Symbol.iterator]() metho
           online_status,
           project_name,
           pm_id,
+          notes,
           inbound_cost,
           outbound_cost,
           internal_cost,
@@ -873,7 +874,8 @@ In order to be iterable, non-array objects must have a [Symbol.iterator]() metho
             name,
             country,
             region,
-            city
+            city,
+            brand_id
           ),
           profiles:pm_id (
             display_name,
@@ -881,7 +883,7 @@ In order to be iterable, non-array objects must have a [Symbol.iterator]() metho
             first_name,
             last_name
           )
-        `);if(t)throw t;return e?e.map(r=>{const n=Array.isArray(r.sites)?r.sites[0]:r.sites,i=Array.isArray(r.profiles)?r.profiles[0]:r.profiles;return{id:r.site_id,project_name:(n==null?void 0:n.name)||r.project_name||`Site: ${r.site_id.slice(0,8)}`,pm_name:i?i.full_name||i.display_name||[i.first_name,i.last_name].filter(Boolean).join(" "):null,region:(n==null?void 0:n.region)??null,country:(n==null?void 0:n.country)??null,city:(n==null?void 0:n.city)??null,status:r.status,total_sensors:r.total_sensors??0,po_numbers:r.po_numbers??[],handover_date:r.handover_date??null,latest_shipment_date:r.latest_shipment_date??null,online_status:r.online_status??null,notes:r.notes??null,inbound_cost:r.inbound_cost??0,outbound_cost:r.outbound_cost??0,internal_cost:r.internal_cost??0,customs_cost:r.customs_cost??0,vat_cost:r.vat_cost??0,hardware_cost:r.hardware_cost??0,working_time_cost:r.working_time_cost??0,total_cost:r.total_cost??0,quotation_value:r.quotation_value??0,planned_remaining:r.planned_remaining??0,taxes:r.taxes??0,profit:r.profit??0,roi:r.roi??0}}):[]}})}function kXe(e){return ot({queryKey:["monitor-air-devices",e],enabled:!!e,staleTime:3e4,queryFn:async()=>{const{data:t,error:r}=await te.from("hardwares").select(`
+        `);if(t)throw t;if(!e)return[];const{data:r}=await te.from("brands").select("id, name"),n=new Map;return r&&r.forEach(i=>n.set(i.id,i.name)),e.map(i=>{const a=Array.isArray(i.sites)?i.sites[0]:i.sites,o=Array.isArray(i.profiles)?i.profiles[0]:i.profiles,l=a!=null&&a.brand_id&&n.get(a.brand_id)||null;return{id:i.site_id,project_name:(a==null?void 0:a.name)||i.project_name||`Site: ${i.site_id.slice(0,8)}`,pm_name:o?o.full_name||o.display_name||[o.first_name,o.last_name].filter(Boolean).join(" "):null,region:(a==null?void 0:a.region)??null,country:(a==null?void 0:a.country)??null,city:(a==null?void 0:a.city)??null,status:i.status,total_sensors:i.total_sensors??0,po_numbers:i.po_numbers??[],handover_date:i.handover_date??null,latest_shipment_date:i.latest_shipment_date??null,brand_name:l,online_status:i.online_status??null,notes:i.notes??null,inbound_cost:i.inbound_cost??0,outbound_cost:i.outbound_cost??0,internal_cost:i.internal_cost??0,customs_cost:i.customs_cost??0,vat_cost:i.vat_cost??0,hardware_cost:i.hardware_cost??0,working_time_cost:i.working_time_cost??0,total_cost:i.total_cost??0,quotation_value:i.quotation_value??0,planned_remaining:i.planned_remaining??0,taxes:i.taxes??0,profit:i.profit??0,roi:i.roi??0}})}})}function kXe(e){return ot({queryKey:["monitor-air-devices",e],enabled:!!e,staleTime:3e4,queryFn:async()=>{const{data:t,error:r}=await te.from("hardwares").select(`
           device_id,
           mac_address,
           shipment_date,
