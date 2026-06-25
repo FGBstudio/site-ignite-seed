@@ -106,6 +106,7 @@ export function useAirRows() {
 
         return {
           id: record.site_id,
+          certification_id: record.certification_id ?? record.id ?? null,
           project_name: site?.name || record.project_name || `Site: ${record.site_id.slice(0, 8)}`,
           pm_name: pm ? (pm.full_name || pm.display_name || [pm.first_name, pm.last_name].filter(Boolean).join(" ")) : null,
           region: site?.region ?? null,
