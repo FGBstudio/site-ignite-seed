@@ -1,98 +1,54 @@
-# HR Section — Availability, Leave Requests, QR Attendance
 
-Attivo la sezione HR (oggi `comingSoon`) e implemento 3 moduli + lo scanner integrato dal progetto `entry-watcher`.
+## Problema
 
-## 1. Database (1 migration)
+I dati anagrafici del sito (city, country, region, address, timezone) inseriti durante l'onboarding non si propagano in modo coerente alle tabelle/viste di Projects. La radice non è il DB (i siti recenti hanno tutti i campi popolati), ma tre punti del codice frontend:
 
-**Tabelle nuove:**
+### Cause identificate
 
-- `hr_availability` — riga per utente/giorno
-  - `user_id uuid`, `date date`, `status` (`available` | `busy` | `off` | `travel` | `remote`), `note text`, `hours_planned numeric`
-  - UNIQUE(user_id, date)
-- `hr_requests`
-  - `user_id`, `type` (`holiday` | `permit` | `travel`), `start_date`, `end_date`, `start_time`, `end_time`, `reason text`, `status` (`pending` | `approved` | `rejected`), `manager_note text`, `approved_by uuid`, `approved_at`
-- `hr_attendance`
-  - `user_id`, `timestamp_in timestamptz`, `timestamp_out timestamptz`, `location_lat`, `location_lng`, `status` (`auto_qr` | `manual_override`), `approved_by uuid`, `device_label text`, `note text`
-- `hr_qr_tokens` — token QR personali per utente (per scanner)
-  - `user_id`, `token text unique`, `active bool`, `rotated_at`
+1. **`SiteProjectOnboardingForm.tsx` (ProjectFormModal)** — la modale "New Project on Site" della pagina Projects, quando l'utente sceglie "+" per creare un sito al volo, esegue:
+   ```ts
+   supabase.from("sites").insert({ name, brand_id })
+   ```
+   Tutti gli altri campi (city/country/region/address/timezone) **non sono nemmeno raccolti**: il sito nasce monco.
 
-**GRANT + RLS** (uso `is_admin(auth.uid())` già presente):
+2. **`ProjectCreateWizard.tsx`** — quando si sceglie un sito **esistente**, `certifications.region` viene scritto col valore di `draft.region` (default "Europe") invece di derivarlo da `sites.region`. La vista Projects (che mostra `region` della cert) risulta incoerente col sito.
 
-- `hr_availability`: SELECT a tutti gli `authenticated` (vista d'insieme). INSERT/UPDATE/DELETE solo su `user_id = auth.uid()`; Admin tutto.
-- `hr_requests`: SELECT proprie righe + Admin tutto. INSERT proprie. UPDATE: proprie se `status='pending'`; Admin sempre (per approvazione).
-- `hr_attendance`: SELECT proprie + Admin tutto. INSERT solo Admin (scanner) o `user_id = auth.uid()` per override richiesto, ma UPDATE/APPROVE solo Admin.
-- `hr_qr_tokens`: SELECT proprio token; Admin tutto.
+3. **`ProjectCreateWizard.tsx`** — un sito esistente con campi mancanti (es. `address` NULL) non è correggibile dal wizard: non c'è UI per fare update.
 
-**Trigger:** all'`approved` di un `hr_request` di tipo `holiday`/`permit`, popolare `hr_availability` con `status='off'` per il range.
+## Interventi
 
-## 2. Frontend
+### A. ProjectFormModal — raccolta completa quando si crea un sito inline
+File: `src/components/projects/SiteProjectOnboardingForm.tsx`
 
-Nuove route protette (allowedRoles `ADMIN`, `PM`):
+- Estendere il blocco "+ New Site" con i campi: City *, Country *, Region, Address, Timezone (default `Europe/Rome`).
+- Validare city/country come required prima del submit.
+- All'insert dei `sites`, passare tutti i campi raccolti (oltre a `name` e `brand_id`).
+- Dopo la creazione, usare la `region` del nuovo sito per la `certifications.region`.
 
-```
-/hr                        → HR Hub (3 card: Availability, Requests, Attendance)
-/hr/availability           → Calendario condiviso
-/hr/requests               → Le mie richieste + (Admin) coda approvazione
-/hr/attendance             → Registro presenze (Admin: pulsante "Apri Scanner")
-/hr/scanner                → Solo Admin: QR scanner fullscreen
-```
+### B. ProjectCreateWizard — coerenza region cert↔site
+File: `src/pages/ProjectCreateWizard.tsx`
 
-**Update `hubSections.ts`:** `hr.comingSoon = false`, e aggiungo `HR_SECTION_PATHS` con le route sopra, analogo a `PROJECTS_SECTION_PATHS`.
+- Quando l'utente seleziona un sito esistente (step 1), pre-popolare `draft.region` con `sites.region`.
+- In `handleSubmit`, al ramo "sito esistente", leggere `region` (e `timezone`) dalla riga `sites` selezionata e usarli per la insert delle `certifications`, invece di affidarsi al solo `draft.region`.
+- Mostrare nello step Review una riga "Site Region" derivata dal sito selezionato, non dal draft.
 
-### Availability (`/hr/availability`)
-- Griglia mensile orizzontale: righe = utenti (da `profiles`), colonne = giorni del mese corrente (navigazione mese precedente/successivo).
-- Cella colorata per `status`; tooltip con `note`.
-- Click su cella: editabile **solo** se `row.user_id === auth.uid()` o utente è Admin. Popover con select status + note + hours.
-- Admin ha badge "Manager mode" e può editare qualsiasi riga.
-- Realtime opzionale via Supabase channel su `hr_availability`.
+### C. ProjectCreateWizard — possibilità di completare un sito esistente
+File: `src/pages/ProjectCreateWizard.tsx`
 
-### Requests (`/hr/requests`)
-- Tab "Le mie richieste" (lista + form "Nuova richiesta": tipo, date range, motivo).
-- Tab "Da approvare" (visibile solo ad Admin): lista `pending`, bottoni Approve/Reject con `manager_note`.
-- Stato → toast + invalidate query. Admin può anche creare richieste proprie.
+- Quando viene selezionato un sito esistente con campi mancanti (city / country / address / timezone NULL o vuoti), mostrare un piccolo pannello "Complete site details" pre-compilato con i valori attuali, editabile.
+- Al submit, se i campi sono stati modificati, eseguire un `update` sulla riga `sites` selezionata prima di creare le certifications.
 
-### Attendance (`/hr/attendance`)
-- Tabella registro con filtro per utente/giorno.
-- Admin vede tutti; PM vede solo se stesso.
-- Admin: bottone "Apri Scanner" che porta a `/hr/scanner`.
-- Permette di marcare `manual_override` con approvazione Admin.
+### D. Verifica letture downstream (solo controllo, nessuna modifica se ok)
+Hooks già corretti: `useAdminPlannerData` e `usePMPortalData` joinano `sites(name, city, country, brand_id)` via `certifications_site_id_fkey` — una volta che il sito ha i dati, vengono visualizzati correttamente in tabelle/filtri di Projects e PM board. Nessuna modifica necessaria.
 
-### Scanner (`/hr/scanner`, solo Admin)
-- Porto i componenti chiave da `entry-watcher`: `QRScanner.tsx` (libreria già presente o `html5-qrcode`/`@zxing/browser`), adattato per:
-  - Leggere token QR → lookup `hr_qr_tokens.token` → ottenere `user_id`.
-  - Determinare se è check-in o check-out (ultimo record aperto dell'utente nello stesso giorno).
-  - `INSERT`/`UPDATE` su `hr_attendance` con `status='auto_qr'`, geolocation opzionale (`navigator.geolocation`).
-  - Feedback visivo: nome utente + IN/OUT + timestamp.
-- Stampa QR per ciascun utente (Admin): pulsante "Genera/Rigenera QR" nella tabella utenti, mostra QR (libreria `qrcode`).
+## Note tecniche
 
-**Dipendenze nuove:** `@zxing/browser` (scanner) + `qrcode` (generazione). Tutto client-side.
+- Nessuna migrazione DB: lo schema `sites` ha già tutte le colonne.
+- RLS: l'update di `sites` per completare un esistente è coperto dalle policy attuali (PM/admin sui propri siti).
+- Strict TS, niente `as any` nuovi.
 
-## 3. Hooks/Files
+## Out of scope
 
-```
-src/hooks/useHrAvailability.ts
-src/hooks/useHrRequests.ts
-src/hooks/useHrAttendance.ts
-src/hooks/useHrQrTokens.ts
-src/pages/HrHub.tsx
-src/pages/hr/Availability.tsx
-src/pages/hr/Requests.tsx
-src/pages/hr/Attendance.tsx
-src/pages/hr/Scanner.tsx
-src/components/hr/AvailabilityCell.tsx
-src/components/hr/RequestForm.tsx
-src/components/hr/ApprovalQueue.tsx
-src/components/hr/QrScannerView.tsx
-src/components/hr/UserQrDialog.tsx
-```
-
-Update:
-- `src/lib/hubSections.ts` (attivo hr, aggiungo `HR_SECTION_PATHS`).
-- `src/App.tsx` (5 nuove route con `<ProtectedRoute allowedRoles={["ADMIN","PM"]}>`; `/hr/scanner` solo `["ADMIN"]`).
-
-## Note
-
-- UI in inglese, design Apple/glassmorphism coerente col resto.
-- Date con `date-fns`.
-- Niente `as any`, tipi in `src/types/custom-tables.ts`.
-- Lo scanner del progetto allegato gira in locale standalone; qui ne riuso solo la **logica QR**, salvando i timbri direttamente in Supabase (no `database.json`, no server Node separato).
+- Non tocco la pagina `ProjectDetail` o l'edit del sito da Settings.
+- Non rinomino/normalizzo colonne esistenti.
+- Non aggiungo nuovi campi al DB.
