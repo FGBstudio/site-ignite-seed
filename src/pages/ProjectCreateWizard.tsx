@@ -474,6 +474,50 @@ function StepSite({ draft, updateDraft, errors, holdings, brands, sites, loading
           </CardContent>
         </Card>
       )}
+
+      {/* Complete details for selected existing site */}
+      {!draft.create_new_site && draft.site_id && (() => {
+        const selected = sites.find((s: any) => s.id === draft.site_id);
+        if (!selected) return null;
+        const missing = !selected.city || !selected.country || !selected.address || !selected.region;
+        if (!missing) return null;
+        return (
+          <Card className="border-amber-300/50 bg-amber-50/30">
+            <CardContent className="pt-6 space-y-3">
+              <h3 className="font-semibold text-foreground text-sm">Complete site details</h3>
+              <p className="text-xs text-muted-foreground">This site is missing some metadata. Fill it in and we'll save it back to the site.</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {!selected.city && (
+                  <FieldWrapper label="City">
+                    <Input value={draft.city} onChange={(e) => updateDraft({ city: e.target.value })} placeholder="e.g. Milan" />
+                  </FieldWrapper>
+                )}
+                {!selected.country && (
+                  <FieldWrapper label="Country">
+                    <Input value={draft.country} onChange={(e) => updateDraft({ country: e.target.value })} placeholder="e.g. Italy" />
+                  </FieldWrapper>
+                )}
+                {!selected.address && (
+                  <FieldWrapper label="Address">
+                    <Input value={draft.address} onChange={(e) => updateDraft({ address: e.target.value })} placeholder="Via Roma 1" />
+                  </FieldWrapper>
+                )}
+                {!selected.region && (
+                  <FieldWrapper label="Region">
+                    <Select value={draft.region} onValueChange={(v) => updateDraft({ region: v })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {["Europe", "America", "APAC", "ME"].map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </FieldWrapper>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
+      )}
     </div>
   );
 }
