@@ -27,7 +27,8 @@ const getSelectStatus = (status: string | null): string => {
   if (!status) return 'Upcoming';
   const s = status.toLowerCase();
   if (/delivered|complete|installed/i.test(s)) return 'Delivered';
-  if (/shipped|transit|assigned/i.test(s)) return 'Assigned';
+  if (/in_transit|in-transit|in transit|shipped|transit/i.test(s)) return 'In Transit';
+  if (/assigned/i.test(s)) return 'Assigned';
   return 'Upcoming';
 };
 
@@ -342,7 +343,7 @@ export function AirTable() {
     rows.forEach(r => {
       const norm = getSelectStatus(r.status);
       if (norm === 'Delivered') totalDelivered++;
-      else if (norm === 'Assigned') totalAssigned++;
+      else if (norm === 'Assigned' || norm === 'In Transit') totalAssigned++;
       else totalUpcoming++;
     });
     
@@ -1025,6 +1026,7 @@ function AirRow({
           <SelectContent>
             <SelectItem value="Upcoming">Upcoming</SelectItem>
             <SelectItem value="Assigned">Assigned</SelectItem>
+            <SelectItem value="In Transit">In Transit</SelectItem>
             <SelectItem value="Delivered">Delivered</SelectItem>
           </SelectContent>
         </Select>
