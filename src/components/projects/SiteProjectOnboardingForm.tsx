@@ -310,29 +310,59 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
               </CardHeader>
               <CardContent className="space-y-6 pt-6 bg-white">
                 {!project && (
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6 p-4 bg-slate-50 rounded-lg border border-slate-100">
-                    <div className="space-y-2">
-                      <Label>Holding *</Label>
-                      <Select value={selectedHoldingId} onValueChange={handleHoldingChange}><SelectTrigger>{loadingHoldings ? <Loader2 className="h-3 w-3 animate-spin" /> : <SelectValue placeholder="Select holding" />}</SelectTrigger><SelectContent>{holdings.map((h: any) => (<SelectItem key={h.id} value={h.id}>{h.name}</SelectItem>))}</SelectContent></Select>
+                  <div className="space-y-4 mb-6 p-4 bg-slate-50 rounded-lg border border-slate-100">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <Label>Holding *</Label>
+                        <Select value={selectedHoldingId} onValueChange={handleHoldingChange}><SelectTrigger>{loadingHoldings ? <Loader2 className="h-3 w-3 animate-spin" /> : <SelectValue placeholder="Select holding" />}</SelectTrigger><SelectContent>{holdings.map((h: any) => (<SelectItem key={h.id} value={h.id}>{h.name}</SelectItem>))}</SelectContent></Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Brand *</Label>
+                        <Select value={selectedBrandId} onValueChange={handleBrandChange} disabled={!selectedHoldingId}><SelectTrigger>{loadingBrands && selectedHoldingId ? <Loader2 className="h-3 w-3 animate-spin" /> : <SelectValue placeholder="Select brand" />}</SelectTrigger><SelectContent>{brands.map((b: any) => (<SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>))}</SelectContent></Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Site *</Label>
+                        {showNewSite ? (
+                          <div className="flex gap-2"><Input placeholder="New site name..." value={newSiteName} onChange={(e) => setNewSiteName(e.target.value)} className="flex-1" /><Button type="button" variant="outline" size="sm" onClick={() => { setShowNewSite(false); resetNewSite(); }}>X</Button></div>
+                        ) : (
+                          <div className="flex gap-2">
+                            <Controller control={form.control} name="site_id" render={({ field }) => (
+                              <Select value={field.value} onValueChange={field.onChange} disabled={!selectedBrandId}><SelectTrigger className="flex-1"><SelectValue placeholder="Select site" /></SelectTrigger><SelectContent>{sites.map((s: any) => (<SelectItem key={s.id} value={s.id}>{s.name}{s.city ? ` — ${s.city}` : ""}</SelectItem>))}</SelectContent></Select>
+                            )} />
+                            <Button type="button" variant="outline" size="sm" onClick={() => setShowNewSite(true)} disabled={!selectedBrandId}><Plus className="h-3 w-3" /></Button>
+                          </div>
+                        )}
+                        {form.formState.errors.site_id && <p className="text-xs text-destructive">Site required</p>}
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label>Brand *</Label>
-                      <Select value={selectedBrandId} onValueChange={handleBrandChange} disabled={!selectedHoldingId}><SelectTrigger>{loadingBrands && selectedHoldingId ? <Loader2 className="h-3 w-3 animate-spin" /> : <SelectValue placeholder="Select brand" />}</SelectTrigger><SelectContent>{brands.map((b: any) => (<SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>))}</SelectContent></Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Site *</Label>
-                      {showNewSite ? (
-                        <div className="flex gap-2"><Input placeholder="New site..." value={newSiteName} onChange={(e) => setNewSiteName(e.target.value)} className="flex-1" /><Button type="button" variant="outline" size="sm" onClick={() => setShowNewSite(false)}>X</Button></div>
-                      ) : (
-                        <div className="flex gap-2">
-                          <Controller control={form.control} name="site_id" render={({ field }) => (
-                            <Select value={field.value} onValueChange={field.onChange} disabled={!selectedBrandId}><SelectTrigger className="flex-1"><SelectValue placeholder="Select site" /></SelectTrigger><SelectContent>{sites.map((s: any) => (<SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>))}</SelectContent></Select>
-                          )} />
-                          <Button type="button" variant="outline" size="sm" onClick={() => setShowNewSite(true)} disabled={!selectedBrandId}><Plus className="h-3 w-3" /></Button>
+
+                    {showNewSite && (
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-3 border-t border-slate-200">
+                        <div className="space-y-1">
+                          <Label className="text-xs">City *</Label>
+                          <Input placeholder="e.g. Milan" value={newSiteCity} onChange={(e) => setNewSiteCity(e.target.value)} />
                         </div>
-                      )}
-                      {form.formState.errors.site_id && <p className="text-xs text-destructive">Site required</p>}
-                    </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Country *</Label>
+                          <Input placeholder="e.g. Italy" value={newSiteCountry} onChange={(e) => setNewSiteCountry(e.target.value)} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Region</Label>
+                          <Select value={newSiteRegion} onValueChange={setNewSiteRegion}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>{REGIONS.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1 sm:col-span-2">
+                          <Label className="text-xs">Address</Label>
+                          <Input placeholder="Via Roma 1" value={newSiteAddress} onChange={(e) => setNewSiteAddress(e.target.value)} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Timezone</Label>
+                          <Input placeholder="Europe/Rome" value={newSiteTimezone} onChange={(e) => setNewSiteTimezone(e.target.value)} />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
