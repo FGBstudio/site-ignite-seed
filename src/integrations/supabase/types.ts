@@ -2460,6 +2460,7 @@ export type Database = {
           lng: number | null
           name: string
           region: string | null
+          site_id: string | null
           type: string | null
         }
         Insert: {
@@ -2471,6 +2472,7 @@ export type Database = {
           lng?: number | null
           name: string
           region?: string | null
+          site_id?: string | null
           type?: string | null
         }
         Update: {
@@ -2482,9 +2484,18 @@ export type Database = {
           lng?: number | null
           name?: string
           region?: string | null
+          site_id?: string | null
           type?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "ops_locations_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ops_purchase_orders: {
         Row: {
