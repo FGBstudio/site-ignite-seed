@@ -193,23 +193,22 @@ function ExcelHeaderCell({
   className?: string;
   airProductsMap?: Map<string, string>;
 }) {
-  const [popoverSearch, setPopoverSearch] = useState("");
-
   const uniqueValues = useMemo(() => {
     return getUniqueValues(colKey, rows, airProductsMap);
   }, [colKey, rows, airProductsMap]);
 
   const columnFilter = colFilters[colKey] || { search: "", selectedValues: undefined };
-  
+  const popoverSearch = columnFilter.search ?? "";
+
   const filteredChecklist = useMemo(() => {
-    return uniqueValues.filter(v => 
+    return uniqueValues.filter(v =>
       v.toLowerCase().includes(popoverSearch.toLowerCase())
     );
   }, [uniqueValues, popoverSearch]);
 
   const isSortedAsc = sortConfig?.key === colKey && sortConfig?.direction === 'asc';
   const isSortedDesc = sortConfig?.key === colKey && sortConfig?.direction === 'desc';
-  const isFiltered = columnFilter.selectedValues !== undefined && columnFilter.selectedValues !== null;
+  const isFiltered = (columnFilter.selectedValues !== undefined && columnFilter.selectedValues !== null) || !!columnFilter.search;
 
   const handleSort = (direction: 'asc' | 'desc') => {
     setSortConfig({ key: colKey, direction });
@@ -304,9 +303,12 @@ function ExcelHeaderCell({
           <div className="relative px-1 mb-1.5">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
             <Input 
-              value={popoverSearch} 
-              onChange={e => setPopoverSearch(e.target.value)} 
-              placeholder="Search values..." 
+              value={popoverSearch}
+              onChange={e => setColFilters(prev => ({
+                ...prev,
+                [colKey]: { ...(prev[colKey] || { search: "", selectedValues: undefined }), search: e.target.value }
+              }))}
+              placeholder="Search values..."
               className="pl-8 pr-2 h-7 text-xs bg-slate-50/50 border-slate-200 focus-visible:ring-indigo-500/20"
             />
           </div>
