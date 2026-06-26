@@ -10,9 +10,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, Plus, Pencil, BarChart3, Eye, GanttChartSquare, AlertTriangle, Clock3, CheckCircle2, FileText, XCircle, CheckSquare, Trash2, Loader2, Download } from "lucide-react";
+import { Search, Plus, Pencil, BarChart3, Eye, GanttChartSquare, AlertTriangle, Clock3, CheckCircle2, FileText, XCircle, CheckSquare, Trash2, Loader2, Download, ArrowUp, ArrowDown, ArrowUpDown, Filter } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
@@ -46,6 +47,225 @@ const CERT_DISPLAY_LABELS: Record<string, string> = {
   Energy_Audit: "Energy Audit",
 };
 
+/* ─────────── Excel Header Cell Helper functions ─────────── */
+function getUniqueValues(colKey: string, rows: any[]): string[] {
+  const values = new Set<string>();
+  rows.forEach(r => {
+    let val: any = '';
+    if (colKey === 'name') val = r.name || '(Blanks)';
+    else if (colKey === 'client') val = r.client || '(Blanks)';
+    else if (colKey === 'region') val = r.region || '(Blanks)';
+    else if (colKey === 'cert_type') val = r.cert_type ? (CERT_DISPLAY_LABELS[r.cert_type] ?? r.cert_type) : '(Blanks)';
+    else if (colKey === 'cert_rating') val = r.cert_rating || '(Blanks)';
+    else if (colKey === 'total_fees') val = r.total_fees !== undefined && r.total_fees !== null ? `€${Number(r.total_fees).toLocaleString()}` : '(Blanks)';
+    else if (colKey === 'quotation_sent_date') val = r.quotation_sent_date ? format(new Date(r.quotation_sent_date), "dd MMM yyyy") : '(Blanks)';
+    else if (colKey === 'project_subtype') val = r.project_subtype || '(Blanks)';
+    else if (colKey === 'pm_name') val = r.pm_name || '(Blanks)';
+    else if (colKey === 'handover_date') val = r.handover_date ? format(new Date(r.handover_date), "dd MMM yyyy") : '(Blanks)';
+    else if (colKey === 'setup_status') val = SETUP_STATUS_META[r.setup_status as keyof typeof SETUP_STATUS_META]?.label || r.setup_status || '(Blanks)';
+    
+    if (val !== undefined && val !== null) {
+      values.add(String(val));
+    }
+  });
+  return Array.from(values).sort((a, b) => {
+    if (a === '(Blanks)') return 1;
+    if (b === '(Blanks)') return -1;
+    return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+  });
+}
+
+function matchRowValue(r: any, colKey: string, selectedValues: string[] | null | undefined): boolean {
+  if (selectedValues === null || selectedValues === undefined) return true;
+  
+  let val: string = '';
+  if (colKey === 'name') val = r.name || '(Blanks)';
+  else if (colKey === 'client') val = r.client || '(Blanks)';
+  else if (colKey === 'region') val = r.region || '(Blanks)';
+  else if (colKey === 'cert_type') val = r.cert_type ? (CERT_DISPLAY_LABELS[r.cert_type] ?? r.cert_type) : '(Blanks)';
+  else if (colKey === 'cert_rating') val = r.cert_rating || '(Blanks)';
+  else if (colKey === 'total_fees') val = r.total_fees !== undefined && r.total_fees !== null ? `€${Number(r.total_fees).toLocaleString()}` : '(Blanks)';
+  else if (colKey === 'quotation_sent_date') val = r.quotation_sent_date ? format(new Date(r.quotation_sent_date), "dd MMM yyyy") : '(Blanks)';
+  else if (colKey === 'project_subtype') val = r.project_subtype || '(Blanks)';
+  else if (colKey === 'pm_name') val = r.pm_name || '(Blanks)';
+  else if (colKey === 'handover_date') val = r.handover_date ? format(new Date(r.handover_date), "dd MMM yyyy") : '(Blanks)';
+  else if (colKey === 'setup_status') val = SETUP_STATUS_META[r.setup_status as keyof typeof SETUP_STATUS_META]?.label || r.setup_status || '(Blanks)';
+  
+  return selectedValues.includes(val);
+}
+
+/* ─────────── Excel Header Cell Component ─────────── */
+function ExcelHeaderCell({
+  title,
+  colKey,
+  rows,
+  colFilters,
+  setColFilters,
+  sortConfig,
+  setSortConfig,
+  customContent,
+  className
+}: {
+  title: string;
+  colKey: string;
+  rows: any[];
+  colFilters: Record<string, { search: string; selectedValues: string[] | null | undefined }>;
+  setColFilters: React.Dispatch<React.SetStateAction<Record<string, { search: string; selectedValues: string[] | null | undefined }>>>;
+  sortConfig: { key: string; direction: 'asc' | 'desc' } | null;
+  setSortConfig: React.Dispatch<React.SetStateAction<{ key: string; direction: 'asc' | 'desc' } | null>>;
+  customContent?: React.ReactNode;
+  className?: string;
+}) {
+  const [popoverSearch, setPopoverSearch] = useState("");
+  
+  const uniqueValues = useMemo(() => {
+    return getUniqueValues(colKey, rows);
+  }, [colKey, rows]);
+
+  const columnFilter = colFilters[colKey] || { search: "", selectedValues: undefined };
+  
+  const filteredChecklist = useMemo(() => {
+    return uniqueValues.filter(v => 
+      v.toLowerCase().includes(popoverSearch.toLowerCase())
+    );
+  }, [uniqueValues, popoverSearch]);
+
+  const isSortedAsc = sortConfig?.key === colKey && sortConfig?.direction === 'asc';
+  const isSortedDesc = sortConfig?.key === colKey && sortConfig?.direction === 'desc';
+  const isFiltered = columnFilter.selectedValues !== undefined && columnFilter.selectedValues !== null;
+
+  const handleSort = (direction: 'asc' | 'desc') => {
+    setSortConfig({ key: colKey, direction });
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    setColFilters(prev => ({
+      ...prev,
+      [colKey]: {
+        ...prev[colKey],
+        selectedValues: checked ? undefined : []
+      }
+    }));
+  };
+
+  const handleValueToggle = (value: string, checked: boolean) => {
+    setColFilters(prev => {
+      const current = prev[colKey] || { search: "", selectedValues: undefined };
+      let nextSelected: string[];
+      
+      if (current.selectedValues === undefined || current.selectedValues === null) {
+        nextSelected = [...uniqueValues];
+      } else {
+        nextSelected = [...current.selectedValues];
+      }
+
+      if (checked) {
+        if (!nextSelected.includes(value)) nextSelected.push(value);
+      } else {
+        nextSelected = nextSelected.filter(v => v !== value);
+      }
+
+      if (nextSelected.length === uniqueValues.length) {
+        return {
+          ...prev,
+          [colKey]: {
+            ...current,
+            selectedValues: undefined
+          }
+        };
+      }
+
+      return {
+        ...prev,
+        [colKey]: {
+          ...current,
+          selectedValues: nextSelected
+        }
+      };
+    });
+  };
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button className={cn(
+          "inline-flex items-center gap-1.5 hover:text-slate-800 transition-colors uppercase font-semibold text-[10px] tracking-wider py-1.5 select-none outline-none text-muted-foreground",
+          (isSortedAsc || isSortedDesc || isFiltered) && "text-indigo-600 font-bold",
+          className
+        )}>
+          <span>{title}</span>
+          {isSortedAsc && <ArrowUp className="w-3.5 h-3.5 shrink-0" />}
+          {isSortedDesc && <ArrowDown className="w-3.5 h-3.5 shrink-0" />}
+          {!isSortedAsc && !isSortedDesc && <ArrowUpDown className="w-3.5 h-3.5 opacity-40 shrink-0 hover:opacity-100" />}
+          {isFiltered && <Filter className="w-2.5 h-2.5 fill-indigo-600 shrink-0" />}
+        </button>
+      </PopoverTrigger>
+      
+      <PopoverContent className="w-56 p-2 bg-white border border-slate-200 shadow-xl rounded-xl z-50">
+        <div className="space-y-1 text-xs">
+          <button 
+            onClick={() => handleSort('asc')}
+            className={cn(
+              "w-full text-left px-2 py-1.5 rounded-lg flex items-center gap-2 hover:bg-slate-50 transition-colors font-medium text-slate-700",
+              isSortedAsc && "bg-indigo-50/50 text-indigo-700 font-bold"
+            )}
+          >
+            <ArrowUp className="w-3.5 h-3.5" /> Sort A to Z
+          </button>
+          <button 
+            onClick={() => handleSort('desc')}
+            className={cn(
+              "w-full text-left px-2 py-1.5 rounded-lg flex items-center gap-2 hover:bg-slate-50 transition-colors font-medium text-slate-700",
+              isSortedDesc && "bg-indigo-50/50 text-indigo-700 font-bold"
+            )}
+          >
+            <ArrowDown className="w-3.5 h-3.5" /> Sort Z to A
+          </button>
+          
+          <div className="border-t border-slate-100 my-1.5" />
+          
+          <div className="relative px-1 mb-1.5">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+            <Input 
+              value={popoverSearch} 
+              onChange={e => setPopoverSearch(e.target.value)} 
+              placeholder="Search values..." 
+              className="pl-8 pr-2 h-7 text-xs bg-slate-50/50 border-slate-200 focus-visible:ring-indigo-500/20"
+            />
+          </div>
+
+          <div className="max-h-48 overflow-y-auto px-1 space-y-1.5">
+            <label className="flex items-center gap-2 px-1 py-0.5 hover:bg-slate-50 rounded cursor-pointer select-none">
+              <Checkbox 
+                checked={columnFilter.selectedValues === undefined || columnFilter.selectedValues === null} 
+                onCheckedChange={(checked) => handleSelectAll(!!checked)}
+              />
+              <span className="font-semibold text-slate-700">(Select All)</span>
+            </label>
+            
+            {filteredChecklist.map(val => {
+              const isChecked = columnFilter.selectedValues === undefined || 
+                                columnFilter.selectedValues === null || 
+                                columnFilter.selectedValues.includes(val);
+              return (
+                <label key={val} className="flex items-center gap-2 px-1 py-0.5 hover:bg-slate-50 rounded cursor-pointer select-none truncate">
+                  <Checkbox 
+                    checked={isChecked} 
+                    onCheckedChange={(checked) => handleValueToggle(val, !!checked)}
+                  />
+                  <span className="text-slate-600 truncate">{val}</span>
+                </label>
+              );
+            })}
+          </div>
+
+          {customContent}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export default function Projects() {
   const { isAdmin } = useAuth();
   const navigate = useNavigate();
@@ -58,6 +278,9 @@ export default function Projects() {
   const regionFilter = searchParams.get("region") ?? "all";
   const pmFilter = searchParams.get("pm") ?? "all";
   const statusTab = searchParams.get("tab") ?? "all";
+
+  const [colFilters, setColFilters] = useState<Record<string, { search: string; selectedValues: string[] | null | undefined }>>({});
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
 
   const setSearch = (val: string) => {
     setSearchParams(prev => {
@@ -81,6 +304,8 @@ export default function Projects() {
     }, { replace: true });
   };
   const setStatusTab = (val: string) => {
+    setColFilters({});
+    setSortConfig(null);
     setSearchParams(prev => {
       if (val && val !== "all") prev.set("tab", val);
       else prev.delete("tab");
@@ -125,7 +350,7 @@ export default function Projects() {
 
   const exportCSV = () => {
     const headers = ["Project", "Client", "Region", "Cert Type", "Rating", "PM", "Handover", "Status"];
-    const rows = filtered.map(p => [
+    const rows = sortedAndFiltered.map(p => [
       p.name,
       p.client,
       p.region,
@@ -146,7 +371,7 @@ export default function Projects() {
   };
 
   const exportJSON = () => {
-    const blob = new Blob([JSON.stringify(filtered, null, 2)], { type: "application/json;charset=utf-8;" });
+    const blob = new Blob([JSON.stringify(sortedAndFiltered, null, 2)], { type: "application/json;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -163,7 +388,7 @@ export default function Projects() {
     return Array.from(pms.entries()).map(([id, name]) => ({ id, name }));
   }, [allProjects]);
 
-  const filtered = useMemo(() => {
+  const baseFiltered = useMemo(() => {
     return allProjects.filter((p) => {
       if (statusTab !== "all" && p.setup_status !== statusTab) return false;
       const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) || p.client.toLowerCase().includes(search.toLowerCase());
@@ -172,6 +397,69 @@ export default function Projects() {
       return matchesSearch && matchesRegion && matchesPm;
     });
   }, [allProjects, statusTab, search, regionFilter, pmFilter]);
+
+  const filtered = useMemo(() => {
+    return baseFiltered.filter((r) => {
+      for (const colKey of Object.keys(colFilters)) {
+        const filter = colFilters[colKey];
+        if (!filter) continue;
+
+        if (filter.search) {
+          let val = '';
+          if (colKey === 'name') val = r.name || '';
+          else if (colKey === 'client') val = r.client || '';
+          else if (colKey === 'region') val = r.region || '';
+          else if (colKey === 'cert_type') val = r.cert_type ? (CERT_DISPLAY_LABELS[r.cert_type] ?? r.cert_type) : '';
+          else if (colKey === 'cert_rating') val = r.cert_rating || '';
+          else if (colKey === 'total_fees') val = r.total_fees !== undefined && r.total_fees !== null ? String(r.total_fees) : '';
+          else if (colKey === 'quotation_sent_date') val = r.quotation_sent_date ? format(new Date(r.quotation_sent_date), "dd MMM yyyy") : '';
+          else if (colKey === 'project_subtype') val = r.project_subtype || '';
+          else if (colKey === 'pm_name') val = r.pm_name || '';
+          else if (colKey === 'handover_date') val = r.handover_date ? format(new Date(r.handover_date), "dd MMM yyyy") : '';
+          else if (colKey === 'setup_status') val = SETUP_STATUS_META[r.setup_status as keyof typeof SETUP_STATUS_META]?.label || r.setup_status || '';
+
+          if (!val.toLowerCase().includes(filter.search.toLowerCase())) {
+            return false;
+          }
+        }
+
+        if (filter.selectedValues !== undefined && filter.selectedValues !== null) {
+          if (!matchRowValue(r, colKey, filter.selectedValues)) {
+            return false;
+          }
+        }
+      }
+      return true;
+    });
+  }, [baseFiltered, colFilters]);
+
+  const sortedAndFiltered = useMemo(() => {
+    if (!sortConfig || sortConfig.direction === null) return filtered;
+
+    return [...filtered].sort((a, b) => {
+      let valA: any = a[sortConfig.key as keyof typeof a];
+      let valB: any = b[sortConfig.key as keyof typeof b];
+
+      if (sortConfig.key === 'total_fees') {
+        valA = a.total_fees ?? 0;
+        valB = b.total_fees ?? 0;
+      }
+
+      if (valA === undefined || valA === null) valA = '';
+      if (valB === undefined || valB === null) valB = '';
+
+      if (typeof valA === 'number' && typeof valB === 'number') {
+        return sortConfig.direction === 'asc' ? valA - valB : valB - valA;
+      }
+
+      valA = String(valA).toLowerCase();
+      valB = String(valB).toLowerCase();
+
+      if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
+      if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [filtered, sortConfig]);
 
   const counts = useMemo(() => ({
     quotation: allProjects.filter((p) => p.setup_status === "quotation").length,
@@ -332,39 +620,61 @@ export default function Projects() {
             <div className="flex justify-center py-20">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
             </div>
-          ) : filtered.length === 0 ? (
+          ) : sortedAndFiltered.length === 0 ? (
             <div className="table-container p-12 text-center text-muted-foreground">No projects found.</div>
           ) : (
             <div className="table-container overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b">
-                    <th className="text-left p-4 font-medium text-muted-foreground">Project</th>
-                    <th className="text-left p-4 font-medium text-muted-foreground">Client</th>
-                    <th className="text-left p-4 font-medium text-muted-foreground">Region</th>
-                    <th className="text-left p-4 font-medium text-muted-foreground">Certification</th>
-                    <th className="text-left p-4 font-medium text-muted-foreground">Rating</th>
+                    <th className="p-4">
+                      <ExcelHeaderCell title="Project" colKey="name" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
+                    </th>
+                    <th className="p-4">
+                      <ExcelHeaderCell title="Client" colKey="client" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
+                    </th>
+                    <th className="p-4">
+                      <ExcelHeaderCell title="Region" colKey="region" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
+                    </th>
+                    <th className="p-4">
+                      <ExcelHeaderCell title="Certification" colKey="cert_type" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
+                    </th>
+                    <th className="p-4">
+                      <ExcelHeaderCell title="Rating" colKey="cert_rating" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
+                    </th>
                     {statusTab === "quotation" ? (
                       <>
-                        <th className="text-left p-4 font-medium text-muted-foreground">Total Fees</th>
-                        <th className="text-left p-4 font-medium text-muted-foreground">Sent Date</th>
+                        <th className="p-4">
+                          <ExcelHeaderCell title="Total Fees" colKey="total_fees" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} className="justify-end" />
+                        </th>
+                        <th className="p-4">
+                          <ExcelHeaderCell title="Sent Date" colKey="quotation_sent_date" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
+                        </th>
                       </>
                     ) : (
                       <>
-                        <th className="text-left p-4 font-medium text-muted-foreground">Subtype</th>
-                        <th className="text-left p-4 font-medium text-muted-foreground">PM</th>
+                        <th className="p-4">
+                          <ExcelHeaderCell title="Subtype" colKey="project_subtype" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
+                        </th>
+                        <th className="p-4">
+                          <ExcelHeaderCell title="PM" colKey="pm_name" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
+                        </th>
                       </>
                     )}
-                    <th className="text-left p-4 font-medium text-muted-foreground">Handover</th>
-                    <th className="text-left p-4 font-medium text-muted-foreground">Config Status</th>
+                    <th className="p-4">
+                      <ExcelHeaderCell title="Handover" colKey="handover_date" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
+                    </th>
+                    <th className="p-4">
+                      <ExcelHeaderCell title="Config Status" colKey="setup_status" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
+                    </th>
                     {statusTab !== "quotation" && statusTab !== "canceled" && (
-                      <th className="text-left p-4 font-medium text-muted-foreground">Hardware</th>
+                      <th className="text-left p-4 font-medium text-muted-foreground uppercase text-[10px] tracking-wider py-1.5 select-none">Hardware</th>
                     )}
                     <th className="p-4"></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((project) => {
+                  {sortedAndFiltered.map((project) => {
                     const daysLeft = Math.ceil((new Date(project.handover_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
                     const statusMeta = SETUP_STATUS_META[project.setup_status];
                     const StatusIcon = statusMeta.icon;
