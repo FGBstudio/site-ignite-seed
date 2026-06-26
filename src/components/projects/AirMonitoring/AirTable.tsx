@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useAirRows, useAirDevices, type AirMonitorRow } from "@/hooks/useAirRows";
 import { supabase } from "@/integrations/supabase/client";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { 
@@ -71,10 +71,20 @@ const DeviceModalContent = ({ siteId, projectName }: { siteId: string, projectNa
 };
 
 /* ─────────── Excel Header Cell Helper functions ─────────── */
-function getUniqueValues(colKey: string, rows: any[]): string[] {
+function getUniqueValues(colKey: string, rows: any[], airProductsMap?: Map<string, string>): string[] {
   const values = new Set<string>();
   rows.forEach(r => {
     let val: any = '';
+    if (colKey === 'monitor_typology') {
+      if (r.air_product_ids && r.air_product_ids.length > 0) {
+        r.air_product_ids.forEach((pid: string) => {
+          values.add(airProductsMap?.get(pid) ?? pid.slice(0, 8));
+        });
+      } else {
+        values.add('(Blanks)');
+      }
+      return;
+    }
     if (colKey === 'project_name') val = r.project_name;
     else if (colKey === 'pm_name') val = r.pm_name || '(Blanks)';
     else if (colKey === 'total_sensors') val = String(r.total_sensors ?? 0);
@@ -115,9 +125,18 @@ function getUniqueValues(colKey: string, rows: any[]): string[] {
   });
 }
 
-function matchRowValue(r: any, colKey: string, selectedValues: string[] | null | undefined): boolean {
+function matchRowValue(r: any, colKey: string, selectedValues: string[] | null | undefined, airProductsMap?: Map<string, string>): boolean {
   if (selectedValues === null || selectedValues === undefined) return true;
-  
+
+  if (colKey === 'monitor_typology') {
+    if (r.air_product_ids && r.air_product_ids.length > 0) {
+      return r.air_product_ids.some((pid: string) =>
+        selectedValues.includes(airProductsMap?.get(pid) ?? pid.slice(0, 8))
+      );
+    }
+    return selectedValues.includes('(Blanks)');
+  }
+
   let val: string = '';
   if (colKey === 'project_name') val = r.project_name;
   else if (colKey === 'pm_name') val = r.pm_name || '(Blanks)';
@@ -160,7 +179,8 @@ function ExcelHeaderCell({
   sortConfig,
   setSortConfig,
   customContent,
-  className
+  className,
+  airProductsMap,
 }: {
   title: string;
   colKey: string;
@@ -171,12 +191,13 @@ function ExcelHeaderCell({
   setSortConfig: React.Dispatch<React.SetStateAction<{ key: string; direction: 'asc' | 'desc' } | null>>;
   customContent?: React.ReactNode;
   className?: string;
+  airProductsMap?: Map<string, string>;
 }) {
   const [popoverSearch, setPopoverSearch] = useState("");
-  
+
   const uniqueValues = useMemo(() => {
-    return getUniqueValues(colKey, rows);
-  }, [colKey, rows]);
+    return getUniqueValues(colKey, rows, airProductsMap);
+  }, [colKey, rows, airProductsMap]);
 
   const columnFilter = colFilters[colKey] || { search: "", selectedValues: undefined };
   
@@ -329,6 +350,24 @@ export function AirTable() {
   const qc = useQueryClient();
   const { data: rows = [], isLoading } = useAirRows();
 
+  const { data: airProducts = [] } = useQuery({
+    queryKey: ["air-products-list"],
+    staleTime: Infinity,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("products")
+        .select("id, name")
+        .eq("category", "AIR")
+        .order("name");
+      return (data ?? []) as { id: string; name: string }[];
+    },
+  });
+
+  const airProductsMap = useMemo(
+    () => new Map(airProducts.map(p => [p.id, p.name])),
+    [airProducts]
+  );
+
   const [colFilters, setColFilters] = useState<Record<string, { search: string; selectedValues: string[] | null | undefined }>>({});
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
   const [showFinancials, setShowFinancials] = useState(true);
@@ -374,6 +413,11 @@ export function AirTable() {
           else if (colKey === 'handover_date') val = r.handover_date ? format(new Date(r.handover_date), "MMM d, yy") : '';
           else if (colKey === 'latest_shipment_date') val = r.latest_shipment_date ? format(new Date(r.latest_shipment_date), "MMM d, yy") : '';
           else if (colKey === 'brand_name') val = r.brand_name || '';
+          else if (colKey === 'monitor_typology') {
+            val = (r.air_product_ids ?? [])
+              .map((pid: string) => airProductsMap.get(pid) ?? '')
+              .join(' ');
+          }
 
           if (!val.toLowerCase().includes(filter.search.toLowerCase())) {
             return false;
@@ -381,7 +425,7 @@ export function AirTable() {
         }
 
         if (filter.selectedValues !== undefined && filter.selectedValues !== null) {
-          if (!matchRowValue(r, colKey, filter.selectedValues)) {
+          if (!matchRowValue(r, colKey, filter.selectedValues, airProductsMap)) {
             return false;
           }
         }
@@ -422,8 +466,8 @@ export function AirTable() {
   }, [filtered, sortConfig]);
 
   const updateField = async (
-    siteId: string, 
-    field: 'handover_date' | 'latest_shipment_date' | 'status' | 'notes', 
+    siteId: string,
+    field: 'handover_date' | 'latest_shipment_date' | 'status' | 'notes' | 'air_product_ids',
     value: any,
     record: AirMonitorRow
   ): Promise<boolean> => {
@@ -496,6 +540,12 @@ export function AirTable() {
             if (errShip) throw errShip;
           }
         }
+      } else if (field === 'air_product_ids') {
+        const { error } = await supabase
+          .from('site_air_records')
+          .update({ air_product_ids: value })
+          .eq('site_id', siteId);
+        if (error) throw error;
       } else {
         throw new Error(`Unsupported field update: ${field}`);
       }
@@ -509,7 +559,7 @@ export function AirTable() {
     }
   };
 
-  const totalCols = 11 + (showFinancials ? 6 : 0);
+  const totalCols = 12 + (showFinancials ? 6 : 0);
 
   const visibleStats = useMemo(() => {
     const totalSensors = sortedAndFiltered.reduce((sum, r) => sum + (r.total_sensors ?? 0), 0);
@@ -662,7 +712,7 @@ export function AirTable() {
                 {/* Row 1: Grouped headers */}
                 <tr>
                   <th className="bg-slate-50/80 border-b border-slate-200 sticky left-0 z-20 min-w-[320px] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.12)]" />
-                  <th colSpan={8} className="bg-slate-50/80 border-b border-slate-200" />
+                  <th colSpan={9} className="bg-slate-50/80 border-b border-slate-200" />
                   {showFinancials && (
                     <th colSpan={6} className="bg-indigo-50/50 text-center text-[10px] uppercase font-bold text-indigo-700 border-b border-l border-r border-indigo-100 py-2 tracking-wider">
                       Financial Overview (€)
@@ -685,6 +735,9 @@ export function AirTable() {
                   </th>
                   <th className="px-4 py-3.5 text-left w-32">
                     <ExcelHeaderCell title="Brand Name" colKey="brand_name" rows={rows} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
+                  </th>
+                  <th className="px-4 py-3.5 text-left w-44">
+                    <ExcelHeaderCell title="Monitor Typology" colKey="monitor_typology" rows={rows} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} airProductsMap={airProductsMap} />
                   </th>
                   <th className="px-4 py-3.5 text-left w-28">
                     <ExcelHeaderCell title="Region" colKey="region" rows={rows} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
@@ -740,7 +793,7 @@ export function AirTable() {
               <tbody className="divide-y divide-slate-100">
                 {sortedAndFiltered.length > 0 ? (
                   sortedAndFiltered.map((r, i) => (
-                    <AirRow key={r.id} r={r} idx={i} onUpdate={updateField} showFinancials={showFinancials} />
+                    <AirRow key={r.id} r={r} idx={i} onUpdate={updateField} showFinancials={showFinancials} airProducts={airProducts} airProductsMap={airProductsMap} />
                   ))
                 ) : (
                   <tr>
@@ -811,17 +864,21 @@ function AirRow({
   r,
   idx,
   onUpdate,
-  showFinancials
+  showFinancials,
+  airProducts,
+  airProductsMap,
 }: {
   r: AirMonitorRow;
   idx: number;
   onUpdate: (
     siteId: string,
-    field: 'handover_date' | 'latest_shipment_date' | 'status' | 'notes',
+    field: 'handover_date' | 'latest_shipment_date' | 'status' | 'notes' | 'air_product_ids',
     value: any,
     record: AirMonitorRow
   ) => Promise<boolean>;
   showFinancials: boolean;
+  airProducts: { id: string; name: string }[];
+  airProductsMap: Map<string, string>;
 }) {
   const [isEditingHandover, setIsEditingHandover] = useState(false);
   const [isEditingShipment, setIsEditingShipment] = useState(false);
@@ -871,7 +928,41 @@ function AirRow({
         {r.brand_name || <span className="text-slate-300 italic">—</span>}
       </td>
 
-      {/* 1b. Region */}
+      {/* 1b. Monitor Typology */}
+      <td className="px-4 py-4">
+        {r.air_product_ids.length > 0 ? (
+          <div className="flex flex-wrap gap-1">
+            {r.air_product_ids.map(pid => (
+              <Badge
+                key={pid}
+                variant="outline"
+                className="text-[10px] font-semibold bg-indigo-50 text-indigo-700 border-indigo-200 px-2 h-5"
+              >
+                {airProductsMap.get(pid) ?? pid.slice(0, 8)}
+              </Badge>
+            ))}
+          </div>
+        ) : (
+          <Select
+            onValueChange={async (productId) => {
+              await onUpdate(r.id, 'air_product_ids', [productId], r);
+            }}
+          >
+            <SelectTrigger className="h-7 w-40 text-[11px] border-dashed border-slate-300 text-slate-400 bg-transparent focus:ring-0">
+              <SelectValue placeholder="Select type..." />
+            </SelectTrigger>
+            <SelectContent>
+              {airProducts.map(p => (
+                <SelectItem key={p.id} value={p.id} className="text-xs">
+                  {p.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </td>
+
+      {/* 1c. Region */}
       <td className="px-4 py-4 text-xs text-slate-600 font-medium">
         {r.region || <span className="text-slate-300 italic">—</span>}
       </td>
