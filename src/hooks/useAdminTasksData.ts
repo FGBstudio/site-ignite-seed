@@ -52,6 +52,7 @@ function computeSetupStatus(certification: LightweightCertification, milestones:
     certification.status === "certificato" ||
     (certification.status === "active" && !!certification.issued_date && certification.issued_date.slice(0, 10) <= today);
 
+  if (certification.status === "completato") return "completato" as const;
   if (isCertified) return "certificato" as const;
   if (hasTimeline && hasScorecard && isTimelineConfigured) return "in_corso" as const;
   return "da_configurare" as const;
@@ -142,7 +143,7 @@ export function useAdminTasksData(role: AppRole | null, userId: string | undefin
         const certificationMilestones = milestonesByCertification.get(certification.id) || [];
         const setupStatus = computeSetupStatus(certification, certificationMilestones);
 
-        if (setupStatus === "certificato") return acc;
+        if (setupStatus === "certificato" || setupStatus === "completato") return acc;
 
         acc.push({
           id: `setup-${certification.id}`,

@@ -5,7 +5,7 @@ import { computeMacroPhase, type MacroPhase } from "@/data/certificationTemplate
 import { differenceInDays, parseISO } from "date-fns";
 import type { GanttRowData } from "@/components/dashboard/FGBPlanner";
 
-export type SetupStatus = "quotation" | "da_configurare" | "in_corso" | "certificato" | "canceled";
+export type SetupStatus = "quotation" | "da_configurare" | "in_corso" | "completato" | "certificato" | "canceled";
 
 export interface PMProject {
   id: string;
@@ -169,7 +169,9 @@ export function usePMDashboard() {
         }
 
         let setup_status: SetupStatus;
-        if (isCertified) {
+        if (c.status === "completato") {
+          setup_status = "completato";
+        } else if (isCertified) {
           setup_status = "certificato";
         } else if (hasTimeline && isTimelineConfigured) {
           setup_status = "in_corso";

@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -10,7 +10,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, Plus, Pencil, BarChart3, Eye, GanttChartSquare, AlertTriangle, Clock3, CheckCircle2, FileText, XCircle, CheckSquare } from "lucide-react";
+import { Search, Plus, Pencil, BarChart3, Eye, GanttChartSquare, AlertTriangle, Clock3, CheckCircle2, FileText, XCircle, CheckSquare, Trash2, Loader2, Download } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -28,9 +32,19 @@ const SETUP_STATUS_META = {
   quotation: { label: "Quotation", icon: FileText, className: "border-blue-400/30 bg-blue-50 text-blue-600" },
   da_configurare: { label: "To Configure", icon: AlertTriangle, className: "border-warning/30 bg-warning/10 text-warning" },
   in_corso: { label: "In Progress", icon: Clock3, className: "border-primary/30 bg-primary/10 text-primary" },
+  completato: { label: "Completed", icon: CheckSquare, className: "border-violet-400/30 bg-violet-50 text-violet-700" },
   certificato: { label: "Certified", icon: CheckCircle2, className: "border-success/30 bg-success/10 text-success" },
   canceled: { label: "Canceled", icon: XCircle, className: "border-destructive/30 bg-destructive/10 text-destructive" },
 } as const;
+
+const CERT_DISPLAY_LABELS: Record<string, string> = {
+  LEED: "LEED",
+  WELL: "WELL",
+  BREEAM: "BREEAM",
+  ESG: "ESG - Taxonomy",
+  GRESB: "GRESB",
+  Energy_Audit: "Energy Audit",
+};
 
 export default function Projects() {
   const { isAdmin } = useAuth();
@@ -39,10 +53,48 @@ export default function Projects() {
   const queryClient = useQueryClient();
   const { data: allProjects = [], isLoading } = useAdminPlannerData();
 
-  const [search, setSearch] = useState("");
-  const [regionFilter, setRegionFilter] = useState("all");
-  const [pmFilter, setPmFilter] = useState("all");
-  const [statusTab, setStatusTab] = useState("all");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const search = searchParams.get("q") ?? "";
+  const regionFilter = searchParams.get("region") ?? "all";
+  const pmFilter = searchParams.get("pm") ?? "all";
+  const statusTab = searchParams.get("tab") ?? "all";
+
+  const setSearch = (val: string) => {
+    setSearchParams(prev => {
+      if (val) prev.set("q", val);
+      else prev.delete("q");
+      return prev;
+    }, { replace: true });
+  };
+  const setRegionFilter = (val: string) => {
+    setSearchParams(prev => {
+      if (val && val !== "all") prev.set("region", val);
+      else prev.delete("region");
+      return prev;
+    }, { replace: true });
+  };
+  const setPmFilter = (val: string) => {
+    setSearchParams(prev => {
+      if (val && val !== "all") prev.set("pm", val);
+      else prev.delete("pm");
+      return prev;
+    }, { replace: true });
+  };
+  const setStatusTab = (val: string) => {
+    setSearchParams(prev => {
+      if (val && val !== "all") prev.set("tab", val);
+      else prev.delete("tab");
+      return prev;
+    }, { replace: true });
+  };
+
+  // Cleanup tool dialog state
+  const [cleanupOpen, setCleanupOpen] = useState(false);
+  const [selectedCleanupIds, setSelectedCleanupIds] = useState<string[]>([]);
+  const [deletingCleanup, setDeletingCleanup] = useState(false);
+
+  // Hard delete confirmation state
+  const [hardDeleteProject, setHardDeleteProject] = useState<AdminPlannerProject | null>(null);
 
   // New quotation wizard
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -52,6 +104,56 @@ export default function Projects() {
   const [editProject, setEditProject] = useState<Project | null>(null);
   const [editAllocations, setEditAllocations] = useState<ProjectAllocation[]>([]);
   const [modalMode, setModalMode] = useState<"edit" | "confirm_project">("edit");
+
+  const duplicates = useMemo(() => {
+    const groups = new Map<string, AdminPlannerProject[]>();
+    for (const p of allProjects) {
+      const key = (p.name || "").toLowerCase().trim();
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(p);
+    }
+    return Array.from(groups.values()).filter(g => g.length > 1).flat();
+  }, [allProjects]);
+
+  const testProjects = useMemo(() => {
+    const keywords = ["test", "prova", "demo", "copy", "copia"];
+    return allProjects.filter(p => {
+      const name = (p.name || "").toLowerCase();
+      return keywords.some(kw => name.includes(kw));
+    });
+  }, [allProjects]);
+
+  const exportCSV = () => {
+    const headers = ["Project", "Client", "Region", "Cert Type", "Rating", "PM", "Handover", "Status"];
+    const rows = filtered.map(p => [
+      p.name,
+      p.client,
+      p.region,
+      p.cert_type ? (CERT_DISPLAY_LABELS[p.cert_type] ?? p.cert_type) : "",
+      p.cert_rating ?? "",
+      p.pm_name ?? "",
+      p.handover_date ? format(new Date(p.handover_date), "dd MMM yyyy") : "",
+      SETUP_STATUS_META[p.setup_status as keyof typeof SETUP_STATUS_META]?.label ?? p.setup_status
+    ]);
+    const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `projects-${format(new Date(), "yyyy-MM-dd")}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportJSON = () => {
+    const blob = new Blob([JSON.stringify(filtered, null, 2)], { type: "application/json;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `projects-${format(new Date(), "yyyy-MM-dd")}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const pmOptions = useMemo(() => {
     const pms = new Map<string, string>();
@@ -75,6 +177,7 @@ export default function Projects() {
     quotation: allProjects.filter((p) => p.setup_status === "quotation").length,
     da_configurare: allProjects.filter((p) => p.setup_status === "da_configurare").length,
     in_corso: allProjects.filter((p) => p.setup_status === "in_corso").length,
+    completato: allProjects.filter((p) => p.setup_status === "completato").length,
     certificato: allProjects.filter((p) => p.setup_status === "certificato").length,
     canceled: allProjects.filter((p) => p.setup_status === "canceled").length,
   }), [allProjects]);
@@ -151,7 +254,7 @@ export default function Projects() {
         <TabsContent value="projects" className="space-y-6">
           {/* Status category tabs */}
           <Tabs value={statusTab} onValueChange={setStatusTab} className="space-y-4">
-            <TabsList className="grid w-full grid-cols-6">
+            <TabsList className="grid w-full grid-cols-7">
               <TabsTrigger value="all">All ({allProjects.length})</TabsTrigger>
               <TabsTrigger value="quotation" className="gap-1.5">
                 <FileText className="h-3.5 w-3.5" /> Quotation ({counts.quotation})
@@ -161,6 +264,9 @@ export default function Projects() {
               </TabsTrigger>
               <TabsTrigger value="in_corso" className="gap-1.5">
                 <Clock3 className="h-3.5 w-3.5" /> In Progress ({counts.in_corso})
+              </TabsTrigger>
+              <TabsTrigger value="completato" className="gap-1.5">
+                <CheckSquare className="h-3.5 w-3.5" /> Completed ({counts.completato})
               </TabsTrigger>
               <TabsTrigger value="certificato" className="gap-1.5">
                 <CheckCircle2 className="h-3.5 w-3.5" /> Certified ({counts.certificato})
@@ -198,7 +304,27 @@ export default function Projects() {
                 </SelectContent>
               </Select>
             </div>
-            {/* "New" CTA removed — Operations subisce le quotazioni, non le crea. Use /quotations. */}
+            <div className="flex items-center gap-2 shrink-0">
+              {isAdmin && (
+                <Button onClick={() => setCleanupOpen(true)} variant="outline" className="gap-2 border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800">
+                  <Trash2 className="h-4 w-4" /> Admin Tools
+                </Button>
+              )}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="gap-2">
+                    <Download className="h-4 w-4" /> Export
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-40">
+                  <DropdownMenuItem onClick={exportCSV}>Export as CSV</DropdownMenuItem>
+                  <DropdownMenuItem onClick={exportJSON}>Export as JSON</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button onClick={() => setWizardOpen(true)} className="gap-2">
+                <Plus className="h-4 w-4" /> New
+              </Button>
+            </div>
           </div>
 
           {/* Table */}
@@ -267,7 +393,7 @@ export default function Projects() {
                         <td className="p-4"><Badge variant="outline">{project.region}</Badge></td>
                         <td className="p-4">
                           {project.cert_type ? (
-                            <Badge variant="secondary" className="text-xs">{project.cert_type}</Badge>
+                            <Badge variant="secondary" className="text-xs">{CERT_DISPLAY_LABELS[project.cert_type] ?? project.cert_type}</Badge>
                           ) : (
                             <span className="text-muted-foreground text-xs">—</span>
                           )}
@@ -361,11 +487,21 @@ export default function Projects() {
                               <Button size="sm" variant="destructive" className="gap-1" onClick={() => handleCancel(project)}>
                                 <XCircle className="h-3 w-3" /> Canceled
                               </Button>
+                              <Button size="sm" variant="ghost" onClick={() => openEdit(project)} className="gap-1">
+                                <Pencil className="h-3 w-3" /> Edit
+                              </Button>
                             </>
                           ) : isCanceled ? (
-                            <Button size="sm" variant="outline" onClick={() => navigate(`/projects/${project.id}`)} className="gap-1">
-                              <Eye className="h-3 w-3" /> Details
-                            </Button>
+                            <>
+                              <Button size="sm" variant="outline" onClick={() => navigate(`/projects/${project.id}`)} className="gap-1">
+                                <Eye className="h-3 w-3" /> Details
+                              </Button>
+                              {isAdmin && (
+                                <Button size="sm" variant="destructive" className="gap-1" onClick={() => setHardDeleteProject(project)}>
+                                  <Trash2 className="h-3 w-3" /> Delete Permanently
+                                </Button>
+                              )}
+                            </>
                           ) : (
                             <>
                               <Button size="sm" variant="outline" onClick={() => navigate(`/projects/${project.id}`)} className="gap-1">
@@ -406,6 +542,172 @@ export default function Projects() {
         onSaved={() => queryClient.invalidateQueries({ queryKey: ["admin-planner-all-certifications"] })}
         mode={modalMode as any}
       />
+
+      {/* Admin Cleanup Dialog */}
+      <Dialog open={cleanupOpen} onOpenChange={setCleanupOpen}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-red-700 flex items-center gap-2">
+              <Trash2 className="h-5 w-5" /> Admin Cleanup Tools
+            </DialogTitle>
+            <DialogDescription>
+              Identify and permanently delete test projects or duplicate entries. This will delete all allocations and milestones. **This action cannot be undone.**
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6 py-4">
+            {/* Section 1: Duplicates */}
+            <div>
+              <h3 className="text-sm font-semibold mb-2 flex items-center justify-between">
+                <span>Duplicate Projects ({duplicates.length})</span>
+                {duplicates.length > 0 && (
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      const dupIds = duplicates.map(p => p.id);
+                      setSelectedCleanupIds(prev => {
+                        const newIds = new Set([...prev, ...dupIds]);
+                        return Array.from(newIds);
+                      });
+                    }}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    Select All
+                  </button>
+                )}
+              </h3>
+              {duplicates.length === 0 ? (
+                <p className="text-xs text-muted-foreground italic">No duplicate project names found.</p>
+              ) : (
+                <div className="border rounded-md divide-y max-h-40 overflow-y-auto bg-slate-50/50">
+                  {duplicates.map(p => (
+                    <label key={p.id} className="flex items-center gap-3 px-3 py-2 hover:bg-slate-50 cursor-pointer select-none text-xs">
+                      <Checkbox 
+                        checked={selectedCleanupIds.includes(p.id)}
+                        onCheckedChange={(checked) => {
+                          setSelectedCleanupIds(prev => checked ? [...prev, p.id] : prev.filter(id => id !== p.id));
+                        }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-slate-700 truncate">{p.name} <span className="text-muted-foreground font-normal">({p.client})</span></p>
+                        <p className="text-[10px] text-slate-400 font-mono truncate">ID: {p.id} · Region: {p.region}</p>
+                      </div>
+                      <Badge variant="outline" className="text-[10px] capitalize shrink-0">{p.setup_status}</Badge>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Section 2: Test Projects */}
+            <div>
+              <h3 className="text-sm font-semibold mb-2 flex items-center justify-between">
+                <span>Test & Demo Projects ({testProjects.length})</span>
+                {testProjects.length > 0 && (
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      const testIds = testProjects.map(p => p.id);
+                      setSelectedCleanupIds(prev => {
+                        const newIds = new Set([...prev, ...testIds]);
+                        return Array.from(newIds);
+                      });
+                    }}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    Select All
+                  </button>
+                )}
+              </h3>
+              {testProjects.length === 0 ? (
+                <p className="text-xs text-muted-foreground italic">No test or demo projects found.</p>
+              ) : (
+                <div className="border rounded-md divide-y max-h-40 overflow-y-auto bg-slate-50/50">
+                  {testProjects.map(p => (
+                    <label key={p.id} className="flex items-center gap-3 px-3 py-2 hover:bg-slate-50 cursor-pointer select-none text-xs">
+                      <Checkbox 
+                        checked={selectedCleanupIds.includes(p.id)}
+                        onCheckedChange={(checked) => {
+                          setSelectedCleanupIds(prev => checked ? [...prev, p.id] : prev.filter(id => id !== p.id));
+                        }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-slate-700 truncate">{p.name} <span className="text-muted-foreground font-normal">({p.client})</span></p>
+                        <p className="text-[10px] text-slate-400 font-mono truncate">ID: {p.id} · Region: {p.region}</p>
+                      </div>
+                      <Badge variant="outline" className="text-[10px] capitalize shrink-0">{p.setup_status}</Badge>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => { setCleanupOpen(false); setSelectedCleanupIds([]); }} disabled={deletingCleanup}>
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive" 
+              disabled={selectedCleanupIds.length === 0 || deletingCleanup}
+              onClick={async () => {
+                if (!window.confirm(`Are you absolutely sure you want to permanently delete the ${selectedCleanupIds.length} selected projects? This cannot be undone.`)) return;
+                setDeletingCleanup(true);
+                try {
+                  const { error } = await supabase.from("certifications").delete().in("id", selectedCleanupIds);
+                  if (error) throw error;
+                  toast({ title: "Cleanup complete", description: `Successfully deleted ${selectedCleanupIds.length} projects.` });
+                  setSelectedCleanupIds([]);
+                  setCleanupOpen(false);
+                  queryClient.invalidateQueries({ queryKey: ["admin-planner-all-certifications"] });
+                } catch (err: any) {
+                  toast({ title: "Deletion failed", description: err.message, variant: "destructive" });
+                } finally {
+                  setDeletingCleanup(false);
+                }
+              }}
+            >
+              {deletingCleanup ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
+              Delete Selected ({selectedCleanupIds.length})
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Hard Delete Confirmation Alert Dialog */}
+      <AlertDialog open={!!hardDeleteProject} onOpenChange={(open) => !open && setHardDeleteProject(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-destructive flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5" /> Delete Permanently?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to permanently delete <strong>{hardDeleteProject?.name}</strong>? This will permanently remove all associated milestones and allocations. This action is irreversible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+              onClick={async () => {
+                if (!hardDeleteProject) return;
+                try {
+                  const { error } = await supabase.from("certifications").delete().eq("id", hardDeleteProject.id);
+                  if (error) throw error;
+                  toast({ title: "Project deleted", description: `${hardDeleteProject.name} has been permanently deleted.` });
+                  queryClient.invalidateQueries({ queryKey: ["admin-planner-all-certifications"] });
+                } catch (err: any) {
+                  toast({ title: "Delete failed", description: err.message, variant: "destructive" });
+                } finally {
+                  setHardDeleteProject(null);
+                }
+              }}
+            >
+              Delete Permanently
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </MainLayout>
   );
 }

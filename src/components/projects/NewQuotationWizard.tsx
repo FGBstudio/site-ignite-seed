@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
+import { MonthYearCalendar } from "@/components/ui/MonthYearCalendar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -39,6 +39,15 @@ import {
 const REGIONS = ["Europe", "America", "APAC", "ME"] as const;
 const AVAILABLE_CERTS = ["LEED", "WELL", "BREEAM", "ESG", "GRESB", "Energy_Audit"] as const;
 type CertType = (typeof AVAILABLE_CERTS)[number];
+
+const CERT_DISPLAY_LABELS: Record<string, string> = {
+  LEED: "LEED",
+  WELL: "WELL",
+  BREEAM: "BREEAM",
+  ESG: "ESG - Taxonomy",
+  GRESB: "GRESB",
+  Energy_Audit: "Energy Audit",
+};
 
 const CERT_LEVELS: Record<CertType, string[]> = {
   LEED: ["Certified", "Silver", "Gold", "Platinum"],
@@ -298,6 +307,33 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved }: Props) {
 
       const handoverStr = format(services.handoverDate!, "yyyy-MM-dd");
 
+      // 1b. Duplicate check within the last 30 seconds
+      const thirtySecondsAgo = new Date(Date.now() - 30000).toISOString();
+      for (const cert of services.certifications) {
+        const name = services.certifications.length > 1
+          ? `${services.projectName} – ${cert.cert_type}`
+          : services.projectName;
+
+        const { data: existing } = await supabase
+          .from("certifications")
+          .select("id")
+          .eq("name", name)
+          .eq("client", services.client)
+          .eq("status", "quotation")
+          .gt("created_at", thirtySecondsAgo)
+          .limit(1);
+
+        if (existing && existing.length > 0) {
+          toast({
+            title: "Duplicate submission blocked",
+            description: `A quotation with the name "${name}" for client "${services.client}" was already submitted recently.`,
+            variant: "destructive",
+          });
+          setSaving(false);
+          return;
+        }
+      }
+
       // 2. Insert one certification row per selected service
       for (const cert of services.certifications) {
         const name = services.certifications.length > 1
@@ -358,8 +394,8 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved }: Props) {
       }
 
       toast({ title: "Quotation saved", description: `${services.projectName} added to the Quotation pipeline.` });
-      onSaved();
       handleClose();
+      onSaved();
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
@@ -545,7 +581,7 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved }: Props) {
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
-              <Calendar mode="single" selected={services.handoverDate} onSelect={(d) => setServices((s) => ({ ...s, handoverDate: d }))} initialFocus className="p-3" />
+              <MonthYearCalendar mode="single" selected={services.handoverDate} onSelect={(d) => setServices((s) => ({ ...s, handoverDate: d }))} initialFocus className="p-3" />
             </PopoverContent>
           </Popover>
           {errors.handoverDate && <p className="text-xs text-destructive">{errors.handoverDate}</p>}
@@ -580,7 +616,7 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved }: Props) {
               )}
             >
               {selected && <CheckCircle2 className="h-3.5 w-3.5" />}
-              {type}
+              {CERT_DISPLAY_LABELS[type] ?? type}
             </button>
           );
         })}
@@ -599,7 +635,7 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved }: Props) {
               <Card key={cert.cert_type} className="border-primary/20">
                 <CardContent className="pt-4">
                   <div className="flex items-center gap-2 mb-3">
-                    <Badge variant="secondary" className="font-bold">{cert.cert_type}</Badge>
+                    <Badge variant="secondary" className="font-bold">{CERT_DISPLAY_LABELS[cert.cert_type] ?? cert.cert_type}</Badge>
                     <span className="text-xs text-muted-foreground">Configure this certification</span>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -665,7 +701,7 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved }: Props) {
 
                   {/* Per-cert Quotation Value */}
                   <div className="mt-4 pt-3 border-t border-border/50 space-y-3">
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Quotation value · {cert.cert_type}</p>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Quotation value · {CERT_DISPLAY_LABELS[cert.cert_type] ?? cert.cert_type}</p>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="space-y-1">
@@ -778,7 +814,7 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved }: Props) {
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
-              <Calendar mode="single" selected={services.quotationSentDate} onSelect={(d) => setServices((s) => ({ ...s, quotationSentDate: d }))} initialFocus className="p-3" />
+              <MonthYearCalendar mode="single" selected={services.quotationSentDate} onSelect={(d) => setServices((s) => ({ ...s, quotationSentDate: d }))} initialFocus className="p-3" />
             </PopoverContent>
           </Popover>
         </div>
@@ -852,7 +888,7 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved }: Props) {
                 ].filter(Boolean) as string[];
                 return (
                   <div key={c.cert_type} className="px-3 py-1.5 rounded-lg border bg-primary/5 border-primary/20 text-sm">
-                    <span className="font-semibold text-primary">{c.cert_type}</span>
+                    <span className="font-semibold text-primary">{CERT_DISPLAY_LABELS[c.cert_type] ?? c.cert_type}</span>
                     {c.cert_rating && <span className="text-muted-foreground ml-1">· {c.cert_rating}</span>}
                     {c.cert_level && <span className="text-muted-foreground ml-1">· {c.cert_level}</span>}
                     {c.project_subtype && <span className="text-muted-foreground ml-1">· {c.project_subtype}</span>}
@@ -877,7 +913,7 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved }: Props) {
               {services.certifications.map((c) => (
                 <div key={c.cert_type} className="rounded-md border bg-background/60 p-2.5">
                   <div className="flex items-center gap-2 mb-1">
-                    <Badge variant="secondary" className="font-bold">{c.cert_type}</Badge>
+                    <Badge variant="secondary" className="font-bold">{CERT_DISPLAY_LABELS[c.cert_type] ?? c.cert_type}</Badge>
                     <span className="text-[11px] text-muted-foreground">{c.quote_mode === "builder" ? "Builder" : "Direct"}</span>
                   </div>
                   <div className="grid grid-cols-3 gap-2 text-xs">

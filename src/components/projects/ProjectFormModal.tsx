@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar } from "@/components/ui/calendar";
+import { MonthYearCalendar } from "@/components/ui/MonthYearCalendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,10 +32,24 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Calculator, ChevronDown } from "lucide-react";
 
 const REGIONS = ["Europe", "America", "APAC", "ME"] as const;
-const PROJECT_STATUSES = ["Design", "Construction", "Completed", "Cancelled"] as const;
+const PROJECT_STATUSES = [
+  { value: "da_configurare", label: "Design" },
+  { value: "in_corso", label: "Construction" },
+  { value: "completato", label: "Completed" },
+  { value: "canceled", label: "Cancelled" }
+] as const;
 const ALLOCATION_STATUSES = ["Draft", "Allocated", "Requested", "Shipped", "Installed_Online"] as const;
 
 const AVAILABLE_CERTS = ["LEED", "WELL", "BREEAM", "ESG", "GRESB"] as const;
+
+const CERT_DISPLAY_LABELS: Record<string, string> = {
+  LEED: "LEED",
+  WELL: "WELL",
+  BREEAM: "BREEAM",
+  ESG: "ESG - Taxonomy",
+  GRESB: "GRESB",
+  Energy_Audit: "Energy Audit",
+};
 
 const CERT_LEVELS: Record<string, string[]> = {
   LEED: ["Certified", "Silver", "Gold", "Platinum"],
@@ -234,6 +248,13 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
             site_id: project.site_id || "",
             allocations: existingAllocations.map((a) => ({ id: a.id, product_id: a.product_id, quantity: a.quantity, status: a.status })),
             certifications: mappedCerts as any,
+            sqm: (project as any).sqm || undefined,
+            fgb_monitor: !!(project as any).fgb_monitor,
+            services_fees: (project as any).services_fees || undefined,
+            gbci_fees: (project as any).gbci_fees || undefined,
+            total_fees: (project as any).total_fees || undefined,
+            quotation_notes: (project as any).quotation_notes || "",
+            quotation_sent_date: (project as any).quotation_sent_date ? new Date((project as any).quotation_sent_date) : null,
           });
         }
         
@@ -241,7 +262,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
       } else {
         form.reset({ 
           name: "", client: "", region: "Europe", handover_date: new Date(), 
-          status: isQuotationMode ? "quotation" : "Design", site_id: "", 
+          status: isQuotationMode ? "quotation" : "da_configurare", site_id: "", 
           allocations: [], certifications: [],
           sqm: undefined, fgb_monitor: false, services_fees: undefined,
           gbci_fees: undefined, total_fees: undefined, quotation_notes: "",
@@ -278,11 +299,15 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
         if (data.allocated_hours != null && !Number.isNaN(data.allocated_hours)) {
           updatePayload.allocated_hours = data.allocated_hours;
         }
-        const { error } = await supabase
+        const { data: updatedCerts, error } = await supabase
           .from("certifications")
           .update(updatePayload)
-          .eq("id", project.id);
+          .eq("id", project.id)
+          .select("id");
         if (error) throw error;
+        if (!updatedCerts || updatedCerts.length === 0) {
+          throw new Error("You do not have permission to modify this project.");
+        }
 
         // Update site coordinates if provided
         if (project.site_id && (data.site_lat || data.site_lng)) {
@@ -345,7 +370,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
         };
 
         // Add quotation-specific fields
-        if (isQuotationMode) {
+        if (isQuotationMode || (mode === "edit" && project?.status === "quotation")) {
           certPayload.sqm = data.sqm || null;
           certPayload.fgb_monitor = data.fgb_monitor || false;
           certPayload.services_fees = data.services_fees || null;
@@ -356,8 +381,11 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
         }
 
         if (certConf.id) {
-          const { error: updErr } = await supabase.from("certifications").update(certPayload).eq("id", certConf.id);
+          const { data: updRes, error: updErr } = await supabase.from("certifications").update(certPayload).eq("id", certConf.id).select("id");
           if (updErr) throw updErr;
+          if (!updRes || updRes.length === 0) {
+            throw new Error("You do not have permission to modify this project.");
+          }
           if (!firstCertId) firstCertId = certConf.id;
         } else {
           const { data: newCert, error: insErr } = await supabase
@@ -463,7 +491,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
                 <CardContent className="pt-4 space-y-2 text-sm">
                   <div className="flex justify-between"><span className="text-muted-foreground">Client</span><span className="font-medium">{project.client}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Region</span><span className="font-medium">{project.region}</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">Certification</span><span className="font-medium">{(project as any).cert_type || "—"}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Certification</span><span className="font-medium">{(project as any).cert_type ? (CERT_DISPLAY_LABELS[(project as any).cert_type] ?? (project as any).cert_type) : "—"}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Rating</span><span className="font-medium">{(project as any).cert_rating || "—"}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Handover</span><span className="font-medium">{format(new Date(project.handover_date), "dd MMM yyyy")}</span></div>
                   {(project as any).total_fees != null && (
@@ -504,7 +532,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar mode="single" selected={field.value || undefined} onSelect={field.onChange} initialFocus className="p-3" />
+                      <MonthYearCalendar mode="single" selected={field.value || undefined} onSelect={field.onChange} initialFocus className="p-3" />
                     </PopoverContent>
                   </Popover>
                   <FormMessage />
@@ -645,18 +673,37 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
                   <FormField control={form.control} name="handover_date" render={({ field }) => (
                     <FormItem className="flex flex-col"><FormLabel>Handover Date *</FormLabel>
                       <Popover><PopoverTrigger asChild><Button variant="outline" className={cn("w-full justify-start text-left font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{field.value ? format(field.value, "dd MMM yyyy") : "Select date"}</Button></PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus className="p-3" /></PopoverContent></Popover>
+                      <PopoverContent className="w-auto p-0" align="start"><MonthYearCalendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus className="p-3" /></PopoverContent></Popover>
                     <FormMessage /></FormItem>
                   )} />
                   {!isQuotationMode && (
-                    <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Status</FormLabel><Select value={field.value} onValueChange={field.onChange}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent>{PROJECT_STATUSES.map((s) => (<SelectItem key={s} value={s}>{s}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="status" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Status</FormLabel>
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {PROJECT_STATUSES.map((s) => (
+                              <SelectItem key={s.value} value={s.value}>
+                                {s.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
                   )}
                 </div>
               </CardContent>
             </Card>
 
             {/* QUOTATION FINANCIAL SECTION */}
-            {isQuotationMode && (
+            {(isQuotationMode || (mode === "edit" && project?.status === "quotation")) && (
               <Card className="border-blue-200 shadow-sm">
                 <CardHeader className="bg-blue-50/50 pb-4 border-b border-blue-100">
                   <CardTitle className="text-lg text-blue-700">💰 Quotation Details</CardTitle>
@@ -710,7 +757,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
                             </Button>
                           </PopoverTrigger>
                           <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar mode="single" selected={field.value || undefined} onSelect={field.onChange} initialFocus className="p-3" />
+                            <MonthYearCalendar mode="single" selected={field.value || undefined} onSelect={field.onChange} initialFocus className="p-3" />
                           </PopoverContent>
                         </Popover>
                         <FormMessage />
@@ -757,7 +804,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
                               }
                             }}
                           />
-                          <Label htmlFor={`cert-${type}`} className="cursor-pointer font-medium">{type}</Label>
+                          <Label htmlFor={`cert-${type}`} className="cursor-pointer font-medium">{CERT_DISPLAY_LABELS[type] ?? type}</Label>
                         </div>
                       );
                     })}
@@ -780,7 +827,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
                               ACTIVE IN DATABASE
                             </div>
                           )}
-                          <h5 className="font-bold text-lg text-slate-800 mb-4 border-b pb-2">{certType} Configuration</h5>
+                          <h5 className="font-bold text-lg text-slate-800 mb-4 border-b pb-2">{CERT_DISPLAY_LABELS[certType] ?? certType} Configuration</h5>
                           <div className={cn("grid grid-cols-1 gap-6", isQuotationMode ? "md:grid-cols-3" : "md:grid-cols-4")}>
                             <FormField control={form.control} name={`certifications.${index}.cert_rating`} render={({ field: f }) => (
                               <FormItem>

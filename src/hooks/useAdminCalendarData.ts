@@ -64,7 +64,8 @@ export function useAdminCalendarData() {
         }
 
         let setup_status: SetupStatus;
-        if (isCertified) setup_status = "certificato";
+        if (c.status === "completato") setup_status = "completato";
+        else if (isCertified) setup_status = "certificato";
         else if (hasTimeline && hasScorecard) setup_status = "in_corso";
         else setup_status = "da_configurare";
 

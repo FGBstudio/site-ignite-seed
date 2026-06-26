@@ -70,6 +70,10 @@ interface Props {
   onSaved: () => void;
 }
 
+const cleanProductName = (name: string): string => {
+  return name.replace(/\s*-\s*(In\s+)?Stock/gi, "").trim();
+};
+
 export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: Props) {
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -163,6 +167,10 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
   const modeProducts = useMemo(
     () => allProducts.filter(p => {
       const name = p.name?.toUpperCase() || "";
+      const isEnergyProduct = /FGB\d+|PAN-?\d+/i.test(name);
+      if (isEnergyProduct) {
+        return mode === "ENERGY";
+      }
       const isAirProduct = name.includes("CLAIR") || name.includes("WELL") || name.includes("LEED") || name.includes("CO2");
       const productCategory = isAirProduct ? "AIR" : (p.category?.toUpperCase() || "AIR");
       return productCategory === mode;
@@ -172,8 +180,11 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
 
   const modeAllocations = useMemo(
     () => allocations.filter((a) => {
-      // Hard override: If the product name indicates it's an Air monitor, force it to AIR mode.
       const name = a.products?.name?.toUpperCase() || "";
+      const isEnergyProduct = /FGB\d+|PAN-?\d+/i.test(name);
+      if (isEnergyProduct) {
+        return mode === "ENERGY";
+      }
       const isAirProduct = name.includes("CLAIR") || name.includes("WELL") || name.includes("LEED") || name.includes("CO2");
 
       const productCategory = isAirProduct ? "AIR" : (a.category?.toUpperCase() || a.products?.category?.toUpperCase() || "AIR");
@@ -207,7 +218,7 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
       const remaining = Math.max(requested - onSite, 0);
       rows.push({
         productId: alloc.product_id,
-        productName: alloc.products?.name ?? "Unknown",
+        productName: cleanProductName(alloc.products?.name ?? "Unknown"),
         requested,
         onSite,
         remaining,
@@ -659,7 +670,7 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
                         </Label>
                         {slot.productId !== slot.requestedProductId && (
                           <Badge variant="outline" className="text-[9px] border-amber-200 text-amber-600 bg-amber-50">
-                            Override: PM asked for {modeAllocations.find(a => a.product_id === slot.requestedProductId)?.products?.name || "Original"}
+                            Override: PM asked for {cleanProductName(modeAllocations.find(a => a.product_id === slot.requestedProductId)?.products?.name || "Original")}
                           </Badge>
                         )}
                       </div>
@@ -672,7 +683,7 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
                               const p = modeProducts.find(mp => mp.id === v);
                               updateSlot(idx, {
                                 productId: v,
-                                productName: p?.name || slot.productName,
+                                productName: cleanProductName(p?.name || slot.productName),
                                 hardwareId: null,
                                 searchQuery: ""
                               });
@@ -684,7 +695,7 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
                             <SelectContent>
                               {modeProducts.map(p => (
                                 <SelectItem key={p.id} value={p.id} className="text-xs">
-                                  {p.name}
+                                  {cleanProductName(p.name)}
                                 </SelectItem>
                               ))}
                             </SelectContent>

@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar } from "@/components/ui/calendar";
+import { MonthYearCalendar } from "@/components/ui/MonthYearCalendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,9 +29,23 @@ import { getCertificationTemplate } from "@/data/certificationTemplates";
 import type { Product, Project, ProjectAllocation } from "@/types/custom-tables";
 
 const REGIONS = ["Europe", "America", "APAC", "ME"] as const;
-const PROJECT_STATUSES = ["Design", "Construction", "Completed", "Cancelled"] as const;
+const PROJECT_STATUSES = [
+  { value: "da_configurare", label: "Design" },
+  { value: "in_corso", label: "Construction" },
+  { value: "completato", label: "Completed" },
+  { value: "canceled", label: "Cancelled" }
+] as const;
 const ALLOCATION_STATUSES = ["Draft", "Allocated", "Requested", "Shipped", "Installed_Online"] as const;
 const AVAILABLE_CERTS = ["LEED", "WELL", "BREEAM", "ESG", "GRESB"] as const;
+
+const CERT_DISPLAY_LABELS: Record<string, string> = {
+  LEED: "LEED",
+  WELL: "WELL",
+  BREEAM: "BREEAM",
+  ESG: "ESG - Taxonomy",
+  GRESB: "GRESB",
+  Energy_Audit: "Energy Audit",
+};
 
 const CERT_LEVELS: Record<string, string[]> = {
   LEED: ["Certified", "Silver", "Gold", "Platinum"],
@@ -101,7 +115,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
     resolver: zodResolver(formSchema),
     defaultValues: { 
       name: "", client: "", region: "Europe", handover_date: new Date(), 
-      status: "Design", pm_id: "", site_id: "", allocations: [], certifications: [] 
+      status: "da_configurare", pm_id: "", site_id: "", allocations: [], certifications: [] 
     },
   });
 
@@ -164,7 +178,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
       } else {
         form.reset({ 
           name: "", client: "", region: "Europe", handover_date: new Date(), 
-          status: "Design", pm_id: isAdmin ? "" : user?.id || "", site_id: "", 
+          status: "da_configurare", pm_id: isAdmin ? "" : user?.id || "", site_id: "", 
           allocations: [], certifications: [] 
         });
         setSelectedHoldingId(""); setSelectedBrandId(""); setShowNewSite(false);
@@ -235,7 +249,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
           client: data.client,
           region: effectiveRegion,
           handover_date: handoverStr,
-          status: data.status || "in_progress",
+          status: data.status || "in_corso",
           pm_id: pmId || null,
           project_subtype: certConf.project_subtype || null,
         };
@@ -373,10 +387,29 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
                   <FormField control={form.control} name="handover_date" render={({ field }) => (
                     <FormItem className="flex flex-col"><FormLabel>Handover Date *</FormLabel>
                       <Popover><PopoverTrigger asChild><Button variant="outline" className={cn("w-full justify-start text-left font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{field.value ? format(field.value, "dd MMM yyyy") : "Select date"}</Button></PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus className="p-3" /></PopoverContent></Popover>
+                      <PopoverContent className="w-auto p-0" align="start"><MonthYearCalendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus className="p-3" /></PopoverContent></Popover>
                     <FormMessage /></FormItem>
                   )} />
-                  <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Status</FormLabel><Select value={field.value} onValueChange={field.onChange}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent>{PROJECT_STATUSES.map((s) => (<SelectItem key={s} value={s}>{s}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                  <FormField control={form.control} name="status" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Status</FormLabel>
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {PROJECT_STATUSES.map((s) => (
+                            <SelectItem key={s.value} value={s.value}>
+                              {s.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
                   {isAdmin && (
                     <FormField control={form.control} name="pm_id" render={({ field }) => (
                       <FormItem><FormLabel>Assigned PM</FormLabel><Select value={field.value} onValueChange={field.onChange} disabled={loadingPMs}><FormControl><SelectTrigger>{loadingPMs ? "Loading..." : <SelectValue placeholder="Select PM" />}</SelectTrigger></FormControl><SelectContent>{pmList.map((pm) => (<SelectItem key={pm.id} value={pm.id}>{pm.full_name}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>
@@ -410,7 +443,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
                               }
                             }}
                           />
-                          <Label htmlFor={`cert-${type}`} className="cursor-pointer font-medium">{type}</Label>
+                          <Label htmlFor={`cert-${type}`} className="cursor-pointer font-medium">{CERT_DISPLAY_LABELS[type] ?? type}</Label>
                         </div>
                       );
                     })}
@@ -433,7 +466,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
                               ACTIVE IN DATABASE
                             </div>
                           )}
-                          <h5 className="font-bold text-lg text-slate-800 mb-4 border-b pb-2">{certType} Configuration</h5>
+                          <h5 className="font-bold text-lg text-slate-800 mb-4 border-b pb-2">{CERT_DISPLAY_LABELS[certType] ?? certType} Configuration</h5>
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <FormField control={form.control} name={`certifications.${index}.cert_rating`} render={({ field: f }) => (
                               <FormItem><FormLabel>Rating System</FormLabel><Select onValueChange={(v) => { f.onChange(v); form.setValue(`certifications.${index}.project_subtype`, undefined); }} value={f.value || ""}><FormControl><SelectTrigger><SelectValue placeholder="Select Rating" /></SelectTrigger></FormControl><SelectContent>{RATING_SYSTEMS.map((v) => (<SelectItem key={v} value={v}>{v}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>
