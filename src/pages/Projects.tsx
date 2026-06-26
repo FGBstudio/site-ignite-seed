@@ -951,40 +951,6 @@ export default function Projects() {
         </DialogContent>
       </Dialog>
 
-      {/* Hard Delete Confirmation Alert Dialog */}
-      <AlertDialog open={!!hardDeleteProject} onOpenChange={(open) => !open && setHardDeleteProject(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-destructive flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5" /> Delete Permanently?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to permanently delete <strong>{hardDeleteProject?.name}</strong>? This will permanently remove all associated milestones and allocations. This action is irreversible.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
-              className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
-              onClick={async () => {
-                if (!hardDeleteProject) return;
-                try {
-                  const { error } = await supabase.from("certifications").delete().eq("id", hardDeleteProject.id);
-                  if (error) throw error;
-                  toast({ title: "Project deleted", description: `${hardDeleteProject.name} has been permanently deleted.` });
-                  queryClient.invalidateQueries({ queryKey: ["admin-planner-all-certifications"] });
-                } catch (err: any) {
-                  toast({ title: "Delete failed", description: err.message, variant: "destructive" });
-                } finally {
-                  setHardDeleteProject(null);
-                }
-              }}
-            >
-              Delete Permanently
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </MainLayout>
   );
 }
