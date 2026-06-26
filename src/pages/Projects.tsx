@@ -33,7 +33,6 @@ const SETUP_STATUS_META = {
   in_corso: { label: "In Progress", icon: Clock3, className: "border-primary/30 bg-primary/10 text-primary" },
   completato: { label: "Completed", icon: CheckSquare, className: "border-violet-400/30 bg-violet-50 text-violet-700" },
   certificato: { label: "Certified", icon: CheckCircle2, className: "border-success/30 bg-success/10 text-success" },
-  canceled: { label: "Canceled", icon: XCircle, className: "border-destructive/30 bg-destructive/10 text-destructive" },
 } as const;
 
 const CERT_DISPLAY_LABELS: Record<string, string> = {
