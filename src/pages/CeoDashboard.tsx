@@ -602,7 +602,8 @@ export default function CeoDashboard() {
   const { data: payments = [], isLoading: loadingPayments } = useCertPayments();
   const { data: projects = [], isLoading: loadingProjects } = useActiveProjects();
   const { data: calendarProjects = [], isLoading: loadingCalendar } = useAdminPlannerData();
-  const { total: alertTotal, counts: alertCounts } = useTaskAlertCounts(role, user?.id);
+  const { total: alertTotal, counts: alertCountsRaw } = useTaskAlertCounts(role, user?.id);
+  const alertCounts = alertCountsRaw as unknown as Record<string, number>;
 
   const isLoading = loadingTasks || loadingPayments || loadingProjects;
   const [activeTab, setActiveTab] = useState("projects");
