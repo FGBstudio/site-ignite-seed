@@ -10,7 +10,8 @@ export type TabKey =
   | "solleciti"
   | "bloccati"
   | "insoluti"
-  | "nc";
+  | "nc"
+  | "tasks";
 
 export interface TabDef {
   key: TabKey;

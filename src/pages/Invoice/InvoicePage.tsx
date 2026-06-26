@@ -11,6 +11,9 @@ import { InvoicesSolleciti } from "./tabs/InvoicesSolleciti";
 import { InvoicesBloccati } from "./tabs/InvoicesBloccati";
 import { InvoicesInsoluti } from "./tabs/InvoicesInsoluti";
 import { InvoicesNoteCredito } from "./tabs/InvoicesNoteCredito";
+import { PaymentsTasksPanel } from "./components/PaymentsTasksPanel";
+import { useAuth } from "@/contexts/AuthContext";
+import { useTaskAlerts } from "@/hooks/useTaskAlerts";
 
 const FUTURA: React.CSSProperties = {
   fontFamily: "'Futura','Futura PT','Century Gothic','Trebuchet MS',sans-serif",
@@ -19,6 +22,13 @@ const FUTURA: React.CSSProperties = {
 export default function InvoicePage() {
   const [tab, setTab] = useState<TabKey>("emesse");
   const { invoices, daEmettere, solleciti, bloccati, insoluti, nc } = useInvoiceStore();
+  const { user, role } = useAuth();
+  const { data: allAlerts = [] } = useTaskAlerts(role, user?.id);
+  const paymentsTaskCount = allAlerts.filter(
+    (a) =>
+      !a.is_resolved &&
+      ["quotation_to_payments", "billing_due", "extra_canone"].includes(a.alert_type)
+  ).length;
 
   const totNotPaid = invoices.filter((r) => r.state !== "Paid").reduce((s, r) => s + (r.notPaid || 0), 0);
   const sollAttivi = solleciti.filter((r) => r.status !== "pagato").length;
