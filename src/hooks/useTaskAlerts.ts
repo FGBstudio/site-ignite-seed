@@ -155,6 +155,8 @@ export function useTaskAlertCounts(role: AppRole | null, userId: string | undefi
       budget_warning_80: 0,
       budget_overrun: 0,
       resource_burnout_warning: 0,
+      quotation_to_operations: 0,
+      quotation_to_payments: 0,
     }
   );
 
