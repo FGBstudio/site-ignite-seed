@@ -35,6 +35,7 @@ import HrAvailability from "./pages/hr/HrAvailability";
 import HrRequests from "./pages/hr/HrRequests";
 import HrAttendance from "./pages/hr/HrAttendance";
 import HrScanner from "./pages/hr/HrScanner";
+import Quotations from "./pages/Quotations";
 
 
 // MODIFICA QUI: Configurazione del QueryClient per evitare refresh molesti
@@ -87,6 +88,7 @@ function AppRoutes() {
 
       <Route path="/monitor" element={<ProtectedRoute allowedRoles={R("ADMIN", "PM")}><Monitor /></ProtectedRoute>} />
       <Route path="/invoice" element={<ProtectedRoute allowedRoles={R("ADMIN")}><InvoicePage /></ProtectedRoute>} />
+      <Route path="/quotations" element={<ProtectedRoute allowedRoles={R("ADMIN")}><Quotations /></ProtectedRoute>} />
 
       {/* ── Admin routes (Projects section) ── */}
       <Route path="/ceo-dashboard" element={<ProtectedRoute allowedRoles={R("ADMIN")}><CeoDashboard /></ProtectedRoute>} />
