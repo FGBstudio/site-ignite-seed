@@ -1,54 +1,108 @@
+# Home, RBAC & Quotations Flow
 
-## Problema
+Per la nota dell'utente ("per ora solo admin con accesso a tutto, PM come adesso"), implemento UI + backend del nuovo flusso, **senza** ancora introdurre i sotto-ruoli `admin_quotations / admin_payments / admin_operations`. Predispongo però il codice in modo che aggiungerli dopo richieda solo nuove righe nell'enum dei ruoli e nei filtri.
 
-I dati anagrafici del sito (city, country, region, address, timezone) inseriti durante l'onboarding non si propagano in modo coerente alle tabelle/viste di Projects. La radice non è il DB (i siti recenti hanno tutti i campi popolati), ma tre punti del codice frontend:
+---
 
-### Cause identificate
+## 1. Rinominazioni UI (rotte invariate)
 
-1. **`SiteProjectOnboardingForm.tsx` (ProjectFormModal)** — la modale "New Project on Site" della pagina Projects, quando l'utente sceglie "+" per creare un sito al volo, esegue:
-   ```ts
-   supabase.from("sites").insert({ name, brand_id })
-   ```
-   Tutti gli altri campi (city/country/region/address/timezone) **non sono nemmeno raccolti**: il sito nasce monco.
+**`src/lib/hubSections.ts`**
+- Sezione `projects`: label dinamica. Aggiungo `getDisplayName(role)` o calcolo in Home/Sidebar:
+  - `admin` → "Operations"
+  - `pm` → "Projects"
+- Sezione `invoice` → label statica "Payments" (route resta `/invoice`).
+- Nuova sezione `quotations`:
+  - `name: "Quotations"`, `route: "/quotations"`, `color: "#a0d5d6"`, `allowedRoles: ['admin']` (per ora).
 
-2. **`ProjectCreateWizard.tsx`** — quando si sceglie un sito **esistente**, `certifications.region` viene scritto col valore di `draft.region` (default "Europe") invece di derivarlo da `sites.region`. La vista Projects (che mostra `region` della cert) risulta incoerente col sito.
+**`src/pages/Home.tsx`** + **`src/components/home/PittoCard.tsx`**
+- PittoCard accetta `displayName` opzionale, altrimenti usa `section.name`.
+- In Home calcolo la label per `projects` in base a `role`.
 
-3. **`ProjectCreateWizard.tsx`** — un sito esistente con campi mancanti (es. `address` NULL) non è correggibile dal wizard: non c'è UI per fare update.
+**`src/components/layout/AppSidebar.tsx`** e **`src/components/layout/TopNavbar.tsx`**
+- Stesso rename condizionale per "Projects/Operations" e statico per "Payments".
+- Nuova voce "Quotations".
 
-## Interventi
+**`src/pages/Invoice/InvoicePage.tsx`**
+- Titoli/breadcrumb interni: "Payments".
 
-### A. ProjectFormModal — raccolta completa quando si crea un sito inline
-File: `src/components/projects/SiteProjectOnboardingForm.tsx`
+---
 
-- Estendere il blocco "+ New Site" con i campi: City *, Country *, Region, Address, Timezone (default `Europe/Rome`).
-- Validare city/country come required prima del submit.
-- All'insert dei `sites`, passare tutti i campi raccolti (oltre a `name` e `brand_id`).
-- Dopo la creazione, usare la `region` del nuovo sito per la `certifications.region`.
+## 2. Nuova pagina `/quotations`
 
-### B. ProjectCreateWizard — coerenza region cert↔site
-File: `src/pages/ProjectCreateWizard.tsx`
+**`src/pages/Quotations.tsx`** (nuovo)
+- Layout standard (TopNavbar + container).
+- `Tabs` shadcn con due tab: **Pending** | **Approved**.
+- Pulsante "+ New Quotation" che apre `NewQuotationWizard` (riusato as-is).
+- Liste alimentate da `certifications` filtrate per nuovo campo `quotation_status`:
+  - Pending: `quotation_status in ('draft','pending_approval')`
+  - Approved: `quotation_status = 'approved'`
+- Ogni riga Pending ha bottone **"Mark as Approved"** → chiama edge function `approve-quotation`.
 
-- Quando l'utente seleziona un sito esistente (step 1), pre-popolare `draft.region` con `sites.region`.
-- In `handleSubmit`, al ramo "sito esistente", leggere `region` (e `timezone`) dalla riga `sites` selezionata e usarli per la insert delle `certifications`, invece di affidarsi al solo `draft.region`.
-- Mostrare nello step Review una riga "Site Region" derivata dal sito selezionato, non dal draft.
+**Route in `src/App.tsx`**: `/quotations` protetto per `admin`.
 
-### C. ProjectCreateWizard — possibilità di completare un sito esistente
-File: `src/pages/ProjectCreateWizard.tsx`
+**Rimozione bottone in Operations**
+- `src/pages/Projects.tsx`: rimuovo il pulsante "New Project/Site/Quotation" e relativo modale di apertura wizard (il componente `NewQuotationWizard` resta, ma viene aperto solo da `/quotations`).
 
-- Quando viene selezionato un sito esistente con campi mancanti (city / country / address / timezone NULL o vuoti), mostrare un piccolo pannello "Complete site details" pre-compilato con i valori attuali, editabile.
-- Al submit, se i campi sono stati modificati, eseguire un `update` sulla riga `sites` selezionata prima di creare le certifications.
+---
 
-### D. Verifica letture downstream (solo controllo, nessuna modifica se ok)
-Hooks già corretti: `useAdminPlannerData` e `usePMPortalData` joinano `sites(name, city, country, brand_id)` via `certifications_site_id_fkey` — una volta che il sito ha i dati, vengono visualizzati correttamente in tabelle/filtri di Projects e PM board. Nessuna modifica necessaria.
+## 3. Backend: stato quotazione + handover
 
-## Note tecniche
+**Migration** `add_quotation_workflow.sql`:
+- `ALTER TABLE certifications ADD COLUMN quotation_status text NOT NULL DEFAULT 'draft'` con check `in ('draft','pending_approval','approved','rejected')`.
+- `ALTER TABLE certifications ADD COLUMN quotation_approved_at timestamptz, quotation_approved_by uuid`.
+- Backfill: certifications esistenti → `'approved'` (sono già operative).
+- Index su `quotation_status`.
 
-- Nessuna migrazione DB: lo schema `sites` ha già tutte le colonne.
-- RLS: l'update di `sites` per completare un esistente è coperto dalle policy attuali (PM/admin sui propri siti).
-- Strict TS, niente `as any` nuovi.
+**Edge function `approve-quotation`** (nuova, `verify_jwt=false`, valida JWT internamente):
+- Input: `{ certification_id }`.
+- Verifica ruolo admin del caller.
+- Update `quotation_status='approved'`, `quotation_approved_at=now()`, `quotation_approved_by=auth.uid()`.
+- Inserisce 2 record in `task_alerts` (tabella già usata da `useTaskAlerts`/`AdminTasks`):
+  1. **Operations handover**: `category='operations_handover'`, title "Assign project to a PM", payload con `certification_id`.
+  2. **Payments handover**: `category='payments_handover'`, title "Set payment milestones / issue invoices", payload con `certification_id` e link.
+- Nessuna mail.
 
-## Out of scope
+**`src/hooks/useTaskAlerts.ts`**: aggiungo i nuovi `category` ai filtri esistenti (nessun breaking change).
 
-- Non tocco la pagina `ProjectDetail` o l'edit del sito da Settings.
-- Non rinomino/normalizzo colonne esistenti.
-- Non aggiungo nuovi campi al DB.
+---
+
+## 4. Payments → Tasks & Alerts tab
+
+**`src/pages/Invoice/InvoicePage.tsx`**
+- Aggiungo nuova `TabBar` entry "Tasks & Alerts" che renderizza una versione filtrata della UI di `AdminTasks` limitata a `category='payments_handover'` (estraggo il componente lista in `src/components/tasks/TaskAlertsList.tsx` per riuso, senza toccare la logica esistente di `AdminTasks.tsx`).
+
+---
+
+## 5. RBAC
+
+Per ora, in `ProtectedRoute` / `App.tsx`:
+- `/quotations`: `admin` only.
+- `/invoice`: invariato.
+- `/projects`: invariato (admin vede tutto, PM vede i suoi via RLS — già attivo).
+- Predispongo costanti `QUOTATIONS_ROLES`, `PAYMENTS_ROLES`, `OPERATIONS_ROLES` in `hubSections.ts` con valore `['admin']` per ora, così l'aggiunta dei sotto-ruoli sarà una singola modifica.
+
+---
+
+## File toccati
+
+**Nuovi**
+- `src/pages/Quotations.tsx`
+- `src/components/tasks/TaskAlertsList.tsx` (estratto)
+- `supabase/functions/approve-quotation/index.ts`
+- migration `add_quotation_workflow.sql`
+
+**Modificati**
+- `src/lib/hubSections.ts`
+- `src/pages/Home.tsx`, `src/components/home/PittoCard.tsx`
+- `src/components/layout/AppSidebar.tsx`, `src/components/layout/TopNavbar.tsx`
+- `src/pages/Invoice/InvoicePage.tsx` (rename + nuovo tab)
+- `src/pages/Projects.tsx` (rimozione CTA "new")
+- `src/App.tsx` (route `/quotations`)
+- `src/hooks/useTaskAlerts.ts` (nuove categorie)
+
+---
+
+## Fuori scopo (rinviato)
+
+- Sotto-ruoli `admin_quotations / admin_payments / admin_operations` e relative restrizioni inibitorie: lasciati solo predisposti come costanti.
+- Rinomina effettiva della rotta `/invoice → /payments` (rinviata, evita breaking link).
