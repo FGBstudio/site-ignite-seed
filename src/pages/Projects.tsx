@@ -321,8 +321,7 @@ export default function Projects() {
   // Hard delete confirmation state
   const [hardDeleteProject, setHardDeleteProject] = useState<AdminPlannerProject | null>(null);
 
-  // New quotation wizard
-  const [wizardOpen, setWizardOpen] = useState(false);
+
 
   // Edit / confirm modal state
   const [modalOpen, setModalOpen] = useState(false);
