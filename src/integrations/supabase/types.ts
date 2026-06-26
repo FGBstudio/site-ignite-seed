@@ -805,6 +805,8 @@ export type Database = {
           pm_id: string | null
           po_sign_date: string | null
           project_subtype: string | null
+          quotation_approved_at: string | null
+          quotation_approved_by: string | null
           quotation_notes: string | null
           quotation_sent_date: string | null
           region: string
@@ -844,6 +846,8 @@ export type Database = {
           pm_id?: string | null
           po_sign_date?: string | null
           project_subtype?: string | null
+          quotation_approved_at?: string | null
+          quotation_approved_by?: string | null
           quotation_notes?: string | null
           quotation_sent_date?: string | null
           region?: string
@@ -883,6 +887,8 @@ export type Database = {
           pm_id?: string | null
           po_sign_date?: string | null
           project_subtype?: string | null
+          quotation_approved_at?: string | null
+          quotation_approved_by?: string | null
           quotation_notes?: string | null
           quotation_sent_date?: string | null
           region?: string
@@ -5745,6 +5751,8 @@ export type Database = {
         | "budget_warning_80"
         | "budget_overrun"
         | "resource_burnout_warning"
+        | "quotation_to_operations"
+        | "quotation_to_payments"
       wiring_type: "WYE" | "DELTA"
     }
     CompositeTypes: {
@@ -5932,6 +5940,8 @@ export const Constants = {
         "budget_warning_80",
         "budget_overrun",
         "resource_burnout_warning",
+        "quotation_to_operations",
+        "quotation_to_payments",
       ],
       wiring_type: ["WYE", "DELTA"],
     },

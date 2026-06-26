@@ -4,7 +4,13 @@
 
 import type { AppRole } from "@/types/custom-tables";
 
-export type HubSectionId = "projects" | "office" | "hr" | "monitor" | "invoice";
+export type HubSectionId =
+  | "projects"
+  | "quotations"
+  | "office"
+  | "hr"
+  | "monitor"
+  | "invoice";
 
 export interface HubSection {
   id: HubSectionId;
@@ -17,16 +23,32 @@ export interface HubSection {
   allowedRoles: AppRole[];
 }
 
+// ── Role-gated section access (predisposto per futuri sotto-ruoli) ──────────
+export const OPERATIONS_ROLES: AppRole[] = ["ADMIN", "PM"];
+export const QUOTATIONS_ROLES: AppRole[] = ["ADMIN"];
+export const PAYMENTS_ROLES: AppRole[] = ["ADMIN"];
+
 export const HUB_SECTIONS: HubSection[] = [
   {
     id: "projects",
+    // Display name is overridden per-role in the UI (Admin → "Operations", PM → "Projects").
     name: "PROJECTS",
     desc: "Pipeline, progress and documentation",
     color: "#009193",
     filter: "",
     route: "/projects-hub",
     comingSoon: false,
-    allowedRoles: ["ADMIN", "PM"],
+    allowedRoles: OPERATIONS_ROLES,
+  },
+  {
+    id: "quotations",
+    name: "QUOTATIONS",
+    desc: "Draft, approve and hand over to Operations",
+    color: "#a0d5d6",
+    filter: "brightness(1.1) saturate(.65)",
+    route: "/quotations",
+    comingSoon: false,
+    allowedRoles: QUOTATIONS_ROLES,
   },
   {
     id: "office",
@@ -61,15 +83,27 @@ export const HUB_SECTIONS: HubSection[] = [
   },
   {
     id: "invoice",
-    name: "INVOICE",
+    name: "PAYMENTS",
     desc: "Invoices, recall, unpaid, credit notes",
     color: "#e63f26",
     filter: "sepia(1) saturate(5) hue-rotate(322deg) brightness(.95)",
     route: "/invoice",
     comingSoon: false,
-    allowedRoles: ["ADMIN"],
+    allowedRoles: PAYMENTS_ROLES,
   },
 ];
+
+/** Returns the label to display for a section, given the current user role. */
+export function getSectionDisplayName(
+  section: HubSection,
+  role: AppRole | null
+): string {
+  if (section.id === "projects") {
+    // Admin (and future Operations sub-role) sees "Operations"; everyone else "Projects".
+    return role === "ADMIN" ? "OPERATIONS" : "PROJECTS";
+  }
+  return section.name;
+}
 
 export const PROJECTS_SECTION_PATHS = [
   "/projects-hub",

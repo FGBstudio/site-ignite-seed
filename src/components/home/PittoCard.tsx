@@ -9,9 +9,12 @@ const FUTURA: React.CSSProperties = {
 interface Props {
   section: HubSection;
   onClick: (section: HubSection) => void;
+  /** Optional override for the displayed label (e.g. role-aware naming). */
+  displayName?: string;
 }
 
-export function PittoCard({ section, onClick }: Props) {
+export function PittoCard({ section, onClick, displayName }: Props) {
+  const label = displayName ?? section.name;
   const [hover, setHover] = useState(false);
 
   return (
@@ -22,7 +25,7 @@ export function PittoCard({ section, onClick }: Props) {
       onMouseLeave={() => setHover(false)}
       className="flex flex-col items-center gap-[.85rem] cursor-pointer select-none transition-opacity bg-transparent border-0 p-0"
       style={{ WebkitTapHighlightColor: "transparent" }}
-      aria-label={section.name}
+      aria-label={label}
     >
       {/* Pittogramma + glow ring */}
       <div className="relative" style={{ width: 130, height: 130, flexShrink: 0 }}>
@@ -39,7 +42,7 @@ export function PittoCard({ section, onClick }: Props) {
         />
         <img
           src={asset("green_pittogramma.png")}
-          alt={section.name}
+          alt={label}
           className="w-full h-full object-contain"
           style={{
             filter: `${section.filter ? section.filter + " " : ""}drop-shadow(0 3px 10px rgba(0,0,0,.08))`,
@@ -65,7 +68,7 @@ export function PittoCard({ section, onClick }: Props) {
             textAlign: "center",
           }}
         >
-          {section.name}
+          {label}
         </div>
         <div
           className="text-muted-foreground text-center"

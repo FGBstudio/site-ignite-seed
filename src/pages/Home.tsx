@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { TopNavbar } from "@/components/layout/TopNavbar";
 import { PittoCard } from "@/components/home/PittoCard";
-import { HUB_SECTIONS, getGreeting, type HubSection } from "@/lib/hubSections";
+import { HUB_SECTIONS, getGreeting, getSectionDisplayName, type HubSection } from "@/lib/hubSections";
 
 const FUTURA: React.CSSProperties = {
   fontFamily: "'Futura','Futura PT','Century Gothic','Trebuchet MS',sans-serif",
@@ -124,7 +124,12 @@ export default function Home() {
         {/* Pittogrammi grid */}
         <div className="flex flex-wrap justify-center items-start" style={{ gap: "2.5rem 3rem" }}>
           {visibleSections.map((s) => (
-            <PittoCard key={s.id} section={s} onClick={handleNavigate} />
+            <PittoCard
+              key={s.id}
+              section={s}
+              onClick={handleNavigate}
+              displayName={getSectionDisplayName(s, role)}
+            />
           ))}
         </div>
       </main>
