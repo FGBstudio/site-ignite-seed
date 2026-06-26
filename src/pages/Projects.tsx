@@ -525,11 +525,8 @@ export default function Projects() {
         <TabsContent value="projects" className="space-y-6">
           {/* Status category tabs */}
           <Tabs value={statusTab} onValueChange={setStatusTab} className="space-y-4">
-            <TabsList className="grid w-full grid-cols-7">
-              <TabsTrigger value="all">All ({allProjects.length})</TabsTrigger>
-              <TabsTrigger value="quotation" className="gap-1.5">
-                <FileText className="h-3.5 w-3.5" /> Quotation ({counts.quotation})
-              </TabsTrigger>
+            <TabsList className="grid w-full grid-cols-5">
+              <TabsTrigger value="all">All ({operationsTotal})</TabsTrigger>
               <TabsTrigger value="da_configurare" className="gap-1.5">
                 <AlertTriangle className="h-3.5 w-3.5" /> To Configure ({counts.da_configurare})
               </TabsTrigger>
@@ -542,11 +539,9 @@ export default function Projects() {
               <TabsTrigger value="certificato" className="gap-1.5">
                 <CheckCircle2 className="h-3.5 w-3.5" /> Certified ({counts.certificato})
               </TabsTrigger>
-              <TabsTrigger value="canceled" className="gap-1.5">
-                <XCircle className="h-3.5 w-3.5" /> Canceled ({counts.canceled})
-              </TabsTrigger>
             </TabsList>
           </Tabs>
+
 
           {/* Filters */}
           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
