@@ -8,16 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { NewQuotationWizard } from "@/components/projects/NewQuotationWizard";
 import { Plus, Search, FileText, CheckCircle2, Loader2, ArrowRight, XCircle, Ban } from "lucide-react";
@@ -31,8 +22,7 @@ interface QuotationRow {
   handover_date: string | null;
   quotation_sent_date: string | null;
   quotation_approved_at: string | null;
-  quotation_canceled_at: string | null;
-  quotation_cancel_reason: string | null;
+  created_at: string | null;
   status: string;
 }
 
@@ -43,7 +33,7 @@ function useQuotations() {
       const { data, error } = await supabase
         .from("certifications")
         .select(
-          "id, name, client, region, total_fees, handover_date, quotation_sent_date, quotation_approved_at, quotation_canceled_at, quotation_cancel_reason, status"
+          "id, name, client, region, total_fees, handover_date, quotation_sent_date, quotation_approved_at, created_at, status"
         )
         .order("created_at", { ascending: false })
         .limit(500);
@@ -62,10 +52,7 @@ export default function Quotations() {
   const [search, setSearch] = useState("");
   const [wizardOpen, setWizardOpen] = useState(false);
   const [approvingId, setApprovingId] = useState<string | null>(null);
-
-  const [cancelTarget, setCancelTarget] = useState<QuotationRow | null>(null);
-  const [cancelReason, setCancelReason] = useState("");
-  const [canceling, setCanceling] = useState(false);
+  const [cancelingId, setCancelingId] = useState<string | null>(null);
 
   const pending = useMemo(() => rows.filter((r) => r.status === "quotation"), [rows]);
   const approved = useMemo(
@@ -106,31 +93,26 @@ export default function Quotations() {
     }
   };
 
-  const openCancel = (row: QuotationRow) => {
-    setCancelTarget(row);
-    setCancelReason("");
-  };
-
-  const handleConfirmCancel = async () => {
-    if (!cancelTarget) return;
-    setCanceling(true);
+  const handleCancel = async (row: QuotationRow) => {
+    const confirmed = window.confirm(`Cancel quotation for ${row.name}? It will be moved to the canceled history.`);
+    if (!confirmed) return;
+    setCancelingId(row.id);
     try {
-      const { error } = await supabase.functions.invoke("cancel-quotation", {
-        body: { certification_id: cancelTarget.id, reason: cancelReason || undefined },
-      });
+      const { error } = await supabase
+        .from("certifications")
+        .update({ status: "canceled" })
+        .eq("id", row.id);
       if (error) throw error;
       toast({
         title: "Quotation canceled",
-        description: `${cancelTarget.name} moved to Canceled.`,
+        description: `${row.name} moved to Canceled.`,
       });
-      setCancelTarget(null);
-      setCancelReason("");
       invalidateAll();
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       toast({ title: "Cancel failed", description: message, variant: "destructive" });
     } finally {
-      setCanceling(false);
+      setCancelingId(null);
     }
   };
 
@@ -173,9 +155,6 @@ export default function Quotations() {
               <th className="text-left p-3 font-medium text-muted-foreground">
                 {mode === "pending" ? "Sent" : mode === "approved" ? "Approved" : "Canceled"}
               </th>
-              {mode === "canceled" && (
-                <th className="text-left p-3 font-medium text-muted-foreground">Reason</th>
-              )}
               <th className="p-3" />
             </tr>
           </thead>
@@ -204,21 +183,10 @@ export default function Quotations() {
                     ? r.quotation_approved_at
                       ? format(new Date(r.quotation_approved_at), "dd MMM yyyy")
                       : "—"
-                    : r.quotation_canceled_at
-                    ? format(new Date(r.quotation_canceled_at), "dd MMM yyyy")
+                    : r.quotation_sent_date || r.created_at
+                    ? format(new Date(r.quotation_sent_date || r.created_at || ""), "dd MMM yyyy")
                     : "—"}
                 </td>
-                {mode === "canceled" && (
-                  <td className="p-3 text-muted-foreground max-w-sm">
-                    {r.quotation_cancel_reason ? (
-                      <span className="line-clamp-2" title={r.quotation_cancel_reason}>
-                        {r.quotation_cancel_reason}
-                      </span>
-                    ) : (
-                      <span className="italic">No reason provided</span>
-                    )}
-                  </td>
-                )}
                 <td className="p-3 text-right">
                   {mode === "pending" ? (
                     <div className="flex items-center justify-end gap-2">
@@ -239,9 +207,15 @@ export default function Quotations() {
                         size="sm"
                         variant="destructive"
                         className="gap-1"
-                        onClick={() => openCancel(r)}
+                        disabled={cancelingId === r.id}
+                        onClick={() => handleCancel(r)}
                       >
-                        <XCircle className="h-3 w-3" /> Cancel
+                        {cancelingId === r.id ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <XCircle className="h-3 w-3" />
+                        )}
+                        Cancel
                       </Button>
                     </div>
                   ) : mode === "approved" ? (
@@ -312,53 +286,6 @@ export default function Quotations() {
         }}
       />
 
-      <Dialog
-        open={!!cancelTarget}
-        onOpenChange={(open) => {
-          if (!open) {
-            setCancelTarget(null);
-            setCancelReason("");
-          }
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="text-destructive flex items-center gap-2">
-              <XCircle className="h-5 w-5" /> Cancel Quotation
-            </DialogTitle>
-            <DialogDescription>
-              {cancelTarget ? (
-                <>
-                  Move <strong>{cancelTarget.name}</strong> to Canceled. Optionally explain why
-                  the quotation was rejected — it will be kept in the historical record.
-                </>
-              ) : null}
-            </DialogDescription>
-          </DialogHeader>
-          <Textarea
-            value={cancelReason}
-            onChange={(e) => setCancelReason(e.target.value)}
-            placeholder="Reason for cancellation (optional)"
-            rows={4}
-          />
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setCancelTarget(null);
-                setCancelReason("");
-              }}
-              disabled={canceling}
-            >
-              Back
-            </Button>
-            <Button variant="destructive" onClick={handleConfirmCancel} disabled={canceling} className="gap-1">
-              {canceling ? <Loader2 className="h-3 w-3 animate-spin" /> : <XCircle className="h-3 w-3" />}
-              Confirm Cancel
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </MainLayout>
   );
 }
