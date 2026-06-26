@@ -198,9 +198,7 @@ export default function Projects() {
                 </SelectContent>
               </Select>
             </div>
-            <Button onClick={() => setWizardOpen(true)} className="gap-2 shrink-0">
-              <Plus className="h-4 w-4" /> New
-            </Button>
+            {/* "New" CTA removed — Operations subisce le quotazioni, non le crea. Use /quotations. */}
           </div>
 
           {/* Table */}
