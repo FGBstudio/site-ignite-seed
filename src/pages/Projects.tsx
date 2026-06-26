@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, Plus, Pencil, BarChart3, Eye, GanttChartSquare, AlertTriangle, Clock3, CheckCircle2, FileText, XCircle, CheckSquare, Trash2, Loader2, Download, ArrowUp, ArrowDown, ArrowUpDown, Filter } from "lucide-react";
+import { Search, Plus, Pencil, BarChart3, Eye, GanttChartSquare, AlertTriangle, Clock3, CheckCircle2, FileText, XCircle, CheckSquare, Trash2, Loader2, Download, ArrowUp, ArrowDown, ArrowUpDown, Filter, X } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -116,23 +116,22 @@ function ExcelHeaderCell({
   customContent?: React.ReactNode;
   className?: string;
 }) {
-  const [popoverSearch, setPopoverSearch] = useState("");
-  
   const uniqueValues = useMemo(() => {
     return getUniqueValues(colKey, rows);
   }, [colKey, rows]);
 
   const columnFilter = colFilters[colKey] || { search: "", selectedValues: undefined };
-  
+  const popoverSearch = columnFilter.search ?? "";
+
   const filteredChecklist = useMemo(() => {
-    return uniqueValues.filter(v => 
+    return uniqueValues.filter(v =>
       v.toLowerCase().includes(popoverSearch.toLowerCase())
     );
   }, [uniqueValues, popoverSearch]);
 
   const isSortedAsc = sortConfig?.key === colKey && sortConfig?.direction === 'asc';
   const isSortedDesc = sortConfig?.key === colKey && sortConfig?.direction === 'desc';
-  const isFiltered = columnFilter.selectedValues !== undefined && columnFilter.selectedValues !== null;
+  const isFiltered = (columnFilter.selectedValues !== undefined && columnFilter.selectedValues !== null) || !!columnFilter.search;
 
   const handleSort = (direction: 'asc' | 'desc') => {
     setSortConfig({ key: colKey, direction });
@@ -227,8 +226,11 @@ function ExcelHeaderCell({
           <div className="relative px-1 mb-1.5">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
             <Input 
-              value={popoverSearch} 
-              onChange={e => setPopoverSearch(e.target.value)} 
+              value={popoverSearch}
+              onChange={e => setColFilters(prev => ({
+                ...prev,
+                [colKey]: { ...(prev[colKey] || { search: "", selectedValues: undefined }), search: e.target.value }
+              }))}
               placeholder="Search values..." 
               className="pl-8 pr-2 h-7 text-xs bg-slate-50/50 border-slate-200 focus-visible:ring-indigo-500/20"
             />
@@ -615,13 +617,26 @@ export default function Projects() {
             </div>
           </div>
 
+          {/* Active column filter indicator */}
+          {Object.keys(colFilters).some(k => {
+            const f = colFilters[k];
+            return !!f?.search || (f?.selectedValues !== undefined && f?.selectedValues !== null);
+          }) && (
+            <div className="flex items-center gap-2 -mt-2 mb-1">
+              <button
+                onClick={() => setColFilters({})}
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 text-indigo-600 text-xs font-medium hover:bg-indigo-100 transition-colors"
+              >
+                <X className="w-3 h-3" /> Clear filters
+              </button>
+            </div>
+          )}
+
           {/* Table */}
           {isLoading ? (
             <div className="flex justify-center py-20">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
             </div>
-          ) : sortedAndFiltered.length === 0 ? (
-            <div className="table-container p-12 text-center text-muted-foreground">No projects found.</div>
           ) : (
             <div className="table-container overflow-x-auto">
               <table className="w-full text-sm">
@@ -674,6 +689,11 @@ export default function Projects() {
                   </tr>
                 </thead>
                 <tbody>
+                  {sortedAndFiltered.length === 0 ? (
+                    <tr>
+                      <td colSpan={10} className="p-12 text-center text-muted-foreground">No projects found.</td>
+                    </tr>
+                  ) : null}
                   {sortedAndFiltered.map((project) => {
                     const daysLeft = Math.ceil((new Date(project.handover_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
                     const statusMeta = SETUP_STATUS_META[project.setup_status];
