@@ -788,7 +788,20 @@ export default function Projects() {
                           <Button size="sm" variant="outline" onClick={() => navigate(`/projects/${project.id}`)} className="gap-1">
                             <Eye className="h-3 w-3" /> Details
                           </Button>
-                          {project.setup_status === "da_configurare" && !project.pm_id ? (
+                          {project.setup_status === "quotation_approved" ? (
+                            <Button size="sm" className="gap-1" onClick={async () => {
+                              const { data } = await supabase
+                                .from("project_allocations" as any)
+                                .select("*")
+                                .eq("certification_id", project.id);
+                              setEditProject(project as any);
+                              setEditAllocations((data || []) as any);
+                              setModalMode("confirm_project");
+                              setModalOpen(true);
+                            }}>
+                              <UserPlus className="h-3 w-3" /> Assign to PM
+                            </Button>
+                          ) : project.setup_status === "da_configurare" && !project.pm_id ? (
                             <Button size="sm" className="gap-1" onClick={() => openEdit(project)}>
                               <UserPlus className="h-3 w-3" /> Assign PM
                             </Button>
