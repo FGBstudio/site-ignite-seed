@@ -268,9 +268,10 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
           setSaving(false);
           return;
         }
+        const wasQuotationApproved = (project as any).status === "quotation_approved";
         const updatePayload: any = {
           pm_id: data.confirm_pm_id,
-          status: "in_progress",
+          status: wasQuotationApproved ? "da_configurare" : "in_progress",
         };
         if (data.po_sign_date) {
           updatePayload.po_sign_date = format(data.po_sign_date, "yyyy-MM-dd");
