@@ -78,13 +78,18 @@ export default function Quotations() {
   const handleApprove = async (id: string) => {
     setApprovingId(id);
     try {
-      const { error } = await supabase.functions.invoke("approve-quotation", {
-        body: { certification_id: id },
-      });
+      const { error } = await supabase
+        .from("certifications")
+        .update({
+          status: "quotation_approved",
+          quotation_approved_at: new Date().toISOString(),
+          quotation_approved_by: user?.id ?? null,
+        } as any)
+        .eq("id", id);
       if (error) throw error;
       toast({
         title: "Quotation approved",
-        description: "Operations and Payments have been notified.",
+        description: "Moved to Operations › Quotations Approved.",
       });
       invalidateAll();
     } catch (err) {
