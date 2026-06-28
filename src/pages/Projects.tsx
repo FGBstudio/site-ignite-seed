@@ -463,13 +463,14 @@ export default function Projects() {
   }, [filtered, sortConfig]);
 
   const counts = useMemo(() => ({
+    quotation_approved: allProjects.filter((p) => p.setup_status === "quotation_approved").length,
     da_configurare: allProjects.filter((p) => p.setup_status === "da_configurare").length,
     in_corso: allProjects.filter((p) => p.setup_status === "in_corso").length,
     completato: allProjects.filter((p) => (p.setup_status as string) === "completato").length,
     certificato: allProjects.filter((p) => p.setup_status === "certificato").length,
   }), [allProjects]);
 
-  const operationsTotal = counts.da_configurare + counts.in_corso + counts.completato + counts.certificato;
+  const operationsTotal = counts.quotation_approved + counts.da_configurare + counts.in_corso + counts.completato + counts.certificato;
 
   const openEdit = async (project: AdminPlannerProject) => {
     const { data } = await supabase
