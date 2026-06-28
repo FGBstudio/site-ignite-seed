@@ -526,8 +526,11 @@ export default function Projects() {
         <TabsContent value="projects" className="space-y-6">
           {/* Status category tabs */}
           <Tabs value={statusTab} onValueChange={setStatusTab} className="space-y-4">
-            <TabsList className="grid w-full grid-cols-5">
+            <TabsList className="grid w-full grid-cols-6">
               <TabsTrigger value="all">All ({operationsTotal})</TabsTrigger>
+              <TabsTrigger value="quotation_approved" className="gap-1.5">
+                <FileText className="h-3.5 w-3.5" /> Quotations Approved ({counts.quotation_approved})
+              </TabsTrigger>
               <TabsTrigger value="da_configurare" className="gap-1.5">
                 <AlertTriangle className="h-3.5 w-3.5" /> To Configure ({counts.da_configurare})
               </TabsTrigger>
