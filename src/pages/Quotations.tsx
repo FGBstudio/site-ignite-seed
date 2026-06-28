@@ -46,6 +46,7 @@ function useQuotations() {
 
 export default function Quotations() {
   const { toast } = useToast();
+  const { user } = useAuth();
   const qc = useQueryClient();
   const { data: rows = [], isLoading } = useQuotations();
 
