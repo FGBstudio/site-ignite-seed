@@ -5,7 +5,7 @@ import { computeMacroPhase, type MacroPhase } from "@/data/certificationTemplate
 import { differenceInDays, parseISO } from "date-fns";
 import type { GanttRowData } from "@/components/dashboard/FGBPlanner";
 
-export type SetupStatus = "quotation" | "da_configurare" | "in_corso" | "certificato" | "canceled";
+export type SetupStatus = "quotation" | "quotation_approved" | "da_configurare" | "in_corso" | "completato" | "certificato" | "canceled";
 
 export interface PMProject {
   id: string;
