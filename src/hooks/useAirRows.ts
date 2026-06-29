@@ -39,7 +39,6 @@ export interface AirMonitorRow {
   taxes: number;
   profit: number;
   roi: number;
-  air_product_ids: string[];
 }
 
 export function useAirRows() {
@@ -137,7 +136,6 @@ export function useAirRows() {
           taxes: record.taxes ?? 0,
           profit: record.profit ?? 0,
           roi: record.roi ?? 0,
-          air_product_ids: record.air_product_ids ?? [],
         };
       });
     },
