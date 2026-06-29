@@ -5,10 +5,10 @@ import { computeMacroPhase, type MacroPhase } from "@/data/certificationTemplate
 import { differenceInDays, parseISO } from "date-fns";
 import type { GanttRowData } from "@/components/dashboard/FGBPlanner";
 
-const CERTIFICATION_ID_CHUNK_SIZE = 75;
+const CERTIFICATION_ID_CHUNK_SIZE = 50;
 
-async function fetchCertificationMilestones(certIds: string[]) {
-  const milestones: unknown[] = [];
+async function fetchCertificationMilestones(certIds: string[]): Promise<any[]> {
+  const milestones: any[] = [];
 
   for (let i = 0; i < certIds.length; i += CERTIFICATION_ID_CHUNK_SIZE) {
     const chunk = certIds.slice(i, i + CERTIFICATION_ID_CHUNK_SIZE);
@@ -123,7 +123,7 @@ export function usePMDashboard() {
       const certIds = (certs as any[]).map((c) => c.id);
       let milestones: any[] = [];
       if (certIds.length > 0) {
-        milestones = await fetchCertificationMilestones(certIds) as any[];
+        milestones = await fetchCertificationMilestones(certIds);
       }
 
       const today = new Date().toISOString().slice(0, 10);
