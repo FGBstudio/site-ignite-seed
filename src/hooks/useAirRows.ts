@@ -24,6 +24,7 @@ export interface AirMonitorRow {
   handover_date: string | null;
   latest_shipment_date: string | null;
   brand_name: string | null;
+  air_product_ids: string[];
   // Financials
   inbound_cost: number;
   outbound_cost: number;
@@ -120,6 +121,7 @@ export function useAirRows() {
           handover_date: record.handover_date ?? null,
           latest_shipment_date: record.latest_shipment_date ?? null,
           brand_name: brandName,
+          air_product_ids: record.air_product_ids ?? [],
           online_status: record.online_status ?? null,
           notes: record.notes ?? null,
           inbound_cost: record.inbound_cost ?? 0,
