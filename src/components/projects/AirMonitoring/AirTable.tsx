@@ -591,7 +591,21 @@ export function AirTable() {
       ...sortedAndFiltered.map((r) => [
         JSON.stringify(r.project_name ?? ""),
         JSON.stringify(r.brand_name ?? ""),
-        JSON.stringify(r.air_product_ids?.length ? r.air_product_ids.map((pid: string) => airProductsMap.get(pid) ?? pid.slice(0, 8)).join(" | ") : ""),
+        JSON.stringify(
+          (() => {
+            if (!r.air_product_ids?.length) return "";
+            const counts = r.air_product_ids.reduce((acc, pid) => {
+              acc[pid] = (acc[pid] || 0) + 1;
+              return acc;
+            }, {} as Record<string, number>);
+            return Object.entries(counts)
+              .map(([pid, count]) => {
+                const name = airProductsMap.get(pid) ?? pid.slice(0, 8);
+                return count > 1 ? `${count}x ${name}` : name;
+              })
+              .join(" | ");
+          })()
+        ),
         JSON.stringify(r.status ?? ""),
         JSON.stringify(r.pm_name ?? ""),
         JSON.stringify(r.handover_date ? format(new Date(r.handover_date), "MMM d, yyyy") : "TBD"),
@@ -932,19 +946,25 @@ function AirRow({
         {r.brand_name || <span className="text-slate-300 italic">—</span>}
       </td>
 
-      {/* 1b. Monitor Typology */}
       <td className="px-4 py-4">
         {r.air_product_ids.length > 0 ? (
           <div className="flex flex-wrap gap-1">
-            {r.air_product_ids.map(pid => (
-              <Badge
-                key={pid}
-                variant="outline"
-                className="text-[10px] font-semibold bg-indigo-50 text-indigo-700 border-indigo-200 px-2 h-5"
-              >
-                {airProductsMap.get(pid) ?? pid.slice(0, 8)}
-              </Badge>
-            ))}
+            {(() => {
+              const productCounts = r.air_product_ids.reduce((acc, pid) => {
+                acc[pid] = (acc[pid] || 0) + 1;
+                return acc;
+              }, {} as Record<string, number>);
+              return Object.entries(productCounts).map(([pid, count]) => (
+                <Badge
+                  key={pid}
+                  variant="outline"
+                  className="text-[10px] font-semibold bg-indigo-50 text-indigo-700 border-indigo-200 px-2 h-5 flex items-center gap-1 whitespace-nowrap"
+                  title={airProductsMap.get(pid) ?? pid.slice(0, 8)}
+                >
+                  <span className="truncate max-w-[130px]">{count > 1 ? `${count}x ` : ''}{airProductsMap.get(pid) ?? pid.slice(0, 8)}</span>
+                </Badge>
+              ));
+            })()}
           </div>
         ) : (
           <Select
