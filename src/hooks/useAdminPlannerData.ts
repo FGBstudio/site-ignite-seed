@@ -154,7 +154,7 @@ export function useAdminPlannerData() {
           };
         }
 
-        const isCertified = c.status === "certificato" || (c.status === "active" && c.issued_date && c.issued_date.slice(0, 10) <= today);
+        const isCertified = c.status === "certificato" || c.status === "completato" || (c.status === "active" && c.issued_date && c.issued_date.slice(0, 10) <= today);
         const timelineMilestones = certMilestones.filter((m: any) => m.milestone_type === "timeline");
         const hasTimeline = timelineMilestones.length > 0;
         const hasScorecard = certMilestones.some((m: any) => m.milestone_type === "scorecard");
