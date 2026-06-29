@@ -585,14 +585,16 @@ export function AirTable() {
 
   const exportCSV = () => {
     if (!sortedAndFiltered.length) return;
-    const headers = ["Project", "Brand", "Status", "PM", "Region", "Country", "City", "Sensors", "POs", "Quotation", "HW Cost", "Total Cost", "Profit", "ROI", "Notes"];
+    const headers = ["Project", "Brand", "Monitor Typology", "Status", "PM", "Handover Date", "Region", "Country", "City", "Sensors", "POs", "Quotation", "HW Cost", "Total Cost", "Profit", "ROI", "Notes"];
     const lines = [
       headers.join(","),
       ...sortedAndFiltered.map((r) => [
         JSON.stringify(r.project_name ?? ""),
         JSON.stringify(r.brand_name ?? ""),
+        JSON.stringify(r.air_product_ids?.length ? r.air_product_ids.map((pid: string) => airProductsMap.get(pid) ?? pid.slice(0, 8)).join(" | ") : ""),
         JSON.stringify(r.status ?? ""),
         JSON.stringify(r.pm_name ?? ""),
+        JSON.stringify(r.handover_date ? format(new Date(r.handover_date), "MMM d, yyyy") : "TBD"),
         JSON.stringify(r.region ?? ""),
         JSON.stringify(r.country ?? ""),
         JSON.stringify(r.city ?? ""),
