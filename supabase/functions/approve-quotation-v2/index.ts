@@ -8,6 +8,11 @@ const BodySchema = z.object({
 
 type JsonRecord = Record<string, unknown>;
 
+interface JwtPayload {
+  iss?: string;
+  sub?: string;
+}
+
 function jsonResponse(body: JsonRecord, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -22,6 +27,29 @@ function getErrorMessage(error: unknown) {
     return JSON.stringify(error);
   } catch {
     return "Unknown error";
+  }
+}
+
+function decodeJwtPayload(token: string): JwtPayload | null {
+  const [, payload] = token.split(".");
+  if (!payload) return null;
+  try {
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+    return JSON.parse(atob(padded)) as JwtPayload;
+  } catch {
+    return null;
+  }
+}
+
+function getSupabaseUrlFromIssuer(issuer: string | undefined): string | null {
+  if (!issuer?.endsWith("/auth/v1")) return null;
+  try {
+    const url = new URL(issuer.replace(/\/auth\/v1$/, ""));
+    if (url.protocol !== "https:" || !url.hostname.endsWith(".supabase.co")) return null;
+    return url.origin;
+  } catch {
+    return null;
   }
 }
 
@@ -40,21 +68,16 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "Unauthorized" }, 401);
     }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY");
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
-    if (!supabaseUrl || !anonKey || !serviceRoleKey) {
+    if (!serviceRoleKey) {
       return jsonResponse({ error: "Backend approval channel is not configured" }, 500);
     }
 
-    const userClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
-
     const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsError } = await userClient.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims?.sub) {
+    const jwtPayload = decodeJwtPayload(token);
+    const targetSupabaseUrl = getSupabaseUrlFromIssuer(jwtPayload?.iss) ?? Deno.env.get("SUPABASE_URL");
+    if (!targetSupabaseUrl) {
       return jsonResponse({ error: "Unauthorized" }, 401);
     }
 
@@ -63,16 +86,22 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "certification_id must be a valid id" }, 400);
     }
 
-    const userId = claimsData.claims.sub;
-    const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+    const adminClient = createClient(targetSupabaseUrl, serviceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
+
+    const { data: userData, error: userError } = await adminClient.auth.getUser(token);
+    if (userError || !userData.user?.id) {
+      return jsonResponse({ error: "Unauthorized" }, 401);
+    }
+
+    const userId = userData.user.id;
 
     const { data: roleRow, error: roleError } = await adminClient
       .from("user_roles")
       .select("role")
       .eq("user_id", userId)
-      .eq("role", "ADMIN")
+      .in("role", ["ADMIN", "admin"])
       .maybeSingle();
 
     if (roleError) {

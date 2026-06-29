@@ -42,8 +42,6 @@ interface CachedAdminProject {
   };
 }
 
-const APPROVE_QUOTATION_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/approve-quotation-v2`;
-
 function readableError(error: unknown): string {
   if (error instanceof Error) return error.message;
   if (typeof error === "string") return error;
@@ -156,22 +154,11 @@ export default function Quotations() {
   const handleApprove = async (id: string) => {
     setApprovingId(id);
     try {
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError) throw new Error(sessionError.message);
-      const accessToken = sessionData.session?.access_token;
-      if (!accessToken) throw new Error("Session expired. Please sign in again.");
-
-      const response = await fetch(APPROVE_QUOTATION_FUNCTION_URL, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ certification_id: id }),
+      const { data, error } = await supabase.functions.invoke<ApproveQuotationResponse>("approve-quotation-v2", {
+        body: { certification_id: id },
       });
-      const data = (await response.json()) as ApproveQuotationResponse;
 
-      if (!response.ok) throw new Error(data.error || `Approval request failed (${response.status})`);
+      if (error) throw new Error(await readableFunctionError(error));
       if (!data?.ok || data.certification?.status !== "quotation_approved") {
         throw new Error(data?.error || "The quotation was not updated in the database.");
       }
