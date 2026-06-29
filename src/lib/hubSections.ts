@@ -76,7 +76,7 @@ export const HUB_SECTIONS: HubSection[] = [
     name: "MONITOR",
     desc: "KPIs, certifications, site progress",
     color: "#a0d5d6",
-    filter: "brightness(1.1) saturate(.65)",
+    filter: "",
     route: "/monitor",
     comingSoon: false,
     allowedRoles: ["ADMIN"],
