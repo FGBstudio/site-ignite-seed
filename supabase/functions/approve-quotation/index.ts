@@ -84,11 +84,11 @@ Deno.serve(async (req) => {
 
     const nowIso = new Date().toISOString();
 
-    // Transition from "quotation" to "da_configurare" (To Configure)
+    // Transition from "quotation" to "quotation_approved" (awaiting PM assignment in Operations)
     const { error: updErr } = await admin
       .from("certifications")
       .update({
-        status: "da_configurare",
+        status: "quotation_approved",
         quotation_approved_at: nowIso,
         quotation_approved_by: userId,
       })

@@ -4,18 +4,16 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { ProjectFormModal } from "@/components/projects/ProjectFormModal";
-import { NewQuotationWizard } from "@/components/projects/NewQuotationWizard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, Plus, Pencil, BarChart3, Eye, GanttChartSquare, AlertTriangle, Clock3, CheckCircle2, FileText, XCircle, CheckSquare, Trash2, Loader2, Download, ArrowUp, ArrowDown, ArrowUpDown, Filter } from "lucide-react";
+import { Search, Pencil, BarChart3, Eye, GanttChartSquare, AlertTriangle, Clock3, CheckCircle2, FileText, CheckSquare, Trash2, Loader2, Download, ArrowUp, ArrowDown, ArrowUpDown, Filter, X, UserPlus } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -31,11 +29,11 @@ import type { Project, ProjectAllocation } from "@/types/custom-tables";
 
 const SETUP_STATUS_META = {
   quotation: { label: "Quotation", icon: FileText, className: "border-blue-400/30 bg-blue-50 text-blue-600" },
+  quotation_approved: { label: "Quotation Approved", icon: FileText, className: "border-emerald-400/30 bg-emerald-50 text-emerald-700" },
   da_configurare: { label: "To Configure", icon: AlertTriangle, className: "border-warning/30 bg-warning/10 text-warning" },
   in_corso: { label: "In Progress", icon: Clock3, className: "border-primary/30 bg-primary/10 text-primary" },
   completato: { label: "Completed", icon: CheckSquare, className: "border-violet-400/30 bg-violet-50 text-violet-700" },
   certificato: { label: "Certified", icon: CheckCircle2, className: "border-success/30 bg-success/10 text-success" },
-  canceled: { label: "Canceled", icon: XCircle, className: "border-destructive/30 bg-destructive/10 text-destructive" },
 } as const;
 
 const CERT_DISPLAY_LABELS: Record<string, string> = {
@@ -116,23 +114,22 @@ function ExcelHeaderCell({
   customContent?: React.ReactNode;
   className?: string;
 }) {
-  const [popoverSearch, setPopoverSearch] = useState("");
-  
   const uniqueValues = useMemo(() => {
     return getUniqueValues(colKey, rows);
   }, [colKey, rows]);
 
   const columnFilter = colFilters[colKey] || { search: "", selectedValues: undefined };
-  
+  const popoverSearch = columnFilter.search ?? "";
+
   const filteredChecklist = useMemo(() => {
-    return uniqueValues.filter(v => 
+    return uniqueValues.filter(v =>
       v.toLowerCase().includes(popoverSearch.toLowerCase())
     );
   }, [uniqueValues, popoverSearch]);
 
   const isSortedAsc = sortConfig?.key === colKey && sortConfig?.direction === 'asc';
   const isSortedDesc = sortConfig?.key === colKey && sortConfig?.direction === 'desc';
-  const isFiltered = columnFilter.selectedValues !== undefined && columnFilter.selectedValues !== null;
+  const isFiltered = (columnFilter.selectedValues !== undefined && columnFilter.selectedValues !== null) || !!columnFilter.search;
 
   const handleSort = (direction: 'asc' | 'desc') => {
     setSortConfig({ key: colKey, direction });
@@ -227,8 +224,11 @@ function ExcelHeaderCell({
           <div className="relative px-1 mb-1.5">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
             <Input 
-              value={popoverSearch} 
-              onChange={e => setPopoverSearch(e.target.value)} 
+              value={popoverSearch}
+              onChange={e => setColFilters(prev => ({
+                ...prev,
+                [colKey]: { ...(prev[colKey] || { search: "", selectedValues: undefined }), search: e.target.value }
+              }))}
               placeholder="Search values..." 
               className="pl-8 pr-2 h-7 text-xs bg-slate-50/50 border-slate-200 focus-visible:ring-indigo-500/20"
             />
@@ -321,8 +321,7 @@ export default function Projects() {
   // Hard delete confirmation state
   const [hardDeleteProject, setHardDeleteProject] = useState<AdminPlannerProject | null>(null);
 
-  // New quotation wizard
-  const [wizardOpen, setWizardOpen] = useState(false);
+
 
   // Edit / confirm modal state
   const [modalOpen, setModalOpen] = useState(false);
@@ -390,6 +389,8 @@ export default function Projects() {
 
   const baseFiltered = useMemo(() => {
     return allProjects.filter((p) => {
+      // Operations never owns quotation/canceled — those live in /quotations
+      if (p.setup_status === "quotation" || p.setup_status === "canceled") return false;
       if (statusTab !== "all" && p.setup_status !== statusTab) return false;
       const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) || p.client.toLowerCase().includes(search.toLowerCase());
       const matchesRegion = regionFilter === "all" || p.region === regionFilter;
@@ -462,13 +463,14 @@ export default function Projects() {
   }, [filtered, sortConfig]);
 
   const counts = useMemo(() => ({
-    quotation: allProjects.filter((p) => p.setup_status === "quotation").length,
+    quotation_approved: allProjects.filter((p) => p.setup_status === "quotation_approved").length,
     da_configurare: allProjects.filter((p) => p.setup_status === "da_configurare").length,
     in_corso: allProjects.filter((p) => p.setup_status === "in_corso").length,
-    completato: allProjects.filter((p) => p.setup_status === "completato").length,
+    completato: allProjects.filter((p) => (p.setup_status as string) === "completato").length,
     certificato: allProjects.filter((p) => p.setup_status === "certificato").length,
-    canceled: allProjects.filter((p) => p.setup_status === "canceled").length,
   }), [allProjects]);
+
+  const operationsTotal = counts.quotation_approved + counts.da_configurare + counts.in_corso + counts.completato + counts.certificato;
 
   const openEdit = async (project: AdminPlannerProject) => {
     const { data } = await supabase
@@ -481,25 +483,7 @@ export default function Projects() {
     setModalOpen(true);
   };
 
-  const openConfirm = (project: AdminPlannerProject) => {
-    setEditProject(project as any);
-    setEditAllocations([]);
-    setModalMode("confirm_project" as any);
-    setModalOpen(true);
-  };
 
-  const handleCancel = async (project: AdminPlannerProject) => {
-    const { error } = await supabase
-      .from("certifications")
-      .update({ status: "canceled" } as any)
-      .eq("id", project.id);
-    if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    } else {
-      toast({ title: "Project canceled", description: `${project.name} has been moved to Canceled.` });
-      queryClient.invalidateQueries({ queryKey: ["admin-planner-all-certifications"] });
-    }
-  };
 
 
   if (!isAdmin) {
@@ -542,10 +526,10 @@ export default function Projects() {
         <TabsContent value="projects" className="space-y-6">
           {/* Status category tabs */}
           <Tabs value={statusTab} onValueChange={setStatusTab} className="space-y-4">
-            <TabsList className="grid w-full grid-cols-7">
-              <TabsTrigger value="all">All ({allProjects.length})</TabsTrigger>
-              <TabsTrigger value="quotation" className="gap-1.5">
-                <FileText className="h-3.5 w-3.5" /> Quotation ({counts.quotation})
+            <TabsList className="grid w-full grid-cols-6">
+              <TabsTrigger value="all">All ({operationsTotal})</TabsTrigger>
+              <TabsTrigger value="quotation_approved" className="gap-1.5">
+                <FileText className="h-3.5 w-3.5" /> Quotations Approved ({counts.quotation_approved})
               </TabsTrigger>
               <TabsTrigger value="da_configurare" className="gap-1.5">
                 <AlertTriangle className="h-3.5 w-3.5" /> To Configure ({counts.da_configurare})
@@ -559,11 +543,9 @@ export default function Projects() {
               <TabsTrigger value="certificato" className="gap-1.5">
                 <CheckCircle2 className="h-3.5 w-3.5" /> Certified ({counts.certificato})
               </TabsTrigger>
-              <TabsTrigger value="canceled" className="gap-1.5">
-                <XCircle className="h-3.5 w-3.5" /> Canceled ({counts.canceled})
-              </TabsTrigger>
             </TabsList>
           </Tabs>
+
 
           {/* Filters */}
           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
@@ -609,19 +591,30 @@ export default function Projects() {
                   <DropdownMenuItem onClick={exportJSON}>Export as JSON</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-              <Button onClick={() => setWizardOpen(true)} className="gap-2">
-                <Plus className="h-4 w-4" /> New
-              </Button>
+
             </div>
           </div>
+
+          {/* Active column filter indicator */}
+          {Object.keys(colFilters).some(k => {
+            const f = colFilters[k];
+            return !!f?.search || (f?.selectedValues !== undefined && f?.selectedValues !== null);
+          }) && (
+            <div className="flex items-center gap-2 -mt-2 mb-1">
+              <button
+                onClick={() => setColFilters({})}
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 text-indigo-600 text-xs font-medium hover:bg-indigo-100 transition-colors"
+              >
+                <X className="w-3 h-3" /> Clear filters
+              </button>
+            </div>
+          )}
 
           {/* Table */}
           {isLoading ? (
             <div className="flex justify-center py-20">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
             </div>
-          ) : sortedAndFiltered.length === 0 ? (
-            <div className="table-container p-12 text-center text-muted-foreground">No projects found.</div>
           ) : (
             <div className="table-container overflow-x-auto">
               <table className="w-full text-sm">
@@ -674,6 +667,11 @@ export default function Projects() {
                   </tr>
                 </thead>
                 <tbody>
+                  {sortedAndFiltered.length === 0 ? (
+                    <tr>
+                      <td colSpan={10} className="p-12 text-center text-muted-foreground">No projects found.</td>
+                    </tr>
+                  ) : null}
                   {sortedAndFiltered.map((project) => {
                     const daysLeft = Math.ceil((new Date(project.handover_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
                     const statusMeta = SETUP_STATUS_META[project.setup_status];
@@ -777,50 +775,40 @@ export default function Projects() {
                             </div>
                           )}
                         </td>
-                        {statusTab !== "quotation" && statusTab !== "canceled" && (
-                          <td className="p-4">
-                            {project.project_allocations.length === 0 ? (
-                              <span className="text-muted-foreground text-xs">None</span>
-                            ) : (
-                              <Badge variant="outline" className="text-xs">
-                                {project.project_allocations.length} items
-                              </Badge>
-                            )}
-                          </td>
-                        )}
-                        <td className="p-4 flex gap-2">
-                          {isQuotation ? (
-                            <>
-                              <Button size="sm" className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => openConfirm(project)}>
-                                <CheckSquare className="h-3 w-3" /> Confirmed
-                              </Button>
-                              <Button size="sm" variant="destructive" className="gap-1" onClick={() => handleCancel(project)}>
-                                <XCircle className="h-3 w-3" /> Canceled
-                              </Button>
-                              <Button size="sm" variant="ghost" onClick={() => openEdit(project)} className="gap-1">
-                                <Pencil className="h-3 w-3" /> Edit
-                              </Button>
-                            </>
-                          ) : isCanceled ? (
-                            <>
-                              <Button size="sm" variant="outline" onClick={() => navigate(`/projects/${project.id}`)} className="gap-1">
-                                <Eye className="h-3 w-3" /> Details
-                              </Button>
-                              {isAdmin && (
-                                <Button size="sm" variant="destructive" className="gap-1" onClick={() => setHardDeleteProject(project)}>
-                                  <Trash2 className="h-3 w-3" /> Delete Permanently
-                                </Button>
-                              )}
-                            </>
+                        <td className="p-4">
+                          {project.project_allocations.length === 0 ? (
+                            <span className="text-muted-foreground text-xs">None</span>
                           ) : (
-                            <>
-                              <Button size="sm" variant="outline" onClick={() => navigate(`/projects/${project.id}`)} className="gap-1">
-                                <Eye className="h-3 w-3" /> Details
-                              </Button>
-                              <Button size="sm" variant="ghost" onClick={() => openEdit(project)} className="gap-1">
-                                <Pencil className="h-3 w-3" /> Edit
-                              </Button>
-                            </>
+                            <Badge variant="outline" className="text-xs">
+                              {project.project_allocations.length} items
+                            </Badge>
+                          )}
+                        </td>
+                        <td className="p-4 flex gap-2">
+                          <Button size="sm" variant="outline" onClick={() => navigate(`/projects/${project.id}`)} className="gap-1">
+                            <Eye className="h-3 w-3" /> Details
+                          </Button>
+                          {project.setup_status === "quotation_approved" ? (
+                            <Button size="sm" className="gap-1" onClick={async () => {
+                              const { data } = await supabase
+                                .from("project_allocations" as any)
+                                .select("*")
+                                .eq("certification_id", project.id);
+                              setEditProject(project as any);
+                              setEditAllocations((data || []) as any);
+                              setModalMode("confirm_project");
+                              setModalOpen(true);
+                            }}>
+                              <UserPlus className="h-3 w-3" /> Assign to PM
+                            </Button>
+                          ) : project.setup_status === "da_configurare" && !project.pm_id ? (
+                            <Button size="sm" className="gap-1" onClick={() => openEdit(project)}>
+                              <UserPlus className="h-3 w-3" /> Assign PM
+                            </Button>
+                          ) : (
+                            <Button size="sm" variant="ghost" onClick={() => openEdit(project)} className="gap-1">
+                              <Pencil className="h-3 w-3" /> Edit
+                            </Button>
                           )}
                         </td>
                       </tr>
@@ -838,11 +826,7 @@ export default function Projects() {
         </TabsContent>
       </Tabs>
 
-      <NewQuotationWizard
-        open={wizardOpen}
-        onOpenChange={setWizardOpen}
-        onSaved={() => queryClient.invalidateQueries({ queryKey: ["admin-planner-all-certifications"] })}
-      />
+
 
       <ProjectFormModal
         open={modalOpen}
@@ -984,40 +968,6 @@ export default function Projects() {
         </DialogContent>
       </Dialog>
 
-      {/* Hard Delete Confirmation Alert Dialog */}
-      <AlertDialog open={!!hardDeleteProject} onOpenChange={(open) => !open && setHardDeleteProject(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-destructive flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5" /> Delete Permanently?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to permanently delete <strong>{hardDeleteProject?.name}</strong>? This will permanently remove all associated milestones and allocations. This action is irreversible.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
-              className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
-              onClick={async () => {
-                if (!hardDeleteProject) return;
-                try {
-                  const { error } = await supabase.from("certifications").delete().eq("id", hardDeleteProject.id);
-                  if (error) throw error;
-                  toast({ title: "Project deleted", description: `${hardDeleteProject.name} has been permanently deleted.` });
-                  queryClient.invalidateQueries({ queryKey: ["admin-planner-all-certifications"] });
-                } catch (err: any) {
-                  toast({ title: "Delete failed", description: err.message, variant: "destructive" });
-                } finally {
-                  setHardDeleteProject(null);
-                }
-              }}
-            >
-              Delete Permanently
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </MainLayout>
   );
 }

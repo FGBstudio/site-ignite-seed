@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { externalSupabase as supabase } from "@/integrations/supabase/externalClient";
 import type { SetupStatus } from "@/hooks/usePMDashboard";
 import type { GanttRowData } from "@/components/dashboard/FGBPlanner";
 import { computeMacroPhase, type MacroPhase } from "@/data/certificationTemplates";
@@ -118,8 +118,8 @@ export function useAdminPlannerData() {
           planStart: c.created_at.slice(0,10), planEnd: c.handover_date, actualStart: null, actualEnd: null
         };
 
-        // Early exit for quotation / canceled / completato
-        if (c.status === "quotation" || c.status === "canceled" || c.status === "completato") {
+        // Early exit for quotation / quotation_approved / canceled
+        if (c.status === "quotation" || c.status === "quotation_approved" || c.status === "canceled") {
           return {
             id: c.id, name: c.name || c.cert_type || "Unnamed", client: c.client, region: c.region,
             status: c.status, handover_date: c.handover_date, site_id: c.site_id, cert_type: c.cert_type,
@@ -129,7 +129,7 @@ export function useAdminPlannerData() {
             project_allocations: allocations, certification_milestones: certMilestones,
             plannerData: { 
               id: c.id, label: c.name || c.cert_type || "Unnamed", subLabel: c.client, launchDate: c.created_at.slice(0,10), 
-              currentActivity: c.status === "quotation" ? "Quotation" : c.status === "completato" ? "Completed" : "Canceled", progress: c.status === "completato" ? 100 : 0, status: c.status === "quotation" ? "pending" : c.status === "completato" ? "completed" : "canceled", segments: [], plannedHandoverDate: c.planned_handover_date || null, isDeadlineCritical: false,
+              currentActivity: c.status === "quotation" ? "Quotation" : c.status === "quotation_approved" ? "Quotation Approved" : "Canceled", progress: 0, status: c.status === "canceled" ? "canceled" : "pending", segments: [], plannedHandoverDate: c.planned_handover_date || null, isDeadlineCritical: false,
               ...emptyDates
             } as unknown as GanttRowData,
             macro_phase: macroPhase, is_deadline_critical: false,

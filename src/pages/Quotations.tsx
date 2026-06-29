@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { MainLayout } from "@/components/layout/MainLayout";
-import { supabase } from "@/integrations/supabase/client";
+import { externalSupabase as supabase } from "@/integrations/supabase/externalClient";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { NewQuotationWizard } from "@/components/projects/NewQuotationWizard";
-import { Plus, Search, FileText, CheckCircle2, Loader2, ArrowRight } from "lucide-react";
+import { Plus, Search, FileText, CheckCircle2, Loader2, ArrowRight, XCircle, Ban } from "lucide-react";
 
 interface QuotationRow {
   id: string;
@@ -22,7 +22,55 @@ interface QuotationRow {
   handover_date: string | null;
   quotation_sent_date: string | null;
   quotation_approved_at: string | null;
+  created_at: string | null;
   status: string;
+}
+
+interface CachedAdminProject {
+  id: string;
+  status: string;
+  setup_status: string;
+  plannerData?: {
+    currentActivity?: string;
+    status?: string;
+  };
+}
+
+function readableError(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  if (error && typeof error === "object") {
+    const maybeError = error as { message?: unknown; error?: unknown; details?: unknown };
+    const parts = [maybeError.message, maybeError.error, maybeError.details]
+      .filter((part): part is string => typeof part === "string" && part.trim().length > 0);
+    if (parts.length > 0) return parts.join(" — ");
+  }
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return "Unknown approval error";
+  }
+}
+
+async function readableFunctionError(error: unknown): Promise<string> {
+  if (error && typeof error === "object" && "context" in error) {
+    const context = (error as { context?: unknown }).context;
+    if (context instanceof Response) {
+      try {
+        const payload = await context.clone().json() as { error?: unknown; message?: unknown };
+        if (typeof payload.error === "string") return payload.error;
+        if (typeof payload.message === "string") return payload.message;
+      } catch {
+        try {
+          const text = await context.clone().text();
+          if (text.trim()) return text;
+        } catch {
+          return readableError(error);
+        }
+      }
+    }
+  }
+  return readableError(error);
 }
 
 function useQuotations() {
@@ -32,12 +80,12 @@ function useQuotations() {
       const { data, error } = await supabase
         .from("certifications")
         .select(
-          "id, name, client, region, total_fees, handover_date, quotation_sent_date, quotation_approved_at, status"
+          "id, name, client, region, total_fees, handover_date, quotation_sent_date, quotation_approved_at, created_at, status"
         )
         .order("created_at", { ascending: false })
         .limit(500);
-      if (error) throw error;
-      return (data || []) as QuotationRow[];
+      if (error) throw new Error(await readableFunctionError(error));
+      return (data || []) as unknown as QuotationRow[];
     },
   });
 }
@@ -47,21 +95,18 @@ export default function Quotations() {
   const qc = useQueryClient();
   const { data: rows = [], isLoading } = useQuotations();
 
-  const [tab, setTab] = useState<"pending" | "approved">("pending");
+  const [tab, setTab] = useState<"pending" | "approved" | "canceled">("pending");
   const [search, setSearch] = useState("");
   const [wizardOpen, setWizardOpen] = useState(false);
   const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [cancelingId, setCancelingId] = useState<string | null>(null);
 
-  // Pending = quotation status; Approved = anything past quotation that has approval timestamp,
-  // OR projects whose status is no longer 'quotation' (legacy approved before this feature shipped).
-  const pending = useMemo(
-    () => rows.filter((r) => r.status === "quotation"),
-    [rows]
-  );
+  const pending = useMemo(() => rows.filter((r) => r.status === "quotation"), [rows]);
   const approved = useMemo(
-    () => rows.filter((r) => r.status !== "quotation"),
+    () => rows.filter((r) => r.status !== "quotation" && r.status !== "canceled"),
     [rows]
   );
+  const canceled = useMemo(() => rows.filter((r) => r.status === "canceled"), [rows]);
 
   const filterFn = (r: QuotationRow) => {
     if (!search.trim()) return true;
@@ -69,29 +114,113 @@ export default function Quotations() {
     return r.name.toLowerCase().includes(s) || (r.client || "").toLowerCase().includes(s);
   };
 
+  const invalidateAll = () => {
+    qc.invalidateQueries({ queryKey: ["quotations-list"] });
+    qc.invalidateQueries({ queryKey: ["admin-planner-all-certifications"] });
+    qc.invalidateQueries({ queryKey: ["task-alerts"] });
+  };
+
+  const refreshApprovedSources = async () => {
+    await Promise.all([
+      qc.refetchQueries({ queryKey: ["quotations-list"], type: "all" }),
+      qc.refetchQueries({ queryKey: ["admin-planner-all-certifications"], type: "all" }),
+      qc.refetchQueries({ queryKey: ["task-alerts"], type: "all" }),
+    ]);
+  };
+
+  const pushApprovedToOperationsCache = (id: string) => {
+    qc.setQueryData<CachedAdminProject[]>(["admin-planner-all-certifications"], (current = []) =>
+      current.map((project) =>
+        project.id === id
+          ? {
+              ...project,
+              status: "quotation_approved",
+              setup_status: "quotation_approved",
+              plannerData: project.plannerData
+                ? { ...project.plannerData, currentActivity: "Quotation Approved", status: "pending" }
+                : project.plannerData,
+            }
+          : project
+      )
+    );
+  };
+
   const handleApprove = async (id: string) => {
     setApprovingId(id);
     try {
-      const { error } = await supabase.functions.invoke("approve-quotation", {
-        body: { certification_id: id },
-      });
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError) throw new Error(userError.message);
+      const userId = userData.user?.id;
+      if (!userId) throw new Error("Session expired. Please sign in again.");
+
+      const approvedAt = new Date().toISOString();
+      const { data, error } = await supabase
+        .from("certifications")
+        .update({
+          status: "quotation_approved",
+          quotation_approved_at: approvedAt,
+          quotation_approved_by: userId,
+        })
+        .eq("id", id)
+        .eq("status", "quotation")
+        .select("id, name, client, status, quotation_approved_at")
+        .maybeSingle();
+
       if (error) throw error;
+      if (!data || data.status !== "quotation_approved") {
+        throw new Error("The quotation was not updated. It may already have been moved or your admin role is not authorized by the database policy.");
+      }
+
+      qc.setQueryData<QuotationRow[]>(["quotations-list"], (current = []) =>
+        current.map((row) =>
+          row.id === id
+            ? {
+                ...row,
+                status: "quotation_approved",
+                quotation_approved_at: data.quotation_approved_at ?? approvedAt,
+              }
+            : row
+        )
+      );
+      pushApprovedToOperationsCache(id);
+
       toast({
         title: "Quotation approved",
-        description: "Operations and Payments have been notified.",
+        description: "Moved to Operations › Quotations Approved.",
       });
-      qc.invalidateQueries({ queryKey: ["quotations-list"] });
-      qc.invalidateQueries({ queryKey: ["admin-planner-all-certifications"] });
-      qc.invalidateQueries({ queryKey: ["task-alerts"] });
+      await refreshApprovedSources();
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = await readableFunctionError(err);
       toast({ title: "Approval failed", description: message, variant: "destructive" });
     } finally {
       setApprovingId(null);
     }
   };
 
-  const renderTable = (data: QuotationRow[], isPending: boolean) => {
+  const handleCancel = async (row: QuotationRow) => {
+    const confirmed = window.confirm(`Cancel quotation for ${row.name}? It will be moved to the canceled history.`);
+    if (!confirmed) return;
+    setCancelingId(row.id);
+    try {
+      const { error } = await supabase
+        .from("certifications")
+        .update({ status: "canceled" })
+        .eq("id", row.id);
+      if (error) throw error;
+      toast({
+        title: "Quotation canceled",
+        description: `${row.name} moved to Canceled.`,
+      });
+      invalidateAll();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      toast({ title: "Cancel failed", description: message, variant: "destructive" });
+    } finally {
+      setCancelingId(null);
+    }
+  };
+
+  const renderTable = (data: QuotationRow[], mode: "pending" | "approved" | "canceled") => {
     const filtered = data.filter(filterFn);
     if (isLoading) {
       return (
@@ -106,7 +235,11 @@ export default function Quotations() {
       return (
         <Card>
           <CardContent className="py-12 text-center text-sm text-muted-foreground">
-            {isPending ? "No quotations pending approval." : "No approved quotations yet."}
+            {mode === "pending"
+              ? "No quotations pending approval."
+              : mode === "approved"
+              ? "No approved quotations yet."
+              : "No canceled quotations."}
           </CardContent>
         </Card>
       );
@@ -120,9 +253,11 @@ export default function Quotations() {
               <th className="text-left p-3 font-medium text-muted-foreground">Client</th>
               <th className="text-left p-3 font-medium text-muted-foreground">Region</th>
               <th className="text-left p-3 font-medium text-muted-foreground">Total Fees</th>
-              <th className="text-left p-3 font-medium text-muted-foreground">Handover</th>
+              {mode !== "canceled" && (
+                <th className="text-left p-3 font-medium text-muted-foreground">Handover</th>
+              )}
               <th className="text-left p-3 font-medium text-muted-foreground">
-                {isPending ? "Sent" : "Approved"}
+                {mode === "pending" ? "Sent" : mode === "approved" ? "Approved" : "Canceled"}
               </th>
               <th className="p-3" />
             </tr>
@@ -138,36 +273,62 @@ export default function Quotations() {
                 <td className="p-3 font-medium">
                   {r.total_fees != null ? `€${Number(r.total_fees).toLocaleString()}` : "—"}
                 </td>
+                {mode !== "canceled" && (
+                  <td className="p-3 text-muted-foreground">
+                    {r.handover_date ? format(new Date(r.handover_date), "dd MMM yyyy") : "—"}
+                  </td>
+                )}
                 <td className="p-3 text-muted-foreground">
-                  {r.handover_date ? format(new Date(r.handover_date), "dd MMM yyyy") : "—"}
-                </td>
-                <td className="p-3 text-muted-foreground">
-                  {isPending
+                  {mode === "pending"
                     ? r.quotation_sent_date
                       ? format(new Date(r.quotation_sent_date), "dd MMM yyyy")
                       : "—"
-                    : r.quotation_approved_at
-                    ? format(new Date(r.quotation_approved_at), "dd MMM yyyy")
+                    : mode === "approved"
+                    ? r.quotation_approved_at
+                      ? format(new Date(r.quotation_approved_at), "dd MMM yyyy")
+                      : "—"
+                    : r.quotation_sent_date || r.created_at
+                    ? format(new Date(r.quotation_sent_date || r.created_at || ""), "dd MMM yyyy")
                     : "—"}
                 </td>
                 <td className="p-3 text-right">
-                  {isPending ? (
-                    <Button
-                      size="sm"
-                      className="gap-1"
-                      disabled={approvingId === r.id}
-                      onClick={() => handleApprove(r.id)}
-                    >
-                      {approvingId === r.id ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      ) : (
-                        <CheckCircle2 className="h-3 w-3" />
-                      )}
-                      Mark as Approved
-                    </Button>
-                  ) : (
+                  {mode === "pending" ? (
+                    <div className="flex items-center justify-end gap-2">
+                      <Button
+                        size="sm"
+                        className="gap-1"
+                        disabled={approvingId === r.id}
+                        onClick={() => handleApprove(r.id)}
+                      >
+                        {approvingId === r.id ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="h-3 w-3" />
+                        )}
+                        Mark as Approved
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        className="gap-1"
+                        disabled={cancelingId === r.id}
+                        onClick={() => handleCancel(r)}
+                      >
+                        {cancelingId === r.id ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <XCircle className="h-3 w-3" />
+                        )}
+                        Cancel
+                      </Button>
+                    </div>
+                  ) : mode === "approved" ? (
                     <Badge variant="outline" className="gap-1 text-success border-success/30 bg-success/10">
                       <CheckCircle2 className="h-3 w-3" /> Approved
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="gap-1 text-destructive border-destructive/30 bg-destructive/10">
+                      <Ban className="h-3 w-3" /> Canceled
                     </Badge>
                   )}
                 </td>
@@ -180,7 +341,7 @@ export default function Quotations() {
   };
 
   return (
-    <MainLayout title="Quotations" subtitle="Draft and approve quotations, then hand them over to Operations and Payments">
+    <MainLayout title="Quotations" subtitle="Draft, approve or cancel quotations before they enter Operations">
       <div className="flex items-center justify-between mb-4 gap-3">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -196,7 +357,7 @@ export default function Quotations() {
         </Button>
       </div>
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as "pending" | "approved")}>
+      <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
         <TabsList>
           <TabsTrigger value="pending" className="gap-2">
             <FileText className="h-4 w-4" /> Pending ({pending.length})
@@ -204,13 +365,19 @@ export default function Quotations() {
           <TabsTrigger value="approved" className="gap-2">
             <ArrowRight className="h-4 w-4" /> Approved ({approved.length})
           </TabsTrigger>
+          <TabsTrigger value="canceled" className="gap-2">
+            <Ban className="h-4 w-4" /> Canceled ({canceled.length})
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="pending" className="mt-4">
-          {renderTable(pending, true)}
+          {renderTable(pending, "pending")}
         </TabsContent>
         <TabsContent value="approved" className="mt-4">
-          {renderTable(approved, false)}
+          {renderTable(approved, "approved")}
+        </TabsContent>
+        <TabsContent value="canceled" className="mt-4">
+          {renderTable(canceled, "canceled")}
         </TabsContent>
       </Tabs>
 
@@ -222,6 +389,7 @@ export default function Quotations() {
           qc.invalidateQueries({ queryKey: ["admin-planner-all-certifications"] });
         }}
       />
+
     </MainLayout>
   );
 }
