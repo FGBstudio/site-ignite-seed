@@ -39,7 +39,6 @@ export interface AirMonitorRow {
   taxes: number;
   profit: number;
   roi: number;
-  air_product_ids: string[];
 }
 
 export function useAirRows() {
