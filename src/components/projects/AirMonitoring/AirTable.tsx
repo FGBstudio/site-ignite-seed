@@ -1051,7 +1051,7 @@ function AirRow({
             isOverdue ? "text-rose-600 font-semibold" : "text-slate-600"
           )}>
             {isOverdue && <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-rose-500" />}
-            {r.handover_date ? format(new Date(r.handover_date), "MMM d, yy") : <span className="text-slate-300 italic">No date</span>}
+            {r.handover_date ? format(new Date(r.handover_date), "MMM d, yy") : <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-600 border border-amber-300">TBD</span>}
           </span>
         </td>
       )}
