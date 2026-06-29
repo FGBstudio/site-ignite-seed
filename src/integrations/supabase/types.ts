@@ -3280,6 +3280,7 @@ export type Database = {
       }
       site_air_records: {
         Row: {
+          air_product_ids: string[] | null
           certification_id: string | null
           created_at: string
           customs_cost: number | null
@@ -3309,6 +3310,7 @@ export type Database = {
           working_time_cost: number | null
         }
         Insert: {
+          air_product_ids?: string[] | null
           certification_id?: string | null
           created_at?: string
           customs_cost?: number | null
@@ -3338,6 +3340,7 @@ export type Database = {
           working_time_cost?: number | null
         }
         Update: {
+          air_product_ids?: string[] | null
           certification_id?: string | null
           created_at?: string
           customs_cost?: number | null
