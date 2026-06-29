@@ -40,18 +40,40 @@ export function PittoCard({ section, onClick, displayName }: Props) {
               : "none",
           }}
         />
-        <img
-          src={asset("green_pittogramma.png")}
-          alt={label}
-          className="w-full h-full object-contain"
-          style={{
-            filter: `${section.filter ? section.filter + " " : ""}drop-shadow(0 3px 10px rgba(0,0,0,.08))`,
-            transform: hover ? "rotate(18deg) scale(1.13)" : "none",
-            transformOrigin: "center",
-            transition: "transform .45s cubic-bezier(.34,1.56,.64,1)",
-            opacity: section.comingSoon ? 0.85 : 1,
-          }}
-        />
+        {section.filter ? (
+          <img
+            src={asset("green_pittogramma.png")}
+            alt={label}
+            className="w-full h-full object-contain"
+            style={{
+              filter: `${section.filter} drop-shadow(0 3px 10px rgba(0,0,0,.08))`,
+              transform: hover ? "rotate(18deg) scale(1.13)" : "none",
+              transformOrigin: "center",
+              transition: "transform .45s cubic-bezier(.34,1.56,.64,1)",
+              opacity: section.comingSoon ? 0.85 : 1,
+            }}
+          />
+        ) : (
+          <div
+            className="w-full h-full"
+            style={{
+              backgroundColor: section.color,
+              maskImage: `url(${asset("green_pittogramma.png")})`,
+              WebkitMaskImage: `url(${asset("green_pittogramma.png")})`,
+              maskSize: "contain",
+              WebkitMaskSize: "contain",
+              maskRepeat: "no-repeat",
+              WebkitMaskRepeat: "no-repeat",
+              maskPosition: "center",
+              WebkitMaskPosition: "center",
+              filter: "drop-shadow(0 3px 10px rgba(0,0,0,.08))",
+              transform: hover ? "rotate(18deg) scale(1.13)" : "none",
+              transformOrigin: "center",
+              transition: "transform .45s cubic-bezier(.34,1.56,.64,1)",
+              opacity: section.comingSoon ? 0.85 : 1,
+            }}
+          />
+        )}
       </div>
 
       {/* Name + desc */}
