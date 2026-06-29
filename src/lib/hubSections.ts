@@ -34,7 +34,7 @@ export const HUB_SECTIONS: HubSection[] = [
     // Display name is overridden per-role in the UI (Admin → "Operations", PM → "Projects").
     name: "PROJECTS",
     desc: "Pipeline, progress and documentation",
-    color: "#009193",
+    color: "#006367",
     filter: "",
     route: "/projects-hub",
     comingSoon: false,
