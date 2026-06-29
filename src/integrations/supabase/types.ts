@@ -5756,6 +5756,7 @@ export type Database = {
         | "resource_burnout_warning"
         | "quotation_to_operations"
         | "quotation_to_payments"
+        | "billing_due"
       wiring_type: "WYE" | "DELTA"
     }
     CompositeTypes: {
@@ -5945,6 +5946,7 @@ export const Constants = {
         "resource_burnout_warning",
         "quotation_to_operations",
         "quotation_to_payments",
+        "billing_due",
       ],
       wiring_type: ["WYE", "DELTA"],
     },
