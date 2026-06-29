@@ -10,7 +10,6 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/contexts/AuthContext";
 import { NewQuotationWizard } from "@/components/projects/NewQuotationWizard";
 import { Plus, Search, FileText, CheckCircle2, Loader2, ArrowRight, XCircle, Ban } from "lucide-react";
 
@@ -27,10 +26,59 @@ interface QuotationRow {
   status: string;
 }
 
-interface QuotationApprovalUpdate {
-  status: "quotation_approved";
-  quotation_approved_at: string;
-  quotation_approved_by: string | null;
+interface ApproveQuotationResponse {
+  ok?: boolean;
+  certification?: Pick<QuotationRow, "id" | "name" | "client" | "status" | "quotation_approved_at">;
+  error?: string;
+}
+
+interface CachedAdminProject {
+  id: string;
+  status: string;
+  setup_status: string;
+  plannerData?: {
+    currentActivity?: string;
+    status?: string;
+  };
+}
+
+const APPROVE_QUOTATION_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/approve-quotation-v2`;
+
+function readableError(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  if (error && typeof error === "object") {
+    const maybeError = error as { message?: unknown; error?: unknown; details?: unknown };
+    const parts = [maybeError.message, maybeError.error, maybeError.details]
+      .filter((part): part is string => typeof part === "string" && part.trim().length > 0);
+    if (parts.length > 0) return parts.join(" — ");
+  }
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return "Unknown approval error";
+  }
+}
+
+async function readableFunctionError(error: unknown): Promise<string> {
+  if (error && typeof error === "object" && "context" in error) {
+    const context = (error as { context?: unknown }).context;
+    if (context instanceof Response) {
+      try {
+        const payload = await context.clone().json() as { error?: unknown; message?: unknown };
+        if (typeof payload.error === "string") return payload.error;
+        if (typeof payload.message === "string") return payload.message;
+      } catch {
+        try {
+          const text = await context.clone().text();
+          if (text.trim()) return text;
+        } catch {
+          return readableError(error);
+        }
+      }
+    }
+  }
+  return readableError(error);
 }
 
 function useQuotations() {
@@ -44,7 +92,7 @@ function useQuotations() {
         )
         .order("created_at", { ascending: false })
         .limit(500);
-      if (error) throw error;
+      if (error) throw new Error(await readableFunctionError(error));
       return (data || []) as unknown as QuotationRow[];
     },
   });
@@ -52,7 +100,6 @@ function useQuotations() {
 
 export default function Quotations() {
   const { toast } = useToast();
-  const { user } = useAuth();
   const qc = useQueryClient();
   const { data: rows = [], isLoading } = useQuotations();
 
@@ -81,32 +128,74 @@ export default function Quotations() {
     qc.invalidateQueries({ queryKey: ["task-alerts"] });
   };
 
+  const refreshApprovedSources = async () => {
+    await Promise.all([
+      qc.refetchQueries({ queryKey: ["quotations-list"], type: "all" }),
+      qc.refetchQueries({ queryKey: ["admin-planner-all-certifications"], type: "all" }),
+      qc.refetchQueries({ queryKey: ["task-alerts"], type: "all" }),
+    ]);
+  };
+
+  const pushApprovedToOperationsCache = (id: string) => {
+    qc.setQueryData<CachedAdminProject[]>(["admin-planner-all-certifications"], (current = []) =>
+      current.map((project) =>
+        project.id === id
+          ? {
+              ...project,
+              status: "quotation_approved",
+              setup_status: "quotation_approved",
+              plannerData: project.plannerData
+                ? { ...project.plannerData, currentActivity: "Quotation Approved", status: "pending" }
+                : project.plannerData,
+            }
+          : project
+      )
+    );
+  };
+
   const handleApprove = async (id: string) => {
     setApprovingId(id);
     try {
-      const approvalUpdate: QuotationApprovalUpdate = {
-        status: "quotation_approved",
-        quotation_approved_at: new Date().toISOString(),
-        quotation_approved_by: user?.id ?? null,
-      };
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw new Error(sessionError.message);
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) throw new Error("Session expired. Please sign in again.");
 
-      const { data, error } = await supabase
-        .from("certifications")
-        .update(approvalUpdate)
-        .eq("id", id)
-        .select("id, status, quotation_approved_at")
-        .single();
-      if (error) throw error;
-      if (!data || data.status !== "quotation_approved") {
-        throw new Error("The quotation was not updated in the database.");
+      const response = await fetch(APPROVE_QUOTATION_FUNCTION_URL, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ certification_id: id }),
+      });
+      const data = (await response.json()) as ApproveQuotationResponse;
+
+      if (!response.ok) throw new Error(data.error || `Approval request failed (${response.status})`);
+      if (!data?.ok || data.certification?.status !== "quotation_approved") {
+        throw new Error(data?.error || "The quotation was not updated in the database.");
       }
+
+      qc.setQueryData<QuotationRow[]>(["quotations-list"], (current = []) =>
+        current.map((row) =>
+          row.id === id
+            ? {
+                ...row,
+                status: "quotation_approved",
+                quotation_approved_at: data.certification?.quotation_approved_at ?? new Date().toISOString(),
+              }
+            : row
+        )
+      );
+      pushApprovedToOperationsCache(id);
+
       toast({
         title: "Quotation approved",
         description: "Moved to Operations › Quotations Approved.",
       });
-      invalidateAll();
+      await refreshApprovedSources();
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = await readableFunctionError(err);
       toast({ title: "Approval failed", description: message, variant: "destructive" });
     } finally {
       setApprovingId(null);
