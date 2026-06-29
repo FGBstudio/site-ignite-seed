@@ -1,44 +1,29 @@
-Piano per ricostruire il flusso da zero, senza continuare a rattoppare il vecchio percorso:
+Il problema è identificato: il pulsante sta chiamando la nuova funzione sul backend Lovable Cloud (`pquld...`), ma la sessione utente e i dati reali sono sull’altro backend usato dal client (`vejq...`). Quindi la funzione prova a validare un token emesso da un progetto diverso e risponde correttamente `401 Unauthorized`. Non è un problema del ruolo Admin in UI: è un mismatch tra endpoint funzione e backend dati/auth.
 
-1. Creare una nuova Edge Function dedicata
-   - Nome: `approve-quotation-v2`.
-   - Input: `certification_id`.
-   - Output: la riga aggiornata minima: `id`, `status`, `quotation_approved_at`, `name`, `client`.
-   - Userà il backend con service role, quindi non dipenderà dalle policy client-side che stanno producendo errori opachi.
+Piano di fix:
 
-2. Autorizzazione lato server
-   - La funzione leggerà il token dell’utente dalla richiesta.
-   - Verificherà che l’utente abbia ruolo `ADMIN` nella tabella `user_roles`.
-   - Se non è admin, ritorna `403 Forbidden` con messaggio chiaro.
+1. Riallineare la chiamata frontend al backend dati effettivo
+   - In `src/pages/Quotations.tsx`, smetto di costruire l’URL funzione con `import.meta.env.VITE_SUPABASE_URL`, perché punta al backend sbagliato.
+   - Uso il client già configurato per `/quotations`, cioè `supabase.functions.invoke('approve-quotation-v2', ...)`, così token, funzione e database stanno sullo stesso progetto usato da `certifications`.
 
-3. Aggiornamento database atomico
-   - La funzione controllerà che la certification esista e sia in stato `quotation`.
-   - Aggiornerà:
-     - `status = 'quotation_approved'`
-     - `quotation_approved_at = now`
-     - `quotation_approved_by = userId`
-   - Ritornerà errore leggibile se il record non esiste, è già stato approvato/cancellato, o il DB rifiuta l’update.
+2. Rendere deployabile la nuova funzione sul backend corretto
+   - Il file `supabase/config.toml` è già puntato al backend dati/auth effettivo (`vejq...`), quindi la nuova Edge Function deve vivere lì, non sull’altro backend.
+   - Deploy della funzione `approve-quotation-v2` su quel backend.
 
-4. Frontend Quotations: usare solo il nuovo canale
-   - In `src/pages/Quotations.tsx`, `Mark as Approved` chiamerà `supabase.functions.invoke('approve-quotation-v2', ...)`.
-   - Tolgo il direct update client-side che ora genera `[object Object]`.
-   - Miglioro la gestione errori per mostrare sempre un messaggio stringa reale, anche quando l’errore arriva come oggetto.
+3. Correggere l’autorizzazione admin lato funzione
+   - La funzione continuerà a validare il bearer token con `getClaims()` sullo stesso backend del token.
+   - Poi controllerà `user_roles` con ruolo `ADMIN`.
+   - Per sicurezza gestirà anche eventuali ruoli in formato lowercase/uppercase (`ADMIN` / `admin`) se presenti nei dati.
 
-5. Aggiornamento automatico Operations › Quotations Approved
-   - Dopo successo, aggiorno subito la cache `quotations-list` togliendo la riga da Pending e impostandola come approved.
-   - Invalidazione/refetch immediato di:
-     - `quotations-list`
-     - `admin-planner-all-certifications`
-     - `task-alerts`
-   - Così Operations ricarica dalla fonte corretta e la tab `Quotations Approved` vede subito `status = quotation_approved`.
+4. Verificare tabella `certifications` e privilegi sul backend corretto
+   - Leggo schema colonne: `status`, `quotation_approved_at`, `quotation_approved_by`.
+   - Leggo grant e policy su `certifications` / `user_roles`.
+   - Se mancano grant necessari per Data API o service role, preparo una migration mirata, senza rendere pubbliche tabelle non necessarie.
 
-6. Deploy e verifica
-   - Deploy della nuova Edge Function.
-   - Test diretto della funzione con la sessione preview, senza modificare dati reali a caso se non attraverso il click previsto.
-   - Verifica network: il click deve chiamare `/functions/v1/approve-quotation-v2`, non il vecchio `approve-quotation` e non un update diretto REST.
+5. Aggiornare UI e cache Operations
+   - Dopo successo, aggiorno subito cache `quotations-list` e `admin-planner-all-certifications`.
+   - Poi refetch forzato di entrambe le fonti, così Operations › Quotations Approved si popola dalla tabella `certifications` aggiornata.
 
-Non toccherò:
-- `src/integrations/supabase/client.ts`
-- `.env`
-- configurazione auth
-- tabelle/schema esistenti, salvo emergano errori di colonne mancanti durante il test
+6. Verifica reale
+   - Test endpoint: una chiamata senza token deve dare 401; una chiamata con sessione admin deve passare.
+   - Test browser: click su `Mark as Approved` deve chiamare `approve-quotation-v2` sul backend corretto, ricevere `200`, spostare la riga fuori da Pending e farla comparire in Operations › Quotations Approved.

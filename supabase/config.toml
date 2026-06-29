@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.process-email-queue]
 verify_jwt = false
+
+[functions.approve-quotation-v2]
+verify_jwt = false
