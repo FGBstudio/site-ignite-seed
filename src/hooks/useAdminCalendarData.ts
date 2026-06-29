@@ -64,7 +64,7 @@ export function useAdminCalendarData() {
       return (certs as any[]).map((c): AdminCalendarProject => {
         const certMilestones = milestones.filter((m) => m.certification_id === c.id);
 
-        const isCertified = c.status === "certificato" ||
+        const isCertified = c.status === "certificato" || c.status === "completato" ||
           (c.status === "active" && c.issued_date && c.issued_date <= today);
 
         const timelineMilestones = certMilestones.filter((m: any) => m.milestone_type === "timeline");
@@ -78,8 +78,7 @@ export function useAdminCalendarData() {
         }
 
         let setup_status: SetupStatus;
-        if (c.status === "completato") setup_status = "completato";
-        else if (isCertified) setup_status = "certificato";
+        if (isCertified) setup_status = "certificato";
         else if (hasTimeline && hasScorecard) setup_status = "in_corso";
         else setup_status = "da_configurare";
 
