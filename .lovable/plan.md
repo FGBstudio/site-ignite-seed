@@ -1,29 +1,31 @@
-Il problema è identificato: il pulsante sta chiamando la nuova funzione sul backend Lovable Cloud (`pquld...`), ma la sessione utente e i dati reali sono sull’altro backend usato dal client (`vejq...`). Quindi la funzione prova a validare un token emesso da un progetto diverso e risponde correttamente `401 Unauthorized`. Non è un problema del ruolo Admin in UI: è un mismatch tra endpoint funzione e backend dati/auth.
+Conferma: sì, l’app è connessa a un DB Supabase esterno. Lo vedo da `src/integrations/supabase/client.ts`: il client che legge `certifications` usa il progetto esterno `vejq...`. Il problema attuale è che il bottone chiama una Edge Function su un altro backend (`pquld...`), quindi la funzione non ha una service key valida per il DB Supabase esterno e fallisce con `Invalid API key`.  
+usa questa: sb_publishable_U50PEA4-VFDpQ_qS3DubBw_K0U680v8  
+usa questa: [https://vejqfpznzcohtbggkfhr.supabase.co](https://vejqfpznzcohtbggkfhr.supabase.co)
 
-Piano di fix:
+Piano di correzione definitiva senza usare Lovable Cloud per questa azione:
 
-1. Riallineare la chiamata frontend al backend dati effettivo
-   - In `src/pages/Quotations.tsx`, smetto di costruire l’URL funzione con `import.meta.env.VITE_SUPABASE_URL`, perché punta al backend sbagliato.
-   - Uso il client già configurato per `/quotations`, cioè `supabase.functions.invoke('approve-quotation-v2', ...)`, così token, funzione e database stanno sullo stesso progetto usato da `certifications`.
-
-2. Rendere deployabile la nuova funzione sul backend corretto
-   - Il file `supabase/config.toml` è già puntato al backend dati/auth effettivo (`vejq...`), quindi la nuova Edge Function deve vivere lì, non sull’altro backend.
-   - Deploy della funzione `approve-quotation-v2` su quel backend.
-
-3. Correggere l’autorizzazione admin lato funzione
-   - La funzione continuerà a validare il bearer token con `getClaims()` sullo stesso backend del token.
-   - Poi controllerà `user_roles` con ruolo `ADMIN`.
-   - Per sicurezza gestirà anche eventuali ruoli in formato lowercase/uppercase (`ADMIN` / `admin`) se presenti nei dati.
-
-4. Verificare tabella `certifications` e privilegi sul backend corretto
-   - Leggo schema colonne: `status`, `quotation_approved_at`, `quotation_approved_by`.
-   - Leggo grant e policy su `certifications` / `user_roles`.
-   - Se mancano grant necessari per Data API o service role, preparo una migration mirata, senza rendere pubbliche tabelle non necessarie.
-
-5. Aggiornare UI e cache Operations
-   - Dopo successo, aggiorno subito cache `quotations-list` e `admin-planner-all-certifications`.
-   - Poi refetch forzato di entrambe le fonti, così Operations › Quotations Approved si popola dalla tabella `certifications` aggiornata.
-
-6. Verifica reale
-   - Test endpoint: una chiamata senza token deve dare 401; una chiamata con sessione admin deve passare.
-   - Test browser: click su `Mark as Approved` deve chiamare `approve-quotation-v2` sul backend corretto, ricevere `200`, spostare la riga fuori da Pending e farla comparire in Operations › Quotations Approved.
+1. Eliminare la Edge Function dal flusso `Mark as Approved`
+  - Non chiameremo più `/functions/v1/approve-quotation-v2`.
+  - Questo rimuove completamente il mismatch tra backend funzione e DB Supabase esterno.
+2. Spostare l’approvazione in una funzione SQL del DB Supabase esterno
+  - Creo una RPC PostgreSQL `public.approve_quotation_v2(certification_id uuid)` direttamente nel DB esterno.
+  - La RPC gira `SECURITY DEFINER`, quindi può aggiornare `certifications` in modo controllato.
+  - Dentro la RPC controllo `auth.uid()` e autorizzo solo utenti con ruolo `ADMIN` o `admin` in `public.user_roles`.
+  - Aggiorna la riga in `public.certifications`:
+    - `status = 'quotation_approved'`
+    - `quotation_approved_at = now()`
+    - `quotation_approved_by = auth.uid()`
+  - Ritorna la certification aggiornata minima per aggiornare la UI.
+3. Garantire permessi corretti sul DB Supabase esterno
+  - Aggiungo `GRANT EXECUTE` della RPC ad `authenticated`.
+  - Se servono grant Data API mirati su `certifications` o `user_roles`, li applico solo alle tabelle coinvolte, senza apertura anonima.
+4. Frontend: chiamare il DB Supabase esterno via client già funzionante
+  - In `src/pages/Quotations.tsx`, `handleApprove` userà:
+    - `supabase.rpc('approve_quotation_v2', { certification_id: id })`
+  - Quindi la chiamata passa dallo stesso client che già legge la tabella `certifications` e usa la stessa sessione utente.
+5. Aggiornamento automatico Operations
+  - Dopo successo, aggiorno subito cache `quotations-list` e `admin-planner-all-certifications`.
+  - Poi refetch forzato delle stesse query, così Operations › Quotations Approved si popola dalla tabella `certifications` aggiornata.
+6. Verifica
+  - Test DB: verifico che la RPC esista e abbia permesso `EXECUTE` per utenti autenticati.
+  - Test runtime: il click non deve più generare nessuna richiesta a `/functions/v1/approve-quotation-v2`; deve fare una chiamata REST/RPC al DB Supabase esterno e ricevere successo.
