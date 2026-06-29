@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { MainLayout } from "@/components/layout/MainLayout";
-import { supabase } from "@/integrations/supabase/client";
+import { externalSupabase as supabase } from "@/integrations/supabase/externalClient";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,12 +26,6 @@ interface QuotationRow {
   status: string;
 }
 
-interface ApproveQuotationResponse {
-  ok?: boolean;
-  certification?: Pick<QuotationRow, "id" | "name" | "client" | "status" | "quotation_approved_at">;
-  error?: string;
-}
-
 interface CachedAdminProject {
   id: string;
   status: string;
@@ -41,8 +35,6 @@ interface CachedAdminProject {
     status?: string;
   };
 }
-
-const APPROVE_QUOTATION_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/approve-quotation-v2`;
 
 function readableError(error: unknown): string {
   if (error instanceof Error) return error.message;
@@ -156,24 +148,27 @@ export default function Quotations() {
   const handleApprove = async (id: string) => {
     setApprovingId(id);
     try {
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError) throw new Error(sessionError.message);
-      const accessToken = sessionData.session?.access_token;
-      if (!accessToken) throw new Error("Session expired. Please sign in again.");
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError) throw new Error(userError.message);
+      const userId = userData.user?.id;
+      if (!userId) throw new Error("Session expired. Please sign in again.");
 
-      const response = await fetch(APPROVE_QUOTATION_FUNCTION_URL, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ certification_id: id }),
-      });
-      const data = (await response.json()) as ApproveQuotationResponse;
+      const approvedAt = new Date().toISOString();
+      const { data, error } = await supabase
+        .from("certifications")
+        .update({
+          status: "quotation_approved",
+          quotation_approved_at: approvedAt,
+          quotation_approved_by: userId,
+        })
+        .eq("id", id)
+        .eq("status", "quotation")
+        .select("id, name, client, status, quotation_approved_at")
+        .maybeSingle();
 
-      if (!response.ok) throw new Error(data.error || `Approval request failed (${response.status})`);
-      if (!data?.ok || data.certification?.status !== "quotation_approved") {
-        throw new Error(data?.error || "The quotation was not updated in the database.");
+      if (error) throw error;
+      if (!data || data.status !== "quotation_approved") {
+        throw new Error("The quotation was not updated. It may already have been moved or your admin role is not authorized by the database policy.");
       }
 
       qc.setQueryData<QuotationRow[]>(["quotations-list"], (current = []) =>
@@ -182,7 +177,7 @@ export default function Quotations() {
             ? {
                 ...row,
                 status: "quotation_approved",
-                quotation_approved_at: data.certification?.quotation_approved_at ?? new Date().toISOString(),
+                quotation_approved_at: data.quotation_approved_at ?? approvedAt,
               }
             : row
         )

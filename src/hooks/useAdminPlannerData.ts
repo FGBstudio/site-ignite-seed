@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { externalSupabase as supabase } from "@/integrations/supabase/externalClient";
 import type { SetupStatus } from "@/hooks/usePMDashboard";
 import type { GanttRowData } from "@/components/dashboard/FGBPlanner";
 import { computeMacroPhase, type MacroPhase } from "@/data/certificationTemplates";
