@@ -7,7 +7,7 @@ import { componentTagger } from "lovable-tagger";
 export default defineConfig(({ mode }) => ({
   // Il base path deve corrispondere al nome della tua repository GitHub
   // per permettere il caricamento corretto di JS e CSS in produzione.
-  base: mode === 'production' ? '/deep-site-maker/' : '/',
+  base: mode === 'production' ? '/site-ignite-seed/' : '/',
   
   server: {
     host: "::",
