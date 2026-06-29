@@ -1,1 +1,1 @@
-controlla se hai accesso ora al db di supabase [https://vejqfpznzcohtbggkfhr.supabase.co](https://vejqfpznzcohtbggkfhr.supabase.co)
+ricontrolla
