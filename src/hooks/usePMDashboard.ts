@@ -5,6 +5,25 @@ import { computeMacroPhase, type MacroPhase } from "@/data/certificationTemplate
 import { differenceInDays, parseISO } from "date-fns";
 import type { GanttRowData } from "@/components/dashboard/FGBPlanner";
 
+const CERTIFICATION_ID_CHUNK_SIZE = 50;
+
+async function fetchCertificationMilestones(certIds: string[]): Promise<any[]> {
+  const milestones: any[] = [];
+
+  for (let i = 0; i < certIds.length; i += CERTIFICATION_ID_CHUNK_SIZE) {
+    const chunk = certIds.slice(i, i + CERTIFICATION_ID_CHUNK_SIZE);
+    const { data, error } = await supabase
+      .from("certification_milestones")
+      .select("*")
+      .in("certification_id", chunk);
+
+    if (error) throw error;
+    milestones.push(...(data || []));
+  }
+
+  return milestones;
+}
+
 export type SetupStatus = "quotation" | "quotation_approved" | "da_configurare" | "in_corso" | "completato" | "certificato" | "canceled";
 
 export interface PMProject {
@@ -104,12 +123,7 @@ export function usePMDashboard() {
       const certIds = (certs as any[]).map((c) => c.id);
       let milestones: any[] = [];
       if (certIds.length > 0) {
-        const { data, error: mErr } = await supabase
-          .from("certification_milestones")
-          .select("*")
-          .in("certification_id", certIds);
-        if (mErr) throw mErr;
-        milestones = data || [];
+        milestones = await fetchCertificationMilestones(certIds);
       }
 
       const today = new Date().toISOString().slice(0, 10);

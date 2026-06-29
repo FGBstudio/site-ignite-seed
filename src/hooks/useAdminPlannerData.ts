@@ -5,6 +5,25 @@ import type { GanttRowData } from "@/components/dashboard/FGBPlanner";
 import { computeMacroPhase, type MacroPhase } from "@/data/certificationTemplates";
 import { differenceInDays, parseISO } from "date-fns";
 
+const CERTIFICATION_ID_CHUNK_SIZE = 50;
+
+async function fetchCertificationMilestones(certIds: string[]): Promise<any[]> {
+  const milestones: any[] = [];
+
+  for (let i = 0; i < certIds.length; i += CERTIFICATION_ID_CHUNK_SIZE) {
+    const chunk = certIds.slice(i, i + CERTIFICATION_ID_CHUNK_SIZE);
+    const { data, error } = await supabase
+      .from("certification_milestones")
+      .select("*")
+      .in("certification_id", chunk);
+
+    if (error) throw error;
+    milestones.push(...(data || []));
+  }
+
+  return milestones;
+}
+
 export interface AdminPlannerProject {
   id: string;
   name: string;
@@ -98,9 +117,7 @@ export function useAdminPlannerData() {
       const certIds = (certs as any[]).map((c) => c.id);
       let milestones: any[] = [];
       if (certIds.length > 0) {
-        const { data, error: mErr } = await supabase.from("certification_milestones").select("*").in("certification_id", certIds);
-        if (mErr) throw mErr;
-        milestones = data || [];
+        milestones = await fetchCertificationMilestones(certIds);
       }
 
       // 5. Build result
