@@ -1,28 +1,34 @@
-## Problema individuato
+# Ripristino distinzione Completed vs Certified
 
-Le tabelle del database **esistono e contengono dati** (`certifications` ha 840 righe), ma l'app mostra "No projects found" e tutti i contatori a 0.
+## Obiettivo
 
-La causa è che **nessuna tabella dello schema `public` ha più i GRANT** per i ruoli `authenticated`, `anon` e `service_role`. Senza GRANT espliciti, PostgREST (la Data API di Supabase) rifiuta silenziosamente le query e il frontend riceve risposte vuote — anche se le policy RLS sarebbero permissive. Questo è il tipico effetto collaterale di un progetto rigenerato/remixato dove le permission implicite non sono sopravvissute.
+Ripristinare la mappatura originale:
+- `certifications.status = 'completato'` → tab **Completed** (`setup_status = 'completato'`)
+- `certifications.status = 'certificato'` (o `active` + `issued_date` <= oggi) → tab **Certified** (`setup_status = 'certificato'`)
 
-Verificato con:
-- `SELECT count(*) FROM certifications` → 840
-- `information_schema.role_table_grants` per `public.certifications` → 0 righe
-- Tutte e ~90 le tabelle `public` risultano senza grant
+## Modifiche
 
-## Soluzione
+### 1. `src/hooks/useAdminPlannerData.ts`
+- Separare la condizione:
+  - `isCompleted = c.status === 'completato'`
+  - `isCertified = c.status === 'certificato' || (c.status === 'active' && issued_date <= today)`
+- Aggiornare l'assegnazione di `setup_status`:
+  ```
+  if (isCertified) → 'certificato'
+  else if (isCompleted) → 'completato'
+  else if (hasTimeline) → 'in_corso'
+  else → 'da_configurare'
+  ```
+- Nel plannerData, trattare anche `completato` come stato finale (actualEnd valorizzato, status label "Completed").
 
-Una sola migrazione che ripristina i GRANT mancanti su tutte le tabelle base di `public`:
+### 2. `src/hooks/useAdminCalendarData.ts`
+- Stessa separazione tra `isCompleted` e `isCertified`.
+- `setup_status = 'completato'` quando applicabile.
 
-- `authenticated` → `SELECT, INSERT, UPDATE, DELETE` (le policy RLS continuano a filtrare per utente)
-- `service_role` → `ALL` (necessario per edge functions e codice admin)
-- `anon` → **non concesso** in modo massivo: lo aggiungerò esplicitamente solo per le tabelle che devono essere pubbliche se emergeranno casi (al momento l'app è auth-only)
+Nessun'altra modifica: `Projects.tsx` ha già il tab Completed e il contatore che filtra su `'completato'`, quindi tornerà a popolarsi automaticamente.
 
-Userò il loop "bulk restore" raccomandato dalla guida Supabase, che applica i GRANT solo dove mancano e quindi non sovrascrive eventuali revoke deliberate.
+## Fuori scope
 
-## Cosa NON cambia
-
-- Nessuna policy RLS toccata
-- Nessuno schema modificato
-- Nessun file frontend modificato (la query del Projects page è corretta, il problema è puramente di permessi DB)
-
-Dopo l'esecuzione, la pagina Operations tornerà a mostrare le 840 certificazioni filtrate dalle policy esistenti.
+- Nessuna modifica al DB.
+- Nessuna modifica al flusso di transizione (chi/come setta `completato` o `certificato` resta invariato).
+- `usePMDashboard.ts` non ha la distinzione Completed nel Board PM (che usa solo 3 stati) e resta invariato.
