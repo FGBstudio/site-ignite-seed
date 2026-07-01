@@ -265,9 +265,9 @@ export function useAdminPlannerData() {
           planStart, // Passato in modo invisibile per mantenere sani i confini della timeline visiva
           planEnd: c.handover_date, 
           actualStart: hasTimeline ? planStart : null,
-          actualEnd: isCertified ? today : null,
+          actualEnd: (isCertified || isCompleted) ? today : null,
           progress,
-          status: hasOnHold ? "on_hold" : (setup_status === "certificato" ? "Certified" : macroPhase), 
+          status: hasOnHold ? "on_hold" : (setup_status === "certificato" ? "Certified" : setup_status === "completato" ? "Completed" : macroPhase), 
           segments,
           onClickUrl: `/projects/${c.id}`,
           plannedHandoverDate: c.planned_handover_date || null,
