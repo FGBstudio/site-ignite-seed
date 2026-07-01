@@ -154,13 +154,14 @@ export function useAdminPlannerData() {
           };
         }
 
-        const isCertified = c.status === "certificato" || c.status === "completato" || (c.status === "active" && c.issued_date && c.issued_date.slice(0, 10) <= today);
+        const isCertified = c.status === "certificato" || (c.status === "active" && c.issued_date && c.issued_date.slice(0, 10) <= today);
+        const isCompleted = c.status === "completato";
         const timelineMilestones = certMilestones.filter((m: any) => m.milestone_type === "timeline");
         const hasTimeline = timelineMilestones.length > 0;
         const hasScorecard = certMilestones.some((m: any) => m.milestone_type === "scorecard");
 
         const missing: string[] = [];
-        if (!isCertified) {
+        if (!isCertified && !isCompleted) {
           if (!hasTimeline) missing.push("Timeline");
           if (!hasScorecard) missing.push("Scorecard");
           if (allocations.length === 0) missing.push("Hardware");
@@ -168,6 +169,7 @@ export function useAdminPlannerData() {
 
         let setup_status: SetupStatus;
         if (isCertified) setup_status = "certificato";
+        else if (isCompleted) setup_status = "completato";
         else if (hasTimeline) setup_status = "in_corso";
         else setup_status = "da_configurare";
 
