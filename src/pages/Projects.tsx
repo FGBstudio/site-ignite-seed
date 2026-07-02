@@ -390,7 +390,7 @@ export default function Projects() {
   const baseFiltered = useMemo(() => {
     return allProjects.filter((p) => {
       // Operations never owns quotation/canceled — those live in /quotations
-      if (p.setup_status === "quotation" || p.setup_status === "canceled") return false;
+      if (p.setup_status === "potential" || p.setup_status === "quotation" || p.setup_status === "canceled") return false;
       if (statusTab !== "all" && p.setup_status !== statusTab) return false;
       const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) || p.client.toLowerCase().includes(search.toLowerCase());
       const matchesRegion = regionFilter === "all" || p.region === regionFilter;
