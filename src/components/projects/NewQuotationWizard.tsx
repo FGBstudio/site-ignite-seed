@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useHoldings, useBrands, useSites } from "@/hooks/useProjectDetails";
@@ -284,8 +284,42 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
       setSite(emptySite());
       setServices(emptyServices());
       setErrors({});
+      setIsPotential(false);
     }, 300);
   };
+
+  // ── Resume prefill from an existing "potential" certification row ────────
+  useEffect(() => {
+    if (!open || !resumeCertId) return;
+    let cancelled = false;
+    (async () => {
+      const { data: cert, error } = await supabase
+        .from("certifications")
+        .select("id, name, client, region, handover_date, site_id, sites(id, brand_id, brands(id, holding_id))")
+        .eq("id", resumeCertId)
+        .maybeSingle();
+      if (error || !cert || cancelled) return;
+      const s: any = (cert as any).sites || {};
+      const brandId = s.brand_id || "";
+      const holdingId = s.brands?.holding_id || "";
+      setIsPotential(false);
+      setStep(2);
+      setSite({
+        holdingId,
+        brandId,
+        siteId: (cert as any).site_id || "",
+        isNew: false, newName: "", newAddress: "", newCity: "", newCountry: "",
+      });
+      setServices((prev) => ({
+        ...prev,
+        projectName: (cert as any).name || "",
+        client: (cert as any).client || "",
+        region: (cert as any).region || "Europe",
+        handoverDate: (cert as any).handover_date ? new Date((cert as any).handover_date) : undefined,
+      }));
+    })();
+    return () => { cancelled = true; };
+  }, [open, resumeCertId]);
 
   // ── Save ──────────────────────────────────────────────────────────────────
 
