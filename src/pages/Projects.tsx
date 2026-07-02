@@ -28,6 +28,7 @@ import { useToast } from "@/hooks/use-toast";
 import type { Project, ProjectAllocation } from "@/types/custom-tables";
 
 const SETUP_STATUS_META = {
+  potential: { label: "Potential", icon: FileText, className: "border-slate-400/30 bg-slate-50 text-slate-600" },
   quotation: { label: "Quotation", icon: FileText, className: "border-blue-400/30 bg-blue-50 text-blue-600" },
   quotation_approved: { label: "Quotation Approved", icon: FileText, className: "border-emerald-400/30 bg-emerald-50 text-emerald-700" },
   da_configurare: { label: "To Configure", icon: AlertTriangle, className: "border-warning/30 bg-warning/10 text-warning" },
