@@ -161,9 +161,13 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
+  /** If provided, wizard opens in "resume potential" mode: prefills Site & Project
+   *  from the existing certification row, forces isPotential=false, and on save
+   *  deletes the old potential row and re-creates one row per selected cert. */
+  resumeCertId?: string;
 }
 
-export function NewQuotationWizard({ open, onOpenChange, onSaved }: Props) {
+export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }: Props) {
   const { toast } = useToast();
   const { isAdmin } = useAuth();
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -171,6 +175,7 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved }: Props) {
   const [services, setServices] = useState<ServicesState>(emptyServices());
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const [isPotential, setIsPotential] = useState(false);
 
   // Per-cert quotation patch helper
   const patchCert = (type: CertType, patch: Partial<CertConfig>) => {
