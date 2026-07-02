@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useHoldings, useBrands, useSites } from "@/hooks/useProjectDetails";
@@ -161,9 +161,13 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
+  /** If provided, wizard opens in "resume potential" mode: prefills Site & Project
+   *  from the existing certification row, forces isPotential=false, and on save
+   *  deletes the old potential row and re-creates one row per selected cert. */
+  resumeCertId?: string;
 }
 
-export function NewQuotationWizard({ open, onOpenChange, onSaved }: Props) {
+export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }: Props) {
   const { toast } = useToast();
   const { isAdmin } = useAuth();
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -171,6 +175,7 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved }: Props) {
   const [services, setServices] = useState<ServicesState>(emptyServices());
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const [isPotential, setIsPotential] = useState(false);
 
   // Per-cert quotation patch helper
   const patchCert = (type: CertType, patch: Partial<CertConfig>) => {
@@ -279,8 +284,42 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved }: Props) {
       setSite(emptySite());
       setServices(emptyServices());
       setErrors({});
+      setIsPotential(false);
     }, 300);
   };
+
+  // ── Resume prefill from an existing "potential" certification row ────────
+  useEffect(() => {
+    if (!open || !resumeCertId) return;
+    let cancelled = false;
+    (async () => {
+      const { data: cert, error } = await supabase
+        .from("certifications")
+        .select("id, name, client, region, handover_date, site_id, sites(id, brand_id, brands(id, holding_id))")
+        .eq("id", resumeCertId)
+        .maybeSingle();
+      if (error || !cert || cancelled) return;
+      const s: any = (cert as any).sites || {};
+      const brandId = s.brand_id || "";
+      const holdingId = s.brands?.holding_id || "";
+      setIsPotential(false);
+      setStep(2);
+      setSite({
+        holdingId,
+        brandId,
+        siteId: (cert as any).site_id || "",
+        isNew: false, newName: "", newAddress: "", newCity: "", newCountry: "",
+      });
+      setServices((prev) => ({
+        ...prev,
+        projectName: (cert as any).name || "",
+        client: (cert as any).client || "",
+        region: (cert as any).region || "Europe",
+        handoverDate: (cert as any).handover_date ? new Date((cert as any).handover_date) : undefined,
+      }));
+    })();
+    return () => { cancelled = true; };
+  }, [open, resumeCertId]);
 
   // ── Save ──────────────────────────────────────────────────────────────────
 
@@ -304,6 +343,34 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved }: Props) {
         if (siteErr) throw siteErr;
         resolvedSiteId = newSite.id;
       }
+
+      // If Resume mode, delete the old potential row so we can insert fresh cert rows.
+      if (resumeCertId) {
+        await supabase.from("certifications").delete().eq("id", resumeCertId);
+      }
+
+      // If Potential mode: insert a single skeletal certification and exit.
+      if (isPotential) {
+        const { error: pErr } = await supabase.from("certifications").insert({
+          name: services.projectName,
+          client: services.client,
+          region: services.region,
+          handover_date: services.handoverDate ? format(services.handoverDate, "yyyy-MM-dd") : null,
+          status: "potential",
+          pm_id: null,
+          site_id: resolvedSiteId,
+          cert_type: null,
+          score: 0,
+          sqm: services.sqm ? Number(services.sqm) : null,
+          quotation_notes: services.notes || null,
+        } as any);
+        if (pErr) throw pErr;
+        toast({ title: "Potential saved", description: `${services.projectName} added to Potential Quotations.` });
+        handleClose();
+        onSaved();
+        return;
+      }
+
 
       const handoverStr = format(services.handoverDate!, "yyyy-MM-dd");
 
@@ -959,21 +1026,40 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved }: Props) {
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-between mt-6 pt-4 border-t">
-            <Button type="button" variant="outline" onClick={step === 1 ? handleClose : goBack} className="gap-1.5">
-              {step === 1 ? "Cancel" : <><ChevronLeft className="h-4 w-4" /> Back</>}
-            </Button>
-            {step < 3 ? (
-              <Button type="button" onClick={goNext} className="gap-1.5">
-                Continue <ChevronRight className="h-4 w-4" />
-              </Button>
-            ) : (
-              <Button type="button" onClick={handleSave} disabled={saving} className="gap-1.5 px-6 bg-emerald-600 hover:bg-emerald-700">
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                Save Quotation
-              </Button>
+          <div className="flex flex-col gap-3 mt-6 pt-4 border-t">
+            {step === 1 && !resumeCertId && (
+              <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={isPotential}
+                  onChange={(e) => setIsPotential(e.target.checked)}
+                  className="h-4 w-4 rounded border-input"
+                />
+                <span>Save as <strong>Potential</strong> (Site &amp; Project only — you can add Services &amp; Quote later)</span>
+              </label>
             )}
+            <div className="flex items-center justify-between">
+              <Button type="button" variant="outline" onClick={step === 1 ? handleClose : goBack} className="gap-1.5">
+                {step === 1 ? "Cancel" : <><ChevronLeft className="h-4 w-4" /> Back</>}
+              </Button>
+              {step === 1 && isPotential ? (
+                <Button type="button" onClick={async () => { if (validateStep1()) await handleSave(); }} disabled={saving} className="gap-1.5 px-6 bg-slate-700 hover:bg-slate-800">
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                  Save as Potential
+                </Button>
+              ) : step < 3 ? (
+                <Button type="button" onClick={goNext} className="gap-1.5">
+                  Continue <ChevronRight className="h-4 w-4" />
+                </Button>
+              ) : (
+                <Button type="button" onClick={handleSave} disabled={saving} className="gap-1.5 px-6 bg-emerald-600 hover:bg-emerald-700">
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                  {resumeCertId ? "Confirm Quotation" : "Save Quotation"}
+                </Button>
+              )}
+            </div>
           </div>
+
         </div>
       </DialogContent>
     </Dialog>

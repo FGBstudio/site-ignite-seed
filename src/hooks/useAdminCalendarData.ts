@@ -61,7 +61,9 @@ export function useAdminCalendarData() {
 
       // 4. Build result
       const today = new Date().toISOString().slice(0, 10);
-      return (certs as any[]).map((c): AdminCalendarProject => {
+      return (certs as any[])
+        .filter((c) => c.status !== "potential" && c.status !== "quotation" && c.status !== "quotation_approved" && c.status !== "canceled")
+        .map((c): AdminCalendarProject => {
         const certMilestones = milestones.filter((m) => m.certification_id === c.id);
 
         const isCertified = c.status === "certificato" ||

@@ -11,7 +11,8 @@ export type TabKey =
   | "bloccati"
   | "insoluti"
   | "nc"
-  | "tasks";
+  | "tasks"
+  | "quotations";
 
 export interface TabDef {
   key: TabKey;

@@ -28,6 +28,7 @@ import { useToast } from "@/hooks/use-toast";
 import type { Project, ProjectAllocation } from "@/types/custom-tables";
 
 const SETUP_STATUS_META = {
+  potential: { label: "Potential", icon: FileText, className: "border-slate-400/30 bg-slate-50 text-slate-600" },
   quotation: { label: "Quotation", icon: FileText, className: "border-blue-400/30 bg-blue-50 text-blue-600" },
   quotation_approved: { label: "Quotation Approved", icon: FileText, className: "border-emerald-400/30 bg-emerald-50 text-emerald-700" },
   da_configurare: { label: "To Configure", icon: AlertTriangle, className: "border-warning/30 bg-warning/10 text-warning" },
@@ -390,7 +391,7 @@ export default function Projects() {
   const baseFiltered = useMemo(() => {
     return allProjects.filter((p) => {
       // Operations never owns quotation/canceled — those live in /quotations
-      if (p.setup_status === "quotation" || p.setup_status === "canceled") return false;
+      if (p.setup_status === "potential" || p.setup_status === "quotation" || p.setup_status === "canceled") return false;
       if (statusTab !== "all" && p.setup_status !== statusTab) return false;
       const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) || p.client.toLowerCase().includes(search.toLowerCase());
       const matchesRegion = regionFilter === "all" || p.region === regionFilter;

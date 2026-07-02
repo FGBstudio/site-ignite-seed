@@ -24,7 +24,7 @@ async function fetchCertificationMilestones(certIds: string[]): Promise<any[]> {
   return milestones;
 }
 
-export type SetupStatus = "quotation" | "quotation_approved" | "da_configurare" | "in_corso" | "completato" | "certificato" | "canceled";
+export type SetupStatus = "potential" | "quotation" | "quotation_approved" | "da_configurare" | "in_corso" | "completato" | "certificato" | "canceled";
 
 export interface PMProject {
   id: string;

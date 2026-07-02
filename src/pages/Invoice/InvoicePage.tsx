@@ -12,6 +12,7 @@ import { InvoicesBloccati } from "./tabs/InvoicesBloccati";
 import { InvoicesInsoluti } from "./tabs/InvoicesInsoluti";
 import { InvoicesNoteCredito } from "./tabs/InvoicesNoteCredito";
 import { PaymentsTasksPanel } from "./components/PaymentsTasksPanel";
+import { QuotationsToInvoicePanel } from "./components/QuotationsToInvoicePanel";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTaskAlerts } from "@/hooks/useTaskAlerts";
 
@@ -62,6 +63,7 @@ export default function InvoicePage() {
             onChange={setTab}
             tabs={[
               { key: "emesse", label: "Fatture Emesse", count: invoices.length, badge: "g" },
+              { key: "quotations", label: "Quotations & Tranches", count: 0, badge: "t" },
               { key: "da-emettere", label: "Da Emettere", count: daEmettere.length, badge: "t" },
               { key: "solleciti", label: "Solleciti", count: sollAttivi, badge: "r" },
               { key: "bloccati", label: "Recall Bloccati", count: bloccati.length, badge: "r" },
@@ -75,6 +77,7 @@ export default function InvoicePage() {
 
       <main className="max-w-[1400px] mx-auto px-6 py-6">
         {tab === "emesse" && <InvoicesEmesse />}
+        {tab === "quotations" && <QuotationsToInvoicePanel />}
         {tab === "da-emettere" && <InvoicesDaEmettere />}
         {tab === "solleciti" && <InvoicesSolleciti />}
         {tab === "bloccati" && <InvoicesBloccati />}
