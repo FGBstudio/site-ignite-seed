@@ -256,6 +256,8 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
   };
 
   const validateStep2 = (): boolean => {
+    // In Potential mode every field in Step 2 is optional.
+    if (isPotential) { setErrors({}); return true; }
     const errs: Record<string, string> = {};
     if (services.certifications.length === 0) errs.certs = "Select at least one certification service";
     services.certifications.forEach((c) => {
