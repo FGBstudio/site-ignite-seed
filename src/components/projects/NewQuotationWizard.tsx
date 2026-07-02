@@ -1044,28 +1044,36 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
                   onChange={(e) => setIsPotential(e.target.checked)}
                   className="h-4 w-4 rounded border-input"
                 />
-                <span>Save as <strong>Potential</strong> (Site &amp; Project only — you can add Services &amp; Quote later)</span>
+                <span>Save as <strong>Potential</strong> — Site &amp; Project is enough; Services &amp; Quote become optional and can be completed later.</span>
               </label>
             )}
             <div className="flex items-center justify-between">
               <Button type="button" variant="outline" onClick={step === 1 ? handleClose : goBack} className="gap-1.5">
                 {step === 1 ? "Cancel" : <><ChevronLeft className="h-4 w-4" /> Back</>}
               </Button>
-              {step === 1 && isPotential ? (
-                <Button type="button" onClick={async () => { if (validateStep1()) await handleSave(); }} disabled={saving} className="gap-1.5 px-6 bg-slate-700 hover:bg-slate-800">
-                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                  Save as Potential
-                </Button>
-              ) : step < 3 ? (
-                <Button type="button" onClick={goNext} className="gap-1.5">
-                  Continue <ChevronRight className="h-4 w-4" />
-                </Button>
-              ) : (
-                <Button type="button" onClick={handleSave} disabled={saving} className="gap-1.5 px-6 bg-emerald-600 hover:bg-emerald-700">
-                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                  {resumeCertId ? "Confirm Quotation" : "Save Quotation"}
-                </Button>
-              )}
+              <div className="flex items-center gap-2">
+                {isPotential && step > 1 && !resumeCertId && (
+                  <Button type="button" variant="outline" onClick={handleSave} disabled={saving} className="gap-1.5">
+                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                    Save as Potential
+                  </Button>
+                )}
+                {step < 3 ? (
+                  <Button type="button" onClick={goNext} className="gap-1.5">
+                    Continue <ChevronRight className="h-4 w-4" />
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    onClick={handleSave}
+                    disabled={saving}
+                    className={cn("gap-1.5 px-6", isPotential ? "bg-slate-700 hover:bg-slate-800" : "bg-emerald-600 hover:bg-emerald-700")}
+                  >
+                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                    {isPotential ? "Save as Potential" : (resumeCertId ? "Confirm Quotation" : "Save Quotation")}
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
 
