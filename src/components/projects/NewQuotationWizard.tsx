@@ -351,8 +351,10 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
         await supabase.from("certifications").delete().eq("id", resumeCertId);
       }
 
-      // If Potential mode: insert a single skeletal certification and exit.
-      if (isPotential) {
+      const targetStatus = isPotential ? "potential" : "quotation";
+
+      // If Potential mode AND no certifications selected: insert a single skeletal row and exit.
+      if (isPotential && services.certifications.length === 0) {
         const { error: pErr } = await supabase.from("certifications").insert({
           name: services.projectName,
           client: services.client,
@@ -374,32 +376,34 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
       }
 
 
-      const handoverStr = format(services.handoverDate!, "yyyy-MM-dd");
+      const handoverStr = services.handoverDate ? format(services.handoverDate, "yyyy-MM-dd") : null;
 
-      // 1b. Duplicate check within the last 30 seconds
-      const thirtySecondsAgo = new Date(Date.now() - 30000).toISOString();
-      for (const cert of services.certifications) {
-        const name = services.certifications.length > 1
-          ? `${services.projectName} – ${cert.cert_type}`
-          : services.projectName;
+      // 1b. Duplicate check within the last 30 seconds (skip for potentials — they may legitimately repeat)
+      if (!isPotential) {
+        const thirtySecondsAgo = new Date(Date.now() - 30000).toISOString();
+        for (const cert of services.certifications) {
+          const name = services.certifications.length > 1
+            ? `${services.projectName} – ${cert.cert_type}`
+            : services.projectName;
 
-        const { data: existing } = await supabase
-          .from("certifications")
-          .select("id")
-          .eq("name", name)
-          .eq("client", services.client)
-          .eq("status", "quotation")
-          .gt("created_at", thirtySecondsAgo)
-          .limit(1);
+          const { data: existing } = await supabase
+            .from("certifications")
+            .select("id")
+            .eq("name", name)
+            .eq("client", services.client)
+            .eq("status", "quotation")
+            .gt("created_at", thirtySecondsAgo)
+            .limit(1);
 
-        if (existing && existing.length > 0) {
-          toast({
-            title: "Duplicate submission blocked",
-            description: `A quotation with the name "${name}" for client "${services.client}" was already submitted recently.`,
-            variant: "destructive",
-          });
-          setSaving(false);
-          return;
+          if (existing && existing.length > 0) {
+            toast({
+              title: "Duplicate submission blocked",
+              description: `A quotation with the name "${name}" for client "${services.client}" was already submitted recently.`,
+              variant: "destructive",
+            });
+            setSaving(false);
+            return;
+          }
         }
       }
 
@@ -422,7 +426,7 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
             client: services.client,
             region: services.region,
             handover_date: handoverStr,
-            status: "quotation",
+            status: targetStatus,
             pm_id: null,
             site_id: resolvedSiteId,
             cert_type: cert.cert_type,
@@ -462,7 +466,10 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
         }
       }
 
-      toast({ title: "Quotation saved", description: `${services.projectName} added to the Quotation pipeline.` });
+      toast({
+        title: isPotential ? "Potential saved" : "Quotation saved",
+        description: `${services.projectName} added to the ${isPotential ? "Potential" : "Quotation"} pipeline.`,
+      });
       handleClose();
       onSaved();
     } catch (err: any) {
