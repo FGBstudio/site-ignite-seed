@@ -344,6 +344,34 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
         resolvedSiteId = newSite.id;
       }
 
+      // If Resume mode, delete the old potential row so we can insert fresh cert rows.
+      if (resumeCertId) {
+        await supabase.from("certifications").delete().eq("id", resumeCertId);
+      }
+
+      // If Potential mode: insert a single skeletal certification and exit.
+      if (isPotential) {
+        const { error: pErr } = await supabase.from("certifications").insert({
+          name: services.projectName,
+          client: services.client,
+          region: services.region,
+          handover_date: services.handoverDate ? format(services.handoverDate, "yyyy-MM-dd") : null,
+          status: "potential",
+          pm_id: null,
+          site_id: resolvedSiteId,
+          cert_type: null,
+          score: 0,
+          sqm: services.sqm ? Number(services.sqm) : null,
+          quotation_notes: services.notes || null,
+        } as any);
+        if (pErr) throw pErr;
+        toast({ title: "Potential saved", description: `${services.projectName} added to Potential Quotations.` });
+        handleClose();
+        onSaved();
+        return;
+      }
+
+
       const handoverStr = format(services.handoverDate!, "yyyy-MM-dd");
 
       // 1b. Duplicate check within the last 30 seconds
