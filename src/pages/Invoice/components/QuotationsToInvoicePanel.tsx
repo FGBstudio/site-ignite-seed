@@ -105,7 +105,7 @@ export function QuotationsToInvoicePanel() {
     mutationFn: async ({ cert, scheme }: { cert: Cert; scheme: PaymentSchemeId }) => {
       const total = Number(cert.total_fees || 0);
       if (!total) throw new Error("Certification has no total_fees set; cannot split into tranches.");
-      const rows = generateTranches(cert.id, total, scheme);
+      const rows = generateTranches(scheme, total, cert.id);
       if (!rows.length) throw new Error("Selected scheme has no predefined tranches.");
       const { error } = await (supabase as any).from("cert_payment_milestones").insert(rows);
       if (error) throw error;
