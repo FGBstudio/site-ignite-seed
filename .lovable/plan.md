@@ -1,27 +1,82 @@
-## Change
+## Diagnosi
 
-Currently, flagging "Potential" in Step 1 of `NewQuotationWizard.tsx` hides Steps 2 and 3 entirely, saving only Site & Project data. The user wants the opposite: **allow** filling Steps 2–3 for a potential quotation, but make all fields there **non-mandatory**.
+Il problema non è nel click del bottone: l'update arriva al database, ma PostgreSQL lo blocca.
 
-## Implementation
+La tabella `certifications` ha un check constraint chiamato `certifications_status_check` che oggi consente solo questi status:
 
-**File:** `src/components/projects/NewQuotationWizard.tsx`
+```text
+quotation, da_configurare, in_corso, completato, certificato, canceled, active
+```
 
-1. **Remove the skip logic** — Step 2 (Services / Certifications) and Step 3 (Quote / Fees) remain navigable when `isPotential = true`.
+Il frontend invece, quando clicchi **Mark as Approved**, prova a salvare:
 
-2. **Relax validation when `isPotential = true`:**
-   - Step 2: don't require selecting a rating system / cert type / subtypes; "Next" button always enabled.
-   - Step 3: don't require budget rows, payment scheme, fees, or sent date; "Save" always enabled.
-   - Any Zod / manual guard that currently blocks progression must short-circuit when `isPotential`.
+```text
+status = quotation_approved
+```
 
-3. **Save behavior stays status-driven:**
-   - `status = 'potential'` regardless of how much of Steps 2–3 was filled.
-   - Persist whatever optional data the user did enter (cert type, subtypes, fees, quotation_budget_history rows, payment scheme) so it's preserved when later resumed via "Go on with Services & Quote".
-   - If nothing was entered in Step 2, keep current fallback (skeletal row with nulls).
+Poiché `quotation_approved` non è nella lista ammessa dal vincolo DB, Supabase restituisce:
 
-4. **Resume mode (`resumeCertId`)** already promotes `potential → quotation` on save and re-runs full validation — no change needed there, but confirm the prefilled optional data from the potential draft loads correctly into Steps 2–3.
+```text
+new row for relation "certifications" violates check constraint "certifications_status_check"
+```
 
-5. Update the small helper text under the Potential checkbox to reflect the new meaning: *"Site & Project is enough to save. Services and Quote are optional and can be completed later."*
+Ho trovato anche un secondo problema collegato: lo status `potential`, introdotto per le quotazioni potenziali, non è ammesso dallo stesso vincolo. Quindi anche quel flusso può fallire o diventare instabile.
 
-## Out of scope
+## Piano di correzione
 
-No changes to `Quotations.tsx`, hooks, or DB schema — status handling and Potential tab already work.
+1. **Correggere il vincolo DB su `certifications.status**`
+  - Aggiornare `certifications_status_check` per includere tutti gli status realmente usati dall'app:
+
+```text
+potential
+quotation
+quotation_approved
+canceled
+da_configurare
+in_corso
+completato
+certificato
+active
+in_progress
+```
+
+- Mantengo anche `active` e `in_progress` per compatibilità con dati/flussi legacy e con il default attuale della colonna.
+
+2. **Rendere coerenti i flussi di approvazione già presenti**
+  - Il bottone **Mark as Approved** continuerà a scrivere `quotation_approved`.
+  - Il bottone **Resume → Move to Approved** nei canceled funzionerà con lo stesso status.
+  - I progetti `potential` resteranno esclusi da Operations fino a quando non vengono completati/trasformati in quotazione.
+3. **Verificare il risultato dopo la migration**
+  - Controllare che il constraint aggiornato contenga `quotation_approved` e `potential`.
+  - Verificare che l'approvazione di una quotation non venga più bloccata dal database.
+
+## Cosa succederà quando una quotazione sarà approvata
+
+Quando clicchi **Mark as Approved** su una riga Pending:
+
+1. La riga in `certifications` passerà da:
+
+```text
+status = quotation
+```
+
+a:
+
+```text
+status = quotation_approved
+```
+
+2. Verranno valorizzati:
+
+```text
+quotation_approved_at = data/ora approvazione
+quotation_approved_by = utente che approva
+```
+
+3. Nel frontend:
+  - sparirà da **Quotations → Pending**;
+  - comparirà in **Quotations → Approved**;
+  - comparirà in **Operations → Quotations Approved**;
+  - non entrerà ancora in **To Configure / In Progress / Completed / Certified** finché non verrà avviata la configurazione operativa/PM.
+  - comparirà in **Payments → Quotations & Tranches**;
+4. Da lì il progetto rimane una quotazione approvata pronta per essere presa in carico dalle Operations.
