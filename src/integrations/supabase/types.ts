@@ -4202,6 +4202,7 @@ export type Database = {
           monitoring_types: string[] | null
           name: string
           region: string | null
+          status: string
           timezone: string | null
           typology: string | null
           updated_at: string | null
@@ -4230,6 +4231,7 @@ export type Database = {
           monitoring_types?: string[] | null
           name: string
           region?: string | null
+          status?: string
           timezone?: string | null
           typology?: string | null
           updated_at?: string | null
@@ -4258,6 +4260,7 @@ export type Database = {
           monitoring_types?: string[] | null
           name?: string
           region?: string | null
+          status?: string
           timezone?: string | null
           typology?: string | null
           updated_at?: string | null
