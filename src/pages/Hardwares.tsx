@@ -76,7 +76,7 @@ export default function Hardwares() {
       .select("*")
       .order("created_at", { ascending: false });
     const { data: prodData } = await supabase.from("products" as any).select("id, name");
-    const { data: siteData } = await supabase.from("sites").select("id, name");
+    const { data: siteData } = await supabase.from("sites").select("id, name").neq("status", "canceled");
 
     setHardwares(hwData || []);
     setProducts(prodData || []);

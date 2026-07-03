@@ -93,12 +93,14 @@ export function useProjectAllocations(certificationId: string | undefined) {
   });
 }
 
-export function useSites(brandId?: string) {
+export function useSites(brandId?: string, options?: { includeCanceled?: boolean }) {
+  const includeCanceled = options?.includeCanceled ?? false;
   return useQuery({
-    queryKey: ["sites", brandId],
+    queryKey: ["sites", brandId, includeCanceled],
     queryFn: async () => {
-      let query = supabase.from("sites").select("*").order("name");
+      let query = (supabase as any).from("sites").select("*").order("name");
       if (brandId) query = query.eq("brand_id", brandId);
+      if (!includeCanceled) query = query.neq("status", "canceled");
       const { data, error } = await query;
       if (error) throw error;
       return data || [];

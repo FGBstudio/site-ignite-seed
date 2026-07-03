@@ -199,7 +199,7 @@ export default function SupplierOrders() {
         (supabase as any).from("ops_shipments").select("*, origin:ops_locations!origin_location_id(name), destination:ops_locations!destination_location_id(name), ops_hardware_movements(hardwares(id, product_id, hardware_type, category, products(category, name)))").order("created_at", { ascending: false }),
         (supabase as any).from("ops_locations").select("*").order("name"),
         supabase.from("hardwares").select("*, products(category, name), purchase_order:ops_purchase_orders(*)").order("created_at", { ascending: false }),
-        supabase.from("sites").select("*"),
+        supabase.from("sites").select("*").neq("status", "canceled"),
         supabase.from("profiles").select("id, full_name, display_name, first_name, last_name, email").order("full_name")
       ]);
 

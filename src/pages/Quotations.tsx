@@ -162,7 +162,7 @@ export default function Quotations() {
   };
 
   const handleCancel = async (row: QuotationRow) => {
-    if (!window.confirm(`Cancel quotation for ${row.name}?`)) return;
+    if (!window.confirm(`Cancel quotation for ${row.name}?\n\nIf this is the only quotation on its site, the site will also be frozen and hidden from the frontend.`)) return;
     setCancelingId(row.id);
     try {
       const { error } = await supabase.from("certifications").update({ status: "canceled" }).eq("id", row.id);
