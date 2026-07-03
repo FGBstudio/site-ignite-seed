@@ -81,7 +81,7 @@ export default function Inventory() {
   const fetchInventoryData = async () => {
     setLoading(true);
     const { data: prodData } = await supabase.from("products" as any).select("*").order("name");
-    const { data: siteData } = await supabase.from("sites").select("id, name");
+    const { data: siteData } = await supabase.from("sites").select("id, name").neq("status", "canceled");
     
     // Fetch live hardware counts
     const { data: hwCounts } = await (supabase as any)
