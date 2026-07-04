@@ -53,6 +53,7 @@ function getUniqueValues(colKey: string, rows: any[]): string[] {
     let val: any = '';
     if (colKey === 'name') val = r.name || '(Blanks)';
     else if (colKey === 'client') val = r.client || '(Blanks)';
+    else if (colKey === 'city') val = r.city || '(Blanks)';
     else if (colKey === 'region') val = r.region || '(Blanks)';
     else if (colKey === 'cert_type') val = r.cert_type ? (CERT_DISPLAY_LABELS[r.cert_type] ?? r.cert_type) : '(Blanks)';
     else if (colKey === 'cert_rating') val = r.cert_rating || '(Blanks)';
@@ -80,6 +81,7 @@ function matchRowValue(r: any, colKey: string, selectedValues: string[] | null |
   let val: string = '';
   if (colKey === 'name') val = r.name || '(Blanks)';
   else if (colKey === 'client') val = r.client || '(Blanks)';
+  else if (colKey === 'city') val = r.city || '(Blanks)';
   else if (colKey === 'region') val = r.region || '(Blanks)';
   else if (colKey === 'cert_type') val = r.cert_type ? (CERT_DISPLAY_LABELS[r.cert_type] ?? r.cert_type) : '(Blanks)';
   else if (colKey === 'cert_rating') val = r.cert_rating || '(Blanks)';
@@ -622,10 +624,13 @@ export default function Projects() {
                 <thead>
                   <tr className="border-b">
                     <th className="p-4">
-                      <ExcelHeaderCell title="Project" colKey="name" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
+                      <ExcelHeaderCell title="Client" colKey="client" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
                     </th>
                     <th className="p-4">
-                      <ExcelHeaderCell title="Client" colKey="client" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
+                      <ExcelHeaderCell title="City" colKey="city" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
+                    </th>
+                    <th className="p-4">
+                      <ExcelHeaderCell title="Project" colKey="name" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
                     </th>
                     <th className="p-4">
                       <ExcelHeaderCell title="Region" colKey="region" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
@@ -690,6 +695,8 @@ export default function Projects() {
                             : "hover:bg-muted/50"
                         )}
                       >
+                        <td className="p-4 text-foreground">{project.client}</td>
+                        <td className="p-4 text-muted-foreground">{project.city || "—"}</td>
                         <td className="p-4 font-medium text-foreground">
                           <div className="flex items-center gap-2">
                             {project.is_deadline_critical && (
@@ -698,7 +705,6 @@ export default function Projects() {
                             {project.name}
                           </div>
                         </td>
-                        <td className="p-4 text-foreground">{project.client}</td>
                         <td className="p-4"><Badge variant="outline">{project.region}</Badge></td>
                         <td className="p-4">
                           {project.cert_type ? (

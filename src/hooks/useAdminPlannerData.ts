@@ -29,8 +29,10 @@ export interface AdminPlannerProject {
   name: string;
   client: string;
   region: string;
+  city: string | null;
   status: string;
   handover_date: string;
+  issued_date?: string | null;
   site_id: string | null;
   cert_type: string | null;
   cert_rating: string | null;
@@ -143,6 +145,7 @@ export function useAdminPlannerData() {
             c.status === "quotation_approved" ? "Quotation Approved" : "Canceled";
           return {
             id: c.id, name: c.name || c.cert_type || "Unnamed", client: c.client, region: c.region,
+            city: c.sites?.city || null, issued_date: c.issued_date || null,
             status: c.status, handover_date: c.handover_date, site_id: c.site_id, cert_type: c.cert_type,
             cert_rating: c.cert_rating || c.level, pm_id: c.pm_id, created_at: c.created_at,
             project_subtype: c.project_subtype, setup_status: c.status as SetupStatus, missing: [], pm_name: pmName,
@@ -158,7 +161,7 @@ export function useAdminPlannerData() {
           };
         }
 
-        const isCertified = c.status === "certificato" || (c.status === "active" && c.issued_date && c.issued_date.slice(0, 10) <= today);
+        const isCertified = !!c.issued_date || c.status === "certificato";
         const isCompleted = c.status === "completato";
         const timelineMilestones = certMilestones.filter((m: any) => m.milestone_type === "timeline");
         const hasTimeline = timelineMilestones.length > 0;
@@ -280,6 +283,7 @@ export function useAdminPlannerData() {
 
         return {
           id: c.id, name: c.name || c.cert_type || "Unnamed", client: c.client, region: c.region,
+          city: c.sites?.city || null, issued_date: c.issued_date || null,
           status: c.status, handover_date: c.handover_date, site_id: c.site_id, cert_type: c.cert_type,
           cert_rating: c.cert_rating || c.level, pm_id: c.pm_id, created_at: c.created_at,
           project_subtype: c.project_subtype, setup_status, missing, pm_name: pmName,

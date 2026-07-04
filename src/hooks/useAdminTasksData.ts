@@ -43,14 +43,12 @@ const sortByEndDate = (a: { end_date: string | null }, b: { end_date: string | n
 };
 
 function computeSetupStatus(certification: LightweightCertification, milestones: LightweightMilestone[]) {
-  const today = new Date().toISOString().slice(0, 10);
   const timelineMilestones = milestones.filter((m) => m.milestone_type === "timeline");
   const hasTimeline = timelineMilestones.length > 0;
   const hasScorecard = milestones.some((m) => m.milestone_type === "scorecard");
   const isTimelineConfigured = timelineMilestones.some((m) => m.start_date !== null || m.due_date !== null);
   const isCertified =
-    certification.status === "certificato" ||
-    (certification.status === "active" && !!certification.issued_date && certification.issued_date.slice(0, 10) <= today);
+    certification.status === "certificato" || !!certification.issued_date;
 
   if (certification.status === "completato") return "completato" as const;
   if (isCertified) return "certificato" as const;
