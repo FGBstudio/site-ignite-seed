@@ -29,6 +29,7 @@ interface QuotationRow {
   created_at: string | null;
   status: string;
   quotation_notes?: string | null;
+  sites?: { city: string | null } | null;
 }
 
 interface CachedAdminProject {
@@ -71,7 +72,7 @@ function useQuotations() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("certifications")
-        .select("id, name, client, region, total_fees, handover_date, quotation_sent_date, quotation_approved_at, created_at, status, quotation_notes")
+        .select("id, name, client, region, total_fees, handover_date, quotation_sent_date, quotation_approved_at, created_at, status, quotation_notes, sites(city)")
         .order("created_at", { ascending: false })
         .limit(500);
       if (error) throw new Error(await readableFunctionError(error));
@@ -316,8 +317,9 @@ export default function Quotations() {
       <div className="table-container overflow-x-auto">
         <table className="w-full text-sm">
           <thead><tr className="border-b">
-            <th className="text-left p-3 font-medium text-muted-foreground">Project</th>
             <th className="text-left p-3 font-medium text-muted-foreground">Client</th>
+            <th className="text-left p-3 font-medium text-muted-foreground">City</th>
+            <th className="text-left p-3 font-medium text-muted-foreground">Project</th>
             <th className="text-left p-3 font-medium text-muted-foreground">Region</th>
             <th className="text-left p-3 font-medium text-muted-foreground">Total Fees</th>
             <th className="text-left p-3 font-medium text-muted-foreground">Handover</th>
@@ -327,8 +329,9 @@ export default function Quotations() {
           <tbody>
             {filtered.map((r) => (
               <tr key={r.id} className="border-b last:border-b-0 hover:bg-muted/50">
-                <td className="p-3 font-medium text-foreground">{r.name}</td>
                 <td className="p-3 text-foreground">{r.client}</td>
+                <td className="p-3 text-muted-foreground">{r.sites?.city || "—"}</td>
+                <td className="p-3 font-medium text-foreground">{r.name}</td>
                 <td className="p-3">{r.region ? <Badge variant="outline">{r.region}</Badge> : "—"}</td>
                 <td className="p-3 font-medium">{r.total_fees != null ? `€${Number(r.total_fees).toLocaleString()}` : "—"}</td>
                 <td className="p-3 text-muted-foreground">{r.handover_date ? format(new Date(r.handover_date), "dd MMM yyyy") : "—"}</td>
