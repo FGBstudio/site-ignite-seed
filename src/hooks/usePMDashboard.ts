@@ -162,9 +162,7 @@ export function usePMDashboard() {
         const allocations = c.project_allocations || [];
         const macroPhase = computeMacroPhase(c.status, certMilestones);
 
-        const isCertified =
-          c.status === "certificato" ||
-          (c.status === "active" && c.issued_date && c.issued_date.slice(0, 10) <= today);
+        const isCertified = !!c.issued_date || c.status === "certificato";
 
         const timelineMilestones = certMilestones.filter((m: any) => m.milestone_type === "timeline");
         const hasTimeline = timelineMilestones.length > 0;

@@ -66,8 +66,7 @@ export function useAdminCalendarData() {
         .map((c): AdminCalendarProject => {
         const certMilestones = milestones.filter((m) => m.certification_id === c.id);
 
-        const isCertified = c.status === "certificato" ||
-          (c.status === "active" && c.issued_date && c.issued_date <= today);
+        const isCertified = !!c.issued_date || c.status === "certificato";
         const isCompleted = c.status === "completato";
 
         const timelineMilestones = certMilestones.filter((m: any) => m.milestone_type === "timeline");
