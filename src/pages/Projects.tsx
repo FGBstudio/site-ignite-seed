@@ -53,6 +53,7 @@ function getUniqueValues(colKey: string, rows: any[]): string[] {
     let val: any = '';
     if (colKey === 'name') val = r.name || '(Blanks)';
     else if (colKey === 'client') val = r.client || '(Blanks)';
+    else if (colKey === 'city') val = r.city || '(Blanks)';
     else if (colKey === 'region') val = r.region || '(Blanks)';
     else if (colKey === 'cert_type') val = r.cert_type ? (CERT_DISPLAY_LABELS[r.cert_type] ?? r.cert_type) : '(Blanks)';
     else if (colKey === 'cert_rating') val = r.cert_rating || '(Blanks)';
@@ -80,6 +81,7 @@ function matchRowValue(r: any, colKey: string, selectedValues: string[] | null |
   let val: string = '';
   if (colKey === 'name') val = r.name || '(Blanks)';
   else if (colKey === 'client') val = r.client || '(Blanks)';
+  else if (colKey === 'city') val = r.city || '(Blanks)';
   else if (colKey === 'region') val = r.region || '(Blanks)';
   else if (colKey === 'cert_type') val = r.cert_type ? (CERT_DISPLAY_LABELS[r.cert_type] ?? r.cert_type) : '(Blanks)';
   else if (colKey === 'cert_rating') val = r.cert_rating || '(Blanks)';
