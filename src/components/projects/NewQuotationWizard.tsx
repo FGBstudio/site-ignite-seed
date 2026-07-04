@@ -176,6 +176,7 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [isPotential, setIsPotential] = useState(false);
+  const [projectNameTouched, setProjectNameTouched] = useState(false);
 
   // Per-cert quotation patch helper
   const patchCert = (type: CertType, patch: Partial<CertConfig>) => {
@@ -195,6 +196,13 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
   const holdingName = holdings.find((h: any) => h.id === site.holdingId)?.name ?? "";
   const brandName = brands.find((b: any) => b.id === site.brandId)?.name ?? "";
   const siteName = site.isNew ? site.newName : (sites.find((s: any) => s.id === site.siteId)?.name ?? "");
+
+  // Auto-fill Project Name from Site Name until the user manually edits it.
+  useEffect(() => {
+    if (projectNameTouched) return;
+    if (!siteName) return;
+    setServices((s) => (s.projectName === siteName ? s : { ...s, projectName: siteName }));
+  }, [siteName, projectNameTouched]);
 
   // ── Site handlers ─────────────────────────────────────────────────────────
 
@@ -617,9 +625,12 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
         <div className="space-y-1.5">
           <Label className="text-xs font-medium">Project name *</Label>
           <Input
-            placeholder="e.g. Prada Milan Flagship"
+            placeholder="Auto-filled from Site name — edit if needed"
             value={services.projectName}
-            onChange={(e) => setServices((s) => ({ ...s, projectName: e.target.value }))}
+            onChange={(e) => {
+              setProjectNameTouched(true);
+              setServices((s) => ({ ...s, projectName: e.target.value }));
+            }}
             className={cn(errors.projectName && "border-destructive")}
           />
           {errors.projectName && <p className="text-xs text-destructive">{errors.projectName}</p>}
