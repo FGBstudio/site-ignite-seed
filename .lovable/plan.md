@@ -1,41 +1,70 @@
+## Obiettivo
 
-# Cascade cancellation: quotation → site freeze
+1. Uniformare tutte le tabelle (Operations, Projects, Energy, Air, Quotations) al formato **CLIENT | CITY | PROJECT NAME**.
+2. Rendere `issued_date` opzionale (solo anno) e usarla come flag "certificato", ma può anche compilarsi quando il PM segna attraverso la wizard timeline il progetto come certificato e poi posso comunque mettere anche mese e giorno, semplicemnete fai in modo che si accetti anche solo l'anno.
+3. Decidere come mostrare `city` in tabella nel modo più performante.
 
-## Goal
-When a quotation (certification) is moved to `canceled`, if the linked `site` has no other active (non-canceled) certifications, the site is automatically canceled/frozen and hidden from all frontend lists. If the quotation is later resumed, the site is unfrozen.
+---
 
-## Changes
+## 1. Ordinamento colonne tabelle
 
-### 1. Database — add `status` to `sites`
-Migration:
-- `ALTER TABLE public.sites ADD COLUMN status text NOT NULL DEFAULT 'active'` with a CHECK on (`'active'`, `'canceled'`).
-- Add trigger `trg_sites_cascade_from_certifications` on `public.certifications` AFTER UPDATE OF status:
-  - When a certification transitions **to** `canceled` and it has a `site_id`: if no sibling certification on the same site has status ≠ `canceled`, set that site's `status = 'canceled'`.
-  - When a certification transitions **from** `canceled` to anything else and it has a `site_id`: set the site's `status = 'active'` (unfreeze).
-- Trigger runs `SECURITY DEFINER` so it bypasses RLS.
+Tutte le tabelle progetti riordinate a tre colonne principali fissate a sinistra, nell'ordine:
 
-Rationale: putting logic in a DB trigger guarantees consistency across all entry points (Quotations UI, edge functions, admin scripts) — not just the `handleCancel` in `Quotations.tsx`.
+```
+CLIENT (brand/holding)  |  CITY (dal site)  |  PROJECT NAME (certifications.name)
+```
 
-### 2. Frontend — hide canceled sites everywhere
-A frozen site must disappear from the client-facing frontend and from selectors:
-- `useSites` (`src/hooks/useProjectDetails.ts`): add `.neq("status", "canceled")` by default; accept an optional `includeCanceled` flag for admin views.
-- Any place listing sites for pickers/onboarding (`SiteProjectOnboardingForm`, `NewQuotationWizard` site selector, Monitor, PMPortal site cards, etc.) — audit and add the same filter. I'll grep for `.from("sites")` and adjust each read path.
-- Certification lists already exclude `canceled` where appropriate; no change needed there.
+Applicato in: `PMProjectsBoard`, `Projects.tsx`, `AirTable`, Energy monitoring table, `Quotations.tsx`, viste admin (AdminTimeline / AdminTasks se mostrano progetti).
 
-### 3. UX
-- `Quotations.tsx` `handleCancel` confirm dialog updated to warn: "If this is the only quotation for the site, the site will also be frozen and hidden."
-- `handleResume` in `Quotations.tsx`: no code change needed — the DB trigger will unfreeze the site automatically.
+---
+
+## 2. Autocompilazione Project Name = Site Name
+
+Nei wizard (`NewQuotationWizard`, `ProjectCreateWizard`, `SiteProjectOnboardingForm`):
+
+- Quando l'utente inserisce/seleziona il **site name**, il campo `certifications.name` viene precompilato automaticamente con lo stesso valore.
+- Il campo resta editabile: se il PM ha bisogno di un nome diverso, lo modifica manualmente e l'auto-fill non sovrascrive più.
+- Nessun trigger DB: gestito solo lato form (evita magia lato server e mantiene la modifica libera).
+
+---
+
+## 3. Issued date → solo anno + flag "certificato"
+
+- `issued_date` resta `date` in DB ma diventa **nullable-friendly**: se l'utente inserisce solo l'anno, salviamo `YYYY-01-01` (convenzione interna).
+- UI: input dedicato "Certification Year" (numero a 4 cifre) invece di date-picker giorno/mese/anno. Placeholder: "e.g. 2026".
+- **Regola derivata**: `isCertified = issued_date IS NOT NULL`. Rimuoviamo ogni check tipo `issued_date <= today` (in `useAdminCalendarData`, `useAdminTasksData`, ecc.) e sostituiamo con "ha issued_date → certificato".
+- Lo status "certificato" viene calcolato/aggiornato di conseguenza (nessun vincolo su giorno/mese).
+
+---
+
+## 4. City in tabella: lookup dal site (NON duplicare)
+
+**Raccomandazione: leggere `city` dal `site` via join, NON duplicarla su `certifications`.**
+
+Motivi:
+
+- **Prontezza frontend**: Supabase fa già il join in una singola query (`select("*, sites(name, city, country)")`) — il costo è trascurabile e già utilizzato ovunque (es. `useProjectDetails`, `useAdminCalendarData`).
+- **Coerenza dati**: la città è una proprietà fisica del sito. Duplicarla su `certifications` significa dover mantenere sincronizzati due campi ad ogni update del site (trigger extra, rischio drift).
+- **Nome progetto ≠ città**: il nome è concettualmente separabile (il PM può volerlo diverso dal site), la città no — geograficamente il progetto **è** dove sta il sito.
+- Nessun calcolo lato client: `sites.city` arriva già nel payload della query esistente.
+
+Quindi: **duplichiamo `name` (già fatto de facto con l'auto-fill), NON duplichiamo `city**`.
+
+Cambio pratico nelle tabelle: aggiungere/rinominare la colonna e mappare `row.sites?.city` (o `row.city` dove già flattenato). Dove la query non include ancora `sites(city)`, la estendiamo.
+
+---
+
+## 5. Dettagli tecnici
+
+- **Migration**: nessuna modifica strutturale su `certifications` (niente colonna `city` duplicata). Solo eventuale allentamento validazioni su `issued_date` se presenti.
+- **Componente input anno**: piccolo helper `<YearInput>` riusabile che scrive `YYYY-01-01` in DB e mostra solo `YYYY` in UI.
+- **Refactor letture certificato**: sostituire ovunque la logica `status === "certificato" || (status === "active" && issued_date <= today)` con `!!issued_date`.
+- **Query hooks**: dove serve `city` in tabella e non è già presente, estendere il `.select` a `sites(name, city, country)`.
+
+---
 
 ## Out of scope
-- No new admin UI to see/restore frozen sites in this pass. If needed later, we add an admin toggle that queries with `includeCanceled: true`.
 
-## Technical notes
-```text
-certifications (UPDATE status)
-        │
-        ▼
-trg_sites_cascade_from_certifications  (SECURITY DEFINER)
-        │
-        ├── to 'canceled' + no other active certs on site → site.status = 'canceled'
-        └── from 'canceled' → site.status = 'active'
-```
+- Nessun redesign visuale delle tabelle oltre riordino colonne.
+- Nessuna modifica alle logiche di monitoring/allocation.
+- Nessuna nuova pagina admin.
