@@ -622,10 +622,13 @@ export default function Projects() {
                 <thead>
                   <tr className="border-b">
                     <th className="p-4">
-                      <ExcelHeaderCell title="Project" colKey="name" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
+                      <ExcelHeaderCell title="Client" colKey="client" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
                     </th>
                     <th className="p-4">
-                      <ExcelHeaderCell title="Client" colKey="client" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
+                      <ExcelHeaderCell title="City" colKey="city" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
+                    </th>
+                    <th className="p-4">
+                      <ExcelHeaderCell title="Project" colKey="name" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
                     </th>
                     <th className="p-4">
                       <ExcelHeaderCell title="Region" colKey="region" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
@@ -690,6 +693,8 @@ export default function Projects() {
                             : "hover:bg-muted/50"
                         )}
                       >
+                        <td className="p-4 text-foreground">{project.client}</td>
+                        <td className="p-4 text-muted-foreground">{project.city || "—"}</td>
                         <td className="p-4 font-medium text-foreground">
                           <div className="flex items-center gap-2">
                             {project.is_deadline_critical && (
@@ -698,7 +703,6 @@ export default function Projects() {
                             {project.name}
                           </div>
                         </td>
-                        <td className="p-4 text-foreground">{project.client}</td>
                         <td className="p-4"><Badge variant="outline">{project.region}</Badge></td>
                         <td className="p-4">
                           {project.cert_type ? (
