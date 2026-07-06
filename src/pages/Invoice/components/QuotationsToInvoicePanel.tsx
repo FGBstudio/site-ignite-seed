@@ -47,7 +47,7 @@ function useApprovedCerts() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("certifications")
-        .select("id, name, client, total_fees, status, region")
+        .select("id, name, client, total_fees, status, region, sites ( city )")
         .in("status", ["quotation_approved", "da_configurare", "in_corso", "completato", "certificato"])
         .order("created_at", { ascending: false });
       if (error) throw error;
