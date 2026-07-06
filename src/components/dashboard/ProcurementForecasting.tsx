@@ -47,7 +47,7 @@ export function ProcurementForecasting() {
     setLoading(true);
     const [prodRes, certRes, allocRes, pmRes, hwRes] = await Promise.all([
       supabase.from("products" as any).select("*"),
-      supabase.from("certifications").select("*").not("status", "in", '("Completed","Cancelled")'),
+      supabase.from("certifications").select("*, sites ( city )").not("status", "in", '("Completed","Cancelled")'),
       supabase.from("project_allocations" as any).select("*").neq("status", "Installed_Online"),
       supabase.from("profiles").select("id, full_name"),
       supabase.from("hardwares").select("id, product_id, site_id, status")
