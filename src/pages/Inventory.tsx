@@ -40,6 +40,7 @@ import type { Product } from "@/types/custom-tables";
 interface AllocationDetail {
   project_name: string;
   client: string;
+  city: string | null;
   region: string;
   status: string;
   quantity: number;
@@ -141,7 +142,7 @@ export default function Inventory() {
     const certIds = [...new Set((allocData as any[]).map((a) => a.certification_id))];
     const { data: certData } = await supabase
       .from("certifications")
-      .select("id, name, client, region, status")
+      .select("id, name, client, region, status, sites ( city )")
       .in("id", certIds);
 
     const certMap = new Map((certData || []).map((c: any) => [c.id, c]));
@@ -151,6 +152,7 @@ export default function Inventory() {
       return {
         project_name: cert.name || "Unknown",
         client: cert.client || "",
+        city: cert.sites?.city ?? null,
         region: cert.region || "",
         status: cert.status || "",
         quantity: row.quantity,
@@ -376,8 +378,9 @@ export default function Inventory() {
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead>Project</TableHead>
                             <TableHead>Client</TableHead>
+                            <TableHead>City</TableHead>
+                            <TableHead>Project</TableHead>
                             <TableHead>Region</TableHead>
                             <TableHead className="text-right">Qty</TableHead>
                             <TableHead>Status</TableHead>
@@ -388,8 +391,9 @@ export default function Inventory() {
                             .sort((a, b) => b.quantity - a.quantity)
                             .map((alloc, i) => (
                               <TableRow key={i}>
-                                <TableCell className="font-medium text-foreground">{alloc.project_name}</TableCell>
-                                <TableCell className="text-muted-foreground">{alloc.client}</TableCell>
+                                <TableCell className="font-semibold text-foreground">{alloc.client || "—"}</TableCell>
+                                <TableCell className="text-muted-foreground">{alloc.city || "—"}</TableCell>
+                                <TableCell className="text-foreground">{alloc.project_name}</TableCell>
                                 <TableCell>
                                   <Badge variant="outline" className="text-xs">{alloc.region}</Badge>
                                 </TableCell>

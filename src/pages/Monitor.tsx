@@ -151,7 +151,7 @@ function EnergyTable() {
     URL.revokeObjectURL(url);
   };
 
-  const COL_SITE = 13;
+  const COL_SITE = 15;
   const COL_HW = 9;
   const COL_COST = 9;
   const COL_FIN = 9;
@@ -209,6 +209,8 @@ function EnergyTable() {
                 </tr>
                 <tr className="bg-background">
                   <Th tone={SEC.site.head}><span className="sr-only">Edit</span></Th>
+                  <Th tone={SEC.site.head}>Client</Th>
+                  <Th tone={SEC.site.head}>City</Th>
                   <Th sticky tone={SEC.site.head}>Project</Th>
                   <Th tone={SEC.site.head}>Status</Th>
                   <Th tone={SEC.site.head}>Frequency</Th>
@@ -359,9 +361,15 @@ function Row({ r, idx, isAdmin, showNetwork, onUpdate }: RowProps) {
           </button>
         )}
       </td>
+      <td className={cn("px-3 py-2 border-b border-border font-semibold text-foreground min-w-[140px] max-w-[180px]", rowBg)}>
+        <div className="truncate">{r.brand_name ?? "—"}</div>
+      </td>
+      <td className={cn("px-3 py-2 border-b border-border text-muted-foreground min-w-[120px] max-w-[160px]", rowBg)}>
+        <div className="truncate">{r.city ?? "—"}</div>
+      </td>
       <td className={cn("px-3 py-2 font-medium sticky left-[34px] z-[13] border-b border-border shadow-[2px_0_4px_-2px_rgba(0,0,0,0.12)] min-w-[200px] max-w-[240px]", rowBg)}>
         <div className="truncate">{r.project_name ?? "—"}</div>
-        {r.city && <div className="text-[10px] text-muted-foreground font-normal truncate">{r.city}{r.country ? `, ${r.country}` : ""}</div>}
+        {r.country && <div className="text-[10px] text-muted-foreground font-normal truncate">{r.country}</div>}
       </td>
 
       <EditCell editing={editing} value={cur("status") as string | null} options={STATUS_OPTIONS as readonly string[]} onChange={(v) => setField("status", v)} minWidth={110}

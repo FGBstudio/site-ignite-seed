@@ -21,6 +21,24 @@ export function ProjectBurnRate() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
 
+  // Resolve city per certification via a separate query (view has no site join).
+  const { data: cityMap = new Map<string, string | null>() } = useQuery({
+    queryKey: ["cert-city-map", rows.map((r) => r.certification_id).sort().join(",")],
+    enabled: rows.length > 0,
+    queryFn: async () => {
+      const ids = rows.map((r) => r.certification_id).filter(Boolean);
+      if (ids.length === 0) return new Map<string, string | null>();
+      const { data, error } = await supabase
+        .from("certifications")
+        .select("id, sites ( city )")
+        .in("id", ids);
+      if (error) throw error;
+      const m = new Map<string, string | null>();
+      for (const c of (data || []) as any[]) m.set(c.id, c.sites?.city ?? null);
+      return m;
+    },
+  });
+
   const updateAllocation = useMutation({
     mutationFn: async ({ id, hours }: { id: string; hours: number | null }) => {
       const { error } = await supabase
@@ -59,8 +77,9 @@ export function ProjectBurnRate() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Project</TableHead>
                   <TableHead>Client</TableHead>
+                  <TableHead>City</TableHead>
+                  <TableHead>Project</TableHead>
                   <TableHead className="text-right">Allocated</TableHead>
                   <TableHead className="text-right">Consumed</TableHead>
                   <TableHead className="w-[200px]">Progress</TableHead>
@@ -75,8 +94,9 @@ export function ProjectBurnRate() {
                   const pct = r.pct_used ?? 0;
                   return (
                     <TableRow key={r.certification_id}>
-                      <TableCell className="font-medium">{r.certification_name || "—"}</TableCell>
-                      <TableCell className="text-muted-foreground">{r.client}</TableCell>
+                      <TableCell className="font-semibold text-foreground">{r.client || "—"}</TableCell>
+                      <TableCell className="text-muted-foreground">{cityMap.get(r.certification_id) || "—"}</TableCell>
+                      <TableCell className="text-foreground">{r.certification_name || "—"}</TableCell>
                       <TableCell className="text-right tabular-nums">
                         {editing ? (
                           <div className="flex items-center gap-1 justify-end">
