@@ -86,7 +86,7 @@ export function InvoicesEmesse() {
           <table className="w-full border-collapse" style={{ minWidth: 2400 }}>
             <thead>
               <tr className="bg-background sticky top-0">
-                {["Data","Client Entity","Invoice N.","Project / Activity","Currency","Exch. Rate","Tot Paid","VAT","Payment Method","Due Date","Not Paid","Not Paid VAT","Date of Payment","DPO","State","Ref. Order PO","Activity","Tot Commessa","% Fatturato","% Progressivo","Payment Day","Entrate Vere","E-mail Rif.","Decurt. Bancarie","Recall","Statement","#"].map((h) => (
+                {["Client Entity","City","Project / Activity","Data","Invoice N.","Currency","Exch. Rate","Tot Paid","VAT","Payment Method","Due Date","Not Paid","Not Paid VAT","Date of Payment","DPO","State","Ref. Order PO","Activity","Tot Commessa","% Fatturato","% Progressivo","Payment Day","Entrate Vere","E-mail Rif.","Decurt. Bancarie","Recall","Statement","#"].map((h) => (
                   <th key={h} className="text-left px-2.5 py-2 text-[9px] uppercase tracking-wider text-muted-foreground border-b border-border whitespace-nowrap">{h}</th>
                 ))}
               </tr>
