@@ -284,12 +284,13 @@ export function ProcurementForecasting() {
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50 hover:bg-muted/50">
+                <TableHead className="font-semibold">Client</TableHead>
+                <TableHead className="font-semibold">City</TableHead>
+                <TableHead className="font-semibold">Project</TableHead>
                 <TableHead className="font-semibold">Device</TableHead>
                 <TableHead className="font-semibold text-center">n°</TableHead>
                 <TableHead className="font-semibold">PM</TableHead>
                 <TableHead className="font-semibold">Area</TableHead>
-                <TableHead className="font-semibold">Client</TableHead>
-                <TableHead className="font-semibold">Project</TableHead>
                 <TableHead className="font-semibold">Status</TableHead>
                 <TableHead className="font-semibold">Handover</TableHead>
               </TableRow>
