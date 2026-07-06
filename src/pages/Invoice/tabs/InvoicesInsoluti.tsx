@@ -50,7 +50,7 @@ export function InvoicesInsoluti() {
           <table className="w-full border-collapse">
             <thead>
               <tr className="bg-background">
-                {["Anno","Cliente","N° Fattura","Progetto","Scadenza","Non pagato €","Stato","Note","#"].map((h) => (
+                {["Cliente","City","Progetto","Anno","N° Fattura","Scadenza","Non pagato €","Stato","Note","#"].map((h) => (
                   <th key={h} className="text-left px-2.5 py-2 text-[9px] uppercase tracking-wider text-muted-foreground border-b border-border whitespace-nowrap">{h}</th>
                 ))}
               </tr>
