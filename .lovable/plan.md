@@ -1,88 +1,63 @@
-## Obiettivo
+## Cosa manca davvero
 
-Uniformare TUTTE le viste tabellari elencate al formato rigido **CLIENT | CITY | PROJECT NAME** come prime tre colonne (sticky left), con dati letti via join relazionale `certifications → sites` in un'unica query.
+Le tre schermate che hai allegato provengono da **tabelle che nel turno precedente NON sono state toccate**. Le ho identificate una per una:
 
-**Nota schema (verificato)**: le colonne reali sono `certifications.client`, `certifications.name` (NON `project_name`), `sites.city`. Manterremo la spec dell'utente mappandola correttamente allo schema.
+| Screenshot | Componente reale | Stato attuale header | Da fare |
+|---|---|---|---|
+| 1. Admin Dashboard → Projects | `src/pages/CeoDashboard.tsx` → `TabProgetti` (righe 430-486) | `ID · Name · Client · Status · Start Date · Handover · PM · Progress` | Riordinare + aggiungere `City` |
+| 2. Operations → Projects | `src/pages/Projects.tsx` (righe 624-673) | **Già** `Client · City · Project · Region · …` in codice — lo screenshot è cache stantia della build precedente | Verificare in preview dopo hard-reload |
+| 3. Quotations → Pending | `src/pages/Quotations.tsx` (righe 319-327) | **Già** `Client · City · Project · Region · …` in codice — anche questo è cache stantia | Verificare in preview dopo hard-reload |
+
+Audit esteso: ho trovato **altre 3 tabelle multi-progetto** ancora sbagliate che erano state saltate nel turno scorso:
+
+- `src/pages/Inventory.tsx` (r. 379-381): `Project · Client · Region · …`
+- `src/pages/Monitor.tsx` (r. 212+): prima colonna `Project`
+- `src/components/dashboard/HoursAnalytics.tsx` (r. 62-63): `Project · Client · …`
 
 ---
 
-## 1. Tipo base condiviso
+## Piano di intervento (solo frontend)
 
-`src/types/index.ts` — aggiungere:
+### 1. `CeoDashboard.tsx` — `TabProgetti`
+Header nuovo (nell'ordine): **Client · City · Project · Status · Start Date · Handover · PM · Progress**. La colonna `ID` (hash da 6 char) viene rimossa: era rumore, e "Client · City · Project" è già l'identità del progetto.
 
-```ts
-export interface ProjectContextBase {
-  certifications?: {
-    client: string | null;
-    name: string | null;          // project name
-    sites?: { city: string | null } | null;
-  } | null;
-}
+Data source: `projects` locale del componente è alimentato via `useCeoDashboardData`. Devo estendere la query di quel hook per includere `sites ( city )` sulla `certifications` (root entity) e propagare `city` nell'oggetto di riga. Se il hook già seleziona `sites(name)` — aggiungo `city`; se non seleziona `sites`, aggiungo il nested select.
+
+Render riga:
+```tsx
+<TableCell className="font-semibold text-foreground">{p.client}</TableCell>
+<TableCell className="text-muted-foreground">{p.city ?? "—"}</TableCell>
+<TableCell className="text-foreground">{p.name}</TableCell>
 ```
 
-Componente helper `src/components/projects/ProjectContextCells.tsx` che esporta `<ClientCell/>`, `<CityCell/>`, `<ProjectNameCell/>` con formattazione standard (bold primary / muted / normal) + fallback `'—'`. Le tre celle sono `sticky left-0` opzionalmente attivabili.
+### 2. `Inventory.tsx`
+Header: da `Project · Client · Region · …` → **Client · City · Project · Region · …**. Le righe sono progetti/allocations aggregati; la query che li alimenta va estesa con `certifications ( sites ( city ) )` per esporre `city`.
+
+### 3. `Monitor.tsx`
+Prima colonna `Project` → inserire **Client** e **City** prima. Le righe già hanno il site collegato → basta aggiungere `city` al select e due `<Th>`/`<Td>` in testa.
+
+### 4. `HoursAnalytics.tsx`
+Header attuale `Project · Client` → **Client · City · Project`. Aggiungere `city` alla query o al mapping (già passa da certifications).
+
+### 5. Verifica screenshot 2 e 3
+Il codice è già conforme. Dopo il deploy di questo turno, il preview mostrerà `Client · City · Project` anche per Operations→Projects e Quotations→Pending. Se rimangono vecchi, è solo cache browser.
 
 ---
 
-## 2. Query da estendere (join `certifications(client, name, sites(city))`)
+## Fuori scope
 
-Per ogni tabella target, la query che la alimenta viene estesa con il nested select. Dove la fonte è già `certifications` direttamente, si aggiunge `sites(city)`.
-
-| Vista | File/hook query da aggiornare |
-|---|---|
-| Projects | `src/pages/Projects.tsx` (usa `useAdminPlannerData`) — già ha `sites(name,city,country)` ✓, solo UI |
-| PM Portal | `src/pages/PMPortal.tsx` / `src/hooks/usePMPortalData.ts` |
-| PM Board | `src/components/projects/PMProjectsBoard.tsx` / `useMyCertifications` |
-| Reports | `src/components/projects/ProjectsReports.tsx` |
-| Project Payments | `src/components/projects/ProjectPayments.tsx` / `usePaymentMilestones` |
-| Invoices Emesse | `src/pages/Invoice/tabs/InvoicesEmesse.tsx` (+ `useInvoiceStore`) |
-| Invoices Da Emettere | `src/pages/Invoice/tabs/InvoicesDaEmettere.tsx` |
-| Invoices Insoluti | `src/pages/Invoice/tabs/InvoicesInsoluti.tsx` |
-| Quotations to Invoice | `src/pages/Invoice/components/QuotationsToInvoicePanel.tsx` |
-| Quotations | `src/pages/Quotations.tsx` — già join ✓, solo ordinamento colonne |
-| Quotation Budget Builder | `src/components/projects/QuotationBudgetBuilder.tsx` (se lista multi-progetto) |
-| Supplier Orders | `src/pages/SupplierOrders.tsx` |
-| Procurement Forecasting | `src/components/dashboard/ProcurementForecasting.tsx` (già ha client + name via cert, aggiungere city via `sites`) |
-
-Pattern query standard (dove l'entità principale ha `certification_id`):
-```ts
-.select(`*, certifications ( client, name, sites ( city ) )`)
-```
-Dove la principale è già `certifications`:
-```ts
-.select(`*, sites ( city )`)
-```
+- Nessuna modifica DB.
+- Nessuna modifica ai flussi di scrittura.
+- Nessun redesign visuale oltre riordino colonne e aggiunta `City`.
+- Le tabelle Invoices, SupplierOrders, ProjectPayments, PMPortal, Reports, Procurement, QuotationsToInvoicePanel non vengono ritoccate: nell'ultimo turno erano già state riordinate, e non compaiono negli screenshot che hai segnalato.
 
 ---
 
-## 3. Ristrutturazione UI colonne
+## Ordine di esecuzione
 
-In ciascun componente elencato, le prime tre `<TableHead>`/colonne diventano nell'ordine:
+1. Estendere hook/query per portare `city` dove manca (`useCeoDashboardData`, `Inventory`, `Monitor`, `HoursAnalytics`).
+2. Aggiornare header + celle in ordine `Client · City · Project` (uso il componente `ProjectContextCells` esistente dove la tabella è basata su shadcn `<Table>`; per le tabelle `<table>` native scrivo i tre `<th>/<td>` direttamente con la stessa formattazione: client bold, city muted, project normale).
+3. Rimozione colonna `ID` rumorosa in `CeoDashboard.TabProgetti`.
+4. `tsgo` + verifica render con Playwright su `/ceo-dashboard`, `/projects`, `/quotations`, `/inventory`, `/monitor`.
 
-1. **CLIENT** — `row.certifications?.client ?? '—'` — bold, text-foreground
-2. **CITY** — `row.certifications?.sites?.city ?? '—'` — text-muted-foreground
-3. **PROJECT** — `row.certifications?.name ?? '—'` — normale
-
-Colonne successive: invariate (importi, stati, date, PM, ecc.), solo riordinate dopo le tre fisse. Nessuna rimozione di colonne esistenti — solo riordino + eventuale eliminazione di duplicati "Client/Project" che finivano più a destra.
-
-Sticky-left applicato con classi tailwind (`sticky left-0 bg-background z-10`) sulle prime tre celle nelle tabelle con scroll orizzontale (Invoice tabs, SupplierOrders, ProcurementForecasting).
-
----
-
-## 4. Fuori scope
-
-- Nessuna modifica DB / schema / migration.
-- Nessuna modifica ai flussi di scrittura (wizard, form di creazione).
-- Nessuna modifica al calcolo di stato certificato (già gestito nel turno precedente).
-- Nessun redesign visuale oltre riordino e sticky.
-
----
-
-## 5. Ordine di esecuzione
-
-1. Tipo `ProjectContextBase` + componente celle condivise.
-2. Aggiornamento query hook-per-hook (parallelo dove indipendenti).
-3. Riordino colonne UI file-per-file (parallelo).
-4. Verifica tsgo + build.
-
-Confermi e procedo con l'implementazione su tutti i 13 file?
+Confermi e procedo?
