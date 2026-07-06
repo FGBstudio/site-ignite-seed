@@ -93,7 +93,7 @@ export function InvoicesEmesse() {
             </thead>
             <tbody>
               {rows.length === 0 ? (
-                <tr><td colSpan={27} className="text-center py-10 text-sm text-muted-foreground">Nessuna fattura trovata</td></tr>
+                <tr><td colSpan={28} className="text-center py-10 text-sm text-muted-foreground">Nessuna fattura trovata</td></tr>
               ) : (
                 <>
                   {rows.map((r) => {
