@@ -24,6 +24,7 @@ interface Cert {
   total_fees: number | null;
   status: string;
   region: string | null;
+  sites: { city: string | null } | null;
 }
 
 interface Tranche {
