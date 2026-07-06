@@ -142,7 +142,7 @@ export default function Inventory() {
     const certIds = [...new Set((allocData as any[]).map((a) => a.certification_id))];
     const { data: certData } = await supabase
       .from("certifications")
-      .select("id, name, client, region, status")
+      .select("id, name, client, region, status, sites ( city )")
       .in("id", certIds);
 
     const certMap = new Map((certData || []).map((c: any) => [c.id, c]));
@@ -152,6 +152,7 @@ export default function Inventory() {
       return {
         project_name: cert.name || "Unknown",
         client: cert.client || "",
+        city: cert.sites?.city ?? null,
         region: cert.region || "",
         status: cert.status || "",
         quantity: row.quantity,
