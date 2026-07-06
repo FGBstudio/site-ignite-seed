@@ -141,6 +141,7 @@ export function ProcurementForecasting() {
               projectId: certId,
               projectName: cert.name || "Unnamed",
               client: cert.client,
+              city: cert.sites?.city || "—",
               region: cert.region,
               quantity: qty,
               pmName: pm ? pm.full_name : "—",
