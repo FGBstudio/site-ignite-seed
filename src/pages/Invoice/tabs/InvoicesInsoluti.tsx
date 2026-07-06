@@ -57,13 +57,14 @@ export function InvoicesInsoluti() {
             </thead>
             <tbody>
               {rows.length === 0 ? (
-                <tr><td colSpan={9} className="text-center py-8 text-sm text-muted-foreground">Nessun insoluto</td></tr>
+                <tr><td colSpan={10} className="text-center py-8 text-sm text-muted-foreground">Nessun insoluto</td></tr>
               ) : rows.map((r) => (
                 <tr key={r.id} className="border-b border-border hover:bg-primary/[0.03]">
-                  <td className="px-2.5 py-2 text-xs">{r.year}</td>
-                  <td className="px-2.5 py-2 text-xs"><b>{r.client || "—"}</b></td>
-                  <td className="px-2.5 py-2 text-xs">{r.invNum || "—"}</td>
+                  <td className="px-2.5 py-2 text-xs font-semibold text-foreground">{r.client || "—"}</td>
+                  <td className="px-2.5 py-2 text-xs text-muted-foreground">—</td>
                   <td className="px-2.5 py-2 text-xs">{r.project || "—"}</td>
+                  <td className="px-2.5 py-2 text-xs">{r.year}</td>
+                  <td className="px-2.5 py-2 text-xs">{r.invNum || "—"}</td>
                   <td className="px-2.5 py-2 text-xs">{fD(r.dueDate)}</td>
                   <td className="px-2.5 py-2 text-xs text-destructive font-semibold">{fEur(r.amount)}</td>
                   <td className="px-2.5 py-2 text-xs"><span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${STATUS_BADGE[r.status]}`}>{STATUS_LABEL[r.status]}</span></td>
