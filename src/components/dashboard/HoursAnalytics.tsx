@@ -77,8 +77,9 @@ export function ProjectBurnRate() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Project</TableHead>
                   <TableHead>Client</TableHead>
+                  <TableHead>City</TableHead>
+                  <TableHead>Project</TableHead>
                   <TableHead className="text-right">Allocated</TableHead>
                   <TableHead className="text-right">Consumed</TableHead>
                   <TableHead className="w-[200px]">Progress</TableHead>
@@ -93,8 +94,9 @@ export function ProjectBurnRate() {
                   const pct = r.pct_used ?? 0;
                   return (
                     <TableRow key={r.certification_id}>
-                      <TableCell className="font-medium">{r.certification_name || "—"}</TableCell>
-                      <TableCell className="text-muted-foreground">{r.client}</TableCell>
+                      <TableCell className="font-semibold text-foreground">{r.client || "—"}</TableCell>
+                      <TableCell className="text-muted-foreground">{cityMap.get(r.certification_id) || "—"}</TableCell>
+                      <TableCell className="text-foreground">{r.certification_name || "—"}</TableCell>
                       <TableCell className="text-right tabular-nums">
                         {editing ? (
                           <div className="flex items-center gap-1 justify-end">
