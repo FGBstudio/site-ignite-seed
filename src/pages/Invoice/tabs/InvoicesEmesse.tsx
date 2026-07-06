@@ -100,10 +100,11 @@ export function InvoicesEmesse() {
                     const ov = isOverdue(r);
                     return (
                       <tr key={r.id} className={`border-b border-border hover:bg-primary/[0.03] ${ov ? "bg-destructive/[0.04]" : ""}`}>
-                        <Td>{fD(r.date)}</Td>
-                        <Td>{r.clientEntity || "—"}</Td>
-                        <Td><b>{r.invoiceNumber || "—"}</b></Td>
+                        <Td className="font-semibold">{r.clientEntity || "—"}</Td>
+                        <Td className="text-muted-foreground">—</Td>
                         <Td>{r.projectActivity || "—"}</Td>
+                        <Td>{fD(r.date)}</Td>
+                        <Td><b>{r.invoiceNumber || "—"}</b></Td>
                         <Td>{r.currency}</Td>
                         <Td>{r.exchangeRate || "1"}</Td>
                         <Td><b>{fEur(r.totPaid, r.currency)}</b></Td>
