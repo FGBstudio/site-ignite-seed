@@ -3,6 +3,20 @@ export type CertificationType = 'LEED' | 'WELL' | 'CO2' | 'CO2-CO' | 'Energy';
 export type ProjectStatus = 'Design' | 'Construction' | 'Completed' | 'Cancelled';
 export type AllocationStatus = 'Draft' | 'Allocated' | 'Requested' | 'Shipped' | 'Installed_Online';
 
+/**
+ * Shared shape for rows that carry project context via a Supabase relational
+ * join to `certifications` (and `sites` for city). Any table showing rows
+ * belonging to a certification/project should extend this so the standard
+ * CLIENT | CITY | PROJECT columns can be rendered uniformly.
+ */
+export interface ProjectContextBase {
+  certifications?: {
+    client: string | null;
+    name: string | null;
+    sites?: { city: string | null } | null;
+  } | null;
+}
+
 export interface Product {
   id: string;
   sku: string;

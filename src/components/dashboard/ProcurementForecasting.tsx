@@ -13,6 +13,7 @@ interface ProjectDemand {
   projectId: string;
   projectName: string;
   client: string;
+  city: string;
   region: string;
   quantity: number;
   pmName: string;
@@ -47,7 +48,7 @@ export function ProcurementForecasting() {
     setLoading(true);
     const [prodRes, certRes, allocRes, pmRes, hwRes] = await Promise.all([
       supabase.from("products" as any).select("*"),
-      supabase.from("certifications").select("*").not("status", "in", '("Completed","Cancelled")'),
+      supabase.from("certifications").select("*, sites ( city )").not("status", "in", '("Completed","Cancelled")'),
       supabase.from("project_allocations" as any).select("*").neq("status", "Installed_Online"),
       supabase.from("profiles").select("id, full_name"),
       supabase.from("hardwares").select("id, product_id, site_id, status")
@@ -140,6 +141,7 @@ export function ProcurementForecasting() {
               projectId: certId,
               projectName: cert.name || "Unnamed",
               client: cert.client,
+              city: cert.sites?.city || "—",
               region: cert.region,
               quantity: qty,
               pmName: pm ? pm.full_name : "—",
@@ -282,12 +284,13 @@ export function ProcurementForecasting() {
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50 hover:bg-muted/50">
+                <TableHead className="font-semibold">Client</TableHead>
+                <TableHead className="font-semibold">City</TableHead>
+                <TableHead className="font-semibold">Project</TableHead>
                 <TableHead className="font-semibold">Device</TableHead>
                 <TableHead className="font-semibold text-center">n°</TableHead>
                 <TableHead className="font-semibold">PM</TableHead>
                 <TableHead className="font-semibold">Area</TableHead>
-                <TableHead className="font-semibold">Client</TableHead>
-                <TableHead className="font-semibold">Project</TableHead>
                 <TableHead className="font-semibold">Status</TableHead>
                 <TableHead className="font-semibold">Handover</TableHead>
               </TableRow>
@@ -301,7 +304,7 @@ export function ProcurementForecasting() {
                   <Fragment key={item.product.id}>
                     {/* Device Summary Row */}
                     <TableRow className="bg-muted/20 border-t-2">
-                      <TableCell colSpan={8} className="py-3">
+                      <TableCell colSpan={9} className="py-3">
                         <div className="flex items-center justify-between px-2">
                           <div className="flex items-center gap-4">
                             <span className="font-bold text-foreground text-base">{item.product.name}</span>
@@ -332,14 +335,15 @@ export function ProcurementForecasting() {
                     {/* Breakdown Rows */}
                     {item.projectBreakdown.map((pb) => (
                       <TableRow key={`${item.product.id}-${pb.projectId}`} className="hover:bg-muted/30">
+                        <TableCell className="font-semibold text-foreground">{pb.client}</TableCell>
+                        <TableCell className="text-muted-foreground">{pb.city}</TableCell>
+                        <TableCell>{pb.projectName}</TableCell>
                         <TableCell className="font-medium text-muted-foreground">{item.product.name}</TableCell>
                         <TableCell className="text-center font-semibold">{pb.quantity}</TableCell>
                         <TableCell>{pb.pmName}</TableCell>
                         <TableCell>
                           <Badge variant="outline" className="text-xs">{pb.region}</Badge>
                         </TableCell>
-                        <TableCell>{pb.client}</TableCell>
-                        <TableCell>{pb.projectName}</TableCell>
                         <TableCell className="capitalize text-muted-foreground">
                           {pb.status.replace(/_/g, ' ')}
                         </TableCell>

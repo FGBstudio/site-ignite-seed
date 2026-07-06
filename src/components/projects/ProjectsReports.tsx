@@ -321,8 +321,9 @@ export function ProjectsReports() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-left text-[11px] uppercase tracking-wider text-muted-foreground">
-                    <th className="py-2 pr-4 font-medium">Project</th>
                     <th className="py-2 pr-4 font-medium">Client</th>
+                    <th className="py-2 pr-4 font-medium">City</th>
+                    <th className="py-2 pr-4 font-medium">Project</th>
                     <th className="py-2 pr-4 font-medium">PM</th>
                     <th className="py-2 pr-4 font-medium">Phase</th>
                     <th className="py-2 pr-4 font-medium">Late Milestone</th>
@@ -333,8 +334,9 @@ export function ProjectsReports() {
                 <tbody>
                   {lateProjects.map(({ project, late }) => (
                     <tr key={project.id} className="border-b last:border-b-0 hover:bg-muted/40">
-                      <td className="py-3 pr-4 font-medium text-foreground">{project.name}</td>
-                      <td className="py-3 pr-4 text-muted-foreground">{project.client}</td>
+                      <td className="py-3 pr-4 font-semibold text-foreground">{project.client}</td>
+                      <td className="py-3 pr-4 text-muted-foreground">{project.city || "—"}</td>
+                      <td className="py-3 pr-4 text-foreground">{project.name}</td>
                       <td className="py-3 pr-4 text-muted-foreground">{project.pm_name || "—"}</td>
                       <td className="py-3 pr-4">
                         <Badge variant="outline" className="text-xs">{project.macro_phase || "—"}</Badge>
@@ -376,8 +378,9 @@ export function ProjectsReports() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <PauseCircle className="h-4 w-4 text-warning shrink-0" />
-                        <span className="font-medium text-foreground">{project.name}</span>
-                        <span className="text-xs text-muted-foreground">· {project.client}</span>
+                        <span className="font-semibold text-foreground">{project.client}</span>
+                        <span className="text-xs text-muted-foreground">· {project.city || "—"}</span>
+                        <span className="text-sm text-foreground">· {project.name}</span>
                         {project.pm_name && <span className="text-xs text-muted-foreground">· PM {project.pm_name}</span>}
                       </div>
                       <p className="mt-2 text-sm text-foreground">{alert.title}</p>
@@ -423,8 +426,9 @@ export function ProjectsReports() {
                   <div key={p.id} className="rounded-2xl border border-destructive/30 bg-destructive/5 p-4">
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="font-medium text-foreground truncate">{p.name}</p>
-                        <p className="text-xs text-muted-foreground truncate">{p.client} · {p.pm_name || "—"}</p>
+                        <p className="font-semibold text-foreground truncate">{p.client}</p>
+                        <p className="text-xs text-muted-foreground truncate">{p.city || "—"} · {p.name}</p>
+                        <p className="text-[11px] text-muted-foreground truncate">PM {p.pm_name || "—"}</p>
                       </div>
                       <div className="text-right shrink-0">
                         <p className="text-sm font-semibold text-destructive tabular-nums">

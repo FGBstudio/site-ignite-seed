@@ -86,24 +86,25 @@ export function InvoicesEmesse() {
           <table className="w-full border-collapse" style={{ minWidth: 2400 }}>
             <thead>
               <tr className="bg-background sticky top-0">
-                {["Data","Client Entity","Invoice N.","Project / Activity","Currency","Exch. Rate","Tot Paid","VAT","Payment Method","Due Date","Not Paid","Not Paid VAT","Date of Payment","DPO","State","Ref. Order PO","Activity","Tot Commessa","% Fatturato","% Progressivo","Payment Day","Entrate Vere","E-mail Rif.","Decurt. Bancarie","Recall","Statement","#"].map((h) => (
+                {["Client Entity","City","Project / Activity","Data","Invoice N.","Currency","Exch. Rate","Tot Paid","VAT","Payment Method","Due Date","Not Paid","Not Paid VAT","Date of Payment","DPO","State","Ref. Order PO","Activity","Tot Commessa","% Fatturato","% Progressivo","Payment Day","Entrate Vere","E-mail Rif.","Decurt. Bancarie","Recall","Statement","#"].map((h) => (
                   <th key={h} className="text-left px-2.5 py-2 text-[9px] uppercase tracking-wider text-muted-foreground border-b border-border whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {rows.length === 0 ? (
-                <tr><td colSpan={27} className="text-center py-10 text-sm text-muted-foreground">Nessuna fattura trovata</td></tr>
+                <tr><td colSpan={28} className="text-center py-10 text-sm text-muted-foreground">Nessuna fattura trovata</td></tr>
               ) : (
                 <>
                   {rows.map((r) => {
                     const ov = isOverdue(r);
                     return (
                       <tr key={r.id} className={`border-b border-border hover:bg-primary/[0.03] ${ov ? "bg-destructive/[0.04]" : ""}`}>
-                        <Td>{fD(r.date)}</Td>
-                        <Td>{r.clientEntity || "—"}</Td>
-                        <Td><b>{r.invoiceNumber || "—"}</b></Td>
+                        <Td className="font-semibold">{r.clientEntity || "—"}</Td>
+                        <Td className="text-muted-foreground">—</Td>
                         <Td>{r.projectActivity || "—"}</Td>
+                        <Td>{fD(r.date)}</Td>
+                        <Td><b>{r.invoiceNumber || "—"}</b></Td>
                         <Td>{r.currency}</Td>
                         <Td>{r.exchangeRate || "1"}</Td>
                         <Td><b>{fEur(r.totPaid, r.currency)}</b></Td>
@@ -163,7 +164,7 @@ function TotRow({ label, totals, variant }: { label: string; totals: { tp: numbe
     : "bg-primary/[0.03] font-medium text-muted-foreground";
   return (
     <tr className={cls}>
-      <td colSpan={6} className="px-2.5 py-2 text-xs"><b>{label}</b></td>
+      <td colSpan={7} className="px-2.5 py-2 text-xs"><b>{label}</b></td>
       <td className="px-2.5 py-2 text-xs"><b>{fEur(totals.tp)}</b></td>
       <td colSpan={3} />
       <td className="px-2.5 py-2 text-xs"><b>{fEur(totals.np)}</b></td>

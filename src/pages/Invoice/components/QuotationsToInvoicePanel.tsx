@@ -24,6 +24,7 @@ interface Cert {
   total_fees: number | null;
   status: string;
   region: string | null;
+  sites: { city: string | null } | null;
 }
 
 interface Tranche {
@@ -46,7 +47,7 @@ function useApprovedCerts() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("certifications")
-        .select("id, name, client, total_fees, status, region")
+        .select("id, name, client, total_fees, status, region, sites ( city )")
         .in("status", ["quotation_approved", "da_configurare", "in_corso", "completato", "certificato"])
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -179,16 +180,18 @@ export function QuotationsToInvoicePanel() {
             <div className="table-container overflow-x-auto">
               <table className="w-full text-sm">
                 <thead><tr className="border-b">
-                  <th className="text-left p-3 font-medium text-muted-foreground">Project</th>
                   <th className="text-left p-3 font-medium text-muted-foreground">Client</th>
+                  <th className="text-left p-3 font-medium text-muted-foreground">City</th>
+                  <th className="text-left p-3 font-medium text-muted-foreground">Project</th>
                   <th className="text-left p-3 font-medium text-muted-foreground">Total Fees</th>
                   <th className="p-3" />
                 </tr></thead>
                 <tbody>
                   {readyToInvoice.map((c) => (
                     <tr key={c.id} className="border-b last:border-b-0 hover:bg-muted/40">
-                      <td className="p-3 font-medium">{c.name}</td>
-                      <td className="p-3">{c.client}</td>
+                      <td className="p-3 font-semibold text-foreground">{c.client}</td>
+                      <td className="p-3 text-muted-foreground">{c.sites?.city || "—"}</td>
+                      <td className="p-3">{c.name}</td>
                       <td className="p-3">{c.total_fees != null ? `€${Number(c.total_fees).toLocaleString()}` : "—"}</td>
                       <td className="p-3 text-right">
                         <Button size="sm" className="gap-1.5" onClick={() => { setSchemeChoice("quotation_construction_50_50"); setSchemeDialog(c); }}>
@@ -225,8 +228,8 @@ export function QuotationsToInvoicePanel() {
                 <div key={c.id} className="rounded-lg border">
                   <div className="p-3 border-b bg-muted/30 flex items-center justify-between">
                     <div className="min-w-0">
-                      <div className="font-medium truncate">{c.name}</div>
-                      <div className="text-xs text-muted-foreground truncate">{c.client}</div>
+                      <div className="font-semibold text-foreground truncate">{c.client}</div>
+                      <div className="text-xs text-muted-foreground truncate">{c.sites?.city || "—"} · {c.name}</div>
                     </div>
                     <Badge variant="outline" className="capitalize">{c.status.replace(/_/g, " ")}</Badge>
                   </div>

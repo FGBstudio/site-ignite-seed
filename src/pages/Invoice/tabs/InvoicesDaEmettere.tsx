@@ -49,17 +49,18 @@ export function InvoicesDaEmettere() {
           <table className="w-full border-collapse">
             <thead>
               <tr className="bg-background">
-                {["Brand","Progetto","Step da fatturare","Valore €","Priorità","Entità","Fine costruzione","Blocco / Note","#"].map((h) => (
+                {["Client (Brand)","City","Progetto","Step da fatturare","Valore €","Priorità","Entità","Fine costruzione","Blocco / Note","#"].map((h) => (
                   <th key={h} className="text-left px-2.5 py-2 text-[9px] uppercase tracking-wider text-muted-foreground border-b border-border whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {rows.length === 0 ? (
-                <tr><td colSpan={9} className="text-center py-8 text-sm text-muted-foreground">Nessun elemento</td></tr>
+                <tr><td colSpan={10} className="text-center py-8 text-sm text-muted-foreground">Nessun elemento</td></tr>
               ) : rows.map((r) => (
                 <tr key={r.id} className="border-b border-border hover:bg-primary/[0.03]">
-                  <td className="px-2.5 py-2 text-xs"><b>{r.brand || "—"}</b></td>
+                  <td className="px-2.5 py-2 text-xs font-semibold text-foreground">{r.brand || "—"}</td>
+                  <td className="px-2.5 py-2 text-xs text-muted-foreground">—</td>
                   <td className="px-2.5 py-2 text-xs">{r.project || "—"}</td>
                   <td className="px-2.5 py-2 text-xs">{r.step || "—"}</td>
                   <td className="px-2.5 py-2 text-xs"><b>{fEur(r.value)}</b></td>
