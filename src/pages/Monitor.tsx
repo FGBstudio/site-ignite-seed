@@ -209,6 +209,8 @@ function EnergyTable() {
                 </tr>
                 <tr className="bg-background">
                   <Th tone={SEC.site.head}><span className="sr-only">Edit</span></Th>
+                  <Th tone={SEC.site.head}>Client</Th>
+                  <Th tone={SEC.site.head}>City</Th>
                   <Th sticky tone={SEC.site.head}>Project</Th>
                   <Th tone={SEC.site.head}>Status</Th>
                   <Th tone={SEC.site.head}>Frequency</Th>
