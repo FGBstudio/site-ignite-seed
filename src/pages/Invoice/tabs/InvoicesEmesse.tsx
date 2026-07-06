@@ -164,7 +164,7 @@ function TotRow({ label, totals, variant }: { label: string; totals: { tp: numbe
     : "bg-primary/[0.03] font-medium text-muted-foreground";
   return (
     <tr className={cls}>
-      <td colSpan={6} className="px-2.5 py-2 text-xs"><b>{label}</b></td>
+      <td colSpan={7} className="px-2.5 py-2 text-xs"><b>{label}</b></td>
       <td className="px-2.5 py-2 text-xs"><b>{fEur(totals.tp)}</b></td>
       <td colSpan={3} />
       <td className="px-2.5 py-2 text-xs"><b>{fEur(totals.np)}</b></td>
