@@ -228,8 +228,8 @@ export function QuotationsToInvoicePanel() {
                 <div key={c.id} className="rounded-lg border">
                   <div className="p-3 border-b bg-muted/30 flex items-center justify-between">
                     <div className="min-w-0">
-                      <div className="font-medium truncate">{c.name}</div>
-                      <div className="text-xs text-muted-foreground truncate">{c.client}</div>
+                      <div className="font-semibold text-foreground truncate">{c.client}</div>
+                      <div className="text-xs text-muted-foreground truncate">{c.sites?.city || "—"} · {c.name}</div>
                     </div>
                     <Badge variant="outline" className="capitalize">{c.status.replace(/_/g, " ")}</Badge>
                   </div>
