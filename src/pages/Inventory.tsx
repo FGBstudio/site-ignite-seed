@@ -40,6 +40,7 @@ import type { Product } from "@/types/custom-tables";
 interface AllocationDetail {
   project_name: string;
   client: string;
+  city: string | null;
   region: string;
   status: string;
   quantity: number;
