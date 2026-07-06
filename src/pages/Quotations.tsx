@@ -329,9 +329,9 @@ export default function Quotations() {
           <tbody>
             {filtered.map((r) => (
               <tr key={r.id} className="border-b last:border-b-0 hover:bg-muted/50">
-                <td className="p-3 text-foreground">{r.client}</td>
+                <td className="p-3 font-semibold text-foreground">{r.client}</td>
                 <td className="p-3 text-muted-foreground">{r.sites?.city || "—"}</td>
-                <td className="p-3 font-medium text-foreground">{r.name}</td>
+                <td className="p-3 text-foreground">{r.name}</td>
                 <td className="p-3">{r.region ? <Badge variant="outline">{r.region}</Badge> : "—"}</td>
                 <td className="p-3 font-medium">{r.total_fees != null ? `€${Number(r.total_fees).toLocaleString()}` : "—"}</td>
                 <td className="p-3 text-muted-foreground">{r.handover_date ? format(new Date(r.handover_date), "dd MMM yyyy") : "—"}</td>
