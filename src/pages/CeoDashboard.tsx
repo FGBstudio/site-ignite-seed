@@ -434,9 +434,9 @@ function TabProgetti({ tasks, projects }: { tasks: CertTaskRow[]; projects: any[
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[60px]">ID</TableHead>
-                <TableHead>Name</TableHead>
                 <TableHead>Client</TableHead>
+                <TableHead>City</TableHead>
+                <TableHead>Project</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Start Date</TableHead>
                 <TableHead>Handover</TableHead>
@@ -455,9 +455,9 @@ function TabProgetti({ tasks, projects }: { tasks: CertTaskRow[]; projects: any[
                   className="cursor-pointer hover:bg-muted/50"
                   onClick={() => navigate(`/projects/${p.id}`)}
                 >
-                  <TableCell className="text-xs text-muted-foreground font-mono">{p.id.slice(0, 6)}</TableCell>
-                  <TableCell className="font-medium text-foreground">{p.name}</TableCell>
-                  <TableCell className="text-foreground">{p.client}</TableCell>
+                  <TableCell className="font-semibold text-foreground">{p.client || "—"}</TableCell>
+                  <TableCell className="text-muted-foreground">{p.city || "—"}</TableCell>
+                  <TableCell className="text-foreground">{p.name}</TableCell>
                   <TableCell>
                     <Badge variant="outline" className={cn("text-xs border", {
                       "bg-primary/10 text-primary border-primary/20": p.status === "in_corso" || p.status === "Design" || p.status === "Construction",
