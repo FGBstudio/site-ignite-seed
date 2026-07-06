@@ -151,7 +151,7 @@ function EnergyTable() {
     URL.revokeObjectURL(url);
   };
 
-  const COL_SITE = 13;
+  const COL_SITE = 15;
   const COL_HW = 9;
   const COL_COST = 9;
   const COL_FIN = 9;
