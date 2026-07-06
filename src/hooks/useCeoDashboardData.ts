@@ -128,7 +128,7 @@ export function useActiveProjects() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("certifications")
-        .select("*")
+        .select("*, sites ( city )")
         .order("handover_date", { ascending: true });
       if (error) throw error;
       const certs = (data || []) as any[];
@@ -152,6 +152,7 @@ export function useActiveProjects() {
         id: c.id,
         name: c.name || c.cert_type || "Unnamed",
         client: c.client,
+        city: c.sites?.city ?? null,
         region: c.region,
         pm_id: c.pm_id,
         handover_date: c.handover_date,
