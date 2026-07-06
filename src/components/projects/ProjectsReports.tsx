@@ -426,8 +426,9 @@ export function ProjectsReports() {
                   <div key={p.id} className="rounded-2xl border border-destructive/30 bg-destructive/5 p-4">
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="font-medium text-foreground truncate">{p.name}</p>
-                        <p className="text-xs text-muted-foreground truncate">{p.client} · {p.pm_name || "—"}</p>
+                        <p className="font-semibold text-foreground truncate">{p.client}</p>
+                        <p className="text-xs text-muted-foreground truncate">{p.city || "—"} · {p.name}</p>
+                        <p className="text-[11px] text-muted-foreground truncate">PM {p.pm_name || "—"}</p>
                       </div>
                       <div className="text-right shrink-0">
                         <p className="text-sm font-semibold text-destructive tabular-nums">
