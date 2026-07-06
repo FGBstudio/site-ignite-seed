@@ -180,16 +180,18 @@ export function QuotationsToInvoicePanel() {
             <div className="table-container overflow-x-auto">
               <table className="w-full text-sm">
                 <thead><tr className="border-b">
-                  <th className="text-left p-3 font-medium text-muted-foreground">Project</th>
                   <th className="text-left p-3 font-medium text-muted-foreground">Client</th>
+                  <th className="text-left p-3 font-medium text-muted-foreground">City</th>
+                  <th className="text-left p-3 font-medium text-muted-foreground">Project</th>
                   <th className="text-left p-3 font-medium text-muted-foreground">Total Fees</th>
                   <th className="p-3" />
                 </tr></thead>
                 <tbody>
                   {readyToInvoice.map((c) => (
                     <tr key={c.id} className="border-b last:border-b-0 hover:bg-muted/40">
-                      <td className="p-3 font-medium">{c.name}</td>
-                      <td className="p-3">{c.client}</td>
+                      <td className="p-3 font-semibold text-foreground">{c.client}</td>
+                      <td className="p-3 text-muted-foreground">{c.sites?.city || "—"}</td>
+                      <td className="p-3">{c.name}</td>
                       <td className="p-3">{c.total_fees != null ? `€${Number(c.total_fees).toLocaleString()}` : "—"}</td>
                       <td className="p-3 text-right">
                         <Button size="sm" className="gap-1.5" onClick={() => { setSchemeChoice("quotation_construction_50_50"); setSchemeDialog(c); }}>
