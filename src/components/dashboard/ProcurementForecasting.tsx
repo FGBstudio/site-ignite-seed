@@ -335,14 +335,15 @@ export function ProcurementForecasting() {
                     {/* Breakdown Rows */}
                     {item.projectBreakdown.map((pb) => (
                       <TableRow key={`${item.product.id}-${pb.projectId}`} className="hover:bg-muted/30">
+                        <TableCell className="font-semibold text-foreground">{pb.client}</TableCell>
+                        <TableCell className="text-muted-foreground">{pb.city}</TableCell>
+                        <TableCell>{pb.projectName}</TableCell>
                         <TableCell className="font-medium text-muted-foreground">{item.product.name}</TableCell>
                         <TableCell className="text-center font-semibold">{pb.quantity}</TableCell>
                         <TableCell>{pb.pmName}</TableCell>
                         <TableCell>
                           <Badge variant="outline" className="text-xs">{pb.region}</Badge>
                         </TableCell>
-                        <TableCell>{pb.client}</TableCell>
-                        <TableCell>{pb.projectName}</TableCell>
                         <TableCell className="capitalize text-muted-foreground">
                           {pb.status.replace(/_/g, ' ')}
                         </TableCell>
