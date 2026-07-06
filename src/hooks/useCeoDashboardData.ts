@@ -33,6 +33,7 @@ export interface ProjectRow {
   id: string;
   name: string;
   client: string;
+  city: string | null;
   region: string;
   pm_id: string | null;
   handover_date: string;
