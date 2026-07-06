@@ -378,8 +378,9 @@ export function ProjectsReports() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <PauseCircle className="h-4 w-4 text-warning shrink-0" />
-                        <span className="font-medium text-foreground">{project.name}</span>
-                        <span className="text-xs text-muted-foreground">· {project.client}</span>
+                        <span className="font-semibold text-foreground">{project.client}</span>
+                        <span className="text-xs text-muted-foreground">· {project.city || "—"}</span>
+                        <span className="text-sm text-foreground">· {project.name}</span>
                         {project.pm_name && <span className="text-xs text-muted-foreground">· PM {project.pm_name}</span>}
                       </div>
                       <p className="mt-2 text-sm text-foreground">{alert.title}</p>
