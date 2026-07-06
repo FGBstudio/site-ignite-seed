@@ -49,7 +49,7 @@ export function InvoicesDaEmettere() {
           <table className="w-full border-collapse">
             <thead>
               <tr className="bg-background">
-                {["Brand","Progetto","Step da fatturare","Valore €","Priorità","Entità","Fine costruzione","Blocco / Note","#"].map((h) => (
+                {["Client (Brand)","City","Progetto","Step da fatturare","Valore €","Priorità","Entità","Fine costruzione","Blocco / Note","#"].map((h) => (
                   <th key={h} className="text-left px-2.5 py-2 text-[9px] uppercase tracking-wider text-muted-foreground border-b border-border whitespace-nowrap">{h}</th>
                 ))}
               </tr>
