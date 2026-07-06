@@ -304,7 +304,7 @@ export function ProcurementForecasting() {
                   <Fragment key={item.product.id}>
                     {/* Device Summary Row */}
                     <TableRow className="bg-muted/20 border-t-2">
-                      <TableCell colSpan={8} className="py-3">
+                      <TableCell colSpan={9} className="py-3">
                         <div className="flex items-center justify-between px-2">
                           <div className="flex items-center gap-4">
                             <span className="font-bold text-foreground text-base">{item.product.name}</span>
