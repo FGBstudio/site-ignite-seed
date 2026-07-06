@@ -321,8 +321,9 @@ export function ProjectsReports() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-left text-[11px] uppercase tracking-wider text-muted-foreground">
-                    <th className="py-2 pr-4 font-medium">Project</th>
                     <th className="py-2 pr-4 font-medium">Client</th>
+                    <th className="py-2 pr-4 font-medium">City</th>
+                    <th className="py-2 pr-4 font-medium">Project</th>
                     <th className="py-2 pr-4 font-medium">PM</th>
                     <th className="py-2 pr-4 font-medium">Phase</th>
                     <th className="py-2 pr-4 font-medium">Late Milestone</th>
@@ -333,8 +334,9 @@ export function ProjectsReports() {
                 <tbody>
                   {lateProjects.map(({ project, late }) => (
                     <tr key={project.id} className="border-b last:border-b-0 hover:bg-muted/40">
-                      <td className="py-3 pr-4 font-medium text-foreground">{project.name}</td>
-                      <td className="py-3 pr-4 text-muted-foreground">{project.client}</td>
+                      <td className="py-3 pr-4 font-semibold text-foreground">{project.client}</td>
+                      <td className="py-3 pr-4 text-muted-foreground">{project.city || "—"}</td>
+                      <td className="py-3 pr-4 text-foreground">{project.name}</td>
                       <td className="py-3 pr-4 text-muted-foreground">{project.pm_name || "—"}</td>
                       <td className="py-3 pr-4">
                         <Badge variant="outline" className="text-xs">{project.macro_phase || "—"}</Badge>
