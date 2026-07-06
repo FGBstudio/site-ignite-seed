@@ -13,6 +13,7 @@ interface ProjectDemand {
   projectId: string;
   projectName: string;
   client: string;
+  city: string;
   region: string;
   quantity: number;
   pmName: string;
