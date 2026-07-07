@@ -295,6 +295,7 @@ export function useAdminPlannerData() {
           brand_name: c.sites?.brand_id ? brandsMap.get(c.sites.brand_id) || null : null,
           project_allocations: allocations, certification_milestones: certMilestones,
           plannerData, macro_phase: macroPhase, is_deadline_critical,
+          on_hold: !!c.on_hold, on_hold_reason: c.on_hold_reason || null, on_hold_at: c.on_hold_at || null, on_hold_by: c.on_hold_by || null,
         };
       });
     },
