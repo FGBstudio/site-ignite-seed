@@ -25,6 +25,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { HoldToggleButton } from "@/components/projects/HoldToggleButton";
+import { AlertOctagon } from "lucide-react";
 
 const statusColors: Record<string, string> = {
   Design: "bg-primary/10 text-primary border-primary/20",
