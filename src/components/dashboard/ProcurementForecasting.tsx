@@ -335,8 +335,8 @@ export function ProcurementForecasting() {
                     {/* Breakdown Rows */}
                     {item.projectBreakdown.map((pb) => (
                       <TableRow key={`${item.product.id}-${pb.projectId}`} className="hover:bg-muted/30">
-                        <TableCell className="font-semibold text-foreground">{pb.client}</TableCell>
-                        <TableCell className="text-muted-foreground">{pb.city}</TableCell>
+                        <TableCell className="font-semibold text-foreground uppercase">{pb.client}</TableCell>
+                        <TableCell className="text-muted-foreground uppercase">{pb.city}</TableCell>
                         <TableCell>{pb.projectName}</TableCell>
                         <TableCell className="font-medium text-muted-foreground">{item.product.name}</TableCell>
                         <TableCell className="text-center font-semibold">{pb.quantity}</TableCell>

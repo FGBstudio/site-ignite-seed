@@ -483,8 +483,8 @@ function TabProgetti({ tasks, projects }: { tasks: CertTaskRow[]; projects: any[
                   className="cursor-pointer hover:bg-muted/50"
                   onClick={() => navigate(`/projects/${p.id}`)}
                 >
-                  <TableCell className="font-semibold text-foreground">{p.client || "—"}</TableCell>
-                  <TableCell className="text-muted-foreground">{p.city || "—"}</TableCell>
+                  <TableCell className="font-semibold text-foreground uppercase">{p.client || "—"}</TableCell>
+                  <TableCell className="text-muted-foreground uppercase">{p.city || "—"}</TableCell>
                   <TableCell className="text-foreground">{p.name}</TableCell>
                   <TableCell>
                     <Badge variant="outline" className={cn("text-xs border", {

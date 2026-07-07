@@ -94,8 +94,8 @@ export function ProjectBurnRate() {
                   const pct = r.pct_used ?? 0;
                   return (
                     <TableRow key={r.certification_id}>
-                      <TableCell className="font-semibold text-foreground">{r.client || "—"}</TableCell>
-                      <TableCell className="text-muted-foreground">{cityMap.get(r.certification_id) || "—"}</TableCell>
+                      <TableCell className="font-semibold text-foreground uppercase">{r.client || "—"}</TableCell>
+                      <TableCell className="text-muted-foreground uppercase">{cityMap.get(r.certification_id) || "—"}</TableCell>
                       <TableCell className="text-foreground">{r.certification_name || "—"}</TableCell>
                       <TableCell className="text-right tabular-nums">
                         {editing ? (
