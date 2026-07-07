@@ -199,38 +199,33 @@ export function PMProjectsBoard() {
   const financialFilter = searchParams.get("filter") === "financial";
 
   const [search, setSearch] = useState("");
-  const [clientFilter, setClientFilter] = useState("all");
-  const [regionFilter, setRegionFilter] = useState("all");
-  const [cityFilter, setCityFilter] = useState("all");
+  const [colFilters, setColFilters] = useState<ColFiltersMap>({});
+  const [sortConfig, setSortConfig] = useState<SortConfig>(null);
 
   const baseProjects = useMemo(() => {
     if (!financialFilter || !financialAlerts) return projects as PMProjectView[];
     return (projects as PMProjectView[]).filter((p) => financialAlerts.byProject.has(p.id));
   }, [projects, financialFilter, financialAlerts]);
 
-  const clientOptions = useMemo(
-    () => Array.from(new Set(baseProjects.map((p) => p.client).filter(Boolean))).sort(),
-    [baseProjects]
-  );
-  const regionOptions = useMemo(
-    () => Array.from(new Set(baseProjects.map((p) => p.region).filter(Boolean))).sort(),
-    [baseProjects]
-  );
-  const cityOptions = useMemo(
-    () => Array.from(new Set(baseProjects.map((p) => p.sites?.city).filter((c): c is string => !!c))).sort(),
-    [baseProjects]
+  const resolvers = useMemo(
+    () => ({
+      client: (p: PMProjectView) => p.client || "",
+      city: (p: PMProjectView) => p.sites?.city || "",
+      region: (p: PMProjectView) => p.region || "",
+      status: (p: PMProjectView) => p.setup_status || "",
+      cert_type: (p: PMProjectView) => p.cert_type || "",
+    }),
+    []
   );
 
   const visibleProjects = useMemo(() => {
     const term = search.trim().toLowerCase();
-    return baseProjects.filter((p) => {
-      if (clientFilter !== "all" && p.client !== clientFilter) return false;
-      if (regionFilter !== "all" && p.region !== regionFilter) return false;
-      if (cityFilter !== "all" && p.sites?.city !== cityFilter) return false;
-      if (term && !p.name.toLowerCase().includes(term)) return false;
-      return true;
-    });
-  }, [baseProjects, clientFilter, regionFilter, cityFilter, search]);
+    const searched = term
+      ? baseProjects.filter((p) => p.name.toLowerCase().includes(term))
+      : baseProjects;
+    return applyColumnFiltersAndSort(searched, colFilters, sortConfig, resolvers);
+  }, [baseProjects, search, colFilters, sortConfig, resolvers]);
+
 
   const groupedProjects = useMemo(
     () => ({
