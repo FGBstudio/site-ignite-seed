@@ -665,7 +665,11 @@ export default function Projects() {
                       </>
                     )}
                     <th className="p-4">
-                      <ExcelHeaderCell title="Handover" colKey="handover_date" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
+                      {statusTab === "certificato" ? (
+                        <ExcelHeaderCell title="Issue Date" colKey="issued_date" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
+                      ) : (
+                        <ExcelHeaderCell title="Handover" colKey="handover_date" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
+                      )}
                     </th>
                     <th className="p-4">
                       <ExcelHeaderCell title="Config Status" colKey="setup_status" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
@@ -757,19 +761,27 @@ export default function Projects() {
                           </>
                         )}
                         <td className="p-4">
-                          <span
-                            className={cn(
-                              "font-medium",
-                              project.is_deadline_critical
-                                ? "text-destructive"
-                                : daysLeft <= 30
-                                ? "text-warning"
-                                : "text-foreground"
-                            )}
-                          >
-                            {format(new Date(project.handover_date), "dd MMM yyyy")}
-                          </span>
-                          <span className="text-xs text-muted-foreground ml-1">({daysLeft}d)</span>
+                          {statusTab === "certificato" ? (
+                            <span className="font-medium text-foreground">
+                              {project.issued_date ? format(new Date(project.issued_date), "dd MMM yyyy") : "—"}
+                            </span>
+                          ) : (
+                            <>
+                              <span
+                                className={cn(
+                                  "font-medium",
+                                  project.is_deadline_critical
+                                    ? "text-destructive"
+                                    : daysLeft <= 30
+                                    ? "text-warning"
+                                    : "text-foreground"
+                                )}
+                              >
+                                {format(new Date(project.handover_date), "dd MMM yyyy")}
+                              </span>
+                              <span className="text-xs text-muted-foreground ml-1">({daysLeft}d)</span>
+                            </>
+                          )}
                         </td>
                         <td className="p-4">
                           <Badge variant="outline" className={cn("border", statusMeta.className)}>
