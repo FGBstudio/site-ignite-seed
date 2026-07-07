@@ -1,41 +1,68 @@
-## Diagnosi
+## Obiettivo
 
-**Non esiste alcuna regola nel codice** che concateni `client`/`brand` con il `name` della certificazione nella tabella Quotations. La cella "Project" in `src/pages/Quotations.tsx` (riga 334) renderizza solo `{r.name}`, identica a quella di Operations (`Projects.tsx`).
+Aggiungere filtri per colonna alla tabella "Projects" mostrata in:
 
-La differenza fra le due schermate è nei **dati**, non nel render:
+1. **Admin Dashboard** → tab "Projects" (`CeoDashboard.tsx` → `TabProgetti`)
+2. **PM Dashboard** (`PMProjectsBoard.tsx`) — attualmente ha solo Search + 3 Select (Client/Region/City): sostituirli con lo stesso sistema per-colonna della sezione Operations.
 
-| Client | `certifications.name` in DB |
-|---|---|
-| MICHAEL KORS | `Fashion Outlet`, `Malaga`, `Meadowhall` … (pulito) |
-| BRIONI | `BRIONI Palm beach`, `BRIONI Ginza`, `BRIONI SKP` … (prefissato) |
+La sezione **Operations** (`src/pages/Projects.tsx`) già usa il filtro stile Excel (sort ASC/DESC, ricerca testuale + checklist di valori distinti) tramite il componente `ColumnFilter` interno. Verrà estratto e riusato.
 
-I record BRIONI sono stati salvati con il brand già scritto dentro `name` (probabilmente digitato a mano nel wizard, che precompila `projectName` dal Site Name). Operations sembra "pulita" solo perché quei progetti non hanno il prefisso in DB.
+## Piano
 
-## Cosa propongo
+### 1. Estrarre `ColumnFilter` come componente condiviso
 
-**1. Cleanup dati (una tantum)** — migration SQL che rimuove il prefisso `<client>` iniziale da `certifications.name` quando presente, per tutti i record:
+- Nuovo file: `src/components/common/ColumnFilter.tsx`
+- Sposta il componente `ColumnFilter` + i tipi `ColFilterState` / `SortConfig` da `src/pages/Projects.tsx` senza cambiare comportamento.
+- `Projects.tsx` continua a funzionare importandolo dal nuovo path.
 
-```sql
-UPDATE public.certifications
-SET name = trim(regexp_replace(name, '^' || client || '\s+', '', 'i'))
-WHERE name ILIKE client || ' %';
-```
+### 2. Filtri nell'Admin Dashboard – tab Projects
 
-Esempi risultato:
-- `BRIONI Palm beach` → `Palm beach`
-- `BRIONI SKP` → `SKP`
-- `Fashion Outlet` (MK) → invariato
+File: `src/pages/CeoDashboard.tsx`, funzione `TabProgetti`.
 
-**2. Nessuna modifica al rendering** — Quotations e Operations continueranno a mostrare solo `r.name`, e dopo il cleanup risulteranno coerenti (client nella colonna Client, project pulito nella colonna Project).
+- Stato locale: `colFilters` (record per colonna) + `sortConfig`.
+- Header colonne (Client, City, Project, Status, Start Date, Handover, PM) avvolti con `ColumnFilter`, con `uniqueValues` calcolati dai dati della tabella.
+- Colonna "Progress" resta senza filtro (valore numerico calcolato).
+- Applicazione filtri + sort prima del render, identica a Operations.
 
-**3. Nessun cambiamento al wizard** — l'utente resta libero di scrivere il nome che preferisce; se in futuro dovesse ridigitare "BRIONI xxx" a mano, resterà così (il cleanup è puntuale sui dati attuali). Se vuoi, in un secondo giro posso aggiungere un warning nel wizard se il nome inizia col client, ma non è incluso qui per non alterare la UX.
+### 3. Filtri nella PM Dashboard
 
-## File toccati
+File: `src/components/projects/PMProjectsBoard.tsx`.
 
-- Nuova migration Supabase (solo `UPDATE`, nessun cambio schema)
-- Nessun file frontend modificato
+- Rimuovere i tre Select (Client / Region / City) e la Search bar attuali (o mantenerli, da confermare — vedi domanda in fondo).
+- Poiché la vista PM è **Kanban** (card) e non tabella, il filtro per-colonna Excel-style non si applica direttamente. Due opzioni:
+  - **(a)** aggiungere una vista "Table" (nuova tab accanto a Kanban / Global Planner) con le stesse colonne dell'Admin Dashboard e i filtri per colonna;
+  - **(b)** convertire i Select esistenti in filtri multi-select per: Client, City, Region, Status, PM, con ricerca — mantenendo il layout Kanban.
 
-## Rischi
+Attendo la tua conferma sull'opzione preferita (vedi domanda finale).
 
-- L'UPDATE è idempotente e case-insensitive, ma rimuove SOLO il prefisso esatto `<client> ` (client + spazio). Nomi come `BRIONI-Palm` (senza spazio) non verrebbero toccati.
-- Nessun impatto su relazioni/foreign key: `name` è un campo testuale libero.
+---
+
+## Sorgente dati per ciascuna colonna (tabella Admin Dashboard / Operations)
+
+Hook: `useActiveProjects()` in `src/hooks/useCeoDashboardData.ts` — query su `certifications` con join a `sites` e `profiles`.
+
+
+| Colonna    | Sorgente                                                                                                     |
+| ---------- | ------------------------------------------------------------------------------------------------------------ |
+| Client     | `certifications.client`                                                                                      |
+| City       | `certifications.sites.city` (join `sites` via `site_id`)                                                     |
+| Project    | `certifications.name`                                                                                        |
+| Status     | `certifications.status` (valori: `da_configurare`, `in_corso`, `certificato`, `completato`, `on_hold`, ecc.) |
+| Start Date | Calcolato: minimo `start_date` tra i `cert_tasks` della certificazione (nessuna colonna dedicata)            |
+| Handover   | `certifications.handover_date`                                                                               |
+| PM         | `profiles.display_name` / `full_name` risolto da `certifications.pm_id`                                      |
+| Progress   | Calcolato: `cert_tasks` completati / totali della certificazione                                             |
+
+
+Nota: in PM Dashboard le stesse colonne provengono da `usePMDashboard()` (stessa tabella `certifications`, filtrata per `pm_id = auth.uid()`), con `project_allocations` e `certification_milestones` in join per lo stato di setup (Timeline / Hardware / Scorecard).
+
+---
+
+## Domanda per procedere
+
+Nella **PM Dashboard**, vuoi:
+
+- **(a)** una nuova vista tabella (nuova tab, con filtri per colonna identici ad Admin Dashboard), lasciando invariata la vista Kanban, **oppure**
+- **(b)** trasformare gli attuali Select in filtri multi-select con ricerca, mantenendo solo Kanban + Global Planner?  
+  
+B
