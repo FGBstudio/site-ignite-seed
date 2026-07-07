@@ -60,10 +60,10 @@ export function ProjectContextCells({
   const stickyCls = sticky ? "sticky left-0 bg-background z-10" : "";
   return (
     <>
-      <TableCell className={cn("font-semibold text-foreground", stickyCls)}>
+      <TableCell className={cn("font-semibold text-foreground uppercase", stickyCls)}>
         {readClient(row)}
       </TableCell>
-      <TableCell className="text-muted-foreground">{readCity(row)}</TableCell>
+      <TableCell className="text-muted-foreground uppercase">{readCity(row)}</TableCell>
       <TableCell className="text-foreground">{readProjectName(row)}</TableCell>
     </>
   );
