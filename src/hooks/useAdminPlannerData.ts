@@ -162,6 +162,7 @@ export function useAdminPlannerData() {
             } as unknown as GanttRowData,
             macro_phase: macroPhase, is_deadline_critical: false,
             total_fees: c.total_fees, quotation_sent_date: c.quotation_sent_date, sqm: c.sqm, services_fees: c.services_fees, gbci_fees: c.gbci_fees,
+            on_hold: !!c.on_hold, on_hold_reason: c.on_hold_reason || null, on_hold_at: c.on_hold_at || null, on_hold_by: c.on_hold_by || null,
           };
         }
 
