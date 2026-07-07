@@ -28,6 +28,12 @@ import {
 import { format, differenceInDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
+import {
+  ColumnFilter,
+  applyColumnFiltersAndSort,
+  type ColFiltersMap,
+  type SortConfig,
+} from "@/components/common/ColumnFilter";
 import { ProjectBurnRate, ResourceMonitor } from "@/components/dashboard/HoursAnalytics";
 
 const COLORS = {
