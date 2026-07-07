@@ -28,6 +28,12 @@ import {
 import { format, differenceInDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
+import {
+  ColumnFilter,
+  applyColumnFiltersAndSort,
+  type ColFiltersMap,
+  type SortConfig,
+} from "@/components/common/ColumnFilter";
 import { ProjectBurnRate, ResourceMonitor } from "@/components/dashboard/HoursAnalytics";
 
 const COLORS = {
@@ -405,6 +411,8 @@ function TabRisorse({ tasks, projects }: { tasks: CertTaskRow[]; projects: Proje
 
 function TabProgetti({ tasks, projects }: { tasks: CertTaskRow[]; projects: any[] }) {
   const navigate = useNavigate();
+  const [colFilters, setColFilters] = useState<ColFiltersMap>({});
+  const [sortConfig, setSortConfig] = useState<SortConfig>(null);
 
   const projectData = useMemo(() => {
     const tasksByProject = new Map<string, CertTaskRow[]>();
@@ -413,10 +421,10 @@ function TabProgetti({ tasks, projects }: { tasks: CertTaskRow[]; projects: any[
       tasksByProject.get(t.certification_id)!.push(t);
     }
 
-    return projects.map(p => {
+    return projects.map((p) => {
       const pTasks = tasksByProject.get(p.id) || [];
       const total = pTasks.length;
-      const completed = pTasks.filter(t => t.status === "Completed").length;
+      const completed = pTasks.filter((t) => t.status === "Completed").length;
       const progress = total > 0 ? Math.round((completed / total) * 100) : 0;
       const minStart = pTasks.reduce((min, t) => {
         if (!t.start_date) return min;
@@ -427,6 +435,26 @@ function TabProgetti({ tasks, projects }: { tasks: CertTaskRow[]; projects: any[
     });
   }, [tasks, projects]);
 
+  const resolvers = useMemo(
+    () => ({
+      client: (r: any) => r.client || "",
+      city: (r: any) => r.city || "",
+      name: (r: any) => r.name || "",
+      status: (r: any) => r.status || "da_configurare",
+      minStart: (r: any) => (r.minStart ? format(new Date(r.minStart), "dd MMM yy") : ""),
+      handover_date: (r: any) => (r.handover_date ? format(new Date(r.handover_date), "dd MMM yy") : ""),
+      pm_display_name: (r: any) => r.pm_display_name || "",
+    }),
+    []
+  );
+
+  const visible = useMemo(
+    () => applyColumnFiltersAndSort(projectData, colFilters, sortConfig, resolvers),
+    [projectData, colFilters, sortConfig, resolvers]
+  );
+
+  const filterProps = { colFilters, setColFilters, sortConfig, setSortConfig };
+
   return (
     <Card>
       <CardContent className="pt-4">
@@ -434,22 +462,22 @@ function TabProgetti({ tasks, projects }: { tasks: CertTaskRow[]; projects: any[
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Client</TableHead>
-                <TableHead>City</TableHead>
-                <TableHead>Project</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Start Date</TableHead>
-                <TableHead>Handover</TableHead>
-                <TableHead>PM</TableHead>
+                <TableHead><ColumnFilter title="Client" colKey="client" rows={projectData} getValue={resolvers.client} {...filterProps} /></TableHead>
+                <TableHead><ColumnFilter title="City" colKey="city" rows={projectData} getValue={resolvers.city} {...filterProps} /></TableHead>
+                <TableHead><ColumnFilter title="Project" colKey="name" rows={projectData} getValue={resolvers.name} {...filterProps} /></TableHead>
+                <TableHead><ColumnFilter title="Status" colKey="status" rows={projectData} getValue={resolvers.status} {...filterProps} /></TableHead>
+                <TableHead><ColumnFilter title="Start Date" colKey="minStart" rows={projectData} getValue={resolvers.minStart} {...filterProps} /></TableHead>
+                <TableHead><ColumnFilter title="Handover" colKey="handover_date" rows={projectData} getValue={resolvers.handover_date} {...filterProps} /></TableHead>
+                <TableHead><ColumnFilter title="PM" colKey="pm_display_name" rows={projectData} getValue={resolvers.pm_display_name} {...filterProps} /></TableHead>
                 <TableHead className="w-[180px]">Progress</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {projectData.length === 0 ? (
+              {visible.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={8} className="text-center text-muted-foreground py-8">No active projects</TableCell>
                 </TableRow>
-              ) : projectData.map(p => (
+              ) : visible.map(p => (
                 <TableRow
                   key={p.id}
                   className="cursor-pointer hover:bg-muted/50"
@@ -485,6 +513,7 @@ function TabProgetti({ tasks, projects }: { tasks: CertTaskRow[]; projects: any[
     </Card>
   );
 }
+
 
 function TabPagamenti({ payments, projects }: { payments: CertPaymentRow[]; projects: any[] }) {
   const [selectedProject, setSelectedProject] = useState<string | null>(null);

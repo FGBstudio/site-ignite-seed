@@ -25,6 +25,12 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search } from "lucide-react";
 import { FGBPlanner } from "@/components/dashboard/FGBPlanner";
+import {
+  ColumnFilter,
+  applyColumnFiltersAndSort,
+  type ColFiltersMap,
+  type SortConfig,
+} from "@/components/common/ColumnFilter";
 
 type PMProjectView = PMProject & {
   project_subtype?: string | null;
@@ -193,38 +199,33 @@ export function PMProjectsBoard() {
   const financialFilter = searchParams.get("filter") === "financial";
 
   const [search, setSearch] = useState("");
-  const [clientFilter, setClientFilter] = useState("all");
-  const [regionFilter, setRegionFilter] = useState("all");
-  const [cityFilter, setCityFilter] = useState("all");
+  const [colFilters, setColFilters] = useState<ColFiltersMap>({});
+  const [sortConfig, setSortConfig] = useState<SortConfig>(null);
 
   const baseProjects = useMemo(() => {
     if (!financialFilter || !financialAlerts) return projects as PMProjectView[];
     return (projects as PMProjectView[]).filter((p) => financialAlerts.byProject.has(p.id));
   }, [projects, financialFilter, financialAlerts]);
 
-  const clientOptions = useMemo(
-    () => Array.from(new Set(baseProjects.map((p) => p.client).filter(Boolean))).sort(),
-    [baseProjects]
-  );
-  const regionOptions = useMemo(
-    () => Array.from(new Set(baseProjects.map((p) => p.region).filter(Boolean))).sort(),
-    [baseProjects]
-  );
-  const cityOptions = useMemo(
-    () => Array.from(new Set(baseProjects.map((p) => p.sites?.city).filter((c): c is string => !!c))).sort(),
-    [baseProjects]
+  const resolvers = useMemo(
+    () => ({
+      client: (p: PMProjectView) => p.client || "",
+      city: (p: PMProjectView) => p.sites?.city || "",
+      region: (p: PMProjectView) => p.region || "",
+      status: (p: PMProjectView) => p.setup_status || "",
+      cert_type: (p: PMProjectView) => p.cert_type || "",
+    }),
+    []
   );
 
   const visibleProjects = useMemo(() => {
     const term = search.trim().toLowerCase();
-    return baseProjects.filter((p) => {
-      if (clientFilter !== "all" && p.client !== clientFilter) return false;
-      if (regionFilter !== "all" && p.region !== regionFilter) return false;
-      if (cityFilter !== "all" && p.sites?.city !== cityFilter) return false;
-      if (term && !p.name.toLowerCase().includes(term)) return false;
-      return true;
-    });
-  }, [baseProjects, clientFilter, regionFilter, cityFilter, search]);
+    const searched = term
+      ? baseProjects.filter((p) => p.name.toLowerCase().includes(term))
+      : baseProjects;
+    return applyColumnFiltersAndSort(searched, colFilters, sortConfig, resolvers);
+  }, [baseProjects, search, colFilters, sortConfig, resolvers]);
+
 
   const groupedProjects = useMemo(
     () => ({
@@ -298,27 +299,14 @@ export function PMProjectsBoard() {
                 className="pl-9"
               />
             </div>
-            <Select value={clientFilter} onValueChange={setClientFilter}>
-              <SelectTrigger className="w-44"><SelectValue placeholder="Client" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Clients</SelectItem>
-                {clientOptions.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={regionFilter} onValueChange={setRegionFilter}>
-              <SelectTrigger className="w-40"><SelectValue placeholder="Region" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Regions</SelectItem>
-                {regionOptions.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={cityFilter} onValueChange={setCityFilter}>
-              <SelectTrigger className="w-40"><SelectValue placeholder="City" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Cities</SelectItem>
-                {cityOptions.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <div className="flex flex-wrap items-center gap-4 px-3 py-2 rounded-lg border border-border/60 bg-muted/30">
+              <ColumnFilter title="Client" colKey="client" rows={baseProjects} getValue={resolvers.client} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
+              <ColumnFilter title="City" colKey="city" rows={baseProjects} getValue={resolvers.city} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
+              <ColumnFilter title="Region" colKey="region" rows={baseProjects} getValue={resolvers.region} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
+              <ColumnFilter title="Status" colKey="status" rows={baseProjects} getValue={resolvers.status} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
+              <ColumnFilter title="Cert Type" colKey="cert_type" rows={baseProjects} getValue={resolvers.cert_type} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
+            </div>
+
           </div>
           <Tabs defaultValue="da_configurare" className="space-y-6">
             <TabsList className="grid w-full grid-cols-3">
