@@ -801,6 +801,11 @@ export type Database = {
           issued_date: string | null
           level: string | null
           name: string | null
+          on_hold: boolean
+          on_hold_at: string | null
+          on_hold_by: string | null
+          on_hold_previous_status: string | null
+          on_hold_reason: string | null
           planned_handover_date: string | null
           pm_id: string | null
           po_sign_date: string | null
@@ -842,6 +847,11 @@ export type Database = {
           issued_date?: string | null
           level?: string | null
           name?: string | null
+          on_hold?: boolean
+          on_hold_at?: string | null
+          on_hold_by?: string | null
+          on_hold_previous_status?: string | null
+          on_hold_reason?: string | null
           planned_handover_date?: string | null
           pm_id?: string | null
           po_sign_date?: string | null
@@ -883,6 +893,11 @@ export type Database = {
           issued_date?: string | null
           level?: string | null
           name?: string | null
+          on_hold?: boolean
+          on_hold_at?: string | null
+          on_hold_by?: string | null
+          on_hold_previous_status?: string | null
+          on_hold_reason?: string | null
           planned_handover_date?: string | null
           pm_id?: string | null
           po_sign_date?: string | null
@@ -5318,6 +5333,14 @@ export type Database = {
         Args: { p_rows: number; p_site_id: string }
         Returns: undefined
       }
+      admin_hold_certification: {
+        Args: { _cert_id: string; _reason: string }
+        Returns: undefined
+      }
+      admin_release_certification: {
+        Args: { _cert_id: string }
+        Returns: undefined
+      }
       aggregate_daily: { Args: { p_date?: string }; Returns: number }
       aggregate_energy_daily: {
         Args: { p_date?: string }
@@ -5587,6 +5610,7 @@ export type Database = {
         Returns: Database["public"]["Enums"]["device_type"]
       }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
+      is_cert_on_hold: { Args: { _cert_id: string }; Returns: boolean }
       is_cert_pm: {
         Args: { p_certification_id: string; p_user_id: string }
         Returns: boolean

@@ -22,6 +22,7 @@ import { DataImporter } from "@/components/admin/DataImporter";
 import { PMProjectsBoard } from "@/components/projects/PMProjectsBoard";
 import { AdminTimeline } from "@/components/admin/AdminTimeline";
 import { ProjectsReports } from "@/components/projects/ProjectsReports";
+import { HoldToggleButton } from "@/components/projects/HoldToggleButton";
 import { useAdminPlannerData, type AdminPlannerProject } from "@/hooks/useAdminPlannerData";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -690,7 +691,9 @@ export default function Projects() {
                         key={project.id}
                         className={cn(
                           "border-b last:border-b-0 transition-colors",
-                          project.is_deadline_critical
+                          project.on_hold
+                            ? "bg-destructive/15 hover:bg-destructive/20"
+                            : project.is_deadline_critical
                             ? "bg-destructive/5 hover:bg-destructive/10"
                             : "hover:bg-muted/50"
                         )}
@@ -699,7 +702,12 @@ export default function Projects() {
                         <td className="p-4 text-muted-foreground">{project.city || "—"}</td>
                         <td className="p-4 text-foreground">
                           <div className="flex items-center gap-2">
-                            {project.is_deadline_critical && (
+                            {project.on_hold && (
+                              <Badge variant="destructive" className="text-[10px] uppercase tracking-wide" title={project.on_hold_reason || undefined}>
+                                On Hold
+                              </Badge>
+                            )}
+                            {project.is_deadline_critical && !project.on_hold && (
                               <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
                             )}
                             {project.name}
@@ -817,6 +825,7 @@ export default function Projects() {
                               <Pencil className="h-3 w-3" /> Edit
                             </Button>
                           )}
+                          <HoldToggleButton certId={project.id} onHold={!!project.on_hold} reason={project.on_hold_reason} />
                         </td>
                       </tr>
                     );
