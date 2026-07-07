@@ -698,8 +698,8 @@ export default function Projects() {
                             : "hover:bg-muted/50"
                         )}
                       >
-                        <td className="p-4 font-semibold text-foreground">{project.client}</td>
-                        <td className="p-4 text-muted-foreground">{project.city || "—"}</td>
+                        <td className="p-4 font-semibold text-foreground uppercase">{project.client}</td>
+                        <td className="p-4 text-muted-foreground uppercase">{project.city || "—"}</td>
                         <td className="p-4 text-foreground">
                           <div className="flex items-center gap-2">
                             {project.on_hold && (

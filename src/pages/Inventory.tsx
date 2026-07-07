@@ -391,8 +391,8 @@ export default function Inventory() {
                             .sort((a, b) => b.quantity - a.quantity)
                             .map((alloc, i) => (
                               <TableRow key={i}>
-                                <TableCell className="font-semibold text-foreground">{alloc.client || "—"}</TableCell>
-                                <TableCell className="text-muted-foreground">{alloc.city || "—"}</TableCell>
+                                <TableCell className="font-semibold text-foreground uppercase">{alloc.client || "—"}</TableCell>
+                                <TableCell className="text-muted-foreground uppercase">{alloc.city || "—"}</TableCell>
                                 <TableCell className="text-foreground">{alloc.project_name}</TableCell>
                                 <TableCell>
                                   <Badge variant="outline" className="text-xs">{alloc.region}</Badge>
