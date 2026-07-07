@@ -43,7 +43,8 @@ export function useHoldCertification() {
       qc.invalidateQueries({ queryKey: ["cert-on-hold", vars.certId] });
       qc.invalidateQueries({ queryKey: ["admin-planner-all-certifications"] });
       qc.invalidateQueries({ queryKey: ["ceo-dashboard"] });
-      qc.invalidateQueries({ queryKey: ["project-details", vars.certId] });
+      qc.invalidateQueries({ queryKey: ["certification", vars.certId] });
+      qc.invalidateQueries({ queryKey: ["certification-detail", vars.certId] });
     },
     onError: (err: any) => {
       toast({ title: "Failed to hold project", description: err?.message || String(err), variant: "destructive" });
