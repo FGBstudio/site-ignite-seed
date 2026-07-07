@@ -299,27 +299,14 @@ export function PMProjectsBoard() {
                 className="pl-9"
               />
             </div>
-            <Select value={clientFilter} onValueChange={setClientFilter}>
-              <SelectTrigger className="w-44"><SelectValue placeholder="Client" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Clients</SelectItem>
-                {clientOptions.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={regionFilter} onValueChange={setRegionFilter}>
-              <SelectTrigger className="w-40"><SelectValue placeholder="Region" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Regions</SelectItem>
-                {regionOptions.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={cityFilter} onValueChange={setCityFilter}>
-              <SelectTrigger className="w-40"><SelectValue placeholder="City" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Cities</SelectItem>
-                {cityOptions.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <div className="flex flex-wrap items-center gap-4 px-3 py-2 rounded-lg border border-border/60 bg-muted/30">
+              <ColumnFilter title="Client" colKey="client" rows={baseProjects} getValue={resolvers.client} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
+              <ColumnFilter title="City" colKey="city" rows={baseProjects} getValue={resolvers.city} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
+              <ColumnFilter title="Region" colKey="region" rows={baseProjects} getValue={resolvers.region} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
+              <ColumnFilter title="Status" colKey="status" rows={baseProjects} getValue={resolvers.status} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
+              <ColumnFilter title="Cert Type" colKey="cert_type" rows={baseProjects} getValue={resolvers.cert_type} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
+            </div>
+
           </div>
           <Tabs defaultValue="da_configurare" className="space-y-6">
             <TabsList className="grid w-full grid-cols-3">
