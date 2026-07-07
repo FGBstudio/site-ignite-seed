@@ -1,0 +1,2 @@
+ALTER TABLE public.certifications DROP CONSTRAINT certifications_status_check;
+ALTER TABLE public.certifications ADD CONSTRAINT certifications_status_check CHECK (status IS NULL OR status = ANY (ARRAY['potential','quotation','quotation_approved','canceled','da_configurare','in_corso','completato','certificato','active','in_progress','on_hold']));
