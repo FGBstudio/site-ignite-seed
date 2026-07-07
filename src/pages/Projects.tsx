@@ -702,7 +702,12 @@ export default function Projects() {
                         <td className="p-4 text-muted-foreground">{project.city || "—"}</td>
                         <td className="p-4 text-foreground">
                           <div className="flex items-center gap-2">
-                            {project.is_deadline_critical && (
+                            {project.on_hold && (
+                              <Badge variant="destructive" className="text-[10px] uppercase tracking-wide" title={project.on_hold_reason || undefined}>
+                                On Hold
+                              </Badge>
+                            )}
+                            {project.is_deadline_critical && !project.on_hold && (
                               <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
                             )}
                             {project.name}
