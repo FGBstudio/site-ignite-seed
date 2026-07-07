@@ -224,9 +224,31 @@ export default function ProjectDetail() {
       title={project.name}
       subtitle={`${project.client} — ${project.region}`}
     >
-      <Button variant="ghost" size="sm" onClick={() => navigate("/projects")} className="gap-2 mb-4">
-        <ArrowLeft className="h-4 w-4" /> Back to Projects
-      </Button>
+      <div className="flex items-center justify-between mb-4">
+        <Button variant="ghost" size="sm" onClick={() => navigate("/projects")} className="gap-2">
+          <ArrowLeft className="h-4 w-4" /> Back to Projects
+        </Button>
+        <HoldToggleButton
+          certId={project.id}
+          onHold={!!(project as any).on_hold}
+          reason={(project as any).on_hold_reason}
+          variant="button"
+          size="default"
+        />
+      </div>
+
+      {(project as any).on_hold && (
+        <div className="mb-4 flex items-start gap-3 rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-destructive">
+          <AlertOctagon className="h-5 w-5 mt-0.5 shrink-0" />
+          <div className="text-sm">
+            <p className="font-semibold uppercase tracking-wide">This project is On Hold</p>
+            {(project as any).on_hold_reason && (
+              <p className="text-destructive/90 mt-1">Reason: {(project as any).on_hold_reason}</p>
+            )}
+            <p className="text-destructive/80 mt-1">All edits are disabled until an admin releases the project.</p>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <Card>
