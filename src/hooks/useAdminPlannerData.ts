@@ -53,6 +53,10 @@ export interface AdminPlannerProject {
   sqm?: number | null;
   services_fees?: number | null;
   gbci_fees?: number | null;
+  on_hold?: boolean;
+  on_hold_reason?: string | null;
+  on_hold_at?: string | null;
+  on_hold_by?: string | null;
 }
 
 /** Check if any deadline milestone is < 15 days away and not achieved */
