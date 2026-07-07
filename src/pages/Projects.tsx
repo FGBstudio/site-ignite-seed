@@ -691,7 +691,9 @@ export default function Projects() {
                         key={project.id}
                         className={cn(
                           "border-b last:border-b-0 transition-colors",
-                          project.is_deadline_critical
+                          project.on_hold
+                            ? "bg-destructive/15 hover:bg-destructive/20"
+                            : project.is_deadline_critical
                             ? "bg-destructive/5 hover:bg-destructive/10"
                             : "hover:bg-muted/50"
                         )}
