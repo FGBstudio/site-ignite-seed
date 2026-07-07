@@ -1,68 +1,31 @@
-## Obiettivo
+## Goal
+Replace the **Handover** column with **Issue Date** (`certifications.issued_date`) **only** in the Certified view of the Operations projects table.
 
-Aggiungere filtri per colonna alla tabella "Projects" mostrata in:
+## Scope
+- File: `src/pages/Projects.tsx` (Operations → Projects tab → Certified status tab)
+- No changes to Admin Dashboard, PM Dashboard, Quotations, Inventory, or any other table.
 
-1. **Admin Dashboard** → tab "Projects" (`CeoDashboard.tsx` → `TabProgetti`)
-2. **PM Dashboard** (`PMProjectsBoard.tsx`) — attualmente ha solo Search + 3 Select (Client/Region/City): sostituirli con lo stesso sistema per-colonna della sezione Operations.
+## Plan
+1. **Add `issued_date` support to the existing column-filter helpers**
+   - Update `getUniqueValues` so the `issued_date` key returns formatted issue dates.
+   - Update `matchRowValue` so multi-select filtering works on `issued_date`.
+   - Update the search branch in the main `filtered` memo so free-text search also covers `issued_date`.
 
-La sezione **Operations** (`src/pages/Projects.tsx`) già usa il filtro stile Excel (sort ASC/DESC, ricerca testuale + checklist di valori distinti) tramite il componente `ColumnFilter` interno. Verrà estratto e riusato.
+2. **Conditional header**
+   - When `statusTab === "certificato"`, render the column header as **Issue Date** with `colKey="issued_date"`.
+   - For all other status tabs, keep the existing **Handover** header with `colKey="handover_date"`.
 
-## Piano
+3. **Conditional cell content**
+   - In the Certified tab, display `project.issued_date` formatted as `dd MMM yyyy`, falling back to `—` when null.
+   - In all other tabs, keep the current Handover rendering (date + days-left badge).
 
-### 1. Estrarre `ColumnFilter` come componente condiviso
+4. **Sorting**
+   - The generic sort already reads `sortConfig.key` directly from the row object, so sorting on `issued_date` will work once the header uses that key.
 
-- Nuovo file: `src/components/common/ColumnFilter.tsx`
-- Sposta il componente `ColumnFilter` + i tipi `ColFilterState` / `SortConfig` da `src/pages/Projects.tsx` senza cambiare comportamento.
-- `Projects.tsx` continua a funzionare importandolo dal nuovo path.
+5. **Verification**
+   - Run TypeScript check (`tsgo` or `tsc --noEmit`) to ensure `issued_date` is typed correctly.
+   - Check the preview on the Certified tab to confirm Handover is replaced by Issue Date and other tabs remain unchanged.
 
-### 2. Filtri nell'Admin Dashboard – tab Projects
-
-File: `src/pages/CeoDashboard.tsx`, funzione `TabProgetti`.
-
-- Stato locale: `colFilters` (record per colonna) + `sortConfig`.
-- Header colonne (Client, City, Project, Status, Start Date, Handover, PM) avvolti con `ColumnFilter`, con `uniqueValues` calcolati dai dati della tabella.
-- Colonna "Progress" resta senza filtro (valore numerico calcolato).
-- Applicazione filtri + sort prima del render, identica a Operations.
-
-### 3. Filtri nella PM Dashboard
-
-File: `src/components/projects/PMProjectsBoard.tsx`.
-
-- Rimuovere i tre Select (Client / Region / City) e la Search bar attuali (o mantenerli, da confermare — vedi domanda in fondo).
-- Poiché la vista PM è **Kanban** (card) e non tabella, il filtro per-colonna Excel-style non si applica direttamente. Due opzioni:
-  - **(a)** aggiungere una vista "Table" (nuova tab accanto a Kanban / Global Planner) con le stesse colonne dell'Admin Dashboard e i filtri per colonna;
-  - **(b)** convertire i Select esistenti in filtri multi-select per: Client, City, Region, Status, PM, con ricerca — mantenendo il layout Kanban.
-
-Attendo la tua conferma sull'opzione preferita (vedi domanda finale).
-
----
-
-## Sorgente dati per ciascuna colonna (tabella Admin Dashboard / Operations)
-
-Hook: `useActiveProjects()` in `src/hooks/useCeoDashboardData.ts` — query su `certifications` con join a `sites` e `profiles`.
-
-
-| Colonna    | Sorgente                                                                                                     |
-| ---------- | ------------------------------------------------------------------------------------------------------------ |
-| Client     | `certifications.client`                                                                                      |
-| City       | `certifications.sites.city` (join `sites` via `site_id`)                                                     |
-| Project    | `certifications.name`                                                                                        |
-| Status     | `certifications.status` (valori: `da_configurare`, `in_corso`, `certificato`, `completato`, `on_hold`, ecc.) |
-| Start Date | Calcolato: minimo `start_date` tra i `cert_tasks` della certificazione (nessuna colonna dedicata)            |
-| Handover   | `certifications.handover_date`                                                                               |
-| PM         | `profiles.display_name` / `full_name` risolto da `certifications.pm_id`                                      |
-| Progress   | Calcolato: `cert_tasks` completati / totali della certificazione                                             |
-
-
-Nota: in PM Dashboard le stesse colonne provengono da `usePMDashboard()` (stessa tabella `certifications`, filtrata per `pm_id = auth.uid()`), con `project_allocations` e `certification_milestones` in join per lo stato di setup (Timeline / Hardware / Scorecard).
-
----
-
-## Domanda per procedere
-
-Nella **PM Dashboard**, vuoi:
-
-- **(a)** una nuova vista tabella (nuova tab, con filtri per colonna identici ad Admin Dashboard), lasciando invariata la vista Kanban, **oppure**
-- **(b)** trasformare gli attuali Select in filtri multi-select con ricerca, mantenendo solo Kanban + Global Planner?  
-  
-B
+## Notes
+- Data source for Issue Date: `certifications.issued_date` (already fetched by `useAdminPlannerData` via `select("*", ...)`).
+- The tab switch already resets column filters/sorting, so switching between tabs will not leave stale filter state.

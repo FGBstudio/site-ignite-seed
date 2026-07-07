@@ -63,6 +63,7 @@ function getUniqueValues(colKey: string, rows: any[]): string[] {
     else if (colKey === 'project_subtype') val = r.project_subtype || '(Blanks)';
     else if (colKey === 'pm_name') val = r.pm_name || '(Blanks)';
     else if (colKey === 'handover_date') val = r.handover_date ? format(new Date(r.handover_date), "dd MMM yyyy") : '(Blanks)';
+    else if (colKey === 'issued_date') val = r.issued_date ? format(new Date(r.issued_date), "dd MMM yyyy") : '(Blanks)';
     else if (colKey === 'setup_status') val = SETUP_STATUS_META[r.setup_status as keyof typeof SETUP_STATUS_META]?.label || r.setup_status || '(Blanks)';
     
     if (val !== undefined && val !== null) {
@@ -91,6 +92,7 @@ function matchRowValue(r: any, colKey: string, selectedValues: string[] | null |
   else if (colKey === 'project_subtype') val = r.project_subtype || '(Blanks)';
   else if (colKey === 'pm_name') val = r.pm_name || '(Blanks)';
   else if (colKey === 'handover_date') val = r.handover_date ? format(new Date(r.handover_date), "dd MMM yyyy") : '(Blanks)';
+  else if (colKey === 'issued_date') val = r.issued_date ? format(new Date(r.issued_date), "dd MMM yyyy") : '(Blanks)';
   else if (colKey === 'setup_status') val = SETUP_STATUS_META[r.setup_status as keyof typeof SETUP_STATUS_META]?.label || r.setup_status || '(Blanks)';
   
   return selectedValues.includes(val);
@@ -421,6 +423,7 @@ export default function Projects() {
           else if (colKey === 'project_subtype') val = r.project_subtype || '';
           else if (colKey === 'pm_name') val = r.pm_name || '';
           else if (colKey === 'handover_date') val = r.handover_date ? format(new Date(r.handover_date), "dd MMM yyyy") : '';
+          else if (colKey === 'issued_date') val = r.issued_date ? format(new Date(r.issued_date), "dd MMM yyyy") : '';
           else if (colKey === 'setup_status') val = SETUP_STATUS_META[r.setup_status as keyof typeof SETUP_STATUS_META]?.label || r.setup_status || '';
 
           if (!val.toLowerCase().includes(filter.search.toLowerCase())) {
@@ -662,7 +665,11 @@ export default function Projects() {
                       </>
                     )}
                     <th className="p-4">
-                      <ExcelHeaderCell title="Handover" colKey="handover_date" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
+                      {statusTab === "certificato" ? (
+                        <ExcelHeaderCell title="Issue Date" colKey="issued_date" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
+                      ) : (
+                        <ExcelHeaderCell title="Handover" colKey="handover_date" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
+                      )}
                     </th>
                     <th className="p-4">
                       <ExcelHeaderCell title="Config Status" colKey="setup_status" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
@@ -754,19 +761,27 @@ export default function Projects() {
                           </>
                         )}
                         <td className="p-4">
-                          <span
-                            className={cn(
-                              "font-medium",
-                              project.is_deadline_critical
-                                ? "text-destructive"
-                                : daysLeft <= 30
-                                ? "text-warning"
-                                : "text-foreground"
-                            )}
-                          >
-                            {format(new Date(project.handover_date), "dd MMM yyyy")}
-                          </span>
-                          <span className="text-xs text-muted-foreground ml-1">({daysLeft}d)</span>
+                          {statusTab === "certificato" ? (
+                            <span className="font-medium text-foreground">
+                              {project.issued_date ? format(new Date(project.issued_date), "dd MMM yyyy") : "—"}
+                            </span>
+                          ) : (
+                            <>
+                              <span
+                                className={cn(
+                                  "font-medium",
+                                  project.is_deadline_critical
+                                    ? "text-destructive"
+                                    : daysLeft <= 30
+                                    ? "text-warning"
+                                    : "text-foreground"
+                                )}
+                              >
+                                {format(new Date(project.handover_date), "dd MMM yyyy")}
+                              </span>
+                              <span className="text-xs text-muted-foreground ml-1">({daysLeft}d)</span>
+                            </>
+                          )}
                         </td>
                         <td className="p-4">
                           <Badge variant="outline" className={cn("border", statusMeta.className)}>
