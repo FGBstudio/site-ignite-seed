@@ -25,6 +25,12 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search } from "lucide-react";
 import { FGBPlanner } from "@/components/dashboard/FGBPlanner";
+import {
+  ColumnFilter,
+  applyColumnFiltersAndSort,
+  type ColFiltersMap,
+  type SortConfig,
+} from "@/components/common/ColumnFilter";
 
 type PMProjectView = PMProject & {
   project_subtype?: string | null;
