@@ -825,6 +825,7 @@ export default function Projects() {
                               <Pencil className="h-3 w-3" /> Edit
                             </Button>
                           )}
+                          <HoldToggleButton certId={project.id} onHold={!!project.on_hold} reason={project.on_hold_reason} />
                         </td>
                       </tr>
                     );
