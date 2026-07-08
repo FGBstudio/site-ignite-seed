@@ -109,12 +109,13 @@ export function useAirRows() {
       return data.map((record: any) => {
         const site = Array.isArray(record.sites) ? record.sites[0] : record.sites;
         const pm = Array.isArray(record.profiles) ? record.profiles[0] : record.profiles;
+        const cert = Array.isArray(record.certifications) ? record.certifications[0] : record.certifications;
         const brandName = site?.brand_id ? (brandsMap.get(site.brand_id) || null) : null;
 
         return {
           id: record.site_id,
-          certification_id: record.certification_id ?? record.id ?? null,
-          project_name: site?.name || record.project_name || `Site: ${record.site_id.slice(0, 8)}`,
+          certification_id: record.certification_id ?? cert?.id ?? null,
+          project_name: cert?.name || site?.name || record.project_name || `Site: ${record.site_id.slice(0, 8)}`,
           pm_name: pm ? (pm.full_name || pm.display_name || [pm.first_name, pm.last_name].filter(Boolean).join(" ")) : null,
           region: site?.region ?? null,
           country: site?.country ?? null,
