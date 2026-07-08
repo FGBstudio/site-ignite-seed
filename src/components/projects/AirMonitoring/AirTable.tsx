@@ -743,19 +743,22 @@ export function AirTable() {
                 </tr>
                 {/* Row 2: Standard Sorting Headers */}
                 <tr className="bg-slate-50/80 border-b border-slate-200">
-                  <th className="px-4 py-3.5 text-left sticky left-0 bg-slate-50/80 z-20 min-w-[320px] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.12)]">
-                    <ExcelHeaderCell 
-                      title="Project Name" 
-                      colKey="project_name" 
-                      rows={rows} 
-                      colFilters={colFilters} 
-                      setColFilters={setColFilters} 
-                      sortConfig={sortConfig} 
+                  <th className="px-4 py-3.5 text-left sticky left-0 bg-slate-50/80 z-20 min-w-[180px] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.12)]">
+                    <ExcelHeaderCell
+                      title="Client"
+                      colKey="brand_name"
+                      rows={rows}
+                      colFilters={colFilters}
+                      setColFilters={setColFilters}
+                      sortConfig={sortConfig}
                       setSortConfig={setSortConfig}
                     />
                   </th>
                   <th className="px-4 py-3.5 text-left w-32">
-                    <ExcelHeaderCell title="Brand Name" colKey="brand_name" rows={rows} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
+                    <ExcelHeaderCell title="City" colKey="city" rows={rows} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
+                  </th>
+                  <th className="px-4 py-3.5 text-left min-w-[220px]">
+                    <ExcelHeaderCell title="Project" colKey="project_name" rows={rows} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
                   </th>
                   <th className="px-4 py-3.5 text-left w-44">
                     <ExcelHeaderCell title="Monitor Typology" colKey="monitor_typology" rows={rows} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} airProductsMap={airProductsMap} />
