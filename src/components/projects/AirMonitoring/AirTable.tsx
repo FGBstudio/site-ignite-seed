@@ -104,6 +104,7 @@ function getUniqueValues(colKey: string, rows: any[], airProductsMap?: Map<strin
     }
     else if (colKey === 'region') val = r.region || '(Blanks)';
     else if (colKey === 'country') val = r.country || '(Blanks)';
+    else if (colKey === 'city') val = r.city || '(Blanks)';
     else if (colKey === 'brand_name') val = r.brand_name || '(Blanks)';
     else if (colKey === 'status') val = getSelectStatus(r.status);
     else if (colKey === 'notes') val = r.notes || '(Blanks)';
@@ -142,6 +143,7 @@ function matchRowValue(r: any, colKey: string, selectedValues: string[] | null |
   else if (colKey === 'pm_name') val = r.pm_name || '(Blanks)';
   else if (colKey === 'region') val = r.region || '(Blanks)';
   else if (colKey === 'country') val = r.country || '(Blanks)';
+  else if (colKey === 'city') val = r.city || '(Blanks)';
   else if (colKey === 'brand_name') val = r.brand_name || '(Blanks)';
   else if (colKey === 'total_sensors') val = String(r.total_sensors ?? 0);
   else if (colKey === 'po_numbers') {
@@ -406,7 +408,8 @@ export function AirTable() {
 
         if (filter.search) {
           let val = '';
-          if (colKey === 'project_name') val = `${r.project_name} ${r.city} ${r.country} ${r.region}`;
+          if (colKey === 'project_name') val = r.project_name;
+          else if (colKey === 'city') val = r.city || '';
           else if (colKey === 'pm_name') val = r.pm_name || '';
           else if (colKey === 'total_sensors') val = String(r.total_sensors ?? 0);
           else if (colKey === 'po_numbers') val = r.po_numbers.join(" ");
@@ -561,7 +564,7 @@ export function AirTable() {
     }
   };
 
-  const totalCols = 12 + (showFinancials ? 6 : 0);
+  const totalCols = 13 + (showFinancials ? 6 : 0);
 
   const visibleStats = useMemo(() => {
     const totalSensors = sortedAndFiltered.reduce((sum, r) => sum + (r.total_sensors ?? 0), 0);
@@ -585,12 +588,13 @@ export function AirTable() {
 
   const exportCSV = () => {
     if (!sortedAndFiltered.length) return;
-    const headers = ["Project", "Brand", "Monitor Typology", "Status", "PM", "Handover Date", "Region", "Country", "City", "Sensors", "POs", "Quotation", "HW Cost", "Total Cost", "Profit", "ROI", "Notes"];
+    const headers = ["Client", "City", "Project", "Monitor Typology", "Status", "PM", "Handover Date", "Region", "Country", "Sensors", "POs", "Quotation", "HW Cost", "Total Cost", "Profit", "ROI", "Notes"];
     const lines = [
       headers.join(","),
       ...sortedAndFiltered.map((r) => [
-        JSON.stringify(r.project_name ?? ""),
         JSON.stringify(r.brand_name ?? ""),
+        JSON.stringify(r.city ?? ""),
+        JSON.stringify(r.project_name ?? ""),
         JSON.stringify(
           (() => {
             if (!r.air_product_ids?.length) return "";
@@ -611,7 +615,6 @@ export function AirTable() {
         JSON.stringify(r.handover_date ? format(new Date(r.handover_date), "MMM d, yyyy") : "TBD"),
         JSON.stringify(r.region ?? ""),
         JSON.stringify(r.country ?? ""),
-        JSON.stringify(r.city ?? ""),
         r.total_sensors,
         JSON.stringify(r.po_numbers.join(" | ")),
         r.quotation_value,
@@ -729,8 +732,8 @@ export function AirTable() {
               <thead>
                 {/* Row 1: Grouped headers */}
                 <tr>
-                  <th className="bg-slate-50/80 border-b border-slate-200 sticky left-0 z-20 min-w-[320px] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.12)]" />
-                  <th colSpan={9} className="bg-slate-50/80 border-b border-slate-200" />
+                  <th className="bg-slate-50/80 border-b border-slate-200 sticky left-0 z-20 min-w-[180px] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.12)]" />
+                  <th colSpan={10} className="bg-slate-50/80 border-b border-slate-200" />
                   {showFinancials && (
                     <th colSpan={6} className="bg-indigo-50/50 text-center text-[10px] uppercase font-bold text-indigo-700 border-b border-l border-r border-indigo-100 py-2 tracking-wider">
                       Financial Overview (€)
@@ -740,19 +743,22 @@ export function AirTable() {
                 </tr>
                 {/* Row 2: Standard Sorting Headers */}
                 <tr className="bg-slate-50/80 border-b border-slate-200">
-                  <th className="px-4 py-3.5 text-left sticky left-0 bg-slate-50/80 z-20 min-w-[320px] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.12)]">
-                    <ExcelHeaderCell 
-                      title="Project Name" 
-                      colKey="project_name" 
-                      rows={rows} 
-                      colFilters={colFilters} 
-                      setColFilters={setColFilters} 
-                      sortConfig={sortConfig} 
+                  <th className="px-4 py-3.5 text-left sticky left-0 bg-slate-50/80 z-20 min-w-[180px] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.12)]">
+                    <ExcelHeaderCell
+                      title="Client"
+                      colKey="brand_name"
+                      rows={rows}
+                      colFilters={colFilters}
+                      setColFilters={setColFilters}
+                      sortConfig={sortConfig}
                       setSortConfig={setSortConfig}
                     />
                   </th>
                   <th className="px-4 py-3.5 text-left w-32">
-                    <ExcelHeaderCell title="Brand Name" colKey="brand_name" rows={rows} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
+                    <ExcelHeaderCell title="City" colKey="city" rows={rows} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
+                  </th>
+                  <th className="px-4 py-3.5 text-left min-w-[220px]">
+                    <ExcelHeaderCell title="Project" colKey="project_name" rows={rows} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
                   </th>
                   <th className="px-4 py-3.5 text-left w-44">
                     <ExcelHeaderCell title="Monitor Typology" colKey="monitor_typology" rows={rows} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} airProductsMap={airProductsMap} />
@@ -840,7 +846,9 @@ export function AirTable() {
                   <td className="px-4 py-3.5 text-left sticky left-0 bg-slate-100 z-10 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.12)]">
                     <span className="text-xs uppercase tracking-wider font-bold text-slate-700">Total Filtered</span>
                   </td>
-                  <td className="px-4 py-3.5" /> {/* Brand Name */}
+                  <td className="px-4 py-3.5" /> {/* City */}
+                  <td className="px-4 py-3.5" /> {/* Project */}
+                  <td className="px-4 py-3.5" /> {/* Monitor Typology */}
                   <td className="px-4 py-3.5" /> {/* Region */}
                   <td className="px-4 py-3.5" /> {/* Country */}
                   <td className="px-4 py-3.5" /> {/* PM */}
@@ -918,7 +926,7 @@ function AirRow({
 
   return (
     <tr className={cn("group transition-colors duration-150", baseBg, "hover:bg-slate-100/50")}>
-      {/* 1. Project & Location */}
+      {/* 1. CLIENT (sticky) */}
       <td className={cn(
         "px-4 py-4 font-semibold text-slate-800 sticky left-0 z-10 border-l-[3.5px]",
         statusBorderColor,
@@ -928,23 +936,28 @@ function AirRow({
         <div className="flex items-center gap-2">
           <span className={cn(
             "w-2 h-2 rounded-full shrink-0",
-            r.online_status === 'Online' 
-              ? 'bg-emerald-500' 
-              : r.online_status === 'Offline' 
-                ? 'bg-rose-500' 
+            r.online_status === 'Online'
+              ? 'bg-emerald-500'
+              : r.online_status === 'Offline'
+                ? 'bg-rose-500'
                 : 'bg-slate-300'
           )} title={r.online_status || 'Pending'} />
-          <div className="flex flex-col min-w-0">
-            <span className="text-sm font-bold tracking-tight truncate">{r.project_name}</span>
-            <span className="text-[10px] text-slate-400 font-normal mt-0.5">{r.city || <span className="text-slate-300 italic">No City</span>}</span>
-          </div>
+          <span className="text-sm font-bold tracking-tight truncate uppercase">
+            {r.brand_name || <span className="text-slate-300 italic normal-case">—</span>}
+          </span>
         </div>
       </td>
 
-      {/* 1a. Brand Name */}
-      <td className="px-4 py-4 text-xs text-slate-600 font-medium">
-        {r.brand_name || <span className="text-slate-300 italic">—</span>}
+      {/* 2. CITY */}
+      <td className="px-4 py-4 text-xs text-slate-600 font-medium uppercase">
+        {r.city || <span className="text-slate-300 italic normal-case">—</span>}
       </td>
+
+      {/* 3. PROJECT */}
+      <td className="px-4 py-4 text-sm text-slate-800 font-medium">
+        <span className="truncate">{r.project_name}</span>
+      </td>
+
 
       <td className="px-4 py-4">
         {r.air_product_ids.length > 0 ? (

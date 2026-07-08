@@ -1,104 +1,59 @@
 ## Obiettivo
 
-Allineare le prime tre colonne di tutte le tabelle Monitor (Air, Energy, futura Water) al pattern già in uso in **Operations → Projects** e **Quotations**:
+Aggiungere alla tabella **Monitor → Air Quality** le prime tre colonne `CLIENT | CITY | PROJECT` allineate al layout già in uso su Energy e Water (e su Quotations / Operations).
+
+## Stato attuale
+
+`src/components/projects/AirMonitoring/AirTable.tsx` ha come intestazioni (nell'ordine):
 
 ```
-CLIENT  |  CITY  |  PROJECT
-brand.name  sites.city  certifications.name (fallback sites.name)
+Project Name (sticky) | Brand Name | Monitor Typology | Region | Country | PM | Sensors | POs | Handover | Shipment | [Financials…] | Notes | Status
 ```
 
-Fonte unica di verità per queste tre colonne = i join a `sites` + `brands`, mai colonne "cached" scritte al momento della creazione del record. Se un brand viene rinominato o una città corretta, la Monitor page riflette il cambiamento immediatamente e senza intoppi.
+- Il "Client" (brand) esiste ma sta in seconda colonna con etichetta "Brand Name".
+- La "City" non è mostrata come colonna: appare solo come sottotitolo nella cella "Project Name" (riga con `r.city`).
+- Non c'è quindi allineamento visivo con Energy (`Client | City | Project`) né con Water.
 
-## Diagnosi
+Il dato è già disponibile in `AirMonitorRow`: `brand_name`, `city`, `project_name` sono tutti popolati da `useAirRows` via `loadIdentityMaps` (sites + brands + certifications).
 
-- **Operations/Projects** (`useAdminPlannerData`): risolve `client` da `brands` via `sites.brand_id`. Corretto.
-- **Quotations** (`Quotations.tsx`): stesso pattern. Corretto (fix già applicato in una passata precedente).
-- **Monitor → Air** (`useAirRows`): join `sites (…, brand_id)` + fetch `brands` → `brand_name`. Corretto.
-- **Monitor → Energy** (`useMonitorRows`): legge `brand_name`, `city`, `country`, `region` dalle colonne cached su `site_energy_records`. Queste colonne vengono compilate solo alla conferma del CT Builder; le righe "shell" create dal nuovo trigger di sync (o record legacy) hanno questi campi NULL → la colonna Client resta vuota nonostante il brand esista sul sito.
-  - NO ASSOLUTAMENTE NO, NON GESTIRE COSì QUESTA COSA LE INFORMAZIONI VANNO CAMPITE ANCHE SE IL CT BUILDER è NULLO! è LO STATO CHE VARIA E CHE SARà PENDING O QUALCOS'ALTRO NON SCHERZIAMO
-- **Monitor → Water**: nessun reader ancora presente.
+## Cambiamenti
 
-Conseguenza: la stessa certificazione può apparire in Air con Client "Miu Miu" e in Energy con Client "—", generando confusione e potenziali doppioni logici.
+### `src/components/projects/AirMonitoring/AirTable.tsx`
 
-## Strategia
+Riordinare l'header e le celle riga in questo modo (prime 3 colonne uniformi al resto):
 
-Un unico "identity resolver" a livello di hook, condiviso da tutte le tabelle Monitor. Ignora le colonne cached e joina sempre `sites` + `brands`.
-
-### Diagramma
-
-```text
-                ┌────────────────────────────┐
-                │  sites  +  brands          │
-                │  (source of truth)         │
-                └────────────┬───────────────┘
-                             │  join by site_id / brand_id
-       ┌─────────────────────┼──────────────────────┐
-       ▼                     ▼                      ▼
-  useAirRows           useMonitorRows          useWaterRows
-  (Air)                (Energy)                (Water)
-       │                     │                      │
-       └──────► identity: { client, city, project } ◄──┘
-                             │
-                             ▼
-                Monitor.tsx tabs (Air | Energy | Water)
-                first 3 columns identical layout
+```
+CLIENT (sticky) | CITY | PROJECT | Monitor Typology | Region | Country | PM | Sensors | POs | Handover | Shipment | […] | Notes | Status
 ```
 
-## Implementazione
+Dettagli:
 
-### 1. Helper condiviso `src/lib/monitorIdentity.ts`
+1. **Header row 2** (intorno alle righe 742-770):
+   - Sostituire la cella "Project Name" sticky con **Client** sticky (`colKey="brand_name"`, sortable/filterable via `ExcelHeaderCell`).
+   - Aggiungere subito dopo **City** (`colKey="city"`, nuovo entry in `getUniqueValues` / `matchRowValue`).
+   - Terza cella **Project** (`colKey="project_name"`).
+   - Rimuovere la vecchia colonna dedicata "Brand Name" (ora è la prima).
+   - Aggiornare l'header raggruppato riga 1 (`<th colSpan=…>`) per riflettere il nuovo count: la sticky-shadow resta sulla prima cella (Client) e il colSpan del gruppo "site info" resta identico perché il totale di colonne site rimane invariato (si perde "Brand Name", si guadagna "City" — pareggio).
 
-Nuova funzione `resolveMonitorIdentity(row, sitesById, brandsById)`:
+2. **Body row** (funzione `Row` più in basso nel file, riga ~950+): riordinare le `<td>` corrispondenti. La cella Client diventa sticky-left con lo stesso shadow che oggi ha "Project Name". Rimuovere il sottotitolo `r.city` dalla cella project (ridondante, ora è colonna dedicata).
 
-```text
-client  = brandsById.get(site.brand_id)?.name  ?? "—"
-city    = site.city                             ?? "—"
-project = certification.name ?? site.name       ?? "Untitled"
-region  = site.region                           ?? null
-country = site.country                          ?? null
-```
+3. **Helpers**:
+   - `getUniqueValues` e `matchRowValue`: aggiungere il case `city` (leggere `r.city || '(Blanks)'`); il case `brand_name` esiste già.
+   - Blocco filtro `filter.search` (riga ~407): `project_name` non deve più includere `${r.city}` nella string search (ora esiste il filtro `city` dedicato).
 
-Ritorna un oggetto piccolo che diventa la parte "identity" di ogni riga Monitor.
+4. **Sticky styling**: applicare `sticky left-0 z-20 bg-slate-50/80 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.12)]` alla **cella Client** invece che a Project. Le altre due (City, Project) restano non-sticky come in Energy.
 
-### 2. `useMonitorRows` (Energy) — refactor read model
+5. **Export CSV** (riga 586-624): riordinare le colonne dell'header e delle righe in `Client, City, Project, Monitor Typology, …` così che l'export riflette il nuovo layout.
 
-- Aggiungere al select join a `sites (id, name, city, country, region, brand_id)` e prefetch `brands` come già fa `useAirRows`.
-- Sovrascrivere `brand_name`, `city`, `country`, `region`, `project_name` in ogni `MonitorRow` con i valori risolti dai join. Le colonne cached sul record restano nel DB per compatibilità storica ma **non vengono più lette** dal frontend.
-- Nessun cambio al tipo `MonitorRow`: si popolano gli stessi campi con dati freschi.
+## Verifica
 
-### 3. Nuovo `useWaterRows` (Water)
-
-- Stesso schema/logica di `useAirRows`, adattato a `site_water_records`.
-- Ritorna righe con la stessa identity `{ client, city, project, region, country }` più i pochi campi Water (`total_sensors`, `status`, `handover_date`, `po_numbers`, `notes`).
-
-### 4. `Monitor.tsx` — layout uniforme e tab Water
-
-- Estrarre in un mini-componente `<IdentityCells row={…} />` (Client | City | Project) usato dalle tabelle Air, Energy e Water così che l'ordine, il font, la stickyness siano identici in tutte e tre.
-- Aggiungere una terza tab **Water** che monta una nuova `WaterTable.tsx` (copia scarna di `AirTable.tsx` senza logiche shipment, per ora).
-
-### 5. Wizard di creazione — nessuna scrittura ridondante
-
-Rimuovere/deprecare la scrittura di `brand_name / region / country / city` in `EnergyMonitoringPanel` al confirm del CT Builder (righe 152-156). Restano `project_name` (per compatibilità con vecchi export CSV) ma marcato come derivato. Le colonne cached su `site_energy_records` non vengono più aggiornate: se in futuro servono, un trigger DB può popolarle da `sites`.
-
-### 6. Verifica
-
-- Creare una nuova quotazione con brand X, sito con città Y, cert nome Z, flaggando IAQ+Energy+Water → aprire Monitor: le tre tab mostrano tutte "X | Y | Z" nelle prime tre colonne, stessa identity di Operations/Projects.
-- Rinominare il brand in DB → le tre tab riflettono il nuovo nome senza bisogno di rilanciare CT Builder / hardware sync.
-
-## Dettagli tecnici
-
-- File toccati:
-  - `src/lib/monitorIdentity.ts` (nuovo)
-  - `src/hooks/useMonitorRows.ts` (join + override identity)
-  - `src/hooks/useWaterRows.ts` (nuovo)
-  - `src/pages/Monitor.tsx` (`IdentityCells` component + tab Water)
-  - `src/components/projects/WaterMonitoring/WaterTable.tsx` (nuovo, minimal)
-  - `src/components/projects/EnergyMonitoring/EnergyMonitoringPanel.tsx` (rimuove scritture cached)
-- Nessuna nuova migrazione DB richiesta: `site_water_records` esiste già, i join sono su tabelle esistenti.
-- Nessun `as any`; tipi in `src/types/site-water.ts` già presenti.
-- Query key TanStack unificate: `["monitor-air-rows"]`, `["monitor-energy-rows"]`, `["monitor-water-rows"]`.
+- Aprire Monitor → tab **Air Quality**: le prime tre intestazioni sono **Client · City · Project**, con lo stesso font/uppercase/tracking di Energy e Water.
+- Filtri e sort funzionano su tutte e tre le nuove colonne.
+- Il record di "HIG Streem INOFYTA A" mostra `HIG | Oinofyta | HIG Streem INOFYTA A` invece di sovrapporre progetto + città.
+- Nessuna colonna persa: Brand era già "Client", City guadagna una colonna, il sottotitolo city sotto Project sparisce (l'informazione è ora nella colonna dedicata).
 
 ## Fuori scope
 
-- Backfill delle colonne cached storiche su `site_energy_records`: superfluo, non vengono più lette.
-- Consolidamento delle tre tabelle `site_air_records / site_energy_records / site_water_records` in una singola vista `monitoring_services`: rimandato quando i tre tipi convergono su lo stesso set di campi finanziari.
+- Modifiche a `useAirRows` (i dati sono già presenti).
+- Modifiche a Energy / Water (già conformi).
+- Cambi al DB.
