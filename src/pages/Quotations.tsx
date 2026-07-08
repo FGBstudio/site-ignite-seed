@@ -209,98 +209,119 @@ export default function Quotations() {
 
   const renderPotential = () => {
     const filtered = potential.filter(filterFn);
-    if (isLoading) return <div className="space-y-2">{[0,1,2].map((i) => <Skeleton key={i} className="h-24 w-full" />)}</div>;
+    if (isLoading) return <div className="space-y-2">{[0,1,2].map((i) => <Skeleton key={i} className="h-14 w-full" />)}</div>;
     if (filtered.length === 0) return (
       <Card><CardContent className="py-12 text-center text-sm text-muted-foreground">No potential quotations. Use "New Quotation" and flag as Potential to save Site &amp; Project only.</CardContent></Card>
     );
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-        {filtered.map((r) => (
-          <Card key={r.id} className="border-slate-200">
-            <CardContent className="p-4 space-y-3">
-              <div className="flex items-start gap-2">
-                <Sparkles className="h-4 w-4 text-slate-500 mt-0.5" />
-                <div className="min-w-0 flex-1">
-                  <div className="font-semibold text-foreground truncate">{r.name}</div>
-                  <div className="text-xs text-muted-foreground truncate">{r.client}</div>
-                </div>
-                <Badge variant="outline" className="border-slate-300 text-slate-600 bg-slate-50">Potential</Badge>
-              </div>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                {r.region && <Badge variant="outline">{r.region}</Badge>}
-                {r.handover_date && <span>Handover {format(new Date(r.handover_date), "dd MMM yyyy")}</span>}
-              </div>
-              <Button size="sm" className="w-full gap-1.5" onClick={() => { setResumeCertId(r.id); setWizardOpen(true); }}>
-                <ArrowRight className="h-3.5 w-3.5" /> Go on with Services &amp; Quote
-              </Button>
-            </CardContent>
-          </Card>
-        ))}
+      <div className="table-container overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead><tr className="border-b">
+            <th className="text-left p-3 font-medium text-muted-foreground">Client</th>
+            <th className="text-left p-3 font-medium text-muted-foreground">City</th>
+            <th className="text-left p-3 font-medium text-muted-foreground">Project</th>
+            <th className="text-left p-3 font-medium text-muted-foreground">Region</th>
+            <th className="text-left p-3 font-medium text-muted-foreground">Handover</th>
+            <th className="text-left p-3 font-medium text-muted-foreground">Created</th>
+            <th className="p-3" />
+          </tr></thead>
+          <tbody>
+            {filtered.map((r) => (
+              <tr key={r.id} className="border-b last:border-b-0 hover:bg-muted/50">
+                <td className="p-3 font-semibold text-foreground uppercase">{r.client}</td>
+                <td className="p-3 text-muted-foreground uppercase">{r.sites?.city || "—"}</td>
+                <td className="p-3 text-foreground">{r.name}</td>
+                <td className="p-3">{r.region ? <Badge variant="outline">{r.region}</Badge> : "—"}</td>
+                <td className="p-3 text-muted-foreground">{r.handover_date ? format(new Date(r.handover_date), "dd MMM yyyy") : "—"}</td>
+                <td className="p-3 text-muted-foreground">{r.created_at ? format(new Date(r.created_at), "dd MMM yyyy") : "—"}</td>
+                <td className="p-3 text-right">
+                  <Button size="sm" className="gap-1.5" onClick={() => { setResumeCertId(r.id); setWizardOpen(true); }}>
+                    <ArrowRight className="h-3.5 w-3.5" /> Go on with Services &amp; Quote
+                  </Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     );
   };
 
   const renderCanceled = () => {
     const filtered = canceled.filter(filterFn);
-    if (isLoading) return <div className="space-y-2">{[0,1,2].map((i) => <Skeleton key={i} className="h-20 w-full" />)}</div>;
+    if (isLoading) return <div className="space-y-2">{[0,1,2].map((i) => <Skeleton key={i} className="h-14 w-full" />)}</div>;
     if (filtered.length === 0) return (
       <Card><CardContent className="py-12 text-center text-sm text-muted-foreground">No canceled quotations.</CardContent></Card>
     );
     return (
-      <div className="space-y-2">
-        {filtered.map((r) => {
-          const open = !!expandedCanceled[r.id];
-          const draft = noteDrafts[r.id] ?? r.quotation_notes ?? "";
-          return (
-            <Card key={r.id} className="border-destructive/20">
-              <CardContent className="p-0">
-                <button
-                  className="w-full flex items-center gap-3 p-3 text-left hover:bg-muted/40"
-                  onClick={() => setExpandedCanceled((s) => ({ ...s, [r.id]: !s[r.id] }))}
-                >
-                  {open ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRightIcon className="h-4 w-4 text-muted-foreground" />}
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium text-foreground truncate">{r.name}</div>
-                    <div className="text-xs text-muted-foreground truncate">
-                      {r.client} {r.region ? `· ${r.region}` : ""} {r.total_fees != null ? `· €${Number(r.total_fees).toLocaleString()}` : ""}
-                    </div>
-                  </div>
-                  <Badge variant="outline" className="gap-1 text-destructive border-destructive/30 bg-destructive/10">
-                    <Ban className="h-3 w-3" /> Canceled
-                  </Badge>
-                </button>
-                {open && (
-                  <div className="border-t p-4 space-y-3 bg-muted/20">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-                      <div><div className="text-muted-foreground">Total Fees</div><div className="font-medium">{r.total_fees != null ? `€${Number(r.total_fees).toLocaleString()}` : "—"}</div></div>
-                      <div><div className="text-muted-foreground">Handover</div><div className="font-medium">{r.handover_date ? format(new Date(r.handover_date), "dd MMM yyyy") : "—"}</div></div>
-                      <div><div className="text-muted-foreground">Sent</div><div className="font-medium">{r.quotation_sent_date ? format(new Date(r.quotation_sent_date), "dd MMM yyyy") : "—"}</div></div>
-                      <div><div className="text-muted-foreground">Created</div><div className="font-medium">{r.created_at ? format(new Date(r.created_at), "dd MMM yyyy") : "—"}</div></div>
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-muted-foreground">Reason for cancellation / rejection notes</label>
-                      <Textarea
-                        placeholder="Add the reason why this quotation was canceled or rejected…"
-                        value={draft}
-                        onChange={(e) => setNoteDrafts((s) => ({ ...s, [r.id]: e.target.value }))}
-                        className="min-h-[80px] text-sm"
-                      />
-                    </div>
-                    <div className="flex items-center justify-end gap-2">
-                      <Button size="sm" variant="outline" className="gap-1.5" disabled={savingNote === r.id} onClick={() => handleSaveNote(r)}>
-                        {savingNote === r.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
-                        Save note
-                      </Button>
+      <div className="table-container overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead><tr className="border-b">
+            <th className="p-3 w-8" />
+            <th className="text-left p-3 font-medium text-muted-foreground">Client</th>
+            <th className="text-left p-3 font-medium text-muted-foreground">City</th>
+            <th className="text-left p-3 font-medium text-muted-foreground">Project</th>
+            <th className="text-left p-3 font-medium text-muted-foreground">Region</th>
+            <th className="text-left p-3 font-medium text-muted-foreground">Total Fees</th>
+            <th className="text-left p-3 font-medium text-muted-foreground">Handover</th>
+            <th className="text-left p-3 font-medium text-muted-foreground">Status</th>
+            <th className="p-3" />
+          </tr></thead>
+          <tbody>
+            {filtered.map((r) => {
+              const open = !!expandedCanceled[r.id];
+              const draft = noteDrafts[r.id] ?? r.quotation_notes ?? "";
+              return (
+                <>
+                  <tr key={r.id} className="border-b hover:bg-muted/50 cursor-pointer" onClick={() => setExpandedCanceled((s) => ({ ...s, [r.id]: !s[r.id] }))}>
+                    <td className="p-3 text-muted-foreground">{open ? <ChevronDown className="h-4 w-4" /> : <ChevronRightIcon className="h-4 w-4" />}</td>
+                    <td className="p-3 font-semibold text-foreground uppercase">{r.client}</td>
+                    <td className="p-3 text-muted-foreground uppercase">{r.sites?.city || "—"}</td>
+                    <td className="p-3 text-foreground">{r.name}</td>
+                    <td className="p-3">{r.region ? <Badge variant="outline">{r.region}</Badge> : "—"}</td>
+                    <td className="p-3 font-medium">{r.total_fees != null ? `€${Number(r.total_fees).toLocaleString()}` : "—"}</td>
+                    <td className="p-3 text-muted-foreground">{r.handover_date ? format(new Date(r.handover_date), "dd MMM yyyy") : "—"}</td>
+                    <td className="p-3">
+                      <Badge variant="outline" className="gap-1 text-destructive border-destructive/30 bg-destructive/10">
+                        <Ban className="h-3 w-3" /> Canceled
+                      </Badge>
+                    </td>
+                    <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
                       <Button size="sm" className="gap-1.5" onClick={() => setResumeDialog(r)}>
                         <RotateCcw className="h-3 w-3" /> Resume
                       </Button>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          );
-        })}
+                    </td>
+                  </tr>
+                  {open && (
+                    <tr key={`${r.id}-notes`} className="border-b bg-muted/20">
+                      <td />
+                      <td colSpan={8} className="p-4 space-y-3">
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-medium text-muted-foreground">Reason for cancellation / rejection notes</label>
+                          <Textarea
+                            placeholder="Add the reason why this quotation was canceled or rejected…"
+                            value={draft}
+                            onChange={(e) => setNoteDrafts((s) => ({ ...s, [r.id]: e.target.value }))}
+                            className="min-h-[80px] text-sm bg-background"
+                          />
+                        </div>
+                        <div className="flex items-center justify-end gap-2">
+                          <Button size="sm" variant="outline" className="gap-1.5" disabled={savingNote === r.id} onClick={() => handleSaveNote(r)}>
+                            {savingNote === r.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                            Save note
+                          </Button>
+                          <Button size="sm" className="gap-1.5" onClick={() => setResumeDialog(r)}>
+                            <RotateCcw className="h-3 w-3" /> Resume
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     );
   };
