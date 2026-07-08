@@ -926,7 +926,7 @@ function AirRow({
 
   return (
     <tr className={cn("group transition-colors duration-150", baseBg, "hover:bg-slate-100/50")}>
-      {/* 1. Project & Location */}
+      {/* 1. CLIENT (sticky) */}
       <td className={cn(
         "px-4 py-4 font-semibold text-slate-800 sticky left-0 z-10 border-l-[3.5px]",
         statusBorderColor,
@@ -936,23 +936,28 @@ function AirRow({
         <div className="flex items-center gap-2">
           <span className={cn(
             "w-2 h-2 rounded-full shrink-0",
-            r.online_status === 'Online' 
-              ? 'bg-emerald-500' 
-              : r.online_status === 'Offline' 
-                ? 'bg-rose-500' 
+            r.online_status === 'Online'
+              ? 'bg-emerald-500'
+              : r.online_status === 'Offline'
+                ? 'bg-rose-500'
                 : 'bg-slate-300'
           )} title={r.online_status || 'Pending'} />
-          <div className="flex flex-col min-w-0">
-            <span className="text-sm font-bold tracking-tight truncate">{r.project_name}</span>
-            <span className="text-[10px] text-slate-400 font-normal mt-0.5">{r.city || <span className="text-slate-300 italic">No City</span>}</span>
-          </div>
+          <span className="text-sm font-bold tracking-tight truncate uppercase">
+            {r.brand_name || <span className="text-slate-300 italic normal-case">—</span>}
+          </span>
         </div>
       </td>
 
-      {/* 1a. Brand Name */}
-      <td className="px-4 py-4 text-xs text-slate-600 font-medium">
-        {r.brand_name || <span className="text-slate-300 italic">—</span>}
+      {/* 2. CITY */}
+      <td className="px-4 py-4 text-xs text-slate-600 font-medium uppercase">
+        {r.city || <span className="text-slate-300 italic normal-case">—</span>}
       </td>
+
+      {/* 3. PROJECT */}
+      <td className="px-4 py-4 text-sm text-slate-800 font-medium">
+        <span className="truncate">{r.project_name}</span>
+      </td>
+
 
       <td className="px-4 py-4">
         {r.air_product_ids.length > 0 ? (
