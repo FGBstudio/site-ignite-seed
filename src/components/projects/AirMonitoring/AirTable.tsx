@@ -104,6 +104,7 @@ function getUniqueValues(colKey: string, rows: any[], airProductsMap?: Map<strin
     }
     else if (colKey === 'region') val = r.region || '(Blanks)';
     else if (colKey === 'country') val = r.country || '(Blanks)';
+    else if (colKey === 'city') val = r.city || '(Blanks)';
     else if (colKey === 'brand_name') val = r.brand_name || '(Blanks)';
     else if (colKey === 'status') val = getSelectStatus(r.status);
     else if (colKey === 'notes') val = r.notes || '(Blanks)';
