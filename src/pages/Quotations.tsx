@@ -293,7 +293,7 @@ export default function Quotations() {
                     </td>
                   </tr>
                   {open && (
-                    <tr key={`${r.id}-notes`} className="border-b bg-muted/20">
+                    <tr className="border-b bg-muted/20">
                       <td />
                       <td colSpan={8} className="p-4 space-y-3">
                         <div className="space-y-1.5">
