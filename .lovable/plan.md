@@ -1,60 +1,24 @@
-## Diagnosi
+## Problem
 
-Per i progetti **WELL** (e in generale per molte certification importate dagli store LensCrafters / Sunglass Hut / Grandvision / Salmoiraghi & Viganò) la colonna `certifications.client` è **vuota** nel DB. Verificato con query:
+In the **New Quotation** wizard (Site & Project step), the `Client *` field is left empty and its placeholder suggests the **Holding** name (`e.g. Prada Group`). This encourages users to type the holding as client, but the correct value must be the **Brand** (e.g. `Miu Miu`), as shown in the second reference screenshot.
 
-```
-name: 0803 Lane Avenue Shopping Center → client: "" | sites.city: Upper Arlington | brand: LensCrafters
-name: 0700 5805 Frantz Road           → client: "" | sites.city: Dublin           | brand: LensCrafters
-name: 0401 Plymouth Meeting Mall      → client: "" | sites.city: Plymouth Meeting | brand: LensCrafters
-```
+The Client field is a free-text input backed by `services.client`, saved to `certifications.client`. It is not linked to the Brand selector above it.
 
-Il *brand* corretto esiste sempre tramite `sites.brand_id → brands.name`. La colonna CLIENT nella tabella Operations mostra quindi stringa vuota (o, per il fallback UI, ricade sulla città). Il campo `brand_name` è già calcolato in `useAdminPlannerData` ma **non viene mai usato come sorgente del `client`** — è per questo che i WELL non emergono.
+## Fix (scoped to `src/components/projects/NewQuotationWizard.tsx`)
 
-## Sorgenti dati (per la tabella Projects)
+1. **Auto-fill Client from the selected Brand**, mirroring the existing pattern used for Project Name ↔ Site Name:
+   - Add a `clientTouched` state flag (default `false`).
+   - Add a `useEffect` that, while `!clientTouched` and `brandName` is set, keeps `services.client === brandName`.
+   - Set `clientTouched = true` inside the `onChange` of the Client input so manual edits are preserved.
+   - Reset `clientTouched` on wizard close/reset alongside the other state resets.
 
-| Colonna       | Sorgente attuale                                             |
-|---------------|--------------------------------------------------------------|
-| CLIENT        | `certifications.client` (spesso NULL per WELL)               |
-| CITY          | `sites.city` (via `certifications.site_id`)                  |
-| PROJECT       | `certifications.name` (fallback `cert_type`)                 |
-| REGION        | `certifications.region`                                      |
-| CERTIFICATION | `certifications.cert_type`                                   |
-| RATING        | `certifications.cert_rating` / `level`                       |
-| SUBTYPE       | `certifications.project_subtype`                             |
-| PM            | `profiles.display_name/full_name/email` via `pm_id`          |
-| HANDOVER      | `certifications.handover_date` (o `issued_date` in Certified)|
-| CONFIG STATUS | derivato: presenza Timeline / Scorecard / Hardware           |
-| HARDWARE      | `project_allocations` aggregato                              |
+2. **Update placeholder** of the Client input from `e.g. Prada Group` to `e.g. Miu Miu (auto-filled from Brand)` to reflect the new semantics.
 
-## Strategia di fix (frontend-only, nessuna migrazione)
+3. **No DB migration, no changes to save logic** — `services.client` still flows through unchanged into `certifications.client`. Existing rows are untouched.
 
-Il `brand` è, semanticamente, il vero cliente commerciale (LensCrafters, Sunglass Hut, ...). Uso un **fallback deterministico** nella sorgente unica dei dati, così tutte le tabelle a valle (Operations, Admin Dashboard, PM Dashboard) ereditano il fix.
+4. **Resume mode**: when the wizard is opened via `resumeCertId`, the cert already carries a `client` value; set `clientTouched = true` after prefill so we do NOT overwrite a stored client with the brand name.
 
-### 1. `src/hooks/useAdminPlannerData.ts`
+## Out of scope
 
-Definire un helper locale:
-
-```ts
-const resolveClient = (c: any, brandsMap: Map<string,string>): string => {
-  const raw = (c.client ?? "").trim();
-  if (raw) return raw;
-  const brand = c.sites?.brand_id ? brandsMap.get(c.sites.brand_id) : null;
-  return brand || "—";
-};
-```
-
-Sostituire **ogni** `client: c.client` nel `.map(...)` (righe ~151 e ~290) con `client: resolveClient(c, brandsMap)`. Fare la stessa sostituzione nel `subLabel` dei `plannerData` (righe 159 e 268) per coerenza col Gantt.
-
-### 2. Verifica a valle
-- `Projects.tsx` legge `project.client` per: render cella, filtro colonna, ricerca globale, sort → tutto ok, riceve già il valore risolto.
-- `CeoDashboard.tsx` e `PMProjectsBoard.tsx` consumano lo stesso hook (o replicano lo stesso shape); l'unica cosa da controllare è che nessuno faccia un secondo override tipo `client: c.client`. Se presente, applicare lo stesso helper.
-- `ProjectContextCells.tsx` (usato da altre tabelle) legge `row.certifications?.client || row.client`. Aggiungere lì un fallback simmetrico a `row.certifications?.sites?.brand?.name` **solo** dove i join lo espongono già; altrimenti lasciare invariato (le tabelle Operations/Admin/PM passano dal hook e sono già coperte).
-
-### 3. Non toccare
-- Nessuna scrittura sul DB (i valori restano vuoti come sono).
-- Nessuna modifica alla colonna CITY.
-- Nessun cambio di stile: l'`uppercase` già presente farà apparire "LENSCRAFTERS", "SUNGLASS HUT", ecc.
-
-## Risultato atteso
-
-Nelle righe screenshot la colonna CLIENT mostrerà **LENSCRAFTERS** (o il brand corretto), la colonna CITY resta **UPPER ARLINGTON / DUBLIN / PLYMOUTH MEETING**, e il filtro/ordinamento su Client userà il valore risolto.
+- Backfilling wrong `client` values already saved in the DB (holdings written as clients on past quotations). Can be addressed separately if the user wants a one-shot data cleanup.
+- Changes to the `resolveClient` fallback in `useAdminPlannerData` (already brand-based).
