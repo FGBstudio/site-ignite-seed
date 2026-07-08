@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Check, Download, Eye, EyeOff, Loader2, Pencil, Search, X, Zap, Wind } from "lucide-react";
+import { Check, Download, Eye, EyeOff, Loader2, Pencil, Search, X, Zap, Wind, Droplet } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { supabase } from "@/integrations/supabase/client";
@@ -19,6 +19,7 @@ import type { SiteEnergyRecordPatch } from "@/types/site-energy";
 import { cn } from "@/lib/utils";
 import { MonitoringAlertsWidget } from "@/components/monitor/MonitoringAlertsWidget";
 import { AirTable } from "@/components/projects/AirMonitoring/AirTable";
+import { WaterTable } from "@/components/projects/WaterMonitoring/WaterTable";
 
 const fmtEUR = (n: number | null | undefined) =>
   typeof n === "number" ? n.toLocaleString("en-US", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }) : "—";
@@ -49,12 +50,15 @@ export default function Monitor() {
       <div className="space-y-4">
         <MonitoringAlertsWidget />
         <Tabs defaultValue="energy">
-          <TabsList className="grid w-full grid-cols-2 max-w-[400px]">
+          <TabsList className="grid w-full grid-cols-3 max-w-[520px]">
             <TabsTrigger value="energy" className="gap-2">
               <Zap className="h-4 w-4" /> Energy
             </TabsTrigger>
             <TabsTrigger value="air" className="gap-2">
               <Wind className="h-4 w-4" /> Air Quality
+            </TabsTrigger>
+            <TabsTrigger value="water" className="gap-2">
+              <Droplet className="h-4 w-4" /> Water
             </TabsTrigger>
           </TabsList>
           <TabsContent value="energy" className="mt-4">
@@ -62,6 +66,9 @@ export default function Monitor() {
           </TabsContent>
           <TabsContent value="air" className="mt-4">
             <AirTable />
+          </TabsContent>
+          <TabsContent value="water" className="mt-4">
+            <WaterTable />
           </TabsContent>
         </Tabs>
       </div>
