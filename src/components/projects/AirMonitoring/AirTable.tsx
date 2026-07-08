@@ -143,6 +143,7 @@ function matchRowValue(r: any, colKey: string, selectedValues: string[] | null |
   else if (colKey === 'pm_name') val = r.pm_name || '(Blanks)';
   else if (colKey === 'region') val = r.region || '(Blanks)';
   else if (colKey === 'country') val = r.country || '(Blanks)';
+  else if (colKey === 'city') val = r.city || '(Blanks)';
   else if (colKey === 'brand_name') val = r.brand_name || '(Blanks)';
   else if (colKey === 'total_sensors') val = String(r.total_sensors ?? 0);
   else if (colKey === 'po_numbers') {
