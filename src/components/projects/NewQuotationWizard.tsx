@@ -177,6 +177,7 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
   const [saving, setSaving] = useState(false);
   const [isPotential, setIsPotential] = useState(false);
   const [projectNameTouched, setProjectNameTouched] = useState(false);
+  const [clientTouched, setClientTouched] = useState(false);
 
   // Per-cert quotation patch helper
   const patchCert = (type: CertType, patch: Partial<CertConfig>) => {
@@ -203,6 +204,13 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
     if (!siteName) return;
     setServices((s) => (s.projectName === siteName ? s : { ...s, projectName: siteName }));
   }, [siteName, projectNameTouched]);
+
+  // Auto-fill Client from Brand Name until the user manually edits it.
+  useEffect(() => {
+    if (clientTouched) return;
+    if (!brandName) return;
+    setServices((s) => (s.client === brandName ? s : { ...s, client: brandName }));
+  }, [brandName, clientTouched]);
 
   // ── Site handlers ─────────────────────────────────────────────────────────
 
@@ -295,6 +303,8 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
       setServices(emptyServices());
       setErrors({});
       setIsPotential(false);
+      setProjectNameTouched(false);
+      setClientTouched(false);
     }, 300);
   };
 
@@ -327,6 +337,8 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
         region: (cert as any).region || "Europe",
         handoverDate: (cert as any).handover_date ? new Date((cert as any).handover_date) : undefined,
       }));
+      setProjectNameTouched(true);
+      setClientTouched(true);
     })();
     return () => { cancelled = true; };
   }, [open, resumeCertId]);
@@ -639,9 +651,12 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
         <div className="space-y-1.5">
           <Label className="text-xs font-medium">Client *</Label>
           <Input
-            placeholder="e.g. Prada Group"
+            placeholder="Auto-filled from Brand — edit if needed"
             value={services.client}
-            onChange={(e) => setServices((s) => ({ ...s, client: e.target.value }))}
+            onChange={(e) => {
+              setClientTouched(true);
+              setServices((s) => ({ ...s, client: e.target.value }));
+            }}
             className={cn(errors.client && "border-destructive")}
           />
           {errors.client && <p className="text-xs text-destructive">{errors.client}</p>}
