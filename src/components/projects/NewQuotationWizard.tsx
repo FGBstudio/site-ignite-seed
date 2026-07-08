@@ -177,6 +177,7 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
   const [saving, setSaving] = useState(false);
   const [isPotential, setIsPotential] = useState(false);
   const [projectNameTouched, setProjectNameTouched] = useState(false);
+  const [clientTouched, setClientTouched] = useState(false);
 
   // Per-cert quotation patch helper
   const patchCert = (type: CertType, patch: Partial<CertConfig>) => {
