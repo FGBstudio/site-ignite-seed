@@ -408,7 +408,8 @@ export function AirTable() {
 
         if (filter.search) {
           let val = '';
-          if (colKey === 'project_name') val = `${r.project_name} ${r.city} ${r.country} ${r.region}`;
+          if (colKey === 'project_name') val = r.project_name;
+          else if (colKey === 'city') val = r.city || '';
           else if (colKey === 'pm_name') val = r.pm_name || '';
           else if (colKey === 'total_sensors') val = String(r.total_sensors ?? 0);
           else if (colKey === 'po_numbers') val = r.po_numbers.join(" ");
