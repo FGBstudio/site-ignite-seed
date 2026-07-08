@@ -50,12 +50,15 @@ export default function Monitor() {
       <div className="space-y-4">
         <MonitoringAlertsWidget />
         <Tabs defaultValue="energy">
-          <TabsList className="grid w-full grid-cols-2 max-w-[400px]">
+          <TabsList className="grid w-full grid-cols-3 max-w-[520px]">
             <TabsTrigger value="energy" className="gap-2">
               <Zap className="h-4 w-4" /> Energy
             </TabsTrigger>
             <TabsTrigger value="air" className="gap-2">
               <Wind className="h-4 w-4" /> Air Quality
+            </TabsTrigger>
+            <TabsTrigger value="water" className="gap-2">
+              <Droplet className="h-4 w-4" /> Water
             </TabsTrigger>
           </TabsList>
           <TabsContent value="energy" className="mt-4">
@@ -63,6 +66,9 @@ export default function Monitor() {
           </TabsContent>
           <TabsContent value="air" className="mt-4">
             <AirTable />
+          </TabsContent>
+          <TabsContent value="water" className="mt-4">
+            <WaterTable />
           </TabsContent>
         </Tabs>
       </div>
