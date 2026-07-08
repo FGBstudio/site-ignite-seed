@@ -303,6 +303,8 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
       setServices(emptyServices());
       setErrors({});
       setIsPotential(false);
+      setProjectNameTouched(false);
+      setClientTouched(false);
     }, 300);
   };
 
