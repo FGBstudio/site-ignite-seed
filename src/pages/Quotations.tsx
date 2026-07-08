@@ -317,7 +317,7 @@ export default function Quotations() {
                       </td>
                     </tr>
                   )}
-                </>
+                </React.Fragment>
               );
             })}
           </tbody>
