@@ -337,6 +337,8 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
         region: (cert as any).region || "Europe",
         handoverDate: (cert as any).handover_date ? new Date((cert as any).handover_date) : undefined,
       }));
+      setProjectNameTouched(true);
+      setClientTouched(true);
     })();
     return () => { cancelled = true; };
   }, [open, resumeCertId]);
