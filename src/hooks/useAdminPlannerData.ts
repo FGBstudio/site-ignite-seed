@@ -272,7 +272,7 @@ export function useAdminPlannerData() {
         const plannerData: GanttRowData = {
           id: c.id,
           label: c.name || c.cert_type || "Unnamed",
-          subLabel: pmName ? `${c.client} · PM: ${pmName}` : c.client,
+          subLabel: pmName ? `${resolveClient(c)} · PM: ${pmName}` : resolveClient(c),
           launchDate,
           designStart,
           designEnd,
