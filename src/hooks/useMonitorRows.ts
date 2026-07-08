@@ -103,6 +103,8 @@ export function useMonitorRows() {
 
       const pmIds = Array.from(new Set(records.map((r) => r.pm_id).filter(Boolean) as string[]));
       const siteIds = Array.from(new Set(records.map((r) => r.site_id).filter(Boolean) as string[]));
+      const certIds = Array.from(new Set(records.map((r) => r.certification_id).filter(Boolean) as string[]));
+      const identity = await loadIdentityMaps(siteIds, certIds);
 
       const [profilesRes, hardwaresRes] = await Promise.all([
         pmIds.length
