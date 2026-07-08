@@ -205,6 +205,13 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
     setServices((s) => (s.projectName === siteName ? s : { ...s, projectName: siteName }));
   }, [siteName, projectNameTouched]);
 
+  // Auto-fill Client from Brand Name until the user manually edits it.
+  useEffect(() => {
+    if (clientTouched) return;
+    if (!brandName) return;
+    setServices((s) => (s.client === brandName ? s : { ...s, client: brandName }));
+  }, [brandName, clientTouched]);
+
   // ── Site handlers ─────────────────────────────────────────────────────────
 
   const onHoldingChange = (val: string) =>
