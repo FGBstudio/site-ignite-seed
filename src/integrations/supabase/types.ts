@@ -4128,6 +4128,83 @@ export type Database = {
           },
         ]
       }
+      site_water_records: {
+        Row: {
+          certification_id: string | null
+          created_at: string
+          handover_date: string | null
+          id: string
+          notes: string | null
+          online_status: string | null
+          pm_id: string | null
+          po_numbers: string[] | null
+          project_name: string
+          site_id: string
+          status: string
+          total_sensors: number | null
+          updated_at: string
+        }
+        Insert: {
+          certification_id?: string | null
+          created_at?: string
+          handover_date?: string | null
+          id?: string
+          notes?: string | null
+          online_status?: string | null
+          pm_id?: string | null
+          po_numbers?: string[] | null
+          project_name: string
+          site_id: string
+          status?: string
+          total_sensors?: number | null
+          updated_at?: string
+        }
+        Update: {
+          certification_id?: string | null
+          created_at?: string
+          handover_date?: string | null
+          id?: string
+          notes?: string | null
+          online_status?: string | null
+          pm_id?: string | null
+          po_numbers?: string[] | null
+          project_name?: string
+          site_id?: string
+          status?: string
+          total_sensors?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "site_water_records_certification_id_fkey"
+            columns: ["certification_id"]
+            isOneToOne: false
+            referencedRelation: "certifications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "site_water_records_certification_id_fkey"
+            columns: ["certification_id"]
+            isOneToOne: false
+            referencedRelation: "view_cert_hours_burn"
+            referencedColumns: ["certification_id"]
+          },
+          {
+            foreignKeyName: "site_water_records_pm_id_fkey"
+            columns: ["pm_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "site_water_records_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: true
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       site_weather_energy_daily: {
         Row: {
           energy_kwh: number | null
@@ -5713,6 +5790,10 @@ export type Database = {
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      sync_site_monitoring_from_certs: {
+        Args: { p_site_id: string }
+        Returns: undefined
+      }
       sync_site_settings_to_rules: {
         Args: { p_site_id: string }
         Returns: undefined
