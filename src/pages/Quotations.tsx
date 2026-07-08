@@ -272,8 +272,8 @@ export default function Quotations() {
               const open = !!expandedCanceled[r.id];
               const draft = noteDrafts[r.id] ?? r.quotation_notes ?? "";
               return (
-                <>
-                  <tr key={r.id} className="border-b hover:bg-muted/50 cursor-pointer" onClick={() => setExpandedCanceled((s) => ({ ...s, [r.id]: !s[r.id] }))}>
+                <React.Fragment key={r.id}>
+                  <tr className="border-b hover:bg-muted/50 cursor-pointer" onClick={() => setExpandedCanceled((s) => ({ ...s, [r.id]: !s[r.id] }))}>
                     <td className="p-3 text-muted-foreground">{open ? <ChevronDown className="h-4 w-4" /> : <ChevronRightIcon className="h-4 w-4" />}</td>
                     <td className="p-3 font-semibold text-foreground uppercase">{r.client}</td>
                     <td className="p-3 text-muted-foreground uppercase">{r.sites?.city || "—"}</td>
