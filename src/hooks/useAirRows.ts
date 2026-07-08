@@ -50,6 +50,7 @@ export function useAirRows() {
         .from('site_air_records')
         .select(`
           site_id,
+          certification_id,
           status,
           total_sensors,
           po_numbers,
@@ -80,6 +81,10 @@ export function useAirRows() {
             region,
             city,
             brand_id
+          ),
+          certifications:certification_id (
+            id,
+            name
           ),
           profiles:pm_id (
             display_name,
