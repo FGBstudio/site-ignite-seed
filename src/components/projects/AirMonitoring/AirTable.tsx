@@ -732,8 +732,8 @@ export function AirTable() {
               <thead>
                 {/* Row 1: Grouped headers */}
                 <tr>
-                  <th className="bg-slate-50/80 border-b border-slate-200 sticky left-0 z-20 min-w-[320px] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.12)]" />
-                  <th colSpan={9} className="bg-slate-50/80 border-b border-slate-200" />
+                  <th className="bg-slate-50/80 border-b border-slate-200 sticky left-0 z-20 min-w-[180px] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.12)]" />
+                  <th colSpan={10} className="bg-slate-50/80 border-b border-slate-200" />
                   {showFinancials && (
                     <th colSpan={6} className="bg-indigo-50/50 text-center text-[10px] uppercase font-bold text-indigo-700 border-b border-l border-r border-indigo-100 py-2 tracking-wider">
                       Financial Overview (€)
