@@ -1,31 +1,60 @@
-## Goal
-Replace the **Handover** column with **Issue Date** (`certifications.issued_date`) **only** in the Certified view of the Operations projects table.
+## Diagnosi
 
-## Scope
-- File: `src/pages/Projects.tsx` (Operations → Projects tab → Certified status tab)
-- No changes to Admin Dashboard, PM Dashboard, Quotations, Inventory, or any other table.
+Per i progetti **WELL** (e in generale per molte certification importate dagli store LensCrafters / Sunglass Hut / Grandvision / Salmoiraghi & Viganò) la colonna `certifications.client` è **vuota** nel DB. Verificato con query:
 
-## Plan
-1. **Add `issued_date` support to the existing column-filter helpers**
-   - Update `getUniqueValues` so the `issued_date` key returns formatted issue dates.
-   - Update `matchRowValue` so multi-select filtering works on `issued_date`.
-   - Update the search branch in the main `filtered` memo so free-text search also covers `issued_date`.
+```
+name: 0803 Lane Avenue Shopping Center → client: "" | sites.city: Upper Arlington | brand: LensCrafters
+name: 0700 5805 Frantz Road           → client: "" | sites.city: Dublin           | brand: LensCrafters
+name: 0401 Plymouth Meeting Mall      → client: "" | sites.city: Plymouth Meeting | brand: LensCrafters
+```
 
-2. **Conditional header**
-   - When `statusTab === "certificato"`, render the column header as **Issue Date** with `colKey="issued_date"`.
-   - For all other status tabs, keep the existing **Handover** header with `colKey="handover_date"`.
+Il *brand* corretto esiste sempre tramite `sites.brand_id → brands.name`. La colonna CLIENT nella tabella Operations mostra quindi stringa vuota (o, per il fallback UI, ricade sulla città). Il campo `brand_name` è già calcolato in `useAdminPlannerData` ma **non viene mai usato come sorgente del `client`** — è per questo che i WELL non emergono.
 
-3. **Conditional cell content**
-   - In the Certified tab, display `project.issued_date` formatted as `dd MMM yyyy`, falling back to `—` when null.
-   - In all other tabs, keep the current Handover rendering (date + days-left badge).
+## Sorgenti dati (per la tabella Projects)
 
-4. **Sorting**
-   - The generic sort already reads `sortConfig.key` directly from the row object, so sorting on `issued_date` will work once the header uses that key.
+| Colonna       | Sorgente attuale                                             |
+|---------------|--------------------------------------------------------------|
+| CLIENT        | `certifications.client` (spesso NULL per WELL)               |
+| CITY          | `sites.city` (via `certifications.site_id`)                  |
+| PROJECT       | `certifications.name` (fallback `cert_type`)                 |
+| REGION        | `certifications.region`                                      |
+| CERTIFICATION | `certifications.cert_type`                                   |
+| RATING        | `certifications.cert_rating` / `level`                       |
+| SUBTYPE       | `certifications.project_subtype`                             |
+| PM            | `profiles.display_name/full_name/email` via `pm_id`          |
+| HANDOVER      | `certifications.handover_date` (o `issued_date` in Certified)|
+| CONFIG STATUS | derivato: presenza Timeline / Scorecard / Hardware           |
+| HARDWARE      | `project_allocations` aggregato                              |
 
-5. **Verification**
-   - Run TypeScript check (`tsgo` or `tsc --noEmit`) to ensure `issued_date` is typed correctly.
-   - Check the preview on the Certified tab to confirm Handover is replaced by Issue Date and other tabs remain unchanged.
+## Strategia di fix (frontend-only, nessuna migrazione)
 
-## Notes
-- Data source for Issue Date: `certifications.issued_date` (already fetched by `useAdminPlannerData` via `select("*", ...)`).
-- The tab switch already resets column filters/sorting, so switching between tabs will not leave stale filter state.
+Il `brand` è, semanticamente, il vero cliente commerciale (LensCrafters, Sunglass Hut, ...). Uso un **fallback deterministico** nella sorgente unica dei dati, così tutte le tabelle a valle (Operations, Admin Dashboard, PM Dashboard) ereditano il fix.
+
+### 1. `src/hooks/useAdminPlannerData.ts`
+
+Definire un helper locale:
+
+```ts
+const resolveClient = (c: any, brandsMap: Map<string,string>): string => {
+  const raw = (c.client ?? "").trim();
+  if (raw) return raw;
+  const brand = c.sites?.brand_id ? brandsMap.get(c.sites.brand_id) : null;
+  return brand || "—";
+};
+```
+
+Sostituire **ogni** `client: c.client` nel `.map(...)` (righe ~151 e ~290) con `client: resolveClient(c, brandsMap)`. Fare la stessa sostituzione nel `subLabel` dei `plannerData` (righe 159 e 268) per coerenza col Gantt.
+
+### 2. Verifica a valle
+- `Projects.tsx` legge `project.client` per: render cella, filtro colonna, ricerca globale, sort → tutto ok, riceve già il valore risolto.
+- `CeoDashboard.tsx` e `PMProjectsBoard.tsx` consumano lo stesso hook (o replicano lo stesso shape); l'unica cosa da controllare è che nessuno faccia un secondo override tipo `client: c.client`. Se presente, applicare lo stesso helper.
+- `ProjectContextCells.tsx` (usato da altre tabelle) legge `row.certifications?.client || row.client`. Aggiungere lì un fallback simmetrico a `row.certifications?.sites?.brand?.name` **solo** dove i join lo espongono già; altrimenti lasciare invariato (le tabelle Operations/Admin/PM passano dal hook e sono già coperte).
+
+### 3. Non toccare
+- Nessuna scrittura sul DB (i valori restano vuoti come sono).
+- Nessuna modifica alla colonna CITY.
+- Nessun cambio di stile: l'`uppercase` già presente farà apparire "LENSCRAFTERS", "SUNGLASS HUT", ecc.
+
+## Risultato atteso
+
+Nelle righe screenshot la colonna CLIENT mostrerà **LENSCRAFTERS** (o il brand corretto), la colonna CITY resta **UPPER ARLINGTON / DUBLIN / PLYMOUTH MEETING**, e il filtro/ordinamento su Client userà il valore risolto.
