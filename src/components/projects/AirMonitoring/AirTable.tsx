@@ -846,7 +846,9 @@ export function AirTable() {
                   <td className="px-4 py-3.5 text-left sticky left-0 bg-slate-100 z-10 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.12)]">
                     <span className="text-xs uppercase tracking-wider font-bold text-slate-700">Total Filtered</span>
                   </td>
-                  <td className="px-4 py-3.5" /> {/* Brand Name */}
+                  <td className="px-4 py-3.5" /> {/* City */}
+                  <td className="px-4 py-3.5" /> {/* Project */}
+                  <td className="px-4 py-3.5" /> {/* Monitor Typology */}
                   <td className="px-4 py-3.5" /> {/* Region */}
                   <td className="px-4 py-3.5" /> {/* Country */}
                   <td className="px-4 py-3.5" /> {/* PM */}
