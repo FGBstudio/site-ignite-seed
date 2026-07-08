@@ -564,7 +564,7 @@ export function AirTable() {
     }
   };
 
-  const totalCols = 12 + (showFinancials ? 6 : 0);
+  const totalCols = 13 + (showFinancials ? 6 : 0);
 
   const visibleStats = useMemo(() => {
     const totalSensors = sortedAndFiltered.reduce((sum, r) => sum + (r.total_sensors ?? 0), 0);
