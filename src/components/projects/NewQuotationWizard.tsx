@@ -651,9 +651,12 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
         <div className="space-y-1.5">
           <Label className="text-xs font-medium">Client *</Label>
           <Input
-            placeholder="e.g. Prada Group"
+            placeholder="Auto-filled from Brand — edit if needed"
             value={services.client}
-            onChange={(e) => setServices((s) => ({ ...s, client: e.target.value }))}
+            onChange={(e) => {
+              setClientTouched(true);
+              setServices((s) => ({ ...s, client: e.target.value }));
+            }}
             className={cn(errors.client && "border-destructive")}
           />
           {errors.client && <p className="text-xs text-destructive">{errors.client}</p>}
