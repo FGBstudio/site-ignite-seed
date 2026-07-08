@@ -163,8 +163,17 @@ export function useMonitorRows() {
         const inbound = aggForPoIds(r.site_id ? poIdsBySite.get(r.site_id) : undefined, "inbound");
         const outbound = aggForPoIds(r.site_id ? poIdsBySite.get(r.site_id) : undefined, "outbound");
         const live = deriveLive(r, priceInfo!.prices, inbound, outbound);
+        const id =
+          (r.certification_id ? identity.byCertId.get(r.certification_id) : null) ??
+          (r.site_id ? identity.bySiteId.get(r.site_id) : null);
         return {
           ...r,
+          // Identity always resolved from sites + brands + certifications (single source of truth).
+          brand_name: id?.client ?? r.brand_name ?? null,
+          city: id?.city ?? r.city ?? null,
+          region: id?.region ?? r.region ?? null,
+          country: id?.country ?? r.country ?? null,
+          project_name: id?.project ?? r.project_name ?? null,
           pm_name: pmName(profilesById.get(r.pm_id ?? "")),
           po_numbers: r.site_id ? Array.from(poNumbersBySite.get(r.site_id) ?? []) : [],
           inbound,
