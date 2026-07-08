@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { SiteEnergyRecord } from "@/types/site-energy";
 import { useEnergyProductPrices, type EnergyPriceMap } from "@/lib/productPricing";
+import { loadIdentityMaps } from "@/lib/monitorIdentity";
 
 export interface ShipmentAgg {
   customs_cost: number;
