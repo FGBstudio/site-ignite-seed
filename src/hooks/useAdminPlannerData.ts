@@ -155,7 +155,7 @@ export function useAdminPlannerData() {
             c.status === "quotation" ? "Quotation" :
             c.status === "quotation_approved" ? "Quotation Approved" : "Canceled";
           return {
-            id: c.id, name: c.name || c.cert_type || "Unnamed", client: c.client, region: c.region,
+            id: c.id, name: c.name || c.cert_type || "Unnamed", client: resolveClient(c), region: c.region,
             city: c.sites?.city || null, issued_date: c.issued_date || null,
             status: c.status, handover_date: c.handover_date, site_id: c.site_id, cert_type: c.cert_type,
             cert_rating: c.cert_rating || c.level, pm_id: c.pm_id, created_at: c.created_at,
@@ -163,7 +163,7 @@ export function useAdminPlannerData() {
             brand_name: c.sites?.brand_id ? brandsMap.get(c.sites.brand_id) || null : null,
             project_allocations: allocations, certification_milestones: certMilestones,
             plannerData: {
-              id: c.id, label: c.name || c.cert_type || "Unnamed", subLabel: c.client, launchDate: c.created_at.slice(0,10),
+              id: c.id, label: c.name || c.cert_type || "Unnamed", subLabel: resolveClient(c), launchDate: c.created_at.slice(0,10),
               currentActivity, progress: 0, status: c.status === "canceled" ? "canceled" : "pending", segments: [], plannedHandoverDate: c.planned_handover_date || null, isDeadlineCritical: false,
               ...emptyDates
             } as unknown as GanttRowData,
