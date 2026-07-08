@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Check, Download, Eye, EyeOff, Loader2, Pencil, Search, X, Zap, Wind } from "lucide-react";
+import { Check, Download, Eye, EyeOff, Loader2, Pencil, Search, X, Zap, Wind, Droplet } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { supabase } from "@/integrations/supabase/client";
