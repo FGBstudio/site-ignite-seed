@@ -19,6 +19,7 @@ import type { SiteEnergyRecordPatch } from "@/types/site-energy";
 import { cn } from "@/lib/utils";
 import { MonitoringAlertsWidget } from "@/components/monitor/MonitoringAlertsWidget";
 import { AirTable } from "@/components/projects/AirMonitoring/AirTable";
+import { WaterTable } from "@/components/projects/WaterMonitoring/WaterTable";
 
 const fmtEUR = (n: number | null | undefined) =>
   typeof n === "number" ? n.toLocaleString("en-US", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }) : "—";
