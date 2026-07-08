@@ -129,6 +129,13 @@ export function useAdminPlannerData() {
       // 5. Build result
       const today = new Date().toISOString().slice(0, 10);
 
+      const resolveClient = (c: any): string => {
+        const raw = (c.client ?? "").toString().trim();
+        if (raw) return raw;
+        const brand = c.sites?.brand_id ? brandsMap.get(c.sites.brand_id) : null;
+        return brand || "—";
+      };
+
       return (certs as any[]).map((c): AdminPlannerProject => {
         const certMilestones = milestones.filter((m) => m.certification_id === c.id);
         const allocations = c.project_allocations || [];
