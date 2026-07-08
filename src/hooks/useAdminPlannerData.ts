@@ -129,6 +129,13 @@ export function useAdminPlannerData() {
       // 5. Build result
       const today = new Date().toISOString().slice(0, 10);
 
+      const resolveClient = (c: any): string => {
+        const raw = (c.client ?? "").toString().trim();
+        if (raw) return raw;
+        const brand = c.sites?.brand_id ? brandsMap.get(c.sites.brand_id) : null;
+        return brand || "—";
+      };
+
       return (certs as any[]).map((c): AdminPlannerProject => {
         const certMilestones = milestones.filter((m) => m.certification_id === c.id);
         const allocations = c.project_allocations || [];
@@ -148,7 +155,7 @@ export function useAdminPlannerData() {
             c.status === "quotation" ? "Quotation" :
             c.status === "quotation_approved" ? "Quotation Approved" : "Canceled";
           return {
-            id: c.id, name: c.name || c.cert_type || "Unnamed", client: c.client, region: c.region,
+            id: c.id, name: c.name || c.cert_type || "Unnamed", client: resolveClient(c), region: c.region,
             city: c.sites?.city || null, issued_date: c.issued_date || null,
             status: c.status, handover_date: c.handover_date, site_id: c.site_id, cert_type: c.cert_type,
             cert_rating: c.cert_rating || c.level, pm_id: c.pm_id, created_at: c.created_at,
@@ -156,7 +163,7 @@ export function useAdminPlannerData() {
             brand_name: c.sites?.brand_id ? brandsMap.get(c.sites.brand_id) || null : null,
             project_allocations: allocations, certification_milestones: certMilestones,
             plannerData: {
-              id: c.id, label: c.name || c.cert_type || "Unnamed", subLabel: c.client, launchDate: c.created_at.slice(0,10),
+              id: c.id, label: c.name || c.cert_type || "Unnamed", subLabel: resolveClient(c), launchDate: c.created_at.slice(0,10),
               currentActivity, progress: 0, status: c.status === "canceled" ? "canceled" : "pending", segments: [], plannedHandoverDate: c.planned_handover_date || null, isDeadlineCritical: false,
               ...emptyDates
             } as unknown as GanttRowData,
@@ -265,7 +272,7 @@ export function useAdminPlannerData() {
         const plannerData: GanttRowData = {
           id: c.id,
           label: c.name || c.cert_type || "Unnamed",
-          subLabel: pmName ? `${c.client} · PM: ${pmName}` : c.client,
+          subLabel: pmName ? `${resolveClient(c)} · PM: ${pmName}` : resolveClient(c),
           launchDate,
           designStart,
           designEnd,
@@ -287,7 +294,7 @@ export function useAdminPlannerData() {
         } as unknown as GanttRowData;
 
         return {
-          id: c.id, name: c.name || c.cert_type || "Unnamed", client: c.client, region: c.region,
+          id: c.id, name: c.name || c.cert_type || "Unnamed", client: resolveClient(c), region: c.region,
           city: c.sites?.city || null, issued_date: c.issued_date || null,
           status: c.status, handover_date: c.handover_date, site_id: c.site_id, cert_type: c.cert_type,
           cert_rating: c.cert_rating || c.level, pm_id: c.pm_id, created_at: c.created_at,
