@@ -722,6 +722,15 @@ export function AirTable() {
           )}
         </div>
         <div className="flex items-center gap-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <Input
+              value={globalSearch}
+              onChange={(e) => setGlobalSearch(e.target.value)}
+              placeholder="Search site, client, city, PO…"
+              className="pl-9 h-10 w-72 bg-white border-slate-200 text-xs"
+            />
+          </div>
           <Button variant="outline" size="sm" onClick={() => setShowFinancials(!showFinancials)} className={cn("gap-2 h-10 px-4", showFinancials ? "bg-indigo-50 text-indigo-700 border-indigo-200" : "border-slate-200")}>
             <Activity className="h-4 w-4" /> {showFinancials ? "Hide Financials" : "Show Financials"}
           </Button>
