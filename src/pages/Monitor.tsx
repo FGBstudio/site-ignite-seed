@@ -224,14 +224,19 @@ function EnergyTable() {
               <Input value={search} onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search project, brand, PO, installer…" className="pl-9 w-72" />
             </div>
-            <FilterSelect label="Status" value={filters.status} onChange={(v) => setFilters({ ...filters, status: v })} options={STATUS_OPTIONS as readonly string[]} />
-            <FilterSelect label="Category" value={filters.category} onChange={(v) => setFilters({ ...filters, category: v })} options={CATEGORY_OPTIONS as readonly string[]} />
-            <FilterSelect label="PM" value={filters.pm} onChange={(v) => setFilters({ ...filters, pm: v })} options={uniques.pms} />
-            <FilterSelect label="Package" value={filters.package} onChange={(v) => setFilters({ ...filters, package: v })} options={["A", "B", "Customized"]} />
-            <FilterSelect label="Brand" value={filters.brand} onChange={(v) => setFilters({ ...filters, brand: v })} options={uniques.brands} />
-            <FilterSelect label="Region" value={filters.region} onChange={(v) => setFilters({ ...filters, region: v })} options={uniques.regions} />
-            <FilterSelect label="Country" value={filters.country} onChange={(v) => setFilters({ ...filters, country: v })} options={uniques.countries} />
-            <FilterSelect label="Frequency" value={filters.frequency} onChange={(v) => setFilters({ ...filters, frequency: v })} options={uniques.frequencies.map(String)} />
+            <ExcelFilterButton label="Status" values={uniques.statuses} state={statusF} onChange={setStatusF} />
+            <ExcelFilterButton label="Category" values={uniques.categories} state={categoryF} onChange={setCategoryF} />
+            <ExcelFilterButton label="PM" values={uniques.pms} state={pmF} onChange={setPmF} />
+            <ExcelFilterButton label="Package" values={uniques.packages} state={packageF} onChange={setPackageF} />
+            <ExcelFilterButton label="Brand" values={uniques.brands} state={brandF} onChange={setBrandF} />
+            <ExcelFilterButton label="Region" values={uniques.regions} state={regionF} onChange={setRegionF} />
+            <ExcelFilterButton label="Country" values={uniques.countries} state={countryF} onChange={setCountryF} />
+            <ExcelFilterButton label="Frequency" values={uniques.frequencies} state={frequencyF} onChange={setFrequencyF} />
+            {hasActiveFilter && (
+              <Button variant="ghost" size="sm" onClick={clearFilters} className="text-xs text-indigo-600 hover:text-indigo-700 h-9 px-2.5 font-semibold">
+                Clear
+              </Button>
+            )}
             <div className="ml-auto flex items-center gap-2">
               <Button variant="outline" size="sm" onClick={() => setShowNetwork((s) => !s)} className="gap-2">
                 {showNetwork ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />} Network
