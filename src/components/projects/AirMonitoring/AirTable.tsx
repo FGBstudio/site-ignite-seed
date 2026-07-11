@@ -375,6 +375,7 @@ export function AirTable() {
   const [colFilters, setColFilters] = useState<Record<string, { search: string; selectedValues: string[] | null | undefined }>>({});
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
   const [showFinancials, setShowFinancials] = useState(true);
+  const [globalSearch, setGlobalSearch] = useState("");
 
   // Compute all portfolio metrics from full `rows` dataset (independent of filters)
   const stats = useMemo(() => {
@@ -399,7 +400,15 @@ export function AirTable() {
   }, [rows]);
 
   const filtered = useMemo(() => {
+    const gq = globalSearch.trim().toLowerCase();
     return rows.filter((r) => {
+      if (gq) {
+        const hay = [
+          r.project_name, r.brand_name, r.city, r.region, r.country,
+          r.pm_name, r.notes, ...(r.po_numbers ?? []),
+        ].map((v) => (v ?? "").toString().toLowerCase()).join(" ");
+        if (!hay.includes(gq)) return false;
+      }
       for (const colKey of Object.keys(colFilters)) {
         const filter = colFilters[colKey];
         if (!filter) continue;
@@ -437,7 +446,7 @@ export function AirTable() {
       }
       return true;
     });
-  }, [rows, colFilters]);
+  }, [rows, colFilters, globalSearch]);
 
   const sortedAndFiltered = useMemo(() => {
     if (!sortConfig || sortConfig.direction === null) return filtered;
@@ -713,6 +722,15 @@ export function AirTable() {
           )}
         </div>
         <div className="flex items-center gap-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <Input
+              value={globalSearch}
+              onChange={(e) => setGlobalSearch(e.target.value)}
+              placeholder="Search site, client, city, PO…"
+              className="pl-9 h-10 w-72 bg-white border-slate-200 text-xs"
+            />
+          </div>
           <Button variant="outline" size="sm" onClick={() => setShowFinancials(!showFinancials)} className={cn("gap-2 h-10 px-4", showFinancials ? "bg-indigo-50 text-indigo-700 border-indigo-200" : "border-slate-200")}>
             <Activity className="h-4 w-4" /> {showFinancials ? "Hide Financials" : "Show Financials"}
           </Button>

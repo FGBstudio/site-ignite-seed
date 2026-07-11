@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { MonitoringAlertsWidget } from "@/components/monitor/MonitoringAlertsWidget";
 import { AirTable } from "@/components/projects/AirMonitoring/AirTable";
 import { WaterTable } from "@/components/projects/WaterMonitoring/WaterTable";
+import { ExcelFilterButton, type ExcelFilterState } from "@/components/common/ExcelFilterButton";
 
 const fmtEUR = (n: number | null | undefined) =>
   typeof n === "number" ? n.toLocaleString("en-US", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }) : "—";
@@ -91,36 +92,85 @@ function EnergyTable() {
   const { data: rows = [], isLoading } = useMonitorRows();
 
   const [search, setSearch] = useState("");
-  const [filters, setFilters] = useState({
-    status: "all", category: "all", pm: "all", package: "all",
-    region: "all", country: "all", brand: "all", frequency: "all",
-  });
+  const emptyFilter: ExcelFilterState = { selectedValues: undefined, sort: null };
+  const [statusF, setStatusF] = useState<ExcelFilterState>(emptyFilter);
+  const [categoryF, setCategoryF] = useState<ExcelFilterState>(emptyFilter);
+  const [pmF, setPmF] = useState<ExcelFilterState>(emptyFilter);
+  const [packageF, setPackageF] = useState<ExcelFilterState>(emptyFilter);
+  const [brandF, setBrandF] = useState<ExcelFilterState>(emptyFilter);
+  const [regionF, setRegionF] = useState<ExcelFilterState>(emptyFilter);
+  const [countryF, setCountryF] = useState<ExcelFilterState>(emptyFilter);
+  const [frequencyF, setFrequencyF] = useState<ExcelFilterState>(emptyFilter);
   const [showNetwork, setShowNetwork] = useState(false);
 
   const uniques = useMemo(() => ({
+    statuses: Array.from(new Set(rows.map((r) => r.status).filter(Boolean) as string[])),
+    categories: Array.from(new Set(rows.map((r) => r.category).filter(Boolean) as string[])),
     pms: Array.from(new Set(rows.map((r) => r.pm_name).filter(Boolean) as string[])),
+    packages: Array.from(new Set(rows.map((r) => (r.package_type ?? "Customized") as string))),
     regions: Array.from(new Set(rows.map((r) => r.region).filter(Boolean) as string[])),
     countries: Array.from(new Set(rows.map((r) => r.country).filter(Boolean) as string[])),
     brands: Array.from(new Set(rows.map((r) => r.brand_name).filter(Boolean) as string[])),
-    frequencies: Array.from(new Set(rows.map((r) => r.frequency).filter((v): v is number => typeof v === "number"))),
+    frequencies: Array.from(new Set(rows.map((r) => r.frequency).filter((v): v is number => typeof v === "number").map(String))),
   }), [rows]);
+
+  const matchF = (f: ExcelFilterState, value: string | null | undefined) => {
+    if (f.selectedValues === undefined) return true;
+    return f.selectedValues.includes(value ?? "");
+  };
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return rows.filter((r) => {
       if (q && ![r.project_name, r.brand_name, r.country, r.city, r.installer, ...(r.po_numbers ?? [])]
         .some((v) => (v ?? "").toString().toLowerCase().includes(q))) return false;
-      if (filters.status !== "all" && r.status !== filters.status) return false;
-      if (filters.category !== "all" && r.category !== filters.category) return false;
-      if (filters.pm !== "all" && r.pm_name !== filters.pm) return false;
-      if (filters.package !== "all" && (r.package_type ?? "Customized") !== filters.package) return false;
-      if (filters.region !== "all" && r.region !== filters.region) return false;
-      if (filters.country !== "all" && r.country !== filters.country) return false;
-      if (filters.brand !== "all" && r.brand_name !== filters.brand) return false;
-      if (filters.frequency !== "all" && String(r.frequency) !== filters.frequency) return false;
+      if (!matchF(statusF, r.status)) return false;
+      if (!matchF(categoryF, r.category)) return false;
+      if (!matchF(pmF, r.pm_name)) return false;
+      if (!matchF(packageF, r.package_type ?? "Customized")) return false;
+      if (!matchF(regionF, r.region)) return false;
+      if (!matchF(countryF, r.country)) return false;
+      if (!matchF(brandF, r.brand_name)) return false;
+      if (!matchF(frequencyF, r.frequency != null ? String(r.frequency) : "")) return false;
       return true;
     });
-  }, [rows, search, filters]);
+  }, [rows, search, statusF, categoryF, pmF, packageF, regionF, countryF, brandF, frequencyF]);
+
+  // Apply first active sort (single-column) across the Excel-style filters.
+  const sortedFiltered = useMemo(() => {
+    const sortEntries: Array<{ key: keyof MonitorRow; dir: "asc" | "desc" }> = [];
+    if (statusF.sort) sortEntries.push({ key: "status", dir: statusF.sort });
+    if (categoryF.sort) sortEntries.push({ key: "category", dir: categoryF.sort });
+    if (pmF.sort) sortEntries.push({ key: "pm_name", dir: pmF.sort });
+    if (brandF.sort) sortEntries.push({ key: "brand_name", dir: brandF.sort });
+    if (regionF.sort) sortEntries.push({ key: "region", dir: regionF.sort });
+    if (countryF.sort) sortEntries.push({ key: "country", dir: countryF.sort });
+    if (frequencyF.sort) sortEntries.push({ key: "frequency", dir: frequencyF.sort });
+    if (!sortEntries.length) return filtered;
+    const [{ key, dir }] = sortEntries;
+    return [...filtered].sort((a, b) => {
+      const va = (a[key] ?? "") as string | number;
+      const vb = (b[key] ?? "") as string | number;
+      if (typeof va === "number" && typeof vb === "number") return dir === "asc" ? va - vb : vb - va;
+      const sa = String(va).toLowerCase(); const sb = String(vb).toLowerCase();
+      if (sa < sb) return dir === "asc" ? -1 : 1;
+      if (sa > sb) return dir === "asc" ? 1 : -1;
+      return 0;
+    });
+  }, [filtered, statusF.sort, categoryF.sort, pmF.sort, brandF.sort, regionF.sort, countryF.sort, frequencyF.sort]);
+
+  const hasActiveFilter =
+    !!search ||
+    [statusF, categoryF, pmF, packageF, brandF, regionF, countryF, frequencyF].some(
+      (f) => f.selectedValues !== undefined || f.sort !== null,
+    );
+
+  const clearFilters = () => {
+    setSearch("");
+    setStatusF(emptyFilter); setCategoryF(emptyFilter); setPmF(emptyFilter);
+    setPackageF(emptyFilter); setBrandF(emptyFilter); setRegionF(emptyFilter);
+    setCountryF(emptyFilter); setFrequencyF(emptyFilter);
+  };
 
   const update = async (id: string, patch: SiteEnergyRecordPatch, projectName: string | null): Promise<boolean> => {
     const fields = Object.keys(patch);
@@ -138,7 +188,7 @@ function EnergyTable() {
   };
 
   const exportCSV = () => {
-    if (filtered.length === 0) return;
+    if (sortedFiltered.length === 0) return;
     const cols: (keyof MonitorRow)[] = [
       "project_name", "brand_name", "region", "country", "city", "status",
       "frequency", "free_software_year", "installation_date", "contracted",
@@ -150,7 +200,7 @@ function EnergyTable() {
     ];
     const lines = [
       cols.join(","),
-      ...filtered.map((r) => cols.map((c) => JSON.stringify(r[c] ?? "")).join(",")),
+      ...sortedFiltered.map((r) => cols.map((c) => JSON.stringify(r[c] ?? "")).join(",")),
     ];
     const blob = new Blob([lines.join("\n")], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -174,14 +224,19 @@ function EnergyTable() {
               <Input value={search} onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search project, brand, PO, installer…" className="pl-9 w-72" />
             </div>
-            <FilterSelect label="Status" value={filters.status} onChange={(v) => setFilters({ ...filters, status: v })} options={STATUS_OPTIONS as readonly string[]} />
-            <FilterSelect label="Category" value={filters.category} onChange={(v) => setFilters({ ...filters, category: v })} options={CATEGORY_OPTIONS as readonly string[]} />
-            <FilterSelect label="PM" value={filters.pm} onChange={(v) => setFilters({ ...filters, pm: v })} options={uniques.pms} />
-            <FilterSelect label="Package" value={filters.package} onChange={(v) => setFilters({ ...filters, package: v })} options={["A", "B", "Customized"]} />
-            <FilterSelect label="Brand" value={filters.brand} onChange={(v) => setFilters({ ...filters, brand: v })} options={uniques.brands} />
-            <FilterSelect label="Region" value={filters.region} onChange={(v) => setFilters({ ...filters, region: v })} options={uniques.regions} />
-            <FilterSelect label="Country" value={filters.country} onChange={(v) => setFilters({ ...filters, country: v })} options={uniques.countries} />
-            <FilterSelect label="Frequency" value={filters.frequency} onChange={(v) => setFilters({ ...filters, frequency: v })} options={uniques.frequencies.map(String)} />
+            <ExcelFilterButton label="Status" values={uniques.statuses} state={statusF} onChange={setStatusF} />
+            <ExcelFilterButton label="Category" values={uniques.categories} state={categoryF} onChange={setCategoryF} />
+            <ExcelFilterButton label="PM" values={uniques.pms} state={pmF} onChange={setPmF} />
+            <ExcelFilterButton label="Package" values={uniques.packages} state={packageF} onChange={setPackageF} />
+            <ExcelFilterButton label="Brand" values={uniques.brands} state={brandF} onChange={setBrandF} />
+            <ExcelFilterButton label="Region" values={uniques.regions} state={regionF} onChange={setRegionF} />
+            <ExcelFilterButton label="Country" values={uniques.countries} state={countryF} onChange={setCountryF} />
+            <ExcelFilterButton label="Frequency" values={uniques.frequencies} state={frequencyF} onChange={setFrequencyF} />
+            {hasActiveFilter && (
+              <Button variant="ghost" size="sm" onClick={clearFilters} className="text-xs text-indigo-600 hover:text-indigo-700 h-9 px-2.5 font-semibold">
+                Clear
+              </Button>
+            )}
             <div className="ml-auto flex items-center gap-2">
               <Button variant="outline" size="sm" onClick={() => setShowNetwork((s) => !s)} className="gap-2">
                 {showNetwork ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />} Network
@@ -200,7 +255,7 @@ function EnergyTable() {
       <Card className="overflow-hidden">
         {isLoading ? (
           <p className="py-12 text-center text-sm text-muted-foreground">Loading…</p>
-        ) : filtered.length === 0 ? (
+        ) : sortedFiltered.length === 0 ? (
           <p className="py-12 text-center text-sm text-muted-foreground">No energy records yet.</p>
         ) : (
           <div className="overflow-x-auto">
@@ -277,7 +332,7 @@ function EnergyTable() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((r, i) => (
+                {sortedFiltered.map((r, i) => (
                   <Row key={r.id} r={r} idx={i} isAdmin={isAdmin} showNetwork={showNetwork} onUpdate={update} />
                 ))}
               </tbody>
