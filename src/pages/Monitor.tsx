@@ -188,7 +188,7 @@ function EnergyTable() {
   };
 
   const exportCSV = () => {
-    if (filtered.length === 0) return;
+    if (sortedFiltered.length === 0) return;
     const cols: (keyof MonitorRow)[] = [
       "project_name", "brand_name", "region", "country", "city", "status",
       "frequency", "free_software_year", "installation_date", "contracted",
@@ -200,7 +200,7 @@ function EnergyTable() {
     ];
     const lines = [
       cols.join(","),
-      ...filtered.map((r) => cols.map((c) => JSON.stringify(r[c] ?? "")).join(",")),
+      ...sortedFiltered.map((r) => cols.map((c) => JSON.stringify(r[c] ?? "")).join(",")),
     ];
     const blob = new Blob([lines.join("\n")], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -255,7 +255,7 @@ function EnergyTable() {
       <Card className="overflow-hidden">
         {isLoading ? (
           <p className="py-12 text-center text-sm text-muted-foreground">Loading…</p>
-        ) : filtered.length === 0 ? (
+        ) : sortedFiltered.length === 0 ? (
           <p className="py-12 text-center text-sm text-muted-foreground">No energy records yet.</p>
         ) : (
           <div className="overflow-x-auto">
@@ -332,7 +332,7 @@ function EnergyTable() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((r, i) => (
+                {sortedFiltered.map((r, i) => (
                   <Row key={r.id} r={r} idx={i} isAdmin={isAdmin} showNetwork={showNetwork} onUpdate={update} />
                 ))}
               </tbody>
