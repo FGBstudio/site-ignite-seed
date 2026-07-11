@@ -446,7 +446,7 @@ export function AirTable() {
       }
       return true;
     });
-  }, [rows, colFilters]);
+  }, [rows, colFilters, globalSearch]);
 
   const sortedAndFiltered = useMemo(() => {
     if (!sortConfig || sortConfig.direction === null) return filtered;
