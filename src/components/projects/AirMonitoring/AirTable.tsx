@@ -400,7 +400,15 @@ export function AirTable() {
   }, [rows]);
 
   const filtered = useMemo(() => {
+    const gq = globalSearch.trim().toLowerCase();
     return rows.filter((r) => {
+      if (gq) {
+        const hay = [
+          r.project_name, r.brand_name, r.city, r.region, r.country,
+          r.pm_name, r.notes, ...(r.po_numbers ?? []),
+        ].map((v) => (v ?? "").toString().toLowerCase()).join(" ");
+        if (!hay.includes(gq)) return false;
+      }
       for (const colKey of Object.keys(colFilters)) {
         const filter = colFilters[colKey];
         if (!filter) continue;
