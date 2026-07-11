@@ -375,6 +375,7 @@ export function AirTable() {
   const [colFilters, setColFilters] = useState<Record<string, { search: string; selectedValues: string[] | null | undefined }>>({});
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
   const [showFinancials, setShowFinancials] = useState(true);
+  const [globalSearch, setGlobalSearch] = useState("");
 
   // Compute all portfolio metrics from full `rows` dataset (independent of filters)
   const stats = useMemo(() => {
