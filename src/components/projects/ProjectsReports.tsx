@@ -4,6 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useAdminPlannerData, type AdminPlannerProject } from "@/hooks/useAdminPlannerData";
+import { useLateCertMilestones, type LateMilestoneInfo } from "@/hooks/useLateCertMilestones";
+import { PortfolioFollowUp } from "@/components/projects/PortfolioFollowUp";
 import { AlertTriangle, PauseCircle, Clock3, CheckCircle2, FileText, XCircle, Activity } from "lucide-react";
 import { differenceInDays, format } from "date-fns";
 import { cn } from "@/lib/utils";
