@@ -89,7 +89,7 @@ export function useAdminPlannerData() {
       // 1. Fetch ALL certifications (root entity) with site + allocations
       const { data: certs, error } = await (supabase as any)
         .from("certifications")
-        .select("*, sites!certifications_site_id_fkey(name, city, country, brand_id), project_allocations!project_allocations_certification_id_fkey(*)")
+        .select("*, sites!certifications_site_id_fkey(name, city, country, brand_id, typology, region), project_allocations!project_allocations_certification_id_fkey(*)")
         .order("handover_date", { ascending: true });
       if (error) throw error;
       if (!certs || certs.length === 0) return [] as AdminPlannerProject[];
