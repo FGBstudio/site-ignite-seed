@@ -43,6 +43,9 @@ export interface AdminPlannerProject {
   missing: string[];
   pm_name: string | null;
   brand_name: string | null;
+  holding_name: string | null;
+  typology: string | null;
+  country: string | null;
   project_allocations: any[];
   certification_milestones: any[];
   plannerData: GanttRowData;
