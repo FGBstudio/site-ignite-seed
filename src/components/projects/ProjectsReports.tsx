@@ -124,7 +124,7 @@ function Donut({ segments, total }: { segments: DonutSegment[]; total: number })
 export function ProjectsReports() {
   const { data: projects = [], isLoading } = useAdminPlannerData();
   const { data: onHoldAlerts = [] } = useOnHoldAlerts();
-  const { data: lateMilestones = [] } = useLateMilestones();
+  const { data: lateMilestones = [] } = useLateCertMilestones();
 
   const lateByCert = useMemo(() => {
     const map = new Map<string, LateMilestoneInfo>();
