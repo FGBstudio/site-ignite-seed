@@ -145,7 +145,15 @@ export function useAdminPlannerData() {
         const raw = (c.client ?? "").toString().trim();
         if (raw) return raw;
         const brand = c.sites?.brand_id ? brandsMap.get(c.sites.brand_id) : null;
-        return brand || "—";
+        return brand?.name || "—";
+      };
+      const resolveBrandName = (c: any): string | null => {
+        const b = c.sites?.brand_id ? brandsMap.get(c.sites.brand_id) : null;
+        return b?.name || null;
+      };
+      const resolveHoldingName = (c: any): string | null => {
+        const b = c.sites?.brand_id ? brandsMap.get(c.sites.brand_id) : null;
+        return b?.holding_id ? holdingsMap.get(b.holding_id) || null : null;
       };
 
       return (certs as any[]).map((c): AdminPlannerProject => {
