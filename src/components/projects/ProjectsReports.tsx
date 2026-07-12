@@ -4,6 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useAdminPlannerData, type AdminPlannerProject } from "@/hooks/useAdminPlannerData";
+import { useLateCertMilestones, type LateMilestoneInfo } from "@/hooks/useLateCertMilestones";
+import { PortfolioFollowUp } from "@/components/projects/PortfolioFollowUp";
 import { AlertTriangle, PauseCircle, Clock3, CheckCircle2, FileText, XCircle, Activity } from "lucide-react";
 import { differenceInDays, format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -15,12 +17,6 @@ interface OnHoldInfo {
   created_at: string;
 }
 
-interface LateMilestoneInfo {
-  certification_id: string;
-  requirement: string;
-  due_date: string;
-  daysLate: number;
-}
 
 function useOnHoldAlerts() {
   return useQuery({
@@ -38,35 +34,6 @@ function useOnHoldAlerts() {
   });
 }
 
-function useLateMilestones() {
-  return useQuery({
-    queryKey: ["projects-reports-late-milestones"],
-    queryFn: async () => {
-      const today = format(new Date(), "yyyy-MM-dd");
-      const { data, error } = await supabase
-        .from("certification_milestones")
-        .select("certification_id, requirement, due_date, status")
-        .eq("milestone_type", "timeline")
-        .lt("due_date", today)
-        .neq("status", "achieved");
-      if (error) throw error;
-      const todayDate = new Date();
-      const rows = (data || []).map((m: any) => ({
-        certification_id: m.certification_id as string,
-        requirement: (m.requirement as string) || "Milestone",
-        due_date: m.due_date as string,
-        daysLate: differenceInDays(todayDate, new Date(m.due_date)),
-      }));
-      // Keep the worst (most overdue) per certification
-      const byCert = new Map<string, LateMilestoneInfo>();
-      for (const r of rows) {
-        const existing = byCert.get(r.certification_id);
-        if (!existing || r.daysLate > existing.daysLate) byCert.set(r.certification_id, r);
-      }
-      return Array.from(byCert.values());
-    },
-  });
-}
 
 interface KpiTileProps {
   label: string;
@@ -157,7 +124,7 @@ function Donut({ segments, total }: { segments: DonutSegment[]; total: number })
 export function ProjectsReports() {
   const { data: projects = [], isLoading } = useAdminPlannerData();
   const { data: onHoldAlerts = [] } = useOnHoldAlerts();
-  const { data: lateMilestones = [] } = useLateMilestones();
+  const { data: lateMilestones = [] } = useLateCertMilestones();
 
   const lateByCert = useMemo(() => {
     const map = new Map<string, LateMilestoneInfo>();
@@ -252,56 +219,9 @@ export function ProjectsReports() {
 
   return (
     <div className="space-y-6">
-      {/* KPI Strip */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <KpiTile label="Total Active" value={counts.total} icon={Activity} tone="default" />
-        <KpiTile label="In Progress" value={counts.in_progress} icon={Clock3} tone="primary" />
-        <KpiTile label="Late" value={counts.late} icon={AlertTriangle} tone="destructive" />
-        <KpiTile label="On Hold" value={counts.onHold} icon={PauseCircle} tone="warning" />
-        <KpiTile label="Critical (<15d)" value={counts.critical} icon={AlertTriangle} tone="destructive" />
-        <KpiTile label="Certified" value={counts.certified} icon={CheckCircle2} tone="success" />
-      </div>
+      {/* Excel-style "FGB Follow Up" portfolio view */}
+      <PortfolioFollowUp />
 
-      {/* Status + Macro Phase */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="rounded-3xl border-border/60 shadow-sm">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">
-              Status Breakdown
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-2">
-            <Donut segments={statusSegments} total={counts.total} />
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-3xl border-border/60 shadow-sm">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">
-              Macro Phase Distribution
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 pt-2">
-            {Object.entries(macroPhaseCounts).map(([phase, val]) => (
-              <div key={phase}>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm text-foreground">{phase}</span>
-                  <span className="text-sm font-semibold tabular-nums text-foreground">{val}</span>
-                </div>
-                <div className="h-2 rounded-full bg-muted overflow-hidden">
-                  <div
-                    className={cn(
-                      "h-full rounded-full transition-all",
-                      phase === "Certified" ? "bg-success" : phase === "Construction" ? "bg-warning" : "bg-primary"
-                    )}
-                    style={{ width: `${(val / macroMax) * 100}%` }}
-                  />
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      </div>
 
       {/* Late Projects */}
       <Card className="rounded-3xl border-border/60 shadow-sm">

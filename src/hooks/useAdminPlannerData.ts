@@ -43,6 +43,9 @@ export interface AdminPlannerProject {
   missing: string[];
   pm_name: string | null;
   brand_name: string | null;
+  holding_name: string | null;
+  typology: string | null;
+  country: string | null;
   project_allocations: any[];
   certification_milestones: any[];
   plannerData: GanttRowData;
@@ -86,7 +89,7 @@ export function useAdminPlannerData() {
       // 1. Fetch ALL certifications (root entity) with site + allocations
       const { data: certs, error } = await (supabase as any)
         .from("certifications")
-        .select("*, sites!certifications_site_id_fkey(name, city, country, brand_id), project_allocations!project_allocations_certification_id_fkey(*)")
+        .select("*, sites!certifications_site_id_fkey(name, city, country, brand_id, typology, region), project_allocations!project_allocations_certification_id_fkey(*)")
         .order("handover_date", { ascending: true });
       if (error) throw error;
       if (!certs || certs.length === 0) return [] as AdminPlannerProject[];
@@ -106,16 +109,25 @@ export function useAdminPlannerData() {
         }
       }
 
-      // 3. Brand names
+      // 3. Brand names + holdings
       const brandIds = [...new Set((certs as any[]).map((c) => c.sites?.brand_id).filter(Boolean))] as string[];
-      const brandsMap = new Map<string, string>();
+      const brandsMap = new Map<string, { name: string; holding_id: string | null }>();
+      const holdingsMap = new Map<string, string>();
       if (brandIds.length > 0) {
         const { data: brands } = await supabase
           .from("brands")
-          .select("id, name")
+          .select("id, name, holding_id")
           .in("id", brandIds);
         if (brands) {
-          for (const b of brands) brandsMap.set(b.id, b.name);
+          for (const b of brands) brandsMap.set(b.id, { name: b.name, holding_id: (b as any).holding_id || null });
+        }
+        const holdingIds = [...new Set(Array.from(brandsMap.values()).map((b) => b.holding_id).filter(Boolean))] as string[];
+        if (holdingIds.length > 0) {
+          const { data: holdings } = await (supabase as any)
+            .from("holdings")
+            .select("id, name")
+            .in("id", holdingIds);
+          if (holdings) for (const h of holdings) holdingsMap.set(h.id, h.name);
         }
       }
 
@@ -133,7 +145,15 @@ export function useAdminPlannerData() {
         const raw = (c.client ?? "").toString().trim();
         if (raw) return raw;
         const brand = c.sites?.brand_id ? brandsMap.get(c.sites.brand_id) : null;
-        return brand || "—";
+        return brand?.name || "—";
+      };
+      const resolveBrandName = (c: any): string | null => {
+        const b = c.sites?.brand_id ? brandsMap.get(c.sites.brand_id) : null;
+        return b?.name || null;
+      };
+      const resolveHoldingName = (c: any): string | null => {
+        const b = c.sites?.brand_id ? brandsMap.get(c.sites.brand_id) : null;
+        return b?.holding_id ? holdingsMap.get(b.holding_id) || null : null;
       };
 
       return (certs as any[]).map((c): AdminPlannerProject => {
@@ -160,7 +180,10 @@ export function useAdminPlannerData() {
             status: c.status, handover_date: c.handover_date, site_id: c.site_id, cert_type: c.cert_type,
             cert_rating: c.cert_rating || c.level, pm_id: c.pm_id, created_at: c.created_at,
             project_subtype: c.project_subtype, setup_status: c.status as SetupStatus, missing: [], pm_name: pmName,
-            brand_name: c.sites?.brand_id ? brandsMap.get(c.sites.brand_id) || null : null,
+            brand_name: resolveBrandName(c),
+            holding_name: resolveHoldingName(c),
+            typology: c.sites?.typology || null,
+            country: c.sites?.country || null,
             project_allocations: allocations, certification_milestones: certMilestones,
             plannerData: {
               id: c.id, label: c.name || c.cert_type || "Unnamed", subLabel: resolveClient(c), launchDate: c.created_at.slice(0,10),
@@ -299,7 +322,10 @@ export function useAdminPlannerData() {
           status: c.status, handover_date: c.handover_date, site_id: c.site_id, cert_type: c.cert_type,
           cert_rating: c.cert_rating || c.level, pm_id: c.pm_id, created_at: c.created_at,
           project_subtype: c.project_subtype, setup_status, missing, pm_name: pmName,
-          brand_name: c.sites?.brand_id ? brandsMap.get(c.sites.brand_id) || null : null,
+          brand_name: resolveBrandName(c),
+          holding_name: resolveHoldingName(c),
+          typology: c.sites?.typology || null,
+          country: c.sites?.country || null,
           project_allocations: allocations, certification_milestones: certMilestones,
           plannerData, macro_phase: macroPhase, is_deadline_critical,
           on_hold: !!c.on_hold, on_hold_reason: c.on_hold_reason || null, on_hold_at: c.on_hold_at || null, on_hold_by: c.on_hold_by || null,
