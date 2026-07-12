@@ -109,16 +109,25 @@ export function useAdminPlannerData() {
         }
       }
 
-      // 3. Brand names
+      // 3. Brand names + holdings
       const brandIds = [...new Set((certs as any[]).map((c) => c.sites?.brand_id).filter(Boolean))] as string[];
-      const brandsMap = new Map<string, string>();
+      const brandsMap = new Map<string, { name: string; holding_id: string | null }>();
+      const holdingsMap = new Map<string, string>();
       if (brandIds.length > 0) {
         const { data: brands } = await supabase
           .from("brands")
-          .select("id, name")
+          .select("id, name, holding_id")
           .in("id", brandIds);
         if (brands) {
-          for (const b of brands) brandsMap.set(b.id, b.name);
+          for (const b of brands) brandsMap.set(b.id, { name: b.name, holding_id: (b as any).holding_id || null });
+        }
+        const holdingIds = [...new Set(Array.from(brandsMap.values()).map((b) => b.holding_id).filter(Boolean))] as string[];
+        if (holdingIds.length > 0) {
+          const { data: holdings } = await (supabase as any)
+            .from("holdings")
+            .select("id, name")
+            .in("id", holdingIds);
+          if (holdings) for (const h of holdings) holdingsMap.set(h.id, h.name);
         }
       }
 
