@@ -17,12 +17,6 @@ interface OnHoldInfo {
   created_at: string;
 }
 
-interface LateMilestoneInfo {
-  certification_id: string;
-  requirement: string;
-  due_date: string;
-  daysLate: number;
-}
 
 function useOnHoldAlerts() {
   return useQuery({
