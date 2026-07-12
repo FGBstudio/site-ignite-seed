@@ -180,7 +180,10 @@ export function useAdminPlannerData() {
             status: c.status, handover_date: c.handover_date, site_id: c.site_id, cert_type: c.cert_type,
             cert_rating: c.cert_rating || c.level, pm_id: c.pm_id, created_at: c.created_at,
             project_subtype: c.project_subtype, setup_status: c.status as SetupStatus, missing: [], pm_name: pmName,
-            brand_name: c.sites?.brand_id ? brandsMap.get(c.sites.brand_id) || null : null,
+            brand_name: resolveBrandName(c),
+            holding_name: resolveHoldingName(c),
+            typology: c.sites?.typology || null,
+            country: c.sites?.country || null,
             project_allocations: allocations, certification_milestones: certMilestones,
             plannerData: {
               id: c.id, label: c.name || c.cert_type || "Unnamed", subLabel: resolveClient(c), launchDate: c.created_at.slice(0,10),
