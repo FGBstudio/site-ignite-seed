@@ -2,36 +2,66 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { CheckCircle2, Circle, Search } from "lucide-react";
+import { CheckCircle2, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAdminPlannerData, type AdminPlannerProject } from "@/hooks/useAdminPlannerData";
 import { useLateCertMilestones } from "@/hooks/useLateCertMilestones";
 import { ExcelFilterButton, type ExcelFilterState } from "@/components/common/ExcelFilterButton";
 
-type Light = "green_check" | "green" | "amber" | "red";
+type Status =
+  | "certified"
+  | "late"
+  | "on_hold"
+  | "quotation"
+  | "to_configure"
+  | "in_progress";
 
 const EMPTY_FILTER: ExcelFilterState = { selectedValues: undefined, sort: null };
 
-function computeLight(p: AdminPlannerProject, isLate: boolean): Light {
-  if (p.setup_status === "certificato" || p.issued_date) return "green_check";
-  if (p.is_deadline_critical || isLate) return "red";
-  if (p.on_hold) return "amber";
-  return "green";
+interface StatusMeta {
+  label: string;
+  colorVar: string; // css variable name (without hsl())
 }
 
-const LIGHT_ROW_CLASS: Record<Light, string> = {
-  green_check: "bg-emerald-50/60 hover:bg-emerald-50",
-  green: "hover:bg-slate-50",
-  amber: "hover:bg-amber-50/40",
-  red: "bg-rose-50/60 hover:bg-rose-50",
+const STATUS_META: Record<Status, StatusMeta> = {
+  certified: { label: "Certified", colorVar: "success" },
+  late: { label: "Late", colorVar: "destructive" },
+  on_hold: { label: "On Hold", colorVar: "muted-foreground" },
+  in_progress: { label: "In Progress", colorVar: "primary" },
+  to_configure: { label: "To Configure", colorVar: "warning" },
+  quotation: { label: "Quotation", colorVar: "accent-foreground" },
 };
 
-function StatusDot({ light }: { light: Light }) {
-  if (light === "green_check")
-    return <CheckCircle2 className="h-4 w-4 text-emerald-700" strokeWidth={2.5} />;
-  const color =
-    light === "red" ? "bg-rose-500" : light === "amber" ? "bg-amber-500" : "bg-emerald-500";
-  return <span className={cn("inline-block h-2.5 w-2.5 rounded-full", color)} />;
+// Order matches the Status Breakdown donut legend
+const LEGEND_ORDER: Status[] = [
+  "late",
+  "on_hold",
+  "in_progress",
+  "to_configure",
+  "quotation",
+  "certified",
+];
+
+function computeStatus(p: AdminPlannerProject, isLate: boolean): Status {
+  if (p.setup_status === "certificato" || p.issued_date) return "certified";
+  if (isLate) return "late";
+  if (p.on_hold) return "on_hold";
+  if (p.setup_status === "quotation") return "quotation";
+  if (p.setup_status === "da_configurare") return "to_configure";
+  return "in_progress";
+}
+
+function StatusIndicator({ status }: { status: Status }) {
+  if (status === "certified") {
+    return <CheckCircle2 className="h-4 w-4 text-success" strokeWidth={2.5} />;
+  }
+  const { colorVar } = STATUS_META[status];
+  return (
+    <span
+      className="inline-block h-2.5 w-2.5 rounded-full"
+      style={{ background: `hsl(var(--${colorVar}))` }}
+    />
+  );
 }
 
 function certYear(p: AdminPlannerProject): string {
@@ -47,7 +77,10 @@ function apply(state: ExcelFilterState, value: string | null | undefined): boole
   return state.selectedValues.includes(v);
 }
 
-function uniqueVals(rows: AdminPlannerProject[], get: (p: AdminPlannerProject) => string | null | undefined): string[] {
+function uniqueVals(
+  rows: AdminPlannerProject[],
+  get: (p: AdminPlannerProject) => string | null | undefined,
+): string[] {
   const set = new Set<string>();
   for (const r of rows) set.add((get(r) ?? "").toString().trim() || "(Blanks)");
   return Array.from(set);
@@ -58,7 +91,10 @@ export function PortfolioFollowUp() {
   const { data: projects = [], isLoading } = useAdminPlannerData();
   const { data: lateMilestones = [] } = useLateCertMilestones();
 
-  const lateSet = useMemo(() => new Set(lateMilestones.map((m) => m.certification_id)), [lateMilestones]);
+  const lateSet = useMemo(
+    () => new Set(lateMilestones.map((m) => m.certification_id)),
+    [lateMilestones],
+  );
 
   const [search, setSearch] = useState("");
   const [holdingF, setHoldingF] = useState<ExcelFilterState>(EMPTY_FILTER);
@@ -72,7 +108,10 @@ export function PortfolioFollowUp() {
   );
 
   const holdingValues = useMemo(() => uniqueVals(active, (p) => p.holding_name), [active]);
-  const brandValues = useMemo(() => uniqueVals(active, (p) => p.brand_name || p.client), [active]);
+  const brandValues = useMemo(
+    () => uniqueVals(active, (p) => p.brand_name || p.client),
+    [active],
+  );
   const regionValues = useMemo(() => uniqueVals(active, (p) => p.region), [active]);
   const countryValues = useMemo(() => uniqueVals(active, (p) => p.country), [active]);
 
@@ -84,7 +123,10 @@ export function PortfolioFollowUp() {
       if (!apply(regionF, p.region)) return false;
       if (!apply(countryF, p.country)) return false;
       if (q) {
-        const hay = [p.name, p.brand_name, p.client, p.city].filter(Boolean).join(" ").toLowerCase();
+        const hay = [p.name, p.brand_name, p.client, p.city]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
@@ -96,9 +138,9 @@ export function PortfolioFollowUp() {
       [regionF, (p) => p.region || ""],
       [countryF, (p) => p.country || ""],
     ];
-    const active_sort = sortSpec.find(([s]) => s.sort !== null);
-    if (active_sort) {
-      const [state, get] = active_sort;
+    const activeSort = sortSpec.find(([s]) => s.sort !== null);
+    if (activeSort) {
+      const [state, get] = activeSort;
       const dir = state.sort === "asc" ? 1 : -1;
       rows = [...rows].sort((a, b) => get(a).localeCompare(get(b)) * dir);
     }
@@ -107,7 +149,9 @@ export function PortfolioFollowUp() {
 
   const kpis = useMemo(() => {
     let completed = 0;
-    for (const p of filtered) if (p.setup_status === "certificato" || p.issued_date) completed += 1;
+    for (const p of filtered) {
+      if (p.setup_status === "certificato" || p.issued_date) completed += 1;
+    }
     return { total: filtered.length, completed, ongoing: filtered.length - completed };
   }, [filtered]);
 
@@ -129,22 +173,12 @@ export function PortfolioFollowUp() {
               Legend
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-6 text-sm">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-emerald-700" strokeWidth={2.5} />
-                <span className="text-foreground">Certified / Completed</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="inline-block h-2.5 w-2.5 rounded-full bg-emerald-500" />
-                <span className="text-foreground">No action required from HIG — proceeding</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="inline-block h-2.5 w-2.5 rounded-full bg-amber-500" />
-                <span className="text-foreground">Waiting for HIG feedback</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="inline-block h-2.5 w-2.5 rounded-full bg-rose-500" />
-                <span className="text-foreground">HIG urgent attention required</span>
-              </div>
+              {LEGEND_ORDER.map((s) => (
+                <div key={s} className="flex items-center gap-2">
+                  <StatusIndicator status={s} />
+                  <span className="text-foreground">{STATUS_META[s].label}</span>
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>
@@ -157,15 +191,21 @@ export function PortfolioFollowUp() {
             <div className="grid grid-cols-3 gap-3 text-center">
               <div>
                 <p className="text-2xl font-semibold tabular-nums text-primary">{kpis.ongoing}</p>
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground mt-1">Ongoing</p>
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground mt-1">
+                  Ongoing
+                </p>
               </div>
               <div>
-                <p className="text-2xl font-semibold tabular-nums text-emerald-700">{kpis.completed}</p>
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground mt-1">Completed</p>
+                <p className="text-2xl font-semibold tabular-nums text-success">{kpis.completed}</p>
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground mt-1">
+                  Completed
+                </p>
               </div>
               <div>
                 <p className="text-2xl font-semibold tabular-nums text-foreground">{kpis.total}</p>
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground mt-1">Total</p>
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground mt-1">
+                  Total
+                </p>
               </div>
             </div>
           </CardContent>
@@ -215,22 +255,30 @@ export function PortfolioFollowUp() {
                   </tr>
                 ) : (
                   filtered.map((p) => {
-                    const light = computeLight(p, lateSet.has(p.id));
+                    const status = computeStatus(p, lateSet.has(p.id));
+                    const rowClass =
+                      status === "certified"
+                        ? "bg-[hsl(var(--success)/0.12)] hover:bg-[hsl(var(--success)/0.18)]"
+                        : status === "late"
+                        ? "bg-[hsl(var(--destructive)/0.08)] hover:bg-[hsl(var(--destructive)/0.14)]"
+                        : "hover:bg-muted/40";
                     return (
                       <tr
                         key={p.id}
                         onClick={() => navigate(`/projects/${p.id}`)}
                         className={cn(
                           "border-t border-border/50 cursor-pointer transition-colors",
-                          LIGHT_ROW_CLASS[light],
+                          rowClass,
                         )}
                       >
                         <td className="py-2.5 px-3">
-                          <StatusDot light={light} />
+                          <StatusIndicator status={status} />
                         </td>
                         <td className="py-2.5 px-3 text-foreground">{p.typology || "—"}</td>
                         <td className="py-2.5 px-3 text-foreground">{p.country || "—"}</td>
-                        <td className="py-2.5 px-3 text-foreground">{p.brand_name || p.client || "—"}</td>
+                        <td className="py-2.5 px-3 text-foreground">
+                          {p.brand_name || p.client || "—"}
+                        </td>
                         <td className="py-2.5 px-3 font-medium text-foreground">
                           {p.name || p.city || "—"}
                         </td>
