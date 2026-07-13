@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { useAdminPlannerData, type AdminPlannerProject } from "@/hooks/useAdminPlannerData";
 import { useLateCertMilestones, type LateMilestoneInfo } from "@/hooks/useLateCertMilestones";
 import { PortfolioFollowUp } from "@/components/projects/PortfolioFollowUp";
-import { AlertTriangle, PauseCircle, Clock3, CheckCircle2, FileText, XCircle, Activity } from "lucide-react";
+import { AlertTriangle, PauseCircle, Clock3, CheckCircle2, Activity } from "lucide-react";
 import { differenceInDays, format } from "date-fns";
 import { cn } from "@/lib/utils";
 
@@ -219,8 +219,70 @@ export function ProjectsReports() {
 
   return (
     <div className="space-y-6">
+      {/* KPI tiles */}
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+        <KpiTile label="Total Active" value={counts.total} icon={Activity} tone="default" />
+        <KpiTile label="In Progress" value={counts.in_progress} icon={Clock3} tone="primary" />
+        <KpiTile label="Late" value={counts.late} icon={AlertTriangle} tone="destructive" />
+        <KpiTile label="On Hold" value={counts.onHold} icon={PauseCircle} tone="warning" />
+        <KpiTile label="Critical (<15D)" value={counts.critical} icon={AlertTriangle} tone="destructive" />
+        <KpiTile label="Certified" value={counts.certified} icon={CheckCircle2} tone="success" />
+      </div>
+
+      {/* Status Breakdown + Macro Phase Distribution */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card className="rounded-3xl border-border/60 shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">
+              Status Breakdown
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Donut segments={statusSegments} total={counts.total} />
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-3xl border-border/60 shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">
+              Macro Phase Distribution
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {(Object.keys(macroPhaseCounts) as Array<keyof typeof macroPhaseCounts>).map((k) => {
+                const v = macroPhaseCounts[k];
+                const pct = (v / macroMax) * 100;
+                const barColor =
+                  k === "Certified" ? "success"
+                  : k === "Certification" ? "primary"
+                  : k === "Construction" ? "warning"
+                  : k === "Design" ? "primary"
+                  : "muted-foreground";
+                return (
+                  <div key={k}>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-foreground">{k}</span>
+                      <span className="font-semibold tabular-nums text-foreground">{v}</span>
+                    </div>
+                    <div className="mt-1 h-2 rounded-full bg-muted overflow-hidden">
+                      <div
+                        className="h-full rounded-full"
+                        style={{ width: `${pct}%`, background: `hsl(var(--${barColor}))` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Excel-style "FGB Follow Up" portfolio view */}
       <PortfolioFollowUp />
+
+
 
 
       {/* Late Projects */}
