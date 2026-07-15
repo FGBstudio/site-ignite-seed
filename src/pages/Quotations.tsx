@@ -137,7 +137,7 @@ export default function Quotations() {
     );
   };
 
-  const handleApprove = async (id: string) => {
+  const handleApprove = async (id: string, groupIds?: string[]) => {
     setApprovingId(id);
     try {
       const { data: userData, error: userError } = await supabase.auth.getUser();
@@ -146,29 +146,39 @@ export default function Quotations() {
       if (!userId) throw new Error("Session expired. Please sign in again.");
 
       const approvedAt = new Date().toISOString();
+      const ids = groupIds && groupIds.length > 0 ? groupIds : [id];
       const { data, error } = await supabase
         .from("certifications")
         .update({ status: "quotation_approved", quotation_approved_at: approvedAt, quotation_approved_by: userId })
-        .eq("id", id).eq("status", "quotation")
-        .select("id, name, client, status, quotation_approved_at").maybeSingle();
+        .in("id", ids).eq("status", "quotation")
+        .select("id, name, client, status, quotation_approved_at");
       if (error) throw error;
-      if (!data || data.status !== "quotation_approved") throw new Error("The quotation was not updated.");
+      if (!data || data.length === 0) throw new Error("The quotation was not updated.");
+      const approvedIds = new Set(data.map((r) => r.id));
       qc.setQueryData<QuotationRow[]>(["quotations-list"], (current = []) =>
-        current.map((row) => row.id === id ? { ...row, status: "quotation_approved", quotation_approved_at: data.quotation_approved_at ?? approvedAt } : row)
+        current.map((row) => approvedIds.has(row.id) ? { ...row, status: "quotation_approved", quotation_approved_at: approvedAt } : row)
       );
-      pushApprovedToOperationsCache(id);
-      toast({ title: "Quotation approved", description: "Moved to Operations › Quotations Approved." });
+      approvedIds.forEach((rid) => pushApprovedToOperationsCache(rid));
+      toast({
+        title: ids.length > 1 ? `${data.length} quotations approved` : "Quotation approved",
+        description: "Moved to Operations › Quotations Approved.",
+      });
       await refreshApprovedSources();
     } catch (err) {
       toast({ title: "Approval failed", description: await readableFunctionError(err), variant: "destructive" });
     } finally { setApprovingId(null); }
   };
 
-  const handleCancel = async (row: QuotationRow) => {
-    if (!window.confirm(`Cancel quotation for ${row.name}?\n\nIf this is the only quotation on its site, the site will also be frozen and hidden from the frontend.`)) return;
+  const handleCancel = async (row: QuotationRow, groupIds?: string[]) => {
+    const isGroup = groupIds && groupIds.length > 1;
+    const msg = isGroup
+      ? `Cancel this unified quotation (${groupIds!.length} certifications) for ${row.name}?`
+      : `Cancel quotation for ${row.name}?\n\nIf this is the only quotation on its site, the site will also be frozen and hidden from the frontend.`;
+    if (!window.confirm(msg)) return;
     setCancelingId(row.id);
     try {
-      const { error } = await supabase.from("certifications").update({ status: "canceled" }).eq("id", row.id);
+      const ids = groupIds && groupIds.length > 0 ? groupIds : [row.id];
+      const { error } = await supabase.from("certifications").update({ status: "canceled" }).in("id", ids);
       if (error) throw error;
       toast({ title: "Quotation canceled", description: `${row.name} moved to Canceled.` });
       invalidateAll();
