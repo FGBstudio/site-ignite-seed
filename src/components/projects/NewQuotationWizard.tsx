@@ -1179,6 +1179,7 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
             {step === 1 && renderStep1()}
             {step === 2 && renderStep2()}
             {step === 3 && renderStep3()}
+            {step === 4 && renderStep4()}
           </div>
 
           {/* Footer */}
@@ -1205,7 +1206,7 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
                     Save as Potential
                   </Button>
                 )}
-                {step < 3 ? (
+                {step < 4 ? (
                   <Button type="button" onClick={goNext} className="gap-1.5">
                     Continue <ChevronRight className="h-4 w-4" />
                   </Button>
