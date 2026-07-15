@@ -1097,7 +1097,22 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
       {/* Services */}
       <Card className="border-slate-200">
         <CardContent className="pt-4 pb-3">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Services to certify</p>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Services to certify</p>
+            {services.certifications.length > 1 && !isPotential && (
+              <Badge variant="outline" className={cn(
+                "text-[11px]",
+                quotationStrategy === "single" && "border-primary/30 text-primary bg-primary/5",
+                quotationStrategy === "split" && "border-amber-300 text-amber-700 bg-amber-50",
+              )}>
+                {quotationStrategy === "single"
+                  ? `Unified · 1 quotation × ${services.certifications.length} certs`
+                  : quotationStrategy === "split"
+                  ? `Split · ${services.certifications.length} separate quotations`
+                  : "Strategy not chosen"}
+              </Badge>
+            )}
+          </div>
           {services.certifications.length === 0 ? (
             <p className="text-sm text-muted-foreground italic">No services selected.</p>
           ) : (
