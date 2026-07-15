@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useHoldings, useBrands, useSites } from "@/hooks/useProjectDetails";
 import { useAuth } from "@/contexts/AuthContext";
 import { NewHoldingButton, NewBrandButton } from "@/components/projects/BrandHoldingCreator";
-import { RATING_SYSTEMS, RATING_SUBTYPES, type RatingSystem } from "@/data/ratingSubtypes";
+import { getRatings, getSubtypes } from "@/data/ratingSubtypes";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { PAYMENT_SCHEMES, TRIGGER_LABELS, generateTranches, validateCustomTranches, type PaymentSchemeId, type TriggerEvent } from "@/lib/paymentSchemes";
@@ -44,7 +44,7 @@ const CERT_DISPLAY_LABELS: Record<string, string> = {
   LEED: "LEED",
   WELL: "WELL",
   BREEAM: "BREEAM",
-  ESG: "ESG - Taxonomy",
+  ESG: "Taxonomy ESG",
   GRESB: "GRESB",
   Energy_Audit: "Energy Audit",
 };
@@ -58,10 +58,14 @@ const CERT_LEVELS: Record<CertType, string[]> = {
   Energy_Audit: [],
 };
 
+type QuotationStrategy = "single" | "split" | null;
+type StepNum = 1 | 2 | 3 | 4;
+
 const STEPS = [
   { n: 1 as const, label: "Site & Project", icon: Building2 },
   { n: 2 as const, label: "Services & Quote", icon: Award },
-  { n: 3 as const, label: "Review", icon: CheckCircle2 },
+  { n: 3 as const, label: "Strategy", icon: Calculator },
+  { n: 4 as const, label: "Review", icon: CheckCircle2 },
 ];
 
 // ─── State Shapes ───────────────────────────────────────────────────────────
@@ -170,7 +174,8 @@ interface Props {
 export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }: Props) {
   const { toast } = useToast();
   const { isAdmin } = useAuth();
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [step, setStep] = useState<StepNum>(1);
+  const [quotationStrategy, setQuotationStrategy] = useState<QuotationStrategy>(null);
   const [site, setSite] = useState<SiteState>(emptySite());
   const [services, setServices] = useState<ServicesState>(emptyServices());
   const [errors, setErrors] = useState<Record<string, string>>({});
