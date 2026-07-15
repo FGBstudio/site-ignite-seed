@@ -965,9 +965,99 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
     </div>
   );
 
-  // ── Step 3: Review ────────────────────────────────────────────────────────
+  // ── Step 3: Quotation Strategy ────────────────────────────────────────────
 
-  const renderStep3 = () => (
+  const renderStep3 = () => {
+    const certs = services.certifications;
+    return (
+      <div className="space-y-5">
+        <div>
+          <h3 className="text-base font-semibold text-foreground">Quotation strategy</h3>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            You've selected multiple certifications. Refine the list below and choose how they should be quoted.
+          </p>
+        </div>
+
+        {/* Selected certs recap with deselect */}
+        <Card className="border-slate-200">
+          <CardContent className="pt-4 pb-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+              Certifications in this quotation ({certs.length})
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {certs.map((c) => (
+                <div key={c.cert_type} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border bg-primary/5 border-primary/20 text-sm">
+                  <span className="font-medium text-primary">{CERT_DISPLAY_LABELS[c.cert_type] ?? c.cert_type}</span>
+                  {c.cert_rating && <span className="text-xs text-muted-foreground">· {c.cert_rating}</span>}
+                  <button
+                    type="button"
+                    onClick={() => toggleCert(c.cert_type, false)}
+                    className="ml-1 rounded-full hover:bg-destructive/10 text-muted-foreground hover:text-destructive p-0.5"
+                    title="Remove from this quotation"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+            {certs.length <= 1 && (
+              <p className="text-xs text-muted-foreground italic mt-3">
+                Only one certification remains — the strategy step will be skipped. Click Continue.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Strategy choice — only when >1 cert remains */}
+        {certs.length > 1 && (
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+              How should this be saved?
+            </p>
+            <RadioGroup
+              value={quotationStrategy ?? ""}
+              onValueChange={(v) => {
+                setQuotationStrategy(v as QuotationStrategy);
+                setErrors((e) => ({ ...e, strategy: "" }));
+              }}
+              className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+            >
+              <label className={cn(
+                "flex flex-col gap-1 rounded-xl border p-4 cursor-pointer transition-colors",
+                quotationStrategy === "single" ? "border-primary bg-primary/5 shadow-sm" : "border-border hover:bg-muted/40"
+              )}>
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem value="single" />
+                  <span className="font-semibold text-sm">Unified Quotation</span>
+                </div>
+                <p className="text-xs text-muted-foreground pl-6">
+                  One single quotation covering all {certs.length} certifications for this site.
+                  Approve / cancel them together.
+                </p>
+              </label>
+              <label className={cn(
+                "flex flex-col gap-1 rounded-xl border p-4 cursor-pointer transition-colors",
+                quotationStrategy === "split" ? "border-primary bg-primary/5 shadow-sm" : "border-border hover:bg-muted/40"
+              )}>
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem value="split" />
+                  <span className="font-semibold text-sm">Separate Quotations</span>
+                </div>
+                <p className="text-xs text-muted-foreground pl-6">
+                  Generate {certs.length} independent quotations — one per certification — on the same site.
+                </p>
+              </label>
+            </RadioGroup>
+            {errors.strategy && <p className="text-xs text-destructive mt-2">{errors.strategy}</p>}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // ── Step 4: Review ────────────────────────────────────────────────────────
+
+  const renderStep4 = () => (
     <div className="space-y-4">
       <div>
         <h3 className="text-base font-semibold text-foreground">Review before saving</h3>
