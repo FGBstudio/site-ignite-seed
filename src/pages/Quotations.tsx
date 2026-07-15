@@ -29,6 +29,8 @@ interface QuotationRow {
   created_at: string | null;
   status: string;
   quotation_notes?: string | null;
+  quotation_group_id?: string | null;
+  cert_type?: string | null;
   sites?: { city: string | null } | null;
 }
 
@@ -72,7 +74,7 @@ function useQuotations() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("certifications")
-        .select("id, name, client, region, total_fees, handover_date, quotation_sent_date, quotation_approved_at, created_at, status, quotation_notes, sites(city)")
+        .select("id, name, client, region, total_fees, handover_date, quotation_sent_date, quotation_approved_at, created_at, status, quotation_notes, quotation_group_id, cert_type, sites(city)")
         .order("created_at", { ascending: false })
         .limit(500);
       if (error) throw new Error(await readableFunctionError(error));
@@ -135,7 +137,7 @@ export default function Quotations() {
     );
   };
 
-  const handleApprove = async (id: string) => {
+  const handleApprove = async (id: string, groupIds?: string[]) => {
     setApprovingId(id);
     try {
       const { data: userData, error: userError } = await supabase.auth.getUser();
@@ -144,29 +146,39 @@ export default function Quotations() {
       if (!userId) throw new Error("Session expired. Please sign in again.");
 
       const approvedAt = new Date().toISOString();
+      const ids = groupIds && groupIds.length > 0 ? groupIds : [id];
       const { data, error } = await supabase
         .from("certifications")
         .update({ status: "quotation_approved", quotation_approved_at: approvedAt, quotation_approved_by: userId })
-        .eq("id", id).eq("status", "quotation")
-        .select("id, name, client, status, quotation_approved_at").maybeSingle();
+        .in("id", ids).eq("status", "quotation")
+        .select("id, name, client, status, quotation_approved_at");
       if (error) throw error;
-      if (!data || data.status !== "quotation_approved") throw new Error("The quotation was not updated.");
+      if (!data || data.length === 0) throw new Error("The quotation was not updated.");
+      const approvedIds = new Set(data.map((r) => r.id));
       qc.setQueryData<QuotationRow[]>(["quotations-list"], (current = []) =>
-        current.map((row) => row.id === id ? { ...row, status: "quotation_approved", quotation_approved_at: data.quotation_approved_at ?? approvedAt } : row)
+        current.map((row) => approvedIds.has(row.id) ? { ...row, status: "quotation_approved", quotation_approved_at: approvedAt } : row)
       );
-      pushApprovedToOperationsCache(id);
-      toast({ title: "Quotation approved", description: "Moved to Operations › Quotations Approved." });
+      approvedIds.forEach((rid) => pushApprovedToOperationsCache(rid));
+      toast({
+        title: ids.length > 1 ? `${data.length} quotations approved` : "Quotation approved",
+        description: "Moved to Operations › Quotations Approved.",
+      });
       await refreshApprovedSources();
     } catch (err) {
       toast({ title: "Approval failed", description: await readableFunctionError(err), variant: "destructive" });
     } finally { setApprovingId(null); }
   };
 
-  const handleCancel = async (row: QuotationRow) => {
-    if (!window.confirm(`Cancel quotation for ${row.name}?\n\nIf this is the only quotation on its site, the site will also be frozen and hidden from the frontend.`)) return;
+  const handleCancel = async (row: QuotationRow, groupIds?: string[]) => {
+    const isGroup = groupIds && groupIds.length > 1;
+    const msg = isGroup
+      ? `Cancel this unified quotation (${groupIds!.length} certifications) for ${row.name}?`
+      : `Cancel quotation for ${row.name}?\n\nIf this is the only quotation on its site, the site will also be frozen and hidden from the frontend.`;
+    if (!window.confirm(msg)) return;
     setCancelingId(row.id);
     try {
-      const { error } = await supabase.from("certifications").update({ status: "canceled" }).eq("id", row.id);
+      const ids = groupIds && groupIds.length > 0 ? groupIds : [row.id];
+      const { error } = await supabase.from("certifications").update({ status: "canceled" }).in("id", ids);
       if (error) throw error;
       toast({ title: "Quotation canceled", description: `${row.name} moved to Canceled.` });
       invalidateAll();
@@ -326,8 +338,33 @@ export default function Quotations() {
     );
   };
 
+  // Collapse rows sharing quotation_group_id into a single display row.
+  const groupRows = (rows: QuotationRow[]) => {
+    type Display = QuotationRow & { _groupIds: string[]; _certTypes: string[] };
+    const map = new Map<string, Display>();
+    const out: Display[] = [];
+    for (const r of rows) {
+      const gid = r.quotation_group_id;
+      if (gid) {
+        const existing = map.get(gid);
+        if (existing) {
+          existing._groupIds.push(r.id);
+          if (r.cert_type) existing._certTypes.push(r.cert_type);
+          existing.total_fees = (existing.total_fees ?? 0) + (r.total_fees ?? 0);
+        } else {
+          const d: Display = { ...r, _groupIds: [r.id], _certTypes: r.cert_type ? [r.cert_type] : [] };
+          map.set(gid, d);
+          out.push(d);
+        }
+      } else {
+        out.push({ ...r, _groupIds: [r.id], _certTypes: r.cert_type ? [r.cert_type] : [] });
+      }
+    }
+    return out;
+  };
+
   const renderTable = (data: QuotationRow[], mode: "pending" | "approved") => {
-    const filtered = data.filter(filterFn);
+    const filtered = groupRows(data.filter(filterFn));
     if (isLoading) return <div className="space-y-2">{[0,1,2].map((i) => <Skeleton key={i} className="h-14 w-full" />)}</div>;
     if (filtered.length === 0) return (
       <Card><CardContent className="py-12 text-center text-sm text-muted-foreground">
@@ -341,6 +378,7 @@ export default function Quotations() {
             <th className="text-left p-3 font-medium text-muted-foreground">Client</th>
             <th className="text-left p-3 font-medium text-muted-foreground">City</th>
             <th className="text-left p-3 font-medium text-muted-foreground">Project</th>
+            <th className="text-left p-3 font-medium text-muted-foreground">Certifications</th>
             <th className="text-left p-3 font-medium text-muted-foreground">Region</th>
             <th className="text-left p-3 font-medium text-muted-foreground">Total Fees</th>
             <th className="text-left p-3 font-medium text-muted-foreground">Handover</th>
@@ -348,39 +386,52 @@ export default function Quotations() {
             <th className="p-3" />
           </tr></thead>
           <tbody>
-            {filtered.map((r) => (
-              <tr key={r.id} className="border-b last:border-b-0 hover:bg-muted/50">
-                <td className="p-3 font-semibold text-foreground uppercase">{r.client}</td>
-                <td className="p-3 text-muted-foreground uppercase">{r.sites?.city || "—"}</td>
-                <td className="p-3 text-foreground">{r.name}</td>
-                <td className="p-3">{r.region ? <Badge variant="outline">{r.region}</Badge> : "—"}</td>
-                <td className="p-3 font-medium">{r.total_fees != null ? `€${Number(r.total_fees).toLocaleString()}` : "—"}</td>
-                <td className="p-3 text-muted-foreground">{r.handover_date ? format(new Date(r.handover_date), "dd MMM yyyy") : "—"}</td>
-                <td className="p-3 text-muted-foreground">
-                  {mode === "pending"
-                    ? (r.quotation_sent_date ? format(new Date(r.quotation_sent_date), "dd MMM yyyy") : "—")
-                    : (r.quotation_approved_at ? format(new Date(r.quotation_approved_at), "dd MMM yyyy") : "—")}
-                </td>
-                <td className="p-3 text-right">
-                  {mode === "pending" ? (
-                    <div className="flex items-center justify-end gap-2">
-                      <Button size="sm" className="gap-1" disabled={approvingId === r.id} onClick={() => handleApprove(r.id)}>
-                        {approvingId === r.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
-                        Mark as Approved
-                      </Button>
-                      <Button size="sm" variant="destructive" className="gap-1" disabled={cancelingId === r.id} onClick={() => handleCancel(r)}>
-                        {cancelingId === r.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <XCircle className="h-3 w-3" />}
-                        Cancel
-                      </Button>
-                    </div>
-                  ) : (
-                    <Badge variant="outline" className="gap-1 text-success border-success/30 bg-success/10">
-                      <CheckCircle2 className="h-3 w-3" /> Approved
-                    </Badge>
-                  )}
-                </td>
-              </tr>
-            ))}
+            {filtered.map((r) => {
+              const isGroup = r._groupIds.length > 1;
+              return (
+                <tr key={r.quotation_group_id ?? r.id} className="border-b last:border-b-0 hover:bg-muted/50">
+                  <td className="p-3 font-semibold text-foreground uppercase">{r.client}</td>
+                  <td className="p-3 text-muted-foreground uppercase">{r.sites?.city || "—"}</td>
+                  <td className="p-3 text-foreground">
+                    {r.name}
+                    {isGroup && <Badge variant="outline" className="ml-2 text-[10px] border-primary/30 text-primary bg-primary/5">Unified · {r._groupIds.length}</Badge>}
+                  </td>
+                  <td className="p-3">
+                    {r._certTypes.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {r._certTypes.map((t) => <Badge key={t} variant="secondary" className="text-[10px]">{t}</Badge>)}
+                      </div>
+                    ) : "—"}
+                  </td>
+                  <td className="p-3">{r.region ? <Badge variant="outline">{r.region}</Badge> : "—"}</td>
+                  <td className="p-3 font-medium">{r.total_fees != null ? `€${Number(r.total_fees).toLocaleString()}` : "—"}</td>
+                  <td className="p-3 text-muted-foreground">{r.handover_date ? format(new Date(r.handover_date), "dd MMM yyyy") : "—"}</td>
+                  <td className="p-3 text-muted-foreground">
+                    {mode === "pending"
+                      ? (r.quotation_sent_date ? format(new Date(r.quotation_sent_date), "dd MMM yyyy") : "—")
+                      : (r.quotation_approved_at ? format(new Date(r.quotation_approved_at), "dd MMM yyyy") : "—")}
+                  </td>
+                  <td className="p-3 text-right">
+                    {mode === "pending" ? (
+                      <div className="flex items-center justify-end gap-2">
+                        <Button size="sm" className="gap-1" disabled={approvingId === r.id} onClick={() => handleApprove(r.id, r._groupIds)}>
+                          {approvingId === r.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
+                          {isGroup ? "Approve all" : "Mark as Approved"}
+                        </Button>
+                        <Button size="sm" variant="destructive" className="gap-1" disabled={cancelingId === r.id} onClick={() => handleCancel(r, r._groupIds)}>
+                          {cancelingId === r.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <XCircle className="h-3 w-3" />}
+                          Cancel
+                        </Button>
+                      </div>
+                    ) : (
+                      <Badge variant="outline" className="gap-1 text-success border-success/30 bg-success/10">
+                        <CheckCircle2 className="h-3 w-3" /> Approved
+                      </Badge>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

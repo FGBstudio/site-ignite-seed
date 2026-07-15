@@ -812,6 +812,7 @@ export type Database = {
           project_subtype: string | null
           quotation_approved_at: string | null
           quotation_approved_by: string | null
+          quotation_group_id: string | null
           quotation_notes: string | null
           quotation_sent_date: string | null
           region: string
@@ -858,6 +859,7 @@ export type Database = {
           project_subtype?: string | null
           quotation_approved_at?: string | null
           quotation_approved_by?: string | null
+          quotation_group_id?: string | null
           quotation_notes?: string | null
           quotation_sent_date?: string | null
           region?: string
@@ -904,6 +906,7 @@ export type Database = {
           project_subtype?: string | null
           quotation_approved_at?: string | null
           quotation_approved_by?: string | null
+          quotation_group_id?: string | null
           quotation_notes?: string | null
           quotation_sent_date?: string | null
           region?: string

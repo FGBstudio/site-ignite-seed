@@ -1,0 +1,2 @@
+ALTER TABLE public.certifications ADD COLUMN IF NOT EXISTS quotation_group_id uuid NULL;
+CREATE INDEX IF NOT EXISTS idx_certifications_quotation_group_id ON public.certifications(quotation_group_id) WHERE quotation_group_id IS NOT NULL;

@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useHoldings, useBrands, useSites } from "@/hooks/useProjectDetails";
 import { useAuth } from "@/contexts/AuthContext";
 import { NewHoldingButton, NewBrandButton } from "@/components/projects/BrandHoldingCreator";
-import { RATING_SYSTEMS, RATING_SUBTYPES, type RatingSystem } from "@/data/ratingSubtypes";
+import { getRatings, getSubtypes } from "@/data/ratingSubtypes";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { PAYMENT_SCHEMES, TRIGGER_LABELS, generateTranches, validateCustomTranches, type PaymentSchemeId, type TriggerEvent } from "@/lib/paymentSchemes";
@@ -44,7 +44,7 @@ const CERT_DISPLAY_LABELS: Record<string, string> = {
   LEED: "LEED",
   WELL: "WELL",
   BREEAM: "BREEAM",
-  ESG: "ESG - Taxonomy",
+  ESG: "Taxonomy ESG",
   GRESB: "GRESB",
   Energy_Audit: "Energy Audit",
 };
@@ -58,10 +58,14 @@ const CERT_LEVELS: Record<CertType, string[]> = {
   Energy_Audit: [],
 };
 
+type QuotationStrategy = "single" | "split" | null;
+type StepNum = 1 | 2 | 3 | 4;
+
 const STEPS = [
   { n: 1 as const, label: "Site & Project", icon: Building2 },
   { n: 2 as const, label: "Services & Quote", icon: Award },
-  { n: 3 as const, label: "Review", icon: CheckCircle2 },
+  { n: 3 as const, label: "Strategy", icon: Calculator },
+  { n: 4 as const, label: "Review", icon: CheckCircle2 },
 ];
 
 // ─── State Shapes ───────────────────────────────────────────────────────────
@@ -170,7 +174,8 @@ interface Props {
 export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }: Props) {
   const { toast } = useToast();
   const { isAdmin } = useAuth();
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [step, setStep] = useState<StepNum>(1);
+  const [quotationStrategy, setQuotationStrategy] = useState<QuotationStrategy>(null);
   const [site, setSite] = useState<SiteState>(emptySite());
   const [services, setServices] = useState<ServicesState>(emptyServices());
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -287,13 +292,31 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
 
   // ── Navigation ────────────────────────────────────────────────────────────
 
+  const needsStrategy = () => !isPotential && services.certifications.length > 1;
+
   const goNext = () => {
     if (step === 1 && !validateStep1()) return;
     if (step === 2 && !validateStep2()) return;
-    setStep((s) => (s < 3 ? (s + 1) as 1 | 2 | 3 : s));
+    if (step === 3) {
+      if (needsStrategy() && !quotationStrategy) {
+        setErrors({ strategy: "Choose Unified or Split before continuing" });
+        return;
+      }
+    }
+    setStep((s) => {
+      let next = (s + 1) as StepNum;
+      // Skip Strategy step (3) when only one cert is selected
+      if (next === 3 && !needsStrategy()) next = 4;
+      return next > 4 ? s : next;
+    });
   };
 
-  const goBack = () => setStep((s) => (s > 1 ? (s - 1) as 1 | 2 | 3 : s));
+  const goBack = () =>
+    setStep((s) => {
+      let prev = (s - 1) as StepNum;
+      if (prev === 3 && !needsStrategy()) prev = 2;
+      return prev < 1 ? s : prev;
+    });
 
   const handleClose = () => {
     onOpenChange(false);
@@ -303,6 +326,7 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
       setServices(emptyServices());
       setErrors({});
       setIsPotential(false);
+      setQuotationStrategy(null);
       setProjectNameTouched(false);
       setClientTouched(false);
     }, 300);
@@ -398,14 +422,20 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
 
       const handoverStr = services.handoverDate ? format(services.handoverDate, "yyyy-MM-dd") : null;
 
+      // Strategy resolution: unified quotation groups >1 certs under a shared UUID.
+      const isUnified =
+        !isPotential && services.certifications.length > 1 && quotationStrategy === "single";
+      const groupId = isUnified ? (crypto?.randomUUID?.() ?? null) : null;
+      const nameFor = (certType: string) =>
+        !isPotential && services.certifications.length > 1 && quotationStrategy === "split"
+          ? `${services.projectName} – ${certType}`
+          : services.projectName;
+
       // 1b. Duplicate check within the last 30 seconds (skip for potentials — they may legitimately repeat)
       if (!isPotential) {
         const thirtySecondsAgo = new Date(Date.now() - 30000).toISOString();
         for (const cert of services.certifications) {
-          const name = services.certifications.length > 1
-            ? `${services.projectName} – ${cert.cert_type}`
-            : services.projectName;
-
+          const name = nameFor(cert.cert_type);
           const { data: existing } = await supabase
             .from("certifications")
             .select("id")
@@ -424,14 +454,14 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
             setSaving(false);
             return;
           }
+          // In unified mode all rows share the same name — check only once.
+          if (isUnified) break;
         }
       }
 
       // 2. Insert one certification row per selected service
       for (const cert of services.certifications) {
-        const name = services.certifications.length > 1
-          ? `${services.projectName} – ${cert.cert_type}`
-          : services.projectName;
+        const name = nameFor(cert.cert_type);
 
         const useBuilder = cert.quote_mode === "builder" && cert.builder_applied;
         const builderComputation = useBuilder ? computeBudget(cert.builder) : null;
@@ -469,10 +499,12 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
               ? format(services.quotationSentDate, "yyyy-MM-dd")
               : null,
             quotation_notes: services.notes || null,
+            quotation_group_id: groupId,
           } as any)
           .select("id")
           .single();
         if (certErr) throw certErr;
+
 
         if (useBuilder && builderComputation && insertedCert) {
           await supabase.from("quotation_budget_history" as never).insert({
@@ -730,9 +762,8 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
         <div className="space-y-3">
           {services.certifications.map((cert) => {
             const levels = CERT_LEVELS[cert.cert_type] ?? [];
-            const subtypes = cert.cert_rating && RATING_SUBTYPES[cert.cert_rating as RatingSystem]
-              ? RATING_SUBTYPES[cert.cert_rating as RatingSystem]
-              : [];
+            const ratings = getRatings(cert.cert_type);
+            const subtypes = cert.cert_rating ? getSubtypes(cert.cert_type, cert.cert_rating) : [];
             return (
               <Card key={cert.cert_type} className="border-primary/20">
                 <CardContent className="pt-4">
@@ -743,9 +774,9 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className="space-y-1">
                       <Label className="text-xs">Rating System</Label>
-                      <Select value={cert.cert_rating} onValueChange={(v) => updateCert(cert.cert_type, "cert_rating", v)}>
-                        <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Select" /></SelectTrigger>
-                        <SelectContent>{RATING_SYSTEMS.map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent>
+                      <Select value={cert.cert_rating} onValueChange={(v) => updateCert(cert.cert_type, "cert_rating", v)} disabled={ratings.length === 0}>
+                        <SelectTrigger className="h-8 text-sm"><SelectValue placeholder={ratings.length === 0 ? "N/A" : "Select"} /></SelectTrigger>
+                        <SelectContent>{ratings.map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-1">
@@ -934,9 +965,99 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
     </div>
   );
 
-  // ── Step 3: Review ────────────────────────────────────────────────────────
+  // ── Step 3: Quotation Strategy ────────────────────────────────────────────
 
-  const renderStep3 = () => (
+  const renderStep3 = () => {
+    const certs = services.certifications;
+    return (
+      <div className="space-y-5">
+        <div>
+          <h3 className="text-base font-semibold text-foreground">Quotation strategy</h3>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            You've selected multiple certifications. Refine the list below and choose how they should be quoted.
+          </p>
+        </div>
+
+        {/* Selected certs recap with deselect */}
+        <Card className="border-slate-200">
+          <CardContent className="pt-4 pb-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+              Certifications in this quotation ({certs.length})
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {certs.map((c) => (
+                <div key={c.cert_type} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border bg-primary/5 border-primary/20 text-sm">
+                  <span className="font-medium text-primary">{CERT_DISPLAY_LABELS[c.cert_type] ?? c.cert_type}</span>
+                  {c.cert_rating && <span className="text-xs text-muted-foreground">· {c.cert_rating}</span>}
+                  <button
+                    type="button"
+                    onClick={() => toggleCert(c.cert_type, false)}
+                    className="ml-1 rounded-full hover:bg-destructive/10 text-muted-foreground hover:text-destructive p-0.5"
+                    title="Remove from this quotation"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+            {certs.length <= 1 && (
+              <p className="text-xs text-muted-foreground italic mt-3">
+                Only one certification remains — the strategy step will be skipped. Click Continue.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Strategy choice — only when >1 cert remains */}
+        {certs.length > 1 && (
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+              How should this be saved?
+            </p>
+            <RadioGroup
+              value={quotationStrategy ?? ""}
+              onValueChange={(v) => {
+                setQuotationStrategy(v as QuotationStrategy);
+                setErrors((e) => ({ ...e, strategy: "" }));
+              }}
+              className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+            >
+              <label className={cn(
+                "flex flex-col gap-1 rounded-xl border p-4 cursor-pointer transition-colors",
+                quotationStrategy === "single" ? "border-primary bg-primary/5 shadow-sm" : "border-border hover:bg-muted/40"
+              )}>
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem value="single" />
+                  <span className="font-semibold text-sm">Unified Quotation</span>
+                </div>
+                <p className="text-xs text-muted-foreground pl-6">
+                  One single quotation covering all {certs.length} certifications for this site.
+                  Approve / cancel them together.
+                </p>
+              </label>
+              <label className={cn(
+                "flex flex-col gap-1 rounded-xl border p-4 cursor-pointer transition-colors",
+                quotationStrategy === "split" ? "border-primary bg-primary/5 shadow-sm" : "border-border hover:bg-muted/40"
+              )}>
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem value="split" />
+                  <span className="font-semibold text-sm">Separate Quotations</span>
+                </div>
+                <p className="text-xs text-muted-foreground pl-6">
+                  Generate {certs.length} independent quotations — one per certification — on the same site.
+                </p>
+              </label>
+            </RadioGroup>
+            {errors.strategy && <p className="text-xs text-destructive mt-2">{errors.strategy}</p>}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // ── Step 4: Review ────────────────────────────────────────────────────────
+
+  const renderStep4 = () => (
     <div className="space-y-4">
       <div>
         <h3 className="text-base font-semibold text-foreground">Review before saving</h3>
@@ -976,7 +1097,22 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
       {/* Services */}
       <Card className="border-slate-200">
         <CardContent className="pt-4 pb-3">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Services to certify</p>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Services to certify</p>
+            {services.certifications.length > 1 && !isPotential && (
+              <Badge variant="outline" className={cn(
+                "text-[11px]",
+                quotationStrategy === "single" && "border-primary/30 text-primary bg-primary/5",
+                quotationStrategy === "split" && "border-amber-300 text-amber-700 bg-amber-50",
+              )}>
+                {quotationStrategy === "single"
+                  ? `Unified · 1 quotation × ${services.certifications.length} certs`
+                  : quotationStrategy === "split"
+                  ? `Split · ${services.certifications.length} separate quotations`
+                  : "Strategy not chosen"}
+              </Badge>
+            )}
+          </div>
           {services.certifications.length === 0 ? (
             <p className="text-sm text-muted-foreground italic">No services selected.</p>
           ) : (
@@ -1058,6 +1194,7 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
             {step === 1 && renderStep1()}
             {step === 2 && renderStep2()}
             {step === 3 && renderStep3()}
+            {step === 4 && renderStep4()}
           </div>
 
           {/* Footer */}
@@ -1084,7 +1221,7 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
                     Save as Potential
                   </Button>
                 )}
-                {step < 3 ? (
+                {step < 4 ? (
                   <Button type="button" onClick={goNext} className="gap-1.5">
                     Continue <ChevronRight className="h-4 w-4" />
                   </Button>
