@@ -29,6 +29,8 @@ interface QuotationRow {
   created_at: string | null;
   status: string;
   quotation_notes?: string | null;
+  quotation_group_id?: string | null;
+  cert_type?: string | null;
   sites?: { city: string | null } | null;
 }
 
@@ -72,7 +74,7 @@ function useQuotations() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("certifications")
-        .select("id, name, client, region, total_fees, handover_date, quotation_sent_date, quotation_approved_at, created_at, status, quotation_notes, sites(city)")
+        .select("id, name, client, region, total_fees, handover_date, quotation_sent_date, quotation_approved_at, created_at, status, quotation_notes, quotation_group_id, cert_type, sites(city)")
         .order("created_at", { ascending: false })
         .limit(500);
       if (error) throw new Error(await readableFunctionError(error));
