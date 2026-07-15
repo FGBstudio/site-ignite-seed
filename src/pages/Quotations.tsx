@@ -338,8 +338,33 @@ export default function Quotations() {
     );
   };
 
+  // Collapse rows sharing quotation_group_id into a single display row.
+  const groupRows = (rows: QuotationRow[]) => {
+    type Display = QuotationRow & { _groupIds: string[]; _certTypes: string[] };
+    const map = new Map<string, Display>();
+    const out: Display[] = [];
+    for (const r of rows) {
+      const gid = r.quotation_group_id;
+      if (gid) {
+        const existing = map.get(gid);
+        if (existing) {
+          existing._groupIds.push(r.id);
+          if (r.cert_type) existing._certTypes.push(r.cert_type);
+          existing.total_fees = (existing.total_fees ?? 0) + (r.total_fees ?? 0);
+        } else {
+          const d: Display = { ...r, _groupIds: [r.id], _certTypes: r.cert_type ? [r.cert_type] : [] };
+          map.set(gid, d);
+          out.push(d);
+        }
+      } else {
+        out.push({ ...r, _groupIds: [r.id], _certTypes: r.cert_type ? [r.cert_type] : [] });
+      }
+    }
+    return out;
+  };
+
   const renderTable = (data: QuotationRow[], mode: "pending" | "approved") => {
-    const filtered = data.filter(filterFn);
+    const filtered = groupRows(data.filter(filterFn));
     if (isLoading) return <div className="space-y-2">{[0,1,2].map((i) => <Skeleton key={i} className="h-14 w-full" />)}</div>;
     if (filtered.length === 0) return (
       <Card><CardContent className="py-12 text-center text-sm text-muted-foreground">
@@ -353,6 +378,7 @@ export default function Quotations() {
             <th className="text-left p-3 font-medium text-muted-foreground">Client</th>
             <th className="text-left p-3 font-medium text-muted-foreground">City</th>
             <th className="text-left p-3 font-medium text-muted-foreground">Project</th>
+            <th className="text-left p-3 font-medium text-muted-foreground">Certifications</th>
             <th className="text-left p-3 font-medium text-muted-foreground">Region</th>
             <th className="text-left p-3 font-medium text-muted-foreground">Total Fees</th>
             <th className="text-left p-3 font-medium text-muted-foreground">Handover</th>
@@ -360,39 +386,52 @@ export default function Quotations() {
             <th className="p-3" />
           </tr></thead>
           <tbody>
-            {filtered.map((r) => (
-              <tr key={r.id} className="border-b last:border-b-0 hover:bg-muted/50">
-                <td className="p-3 font-semibold text-foreground uppercase">{r.client}</td>
-                <td className="p-3 text-muted-foreground uppercase">{r.sites?.city || "—"}</td>
-                <td className="p-3 text-foreground">{r.name}</td>
-                <td className="p-3">{r.region ? <Badge variant="outline">{r.region}</Badge> : "—"}</td>
-                <td className="p-3 font-medium">{r.total_fees != null ? `€${Number(r.total_fees).toLocaleString()}` : "—"}</td>
-                <td className="p-3 text-muted-foreground">{r.handover_date ? format(new Date(r.handover_date), "dd MMM yyyy") : "—"}</td>
-                <td className="p-3 text-muted-foreground">
-                  {mode === "pending"
-                    ? (r.quotation_sent_date ? format(new Date(r.quotation_sent_date), "dd MMM yyyy") : "—")
-                    : (r.quotation_approved_at ? format(new Date(r.quotation_approved_at), "dd MMM yyyy") : "—")}
-                </td>
-                <td className="p-3 text-right">
-                  {mode === "pending" ? (
-                    <div className="flex items-center justify-end gap-2">
-                      <Button size="sm" className="gap-1" disabled={approvingId === r.id} onClick={() => handleApprove(r.id)}>
-                        {approvingId === r.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
-                        Mark as Approved
-                      </Button>
-                      <Button size="sm" variant="destructive" className="gap-1" disabled={cancelingId === r.id} onClick={() => handleCancel(r)}>
-                        {cancelingId === r.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <XCircle className="h-3 w-3" />}
-                        Cancel
-                      </Button>
-                    </div>
-                  ) : (
-                    <Badge variant="outline" className="gap-1 text-success border-success/30 bg-success/10">
-                      <CheckCircle2 className="h-3 w-3" /> Approved
-                    </Badge>
-                  )}
-                </td>
-              </tr>
-            ))}
+            {filtered.map((r) => {
+              const isGroup = r._groupIds.length > 1;
+              return (
+                <tr key={r.quotation_group_id ?? r.id} className="border-b last:border-b-0 hover:bg-muted/50">
+                  <td className="p-3 font-semibold text-foreground uppercase">{r.client}</td>
+                  <td className="p-3 text-muted-foreground uppercase">{r.sites?.city || "—"}</td>
+                  <td className="p-3 text-foreground">
+                    {r.name}
+                    {isGroup && <Badge variant="outline" className="ml-2 text-[10px] border-primary/30 text-primary bg-primary/5">Unified · {r._groupIds.length}</Badge>}
+                  </td>
+                  <td className="p-3">
+                    {r._certTypes.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {r._certTypes.map((t) => <Badge key={t} variant="secondary" className="text-[10px]">{t}</Badge>)}
+                      </div>
+                    ) : "—"}
+                  </td>
+                  <td className="p-3">{r.region ? <Badge variant="outline">{r.region}</Badge> : "—"}</td>
+                  <td className="p-3 font-medium">{r.total_fees != null ? `€${Number(r.total_fees).toLocaleString()}` : "—"}</td>
+                  <td className="p-3 text-muted-foreground">{r.handover_date ? format(new Date(r.handover_date), "dd MMM yyyy") : "—"}</td>
+                  <td className="p-3 text-muted-foreground">
+                    {mode === "pending"
+                      ? (r.quotation_sent_date ? format(new Date(r.quotation_sent_date), "dd MMM yyyy") : "—")
+                      : (r.quotation_approved_at ? format(new Date(r.quotation_approved_at), "dd MMM yyyy") : "—")}
+                  </td>
+                  <td className="p-3 text-right">
+                    {mode === "pending" ? (
+                      <div className="flex items-center justify-end gap-2">
+                        <Button size="sm" className="gap-1" disabled={approvingId === r.id} onClick={() => handleApprove(r.id, r._groupIds)}>
+                          {approvingId === r.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
+                          {isGroup ? "Approve all" : "Mark as Approved"}
+                        </Button>
+                        <Button size="sm" variant="destructive" className="gap-1" disabled={cancelingId === r.id} onClick={() => handleCancel(r, r._groupIds)}>
+                          {cancelingId === r.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <XCircle className="h-3 w-3" />}
+                          Cancel
+                        </Button>
+                      </div>
+                    ) : (
+                      <Badge variant="outline" className="gap-1 text-success border-success/30 bg-success/10">
+                        <CheckCircle2 className="h-3 w-3" /> Approved
+                      </Badge>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
