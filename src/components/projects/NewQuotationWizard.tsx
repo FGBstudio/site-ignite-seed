@@ -292,13 +292,31 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
 
   // ── Navigation ────────────────────────────────────────────────────────────
 
+  const needsStrategy = () => !isPotential && services.certifications.length > 1;
+
   const goNext = () => {
     if (step === 1 && !validateStep1()) return;
     if (step === 2 && !validateStep2()) return;
-    setStep((s) => (s < 3 ? (s + 1) as 1 | 2 | 3 : s));
+    if (step === 3) {
+      if (needsStrategy() && !quotationStrategy) {
+        setErrors({ strategy: "Choose Unified or Split before continuing" });
+        return;
+      }
+    }
+    setStep((s) => {
+      let next = (s + 1) as StepNum;
+      // Skip Strategy step (3) when only one cert is selected
+      if (next === 3 && !needsStrategy()) next = 4;
+      return next > 4 ? s : next;
+    });
   };
 
-  const goBack = () => setStep((s) => (s > 1 ? (s - 1) as 1 | 2 | 3 : s));
+  const goBack = () =>
+    setStep((s) => {
+      let prev = (s - 1) as StepNum;
+      if (prev === 3 && !needsStrategy()) prev = 2;
+      return prev < 1 ? s : prev;
+    });
 
   const handleClose = () => {
     onOpenChange(false);
@@ -308,6 +326,7 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
       setServices(emptyServices());
       setErrors({});
       setIsPotential(false);
+      setQuotationStrategy(null);
       setProjectNameTouched(false);
       setClientTouched(false);
     }, 300);
