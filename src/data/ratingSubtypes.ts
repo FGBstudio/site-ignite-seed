@@ -1,31 +1,61 @@
 /**
- * Mapping between LEED Rating Systems and their available Subtypologies.
- * Used for dependent dropdown logic in project creation forms.
+ * Certification taxonomy — 3-level hierarchy:
+ *   cert_type  →  cert_rating  →  project_subtype (optional)
+ *
+ * Storage stays on the existing `certifications` columns:
+ *   cert_type, cert_rating, project_subtype
  */
 
-export const RATING_SYSTEMS = ["BD+C", "ID+C", "O+M", "Residential", "ND"] as const;
-export type RatingSystem = (typeof RATING_SYSTEMS)[number];
+export const CERT_TYPES = ["LEED", "WELL", "BREEAM", "ESG"] as const;
+export type CertTaxonomyType = (typeof CERT_TYPES)[number];
 
-export const RATING_SUBTYPES: Record<RatingSystem, string[]> = {
-  "BD+C": [
-    "New Construction",
-    "Core & Shell",
-    "Schools",
-    "Retail",
-    "Data Centers",
-    "Warehouses",
-    "Hospitality",
-    "Healthcare",
-  ],
-  "ID+C": ["Commercial Interiors", "Retail", "Hospitality"],
-  "O+M": [
-    "Existing Buildings",
-    "Schools",
-    "Retail",
-    "Data Centers",
-    "Warehouses",
-    "Hospitality",
-  ],
-  Residential: ["Single Family", "Multifamily (Lowrise & Midrise)"],
-  ND: ["Plan", "Built Project"],
+/** Nested: cert_type → rating → list of subtypes (empty = no subtype level). */
+export const TAXONOMY: Record<CertTaxonomyType, Record<string, string[]>> = {
+  LEED: {
+    "ID+C": ["Retail", "Commercial Interior", "Hospitality"],
+    "BD+C": [
+      "New Construction",
+      "Core & Shell",
+      "Hospitality",
+      "Warehouses",
+      "Healthcare",
+      "School",
+    ],
+    "O+M": ["Existing Buildings", "Interiors"],
+    "ND": [],
+  },
+  BREEAM: {
+    "New Construction": [],
+    "In Use": ["Part 1", "Part 2"],
+    "Refurbishment": [],
+  },
+  WELL: {
+    Standard: [],
+    Core: [],
+    HSR: [],
+  },
+  ESG: {
+    "7.1": [],
+    "7.2": [],
+    "7.5": [],
+  },
 };
+
+/** Ratings available for a given cert_type. */
+export function getRatings(certType: string): string[] {
+  const bucket = (TAXONOMY as Record<string, Record<string, string[]>>)[certType];
+  return bucket ? Object.keys(bucket) : [];
+}
+
+/** Subtypes for cert_type + rating. Empty when the rating has no subtype level. */
+export function getSubtypes(certType: string, rating: string): string[] {
+  const bucket = (TAXONOMY as Record<string, Record<string, string[]>>)[certType];
+  return bucket?.[rating] ?? [];
+}
+
+// ─── Back-compat exports (legacy LEED-only shape) ───────────────────────────
+// Kept so older imports keep compiling. Prefer getRatings/getSubtypes.
+
+export const RATING_SYSTEMS = Object.keys(TAXONOMY.LEED) as readonly string[];
+export type RatingSystem = string;
+export const RATING_SUBTYPES: Record<string, string[]> = TAXONOMY.LEED;
