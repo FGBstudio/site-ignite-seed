@@ -422,14 +422,20 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
 
       const handoverStr = services.handoverDate ? format(services.handoverDate, "yyyy-MM-dd") : null;
 
+      // Strategy resolution: unified quotation groups >1 certs under a shared UUID.
+      const isUnified =
+        !isPotential && services.certifications.length > 1 && quotationStrategy === "single";
+      const groupId = isUnified ? (crypto?.randomUUID?.() ?? null) : null;
+      const nameFor = (certType: string) =>
+        !isPotential && services.certifications.length > 1 && quotationStrategy === "split"
+          ? `${services.projectName} – ${certType}`
+          : services.projectName;
+
       // 1b. Duplicate check within the last 30 seconds (skip for potentials — they may legitimately repeat)
       if (!isPotential) {
         const thirtySecondsAgo = new Date(Date.now() - 30000).toISOString();
         for (const cert of services.certifications) {
-          const name = services.certifications.length > 1
-            ? `${services.projectName} – ${cert.cert_type}`
-            : services.projectName;
-
+          const name = nameFor(cert.cert_type);
           const { data: existing } = await supabase
             .from("certifications")
             .select("id")
@@ -448,14 +454,14 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
             setSaving(false);
             return;
           }
+          // In unified mode all rows share the same name — check only once.
+          if (isUnified) break;
         }
       }
 
       // 2. Insert one certification row per selected service
       for (const cert of services.certifications) {
-        const name = services.certifications.length > 1
-          ? `${services.projectName} – ${cert.cert_type}`
-          : services.projectName;
+        const name = nameFor(cert.cert_type);
 
         const useBuilder = cert.quote_mode === "builder" && cert.builder_applied;
         const builderComputation = useBuilder ? computeBudget(cert.builder) : null;
@@ -493,10 +499,12 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
               ? format(services.quotationSentDate, "yyyy-MM-dd")
               : null,
             quotation_notes: services.notes || null,
+            quotation_group_id: groupId,
           } as any)
           .select("id")
           .single();
         if (certErr) throw certErr;
+
 
         if (useBuilder && builderComputation && insertedCert) {
           await supabase.from("quotation_budget_history" as never).insert({
