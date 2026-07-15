@@ -735,9 +735,8 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
         <div className="space-y-3">
           {services.certifications.map((cert) => {
             const levels = CERT_LEVELS[cert.cert_type] ?? [];
-            const subtypes = cert.cert_rating && RATING_SUBTYPES[cert.cert_rating as RatingSystem]
-              ? RATING_SUBTYPES[cert.cert_rating as RatingSystem]
-              : [];
+            const ratings = getRatings(cert.cert_type);
+            const subtypes = cert.cert_rating ? getSubtypes(cert.cert_type, cert.cert_rating) : [];
             return (
               <Card key={cert.cert_type} className="border-primary/20">
                 <CardContent className="pt-4">
@@ -748,9 +747,9 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className="space-y-1">
                       <Label className="text-xs">Rating System</Label>
-                      <Select value={cert.cert_rating} onValueChange={(v) => updateCert(cert.cert_type, "cert_rating", v)}>
-                        <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Select" /></SelectTrigger>
-                        <SelectContent>{RATING_SYSTEMS.map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent>
+                      <Select value={cert.cert_rating} onValueChange={(v) => updateCert(cert.cert_type, "cert_rating", v)} disabled={ratings.length === 0}>
+                        <SelectTrigger className="h-8 text-sm"><SelectValue placeholder={ratings.length === 0 ? "N/A" : "Select"} /></SelectTrigger>
+                        <SelectContent>{ratings.map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-1">
