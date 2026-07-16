@@ -28,6 +28,7 @@ import Login from "./pages/Login";
 import Unsubscribe from "./pages/Unsubscribe";
 import NotFound from "./pages/NotFound";
 import Monitor from "./pages/Monitor";
+import MonitorReport from "./pages/MonitorReport";
 import MyTimesheet from "./pages/MyTimesheet";
 import TeamBoard from "./pages/TeamBoard";
 import HrHub from "./pages/HrHub";
