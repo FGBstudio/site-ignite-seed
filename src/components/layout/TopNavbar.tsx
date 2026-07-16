@@ -66,7 +66,7 @@ export function TopNavbar() {
   let navItems: NavItem[] = [];
   const inProjects = isInProjectsSection(location.pathname);
   const standaloneSection = getSectionForPath(location.pathname);
-  const isMonitorContext = standaloneSection?.id === "monitor" || location.pathname.startsWith("/hardwares") || location.pathname.startsWith("/supplier-orders");
+  const isMonitorContext = standaloneSection?.id === "monitor" || location.pathname.startsWith("/hardwares") || location.pathname.startsWith("/supplier-orders") || location.pathname.startsWith("/monitor/report");
 
   if (isAdmin) {
     if (isMonitorContext) {
@@ -74,6 +74,7 @@ export function TopNavbar() {
         { title: "Monitor Hub", url: "/monitor", icon: BarChart3 },
         { title: "Hardwares", url: "/hardwares", icon: Package },
         { title: "Orders", url: "/supplier-orders", icon: Truck },
+        { title: "Report", url: "/monitor/report", icon: BarChart3 },
       ];
     } else {
       navItems = [

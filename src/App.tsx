@@ -28,6 +28,7 @@ import Login from "./pages/Login";
 import Unsubscribe from "./pages/Unsubscribe";
 import NotFound from "./pages/NotFound";
 import Monitor from "./pages/Monitor";
+import MonitorReport from "./pages/MonitorReport";
 import MyTimesheet from "./pages/MyTimesheet";
 import TeamBoard from "./pages/TeamBoard";
 import HrHub from "./pages/HrHub";
@@ -87,6 +88,7 @@ function AppRoutes() {
       <Route path="/hr/scanner" element={<ProtectedRoute allowedRoles={R("ADMIN")}><HrScanner /></ProtectedRoute>} />
 
       <Route path="/monitor" element={<ProtectedRoute allowedRoles={R("ADMIN", "PM")}><Monitor /></ProtectedRoute>} />
+      <Route path="/monitor/report" element={<ProtectedRoute allowedRoles={R("ADMIN", "PM")}><MonitorReport /></ProtectedRoute>} />
       <Route path="/invoice" element={<ProtectedRoute allowedRoles={R("ADMIN")}><InvoicePage /></ProtectedRoute>} />
       <Route path="/quotations" element={<ProtectedRoute allowedRoles={R("ADMIN")}><Quotations /></ProtectedRoute>} />
 
