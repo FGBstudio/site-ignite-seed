@@ -791,7 +791,7 @@ export type Database = {
           expiry_date: string | null
           fgb_monitor: boolean
           gbci_fees: number | null
-          handover_date: string
+          handover_date: string | null
           has_energy_monitoring: boolean
           has_hardware_redirection: boolean
           has_iaq_monitoring: boolean
@@ -838,7 +838,7 @@ export type Database = {
           expiry_date?: string | null
           fgb_monitor?: boolean
           gbci_fees?: number | null
-          handover_date?: string
+          handover_date?: string | null
           has_energy_monitoring?: boolean
           has_hardware_redirection?: boolean
           has_iaq_monitoring?: boolean
@@ -885,7 +885,7 @@ export type Database = {
           expiry_date?: string | null
           fgb_monitor?: boolean
           gbci_fees?: number | null
-          handover_date?: string
+          handover_date?: string | null
           has_energy_monitoring?: boolean
           has_hardware_redirection?: boolean
           has_iaq_monitoring?: boolean
