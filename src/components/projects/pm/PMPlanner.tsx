@@ -356,7 +356,7 @@ function WeeklyScheduler({
               </div>
             ))}
             {HOURS.map((h) => (
-              <>
+              <Fragment key={`row-${h}`}>
                 <div key={`lbl-${h}`} className="text-[10px] text-muted-foreground pr-2 text-right pt-1">
                   {`${String(Math.floor(h)).padStart(2, "0")}:${h % 1 ? "30" : "00"}`}
                 </div>
