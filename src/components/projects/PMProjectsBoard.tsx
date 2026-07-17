@@ -287,6 +287,9 @@ export function PMProjectsBoard() {
             <TabsTrigger value="planner" className="gap-2">
               <GanttChartSquare className="w-4 h-4" /> Global Planner
             </TabsTrigger>
+            <TabsTrigger value="pm-planner" className="gap-2">
+              <CalendarClock className="w-4 h-4" /> PM Planner
+            </TabsTrigger>
           </TabsList>
         </div>
 
