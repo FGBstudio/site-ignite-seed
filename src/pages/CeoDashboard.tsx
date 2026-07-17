@@ -35,6 +35,7 @@ import {
   type SortConfig,
 } from "@/components/common/ColumnFilter";
 import { ProjectBurnRate, ResourceMonitor } from "@/components/dashboard/HoursAnalytics";
+import { CapacityDashboard } from "@/components/dashboard/capacity/CapacityDashboard";
 
 const COLORS = {
   late: "hsl(0, 84%, 60%)",
