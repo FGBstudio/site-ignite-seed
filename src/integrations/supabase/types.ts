@@ -936,6 +936,80 @@ export type Database = {
           },
         ]
       }
+      change_requests: {
+        Row: {
+          certification_id: string
+          created_at: string
+          delta_hours: number
+          id: string
+          milestone_id: string | null
+          reason: string
+          requested_by: string
+          resolution_note: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          certification_id: string
+          created_at?: string
+          delta_hours: number
+          id?: string
+          milestone_id?: string | null
+          reason: string
+          requested_by: string
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          certification_id?: string
+          created_at?: string
+          delta_hours?: number
+          id?: string
+          milestone_id?: string | null
+          reason?: string
+          requested_by?: string
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "change_requests_certification_id_fkey"
+            columns: ["certification_id"]
+            isOneToOne: false
+            referencedRelation: "certifications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "change_requests_certification_id_fkey"
+            columns: ["certification_id"]
+            isOneToOne: false
+            referencedRelation: "view_cert_hours_burn"
+            referencedColumns: ["certification_id"]
+          },
+          {
+            foreignKeyName: "change_requests_milestone_id_fkey"
+            columns: ["milestone_id"]
+            isOneToOne: false
+            referencedRelation: "certification_milestones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "change_requests_milestone_id_fkey"
+            columns: ["milestone_id"]
+            isOneToOne: false
+            referencedRelation: "view_milestone_hours_burn"
+            referencedColumns: ["milestone_id"]
+          },
+        ]
+      }
       contacts: {
         Row: {
           address: string | null
@@ -2778,6 +2852,74 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "view_cert_hours_burn"
             referencedColumns: ["certification_id"]
+          },
+        ]
+      }
+      pm_calendar_slots: {
+        Row: {
+          certification_id: string | null
+          created_at: string
+          duration_minutes: number
+          id: string
+          kind: string
+          milestone_id: string | null
+          note: string | null
+          slot_start: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          certification_id?: string | null
+          created_at?: string
+          duration_minutes?: number
+          id?: string
+          kind?: string
+          milestone_id?: string | null
+          note?: string | null
+          slot_start: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          certification_id?: string | null
+          created_at?: string
+          duration_minutes?: number
+          id?: string
+          kind?: string
+          milestone_id?: string | null
+          note?: string | null
+          slot_start?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pm_calendar_slots_certification_id_fkey"
+            columns: ["certification_id"]
+            isOneToOne: false
+            referencedRelation: "certifications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pm_calendar_slots_certification_id_fkey"
+            columns: ["certification_id"]
+            isOneToOne: false
+            referencedRelation: "view_cert_hours_burn"
+            referencedColumns: ["certification_id"]
+          },
+          {
+            foreignKeyName: "pm_calendar_slots_milestone_id_fkey"
+            columns: ["milestone_id"]
+            isOneToOne: false
+            referencedRelation: "certification_milestones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pm_calendar_slots_milestone_id_fkey"
+            columns: ["milestone_id"]
+            isOneToOne: false
+            referencedRelation: "view_milestone_hours_burn"
+            referencedColumns: ["milestone_id"]
           },
         ]
       }
@@ -5369,6 +5511,28 @@ export type Database = {
           next_deadline: string | null
           total_active_tasks: number | null
           user_id: string | null
+        }
+        Relationships: []
+      }
+      view_user_monthly_capacity: {
+        Row: {
+          logged_hours: number | null
+          month_start: string | null
+          planned_hours: number | null
+          saturation_pct: number | null
+          user_id: string | null
+          workable_hours: number | null
+        }
+        Relationships: []
+      }
+      view_user_weekly_capacity: {
+        Row: {
+          contract_hours: number | null
+          logged_hours: number | null
+          planned_hours: number | null
+          saturation_pct: number | null
+          user_id: string | null
+          week_start: string | null
         }
         Relationships: []
       }

@@ -35,6 +35,7 @@ import {
   type SortConfig,
 } from "@/components/common/ColumnFilter";
 import { ProjectBurnRate, ResourceMonitor } from "@/components/dashboard/HoursAnalytics";
+import { CapacityDashboard } from "@/components/dashboard/capacity/CapacityDashboard";
 
 const COLORS = {
   late: "hsl(0, 84%, 60%)",
@@ -674,11 +675,16 @@ export default function CeoDashboard() {
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
             <TabsList>
+              <TabsTrigger value="capacity">Capacity</TabsTrigger>
               <TabsTrigger value="resources">Resources</TabsTrigger>
               <TabsTrigger value="projects">Projects</TabsTrigger>
               <TabsTrigger value="payments">Payments</TabsTrigger>
               <TabsTrigger value="hours">Hours</TabsTrigger>
             </TabsList>
+
+            <TabsContent value="capacity">
+              <CapacityDashboard />
+            </TabsContent>
 
             <TabsContent value="resources">
               <TabRisorse tasks={[...tasks, ...projectTasks]} projects={projects} />

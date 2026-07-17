@@ -25,6 +25,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search } from "lucide-react";
 import { FGBPlanner } from "@/components/dashboard/FGBPlanner";
+import { PMPlanner } from "@/components/projects/pm/PMPlanner";
+import { CalendarClock } from "lucide-react";
 import {
   ColumnFilter,
   applyColumnFiltersAndSort,
@@ -285,6 +287,9 @@ export function PMProjectsBoard() {
             <TabsTrigger value="planner" className="gap-2">
               <GanttChartSquare className="w-4 h-4" /> Global Planner
             </TabsTrigger>
+            <TabsTrigger value="pm-planner" className="gap-2">
+              <CalendarClock className="w-4 h-4" /> PM Planner
+            </TabsTrigger>
           </TabsList>
         </div>
 
@@ -355,6 +360,10 @@ export function PMProjectsBoard() {
               }))} 
             />
           </div>
+        </TabsContent>
+
+        <TabsContent value="pm-planner" className="m-0 focus-visible:outline-none">
+          <PMPlanner />
         </TabsContent>
       </Tabs>
 
