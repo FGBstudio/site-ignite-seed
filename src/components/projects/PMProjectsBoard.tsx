@@ -25,6 +25,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search } from "lucide-react";
 import { FGBPlanner } from "@/components/dashboard/FGBPlanner";
+import { PMPlanner } from "@/components/projects/pm/PMPlanner";
+import { CalendarClock } from "lucide-react";
 import {
   ColumnFilter,
   applyColumnFiltersAndSort,
