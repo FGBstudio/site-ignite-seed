@@ -361,6 +361,10 @@ export function PMProjectsBoard() {
             />
           </div>
         </TabsContent>
+
+        <TabsContent value="pm-planner" className="m-0 focus-visible:outline-none">
+          <PMPlanner />
+        </TabsContent>
       </Tabs>
 
       {selectedProject && (
