@@ -377,7 +377,7 @@ function WeeklyScheduler({
                     </button>
                   );
                 })}
-              </>
+              </Fragment>
             ))}
           </div>
         </div>
