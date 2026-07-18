@@ -516,6 +516,11 @@ export default function Projects() {
           <TabsTrigger value="reports" className="gap-2">
             <FileText className="h-4 w-4" /> Reports
           </TabsTrigger>
+          {isAdmin && (
+            <TabsTrigger value="capacity" className="gap-2">
+              <UserPlus className="h-4 w-4" /> Capacity
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="timeline">
@@ -529,6 +534,14 @@ export default function Projects() {
         <TabsContent value="forecast">
           <ProcurementForecasting />
         </TabsContent>
+
+        {isAdmin && (
+          <TabsContent value="capacity">
+            <CapacityDashboard />
+          </TabsContent>
+        )}
+
+
 
 
         <TabsContent value="projects" className="space-y-6">
