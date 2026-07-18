@@ -22,6 +22,7 @@ import { DataImporter } from "@/components/admin/DataImporter";
 import { PMProjectsBoard } from "@/components/projects/PMProjectsBoard";
 import { AdminTimeline } from "@/components/admin/AdminTimeline";
 import { ProjectsReports } from "@/components/projects/ProjectsReports";
+import { CapacityDashboard } from "@/components/dashboard/capacity/CapacityDashboard";
 import { HoldToggleButton } from "@/components/projects/HoldToggleButton";
 import { useAdminPlannerData, type AdminPlannerProject } from "@/hooks/useAdminPlannerData";
 import { useQueryClient } from "@tanstack/react-query";
@@ -515,6 +516,11 @@ export default function Projects() {
           <TabsTrigger value="reports" className="gap-2">
             <FileText className="h-4 w-4" /> Reports
           </TabsTrigger>
+          {isAdmin && (
+            <TabsTrigger value="capacity" className="gap-2">
+              <UserPlus className="h-4 w-4" /> Capacity
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="timeline">
@@ -528,6 +534,14 @@ export default function Projects() {
         <TabsContent value="forecast">
           <ProcurementForecasting />
         </TabsContent>
+
+        {isAdmin && (
+          <TabsContent value="capacity">
+            <CapacityDashboard />
+          </TabsContent>
+        )}
+
+
 
 
         <TabsContent value="projects" className="space-y-6">
