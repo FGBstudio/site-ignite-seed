@@ -10,6 +10,7 @@ import {
   type TaskAlertType,
 } from "@/hooks/useTaskAlerts";
 import { useAdminTasksData } from "@/hooks/useAdminTasksData";
+import { AdminCollaborationRequests } from "@/components/admin/AdminCollaborationRequests";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -130,7 +131,9 @@ export default function AdminTasks() {
 
   return (
     <MainLayout title="Tasks & Alerts" subtitle="Control room for PM operations and escalations">
-      
+
+      <AdminCollaborationRequests />
+
       {/* SEZIONE FILTRI */}
       <div className="flex flex-col sm:flex-row items-center gap-3 mb-8 bg-card p-4 rounded-xl border border-border shadow-sm">
         <Select value={selectedPM} onValueChange={setSelectedPM}>
