@@ -110,9 +110,19 @@ export function usePMDashboard() {
         .select("*, sites(name, city, country), project_allocations(*)")
         .order("handover_date", { ascending: true });
 
-      // If not admin, filter by PM
+      // If not admin, filter by PM OR approved collaborator
       if (role !== "ADMIN") {
-        query = query.eq("pm_id", userId);
+        const { data: collabs } = await (supabase as any)
+          .from("cert_collaborations")
+          .select("certification_id")
+          .eq("guest_pm_id", userId)
+          .eq("status", "approved");
+        const collabIds = (collabs || []).map((r: any) => r.certification_id);
+        if (collabIds.length > 0) {
+          query = query.or(`pm_id.eq.${userId},id.in.(${collabIds.join(",")})`);
+        } else {
+          query = query.eq("pm_id", userId);
+        }
       }
 
       const { data: certs, error } = await query;
