@@ -1147,7 +1147,7 @@ export function PMProjectConfigModal({ project, open, onOpenChange }: Props) {
         </DialogHeader>
 
         <Tabs defaultValue="timeline" className="flex-1 flex flex-col mt-4">
-          <TabsList className="grid grid-cols-3 w-full bg-background border">
+          <TabsList className="grid grid-cols-4 w-full bg-background border">
             <TabsTrigger value="timeline" className="gap-2">
               <Calendar className="w-4 h-4" /> Timeline
             </TabsTrigger>
@@ -1156,6 +1156,9 @@ export function PMProjectConfigModal({ project, open, onOpenChange }: Props) {
             </TabsTrigger>
             <TabsTrigger value="scorecard" className="gap-2">
               <Award className="w-4 h-4" /> Scorecard
+            </TabsTrigger>
+            <TabsTrigger value="collaborators" className="gap-2">
+              <UsersRound className="w-4 h-4" /> Collaborators
             </TabsTrigger>
           </TabsList>
 
@@ -1168,6 +1171,15 @@ export function PMProjectConfigModal({ project, open, onOpenChange }: Props) {
             </TabsContent>
             <TabsContent value="scorecard" className="m-0">
               <ScorecardTab project={project} />
+            </TabsContent>
+            <TabsContent value="collaborators" className="m-0">
+              {project.certifications?.[0]?.id ? (
+                <CollaboratorsPanel certificationId={project.certifications[0].id} />
+              ) : (
+                <p className="text-sm text-muted-foreground py-8 text-center">
+                  Save the project timeline first to enable collaborators.
+                </p>
+              )}
             </TabsContent>
           </div>
         </Tabs>
