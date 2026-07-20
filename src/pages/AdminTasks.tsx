@@ -10,6 +10,7 @@ import {
   type TaskAlertType,
 } from "@/hooks/useTaskAlerts";
 import { useAdminTasksData } from "@/hooks/useAdminTasksData";
+import { AdminCollaborationRequests } from "@/components/admin/AdminCollaborationRequests";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
