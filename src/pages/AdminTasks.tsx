@@ -130,7 +130,9 @@ export default function AdminTasks() {
 
   return (
     <MainLayout title="Tasks & Alerts" subtitle="Control room for PM operations and escalations">
-      
+
+      <AdminCollaborationRequests />
+
       {/* SEZIONE FILTRI */}
       <div className="flex flex-col sm:flex-row items-center gap-3 mb-8 bg-card p-4 rounded-xl border border-border shadow-sm">
         <Select value={selectedPM} onValueChange={setSelectedPM}>
