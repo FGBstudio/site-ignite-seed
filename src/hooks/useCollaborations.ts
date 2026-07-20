@@ -56,13 +56,13 @@ async function hydrate(rows: CertCollaboration[]): Promise<CertCollaboration[]> 
     (supabase as any).from("certifications").select("id, name, client").in("id", certIds),
     (supabase as any).from("profiles").select("id, full_name, email").in("id", userIds),
   ]);
-  const certMap = new Map((certs ?? []).map((c: any) => [c.id, c]));
-  const profMap = new Map((profiles ?? []).map((p: any) => [p.id, p]));
+  const certMap = new Map<string, any>((certs ?? []).map((c: any) => [c.id, c]));
+  const profMap = new Map<string, any>((profiles ?? []).map((p: any) => [p.id, p]));
   return rows.map((r) => ({
     ...r,
-    certifications: certMap.get(r.certification_id) ?? null,
-    owner: profMap.get(r.owner_pm_id) ?? null,
-    guest: profMap.get(r.guest_pm_id) ?? null,
+    certifications: (certMap.get(r.certification_id) ?? null) as CertCollaboration["certifications"],
+    owner: (profMap.get(r.owner_pm_id) ?? null) as CertCollaboration["owner"],
+    guest: (profMap.get(r.guest_pm_id) ?? null) as CertCollaboration["guest"],
   }));
 }
 
