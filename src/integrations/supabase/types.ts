@@ -399,6 +399,75 @@ export type Database = {
           },
         ]
       }
+      cert_collaborations: {
+        Row: {
+          admin_id: string | null
+          admin_note: string | null
+          certification_id: string
+          created_at: string
+          decided_at: string | null
+          estimated_hours: number | null
+          guest_pm_id: string
+          id: string
+          message: string | null
+          owner_pm_id: string
+          phase_ids: string[]
+          scope: Database["public"]["Enums"]["cert_collab_scope"]
+          status: Database["public"]["Enums"]["cert_collab_status"]
+          task_ids: string[]
+          updated_at: string
+        }
+        Insert: {
+          admin_id?: string | null
+          admin_note?: string | null
+          certification_id: string
+          created_at?: string
+          decided_at?: string | null
+          estimated_hours?: number | null
+          guest_pm_id: string
+          id?: string
+          message?: string | null
+          owner_pm_id: string
+          phase_ids?: string[]
+          scope?: Database["public"]["Enums"]["cert_collab_scope"]
+          status?: Database["public"]["Enums"]["cert_collab_status"]
+          task_ids?: string[]
+          updated_at?: string
+        }
+        Update: {
+          admin_id?: string | null
+          admin_note?: string | null
+          certification_id?: string
+          created_at?: string
+          decided_at?: string | null
+          estimated_hours?: number | null
+          guest_pm_id?: string
+          id?: string
+          message?: string | null
+          owner_pm_id?: string
+          phase_ids?: string[]
+          scope?: Database["public"]["Enums"]["cert_collab_scope"]
+          status?: Database["public"]["Enums"]["cert_collab_status"]
+          task_ids?: string[]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cert_collaborations_certification_id_fkey"
+            columns: ["certification_id"]
+            isOneToOne: false
+            referencedRelation: "certifications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cert_collaborations_certification_id_fkey"
+            columns: ["certification_id"]
+            isOneToOne: false
+            referencedRelation: "view_cert_hours_burn"
+            referencedColumns: ["certification_id"]
+          },
+        ]
+      }
       cert_payment_milestones: {
         Row: {
           amount: number
@@ -5854,6 +5923,10 @@ export type Database = {
         Returns: Database["public"]["Enums"]["device_type"]
       }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
+      is_cert_collaborator: {
+        Args: { _cert_id: string; _uid: string }
+        Returns: boolean
+      }
       is_cert_on_hold: { Args: { _cert_id: string }; Returns: boolean }
       is_cert_pm: {
         Args: { p_certification_id: string; p_user_id: string }
@@ -5985,6 +6058,13 @@ export type Database = {
         | "specialist"
         | "energy_modeler"
         | "cxa"
+      cert_collab_scope: "certification" | "phase" | "tasks"
+      cert_collab_status:
+        | "pending"
+        | "approved"
+        | "rejected"
+        | "changes_requested"
+        | "revoked"
       device_status: "online" | "offline" | "warning" | "error" | "maintenance"
       device_type:
         | "air_quality"
@@ -6171,6 +6251,14 @@ export const Constants = {
         "specialist",
         "energy_modeler",
         "cxa",
+      ],
+      cert_collab_scope: ["certification", "phase", "tasks"],
+      cert_collab_status: [
+        "pending",
+        "approved",
+        "rejected",
+        "changes_requested",
+        "revoked",
       ],
       device_status: ["online", "offline", "warning", "error", "maintenance"],
       device_type: [
