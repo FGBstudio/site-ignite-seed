@@ -207,12 +207,12 @@ export default function Hardwares() {
   // AIR Metrics (exclude Internal Use)
   const airTotal = hardwares.filter(h => getHwCategory(h) === 'AIR' && h.status !== 'Internal Use').length;
   const airStock = hardwares.filter(h => getHwCategory(h) === 'AIR' && h.status === 'In Stock').length;
-  const airAssigned = hardwares.filter(h => getHwCategory(h) === 'AIR' && h.status !== 'In Stock' && h.status !== 'Internal Use').length;
+  const airAssigned = hardwares.filter(h => getHwCategory(h) === 'AIR' && h.status === 'Assigned').length;
 
   // Energy Metrics (exclude Internal Use)
   const energyTotal = hardwares.filter(h => getHwCategory(h) === 'Energy' && h.status !== 'Internal Use').length;
   const energyStock = hardwares.filter(h => getHwCategory(h) === 'Energy' && h.status === 'In Stock').length;
-  const energyAssigned = hardwares.filter(h => getHwCategory(h) === 'Energy' && h.status !== 'In Stock' && h.status !== 'Internal Use').length;
+  const energyAssigned = hardwares.filter(h => getHwCategory(h) === 'Energy' && h.status === 'Assigned').length;
 
   // Internal Use Metrics
   const internalItems = hardwares.filter(h => h.status === 'Internal Use');
@@ -592,7 +592,7 @@ export default function Hardwares() {
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">AIR Stock</p>
             <div className="flex items-baseline gap-2">
               <p className="text-3xl font-bold text-blue-600">{airStock}</p>
-              <span className="text-[10px] font-bold text-muted-foreground uppercase">avail</span>
+              <span className="text-[10px] font-bold text-muted-foreground uppercase">Available stock</span>
             </div>
             <div className="mt-1.5 flex items-center justify-between">
               <span className="text-[10px] font-bold text-muted-foreground">Assigned: {airAssigned}</span>
@@ -615,7 +615,7 @@ export default function Hardwares() {
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Energy Stock</p>
             <div className="flex items-baseline gap-2">
               <p className="text-3xl font-bold text-orange-600">{energyStock}</p>
-              <span className="text-[10px] font-bold text-muted-foreground uppercase">avail</span>
+              <span className="text-[10px] font-bold text-muted-foreground uppercase">Available stock</span>
             </div>
             <div className="mt-1.5 flex items-center justify-between">
               <span className="text-[10px] font-bold text-muted-foreground">Assigned: {energyAssigned}</span>
@@ -640,7 +640,7 @@ export default function Hardwares() {
               <p className="text-3xl font-bold text-purple-600">{internalTotal}</p>
               <span className="text-[10px] font-bold text-muted-foreground uppercase">units</span>
             </div>
-            <p className="text-[10px] text-muted-foreground font-semibold mt-1">Display / Demo / Office</p>
+            <p className="text-[10px] text-muted-foreground font-semibold mt-1">Display / Other Internal Use</p>
           </div>
         </div>
       </div>
