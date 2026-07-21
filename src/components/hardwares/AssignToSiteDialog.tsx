@@ -490,7 +490,7 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
               <div className="grid grid-cols-[1fr_auto_auto_auto] gap-3 px-3 py-2 bg-muted/40 text-[10px] uppercase tracking-wider font-bold text-muted-foreground">
                 <span>Product</span>
                 <span className="text-right">Requested</span>
-                <span className="text-right">On site</span>
+                <span className="text-right">Assigned</span>
                 <span className="text-right">To assign</span>
               </div>
               {productSummary.map((r) => (
@@ -523,7 +523,7 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
             <div className="rounded-md border border-green-500/20 bg-green-500/5 p-3 flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4 text-green-600" />
               <p className="text-xs text-foreground">
-                All {totalRequested} requested {mode.toLowerCase()} devices are physically on site.
+                All {totalRequested} requested {mode.toLowerCase()} devices are assigned.
               </p>
             </div>
           )}
@@ -538,7 +538,7 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
           {onSiteHardwares.length > 0 && (
             <details className="rounded-md border border-border">
               <summary className="cursor-pointer px-3 py-2 text-xs font-medium select-none">
-                Devices already on site ({onSiteHardwares.length})
+                Devices already assigned ({onSiteHardwares.length})
               </summary>
               <div className="divide-y divide-border">
                 {onSiteHardwares.map((h) => (
