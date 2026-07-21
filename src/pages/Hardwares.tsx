@@ -689,7 +689,9 @@ export default function Hardwares() {
                         : <ChevronRight className="h-4 w-4 text-muted-foreground" />
                       }
                     </div>
-                    <p className="text-2xl font-bold text-foreground">{stockCount + assignedCount}</p>
+                    <p className="text-2xl font-bold text-foreground">
+                      {selectedKpi === 'Internal' ? internalCount : (stockCount + assignedCount)}
+                    </p>
                     <div className="flex flex-wrap gap-1 mt-2">
                       {stockCount > 0 && <Badge className="bg-emerald-100 text-emerald-800 border-none text-[9px] font-bold px-1.5">{stockCount} Stock</Badge>}
                       {assignedCount > 0 && <Badge className="bg-amber-100 text-amber-800 border-none text-[9px] font-bold px-1.5">{assignedCount} Assigned</Badge>}
