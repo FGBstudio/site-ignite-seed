@@ -1,287 +1,196 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
-import { Separator } from "@/components/ui/separator";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Plus, Table as TableIcon } from "lucide-react";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Package, Layers, BoxSelect, ArrowRight, Clock, Truck, ShoppingCart } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
+import { Table as TableIcon, Package, Clock, Truck, CheckCircle2, Monitor, ArrowRight } from "lucide-react";
 import type { Product } from "@/types/custom-tables";
 
-interface AllocationDetail {
-  project_name: string;
-  client: string;
-  city: string | null;
-  region: string;
-  status: string;
-  quantity: number;
-  allocation_status: string;
-  target_date: string;
-}
-
-interface HardwareItem {
+interface DeviceItem {
   id: string;
   device_id: string;
-  mac_address: string;
-  product_id: string;
-  site_id: string;
+  mac_address: string | null;
   status: string;
-  shipment_date: string;
+  site_id: string | null;
+  region: string | null;
+  country: string | null;
+  notes: string | null;
+  hardware_type: string | null;
 }
 
-interface ProductBreakdown {
-  total_stock: number;
-  total_allocated: number;
-  free_stock: number;
-  requested: number;
-  allocated: number;
+interface ProductStats {
+  inStock: number;
+  assigned: number;
+  delivered: number;
+  internalUse: number;
   shipped: number;
-  allocations: AllocationDetail[];
-  serialized_items: HardwareItem[];
+  installed: number;
+  devices: DeviceItem[];
 }
 
 export default function Inventory() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [sites, setSites] = useState<any[]>([]);
+  const [statsMap, setStatsMap] = useState<Record<string, ProductStats>>({});
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [breakdown, setBreakdown] = useState<ProductBreakdown | null>(null);
-  const [loadingBreakdown, setLoadingBreakdown] = useState(false);
-  
   const navigate = useNavigate();
 
-  const fetchInventoryData = async () => {
-    setLoading(true);
-    const { data: prodData } = await supabase.from("products" as any).select("*").order("name");
-    const { data: siteData } = await supabase.from("sites").select("id, name").neq("status", "canceled");
-    
-    // Fetch live hardware counts
-    const { data: hwCounts } = await (supabase as any)
-      .from("hardwares")
-      .select("product_id, status");
-
-    const stockMap: Record<string, number> = {};
-    hwCounts?.forEach(hw => {
-      if (hw.status === 'In Stock') {
-        stockMap[hw.product_id] = (stockMap[hw.product_id] || 0) + 1;
-      }
-    });
-
-    const enrichedProducts = (prodData || []).map((p: any) => ({
-      ...p,
-      quantity_in_stock: stockMap[p.id] || 0
-    }));
-    
-    setProducts(enrichedProducts as any);
-    setSites(siteData || []);
-    setLoading(false);
-  };
-
   useEffect(() => {
-    fetchInventoryData();
-  }, []);
+    const fetchData = async () => {
+      setLoading(true);
 
-  const handleProductClick = async (product: Product) => {
-    setSelectedProduct(product);
-    setLoadingBreakdown(true);
+      const [{ data: prodData }, { data: hwData }, { data: siteData }] = await Promise.all([
+        supabase.from("products" as any).select("*").order("name"),
+        (supabase as any).from("hardwares").select("id, device_id, mac_address, status, site_id, region, country, notes, hardware_type, product_id"),
+        supabase.from("sites").select("id, name").neq("status", "canceled"),
+      ]);
 
-    // Fetch allocations separately, then resolve certifications
-    const { data: allocData, error: allocError } = await supabase
-      .from("project_allocations" as any)
-      .select("*")
-      .eq("product_id", product.id);
+      setSites(siteData || []);
 
-    if (allocError || !allocData || allocData.length === 0) {
-      if (allocError) {
-        toast({ title: "Error", description: allocError.message, variant: "destructive" });
-      }
-      setBreakdown({
-        total_stock: product.quantity_in_stock,
-        total_allocated: 0,
-        free_stock: product.quantity_in_stock,
-        requested: 0,
-        allocated: 0,
-        shipped: 0,
-        allocations: [],
-        serialized_items: [],
+      // Build stats map keyed by product_id
+      const map: Record<string, ProductStats> = {};
+      (hwData || []).forEach((hw: any) => {
+        if (!hw.product_id) return;
+        if (!map[hw.product_id]) {
+          map[hw.product_id] = { inStock: 0, assigned: 0, delivered: 0, internalUse: 0, shipped: 0, installed: 0, devices: [] };
+        }
+        const s = map[hw.product_id];
+        if (hw.status === "In Stock") s.inStock++;
+        else if (hw.status === "Assigned") s.assigned++;
+        else if (hw.status === "Delivered") s.delivered++;
+        else if (hw.status === "Internal Use") s.internalUse++;
+        else if (hw.status === "Shipped") s.shipped++;
+        else if (hw.status === "Installed") s.installed++;
+        s.devices.push(hw);
       });
-      setLoadingBreakdown(false);
-      return;
-    }
 
-    // Get unique certification IDs and fetch from certifications table
-    const certIds = [...new Set((allocData as any[]).map((a) => a.certification_id))];
-    const { data: certData } = await supabase
-      .from("certifications")
-      .select("id, name, client, region, status, sites ( city )")
-      .in("id", certIds);
+      setStatsMap(map);
+      setProducts((prodData as any) || []);
+      setLoading(false);
+    };
 
-    const certMap = new Map((certData || []).map((c: any) => [c.id, c]));
-
-    const allocations: AllocationDetail[] = (allocData as any[]).map((row: any) => {
-      const cert = certMap.get(row.certification_id) || {} as any;
-      return {
-        project_name: cert.name || "Unknown",
-        client: cert.client || "",
-        city: cert.sites?.city ?? null,
-        region: cert.region || "",
-        status: cert.status || "",
-        quantity: row.quantity,
-        allocation_status: row.status,
-        target_date: row.target_date,
-      };
-    });
-
-    const activeAllocations = allocations.filter((a) => a.allocation_status !== "Installed_Online");
-    const totalAllocated = activeAllocations.reduce((sum, a) => sum + a.quantity, 0);
-    const requested = activeAllocations.filter(a => a.allocation_status === "Requested").reduce((s, a) => s + a.quantity, 0);
-    const allocated = activeAllocations.filter(a => a.allocation_status === "Allocated").reduce((s, a) => s + a.quantity, 0);
-    const shipped = activeAllocations.filter(a => a.allocation_status === "Shipped").reduce((s, a) => s + a.quantity, 0);
-
-    // Fetch serialized items from the new hardwares table
-    const { data: itemData } = await (supabase as any)
-      .from("hardwares")
-      .select("*")
-      .eq("product_id", product.id);
-
-    setBreakdown({
-      total_stock: product.quantity_in_stock,
-      total_allocated: totalAllocated,
-      free_stock: Math.max(0, product.quantity_in_stock - totalAllocated),
-      requested,
-      allocated,
-      shipped,
-      allocations,
-      serialized_items: itemData || [],
-    });
-
-    setLoadingBreakdown(false);
-  };
-
-  const statusColor = (status: string) => {
-    switch (status) {
-      case "Draft": return "bg-muted text-muted-foreground";
-      case "Allocated": return "bg-primary/15 text-primary";
-      case "Requested": return "bg-warning/15 text-warning";
-      case "Shipped": return "bg-accent text-accent-foreground";
-      case "Installed_Online": return "bg-success/15 text-success";
-      default: return "bg-muted text-muted-foreground";
-    }
-  };
+    fetchData();
+  }, []);
 
   const certColor = (cert: string) => {
     switch (cert) {
       case "WELL": return "border-primary text-primary";
-      case "LEED": return "border-success text-success";
-      case "CO2": return "border-warning text-warning";
-      case "CO2-CO": return "border-destructive text-destructive";
+      case "LEED": return "border-emerald-500 text-emerald-600";
+      case "CO2": return "border-amber-500 text-amber-600";
+      case "CO2-CO": return "border-red-500 text-red-600";
       case "Energy": return "border-purple-500 text-purple-600";
       default: return "border-muted-foreground text-muted-foreground";
     }
   };
 
+  const getSiteName = (site_id: string | null) => {
+    if (!site_id) return null;
+    return sites.find(s => s.id === site_id)?.name || null;
+  };
+
+  const selectedStats = selectedProduct ? (statsMap[selectedProduct.id] || { inStock: 0, assigned: 0, delivered: 0, internalUse: 0, shipped: 0, installed: 0, devices: [] }) : null;
+
   return (
-    <MainLayout title="Inventory Summary" subtitle="High-level hardware stock levels and allocations">
+    <MainLayout title="Inventory Summary" subtitle="Single source of truth — live counts from hardware registry">
       <div className="mb-6 flex justify-end">
-        <Button 
-          variant="outline" 
+        <Button
+          variant="outline"
           className="glass border-[#009193]/20 text-[#009193] flex items-center gap-2"
           onClick={() => navigate("/hardwares")}
         >
           <TableIcon className="h-4 w-4" /> View Detailed Hardware List
         </Button>
       </div>
+
       {loading ? (
         <div className="flex justify-center py-20">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#009193]" />
         </div>
       ) : (
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5"
         >
-          {products.map((product, idx) => (
-            <motion.div
-              key={product.id}
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: idx * 0.05 }}
-            >
-              <Card
-                className="cursor-pointer premium-card group"
-                onClick={() => handleProductClick(product)}
+          {products.map((product, idx) => {
+            const stats = statsMap[product.id] || { inStock: 0, assigned: 0, delivered: 0, internalUse: 0 };
+            const total = stats.inStock + stats.assigned + stats.delivered + stats.internalUse;
+            return (
+              <motion.div
+                key={product.id}
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: idx * 0.04 }}
               >
-                <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between">
-                    <Badge variant="outline" className={certColor(product.certification)}>
-                      {product.certification}
-                    </Badge>
-                    <span className="text-xs text-muted-foreground font-mono">{product.sku}</span>
-                  </div>
-                  <CardTitle className="text-base mt-2 group-hover:text-primary transition-colors">
-                    {product.name}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-3xl font-bold text-foreground">{product.quantity_in_stock}</span>
-                    <span className="text-sm text-muted-foreground">in stock</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <Package className="h-3.5 w-3.5" />
-                    Lead time: {product.supplier_lead_time_days} days
-                  </div>
-                  <div className="flex items-center gap-1 text-xs text-primary opacity-0 group-hover:opacity-100 transition-opacity">
-                    Click for details <ArrowRight className="h-3 w-3" />
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          ))}
+                <Card
+                  className="cursor-pointer premium-card group hover:shadow-lg transition-all border-2 border-transparent hover:border-[#009193]/20"
+                  onClick={() => setSelectedProduct(product)}
+                >
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                      <Badge variant="outline" className={certColor(product.certification)}>
+                        {product.certification}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground font-mono">{product.sku}</span>
+                    </div>
+                    <CardTitle className="text-base mt-2 group-hover:text-[#009193] transition-colors leading-snug">
+                      {product.name}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {/* Main stock number */}
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-3xl font-bold text-foreground">{stats.inStock}</span>
+                      <span className="text-sm text-muted-foreground">in stock</span>
+                    </div>
+
+                    {/* Status badges row */}
+                    <div className="flex flex-wrap gap-1">
+                      {stats.assigned > 0 && (
+                        <Badge className="bg-amber-100 text-amber-800 border-none text-[9px] font-bold px-1.5 py-0.5">
+                          {stats.assigned} Assigned
+                        </Badge>
+                      )}
+                      {stats.delivered > 0 && (
+                        <Badge className="bg-emerald-100 text-emerald-800 border-none text-[9px] font-bold px-1.5 py-0.5">
+                          {stats.delivered} Delivered
+                        </Badge>
+                      )}
+                      {stats.internalUse > 0 && (
+                        <Badge className="bg-purple-100 text-purple-800 border-none text-[9px] font-bold px-1.5 py-0.5">
+                          {stats.internalUse} Internal
+                        </Badge>
+                      )}
+                      {total === 0 && (
+                        <span className="text-[10px] text-muted-foreground italic">No registered units</span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1 text-xs text-[#009193] opacity-0 group-hover:opacity-100 transition-opacity">
+                      Click for details <ArrowRight className="h-3 w-3" />
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            );
+          })}
         </motion.div>
       )}
 
-      <Dialog
-        open={!!selectedProduct}
-        onOpenChange={(open) => {
-          if (!open) {
-            setSelectedProduct(null);
-            setBreakdown(null);
-          }
-        }}
-      >
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-          {selectedProduct && (
+      {/* Detail Dialog */}
+      <Dialog open={!!selectedProduct} onOpenChange={(open) => { if (!open) setSelectedProduct(null); }}>
+        <DialogContent className="max-w-2xl max-h-[88vh] overflow-y-auto">
+          {selectedProduct && selectedStats && (
             <>
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-3">
@@ -293,169 +202,180 @@ export default function Inventory() {
                 <p className="text-sm text-muted-foreground font-mono">{selectedProduct.sku}</p>
               </DialogHeader>
 
-              {loadingBreakdown ? (
-                <div className="flex justify-center py-10">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
-                </div>
-              ) : breakdown ? (
-                <div className="space-y-6 mt-2">
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="rounded-lg border bg-card p-4 text-center">
-                      <Layers className="h-5 w-5 mx-auto text-muted-foreground mb-1" />
-                      <p className="text-2xl font-bold text-foreground">{breakdown.total_stock}</p>
-                      <p className="text-xs text-muted-foreground">Total Stock</p>
-                    </div>
-                    <div className="rounded-lg border bg-warning/5 border-warning/20 p-4 text-center">
-                      <BoxSelect className="h-5 w-5 mx-auto text-warning mb-1" />
-                      <p className="text-2xl font-bold text-warning">{breakdown.total_allocated}</p>
-                      <p className="text-xs text-muted-foreground">Committed</p>
-                    </div>
-                    <div className="rounded-lg border bg-success/5 border-success/20 p-4 text-center">
-                      <Package className="h-5 w-5 mx-auto text-success mb-1" />
-                      <p className="text-2xl font-bold text-success">{breakdown.free_stock}</p>
-                      <p className="text-xs text-muted-foreground">Available</p>
-                    </div>
+              <div className="space-y-6 mt-2">
+                {/* Status KPI mini-cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="rounded-xl border-2 border-emerald-200 bg-emerald-50/60 dark:bg-emerald-950/20 p-3 text-center">
+                    <Package className="h-4 w-4 mx-auto text-emerald-600 mb-1" />
+                    <p className="text-2xl font-bold text-emerald-700">{selectedStats.inStock}</p>
+                    <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider">In Stock</p>
                   </div>
-
-                  {breakdown.total_allocated > 0 && (
-                    <div className="grid grid-cols-3 gap-3">
-                      <div className="rounded-lg border p-3 text-center">
-                        <div className="flex items-center justify-center gap-1.5 mb-1">
-                          <ShoppingCart className="h-4 w-4 text-warning" />
-                          <span className="text-xs font-medium text-muted-foreground">Pending</span>
-                        </div>
-                        <p className="text-xl font-bold text-warning">{breakdown.requested}</p>
-                        <p className="text-[10px] text-muted-foreground">Requested</p>
-                      </div>
-                      <div className="rounded-lg border p-3 text-center">
-                        <div className="flex items-center justify-center gap-1.5 mb-1">
-                          <Clock className="h-4 w-4 text-primary" />
-                          <span className="text-xs font-medium text-muted-foreground">Reserved</span>
-                        </div>
-                        <p className="text-xl font-bold text-primary">{breakdown.allocated}</p>
-                        <p className="text-[10px] text-muted-foreground">Allocated</p>
-                      </div>
-                      <div className="rounded-lg border p-3 text-center">
-                        <div className="flex items-center justify-center gap-1.5 mb-1">
-                          <Truck className="h-4 w-4 text-accent-foreground" />
-                          <span className="text-xs font-medium text-muted-foreground">In Transit</span>
-                        </div>
-                        <p className="text-xl font-bold text-accent-foreground">{breakdown.shipped}</p>
-                        <p className="text-[10px] text-muted-foreground">Shipped</p>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>Stock utilization</span>
-                      <span>
-                        {breakdown.total_stock > 0
-                          ? Math.round((breakdown.total_allocated / breakdown.total_stock) * 100)
-                          : 0}%
-                      </span>
-                    </div>
-                    <Progress
-                      value={
-                        breakdown.total_stock > 0
-                          ? (breakdown.total_allocated / breakdown.total_stock) * 100
-                          : 0
-                      }
-                    />
+                  <div className="rounded-xl border-2 border-amber-200 bg-amber-50/60 dark:bg-amber-950/20 p-3 text-center">
+                    <Clock className="h-4 w-4 mx-auto text-amber-600 mb-1" />
+                    <p className="text-2xl font-bold text-amber-700">{selectedStats.assigned}</p>
+                    <p className="text-[10px] text-amber-600 font-bold uppercase tracking-wider">Assigned</p>
                   </div>
-
-                  <Separator />
-
-                  <div>
-                    <h4 className="text-sm font-semibold text-foreground mb-3">
-                      Projects with allocations ({breakdown.allocations.length})
-                    </h4>
-                    {breakdown.allocations.length === 0 ? (
-                      <p className="text-sm text-muted-foreground py-4 text-center">
-                        No allocations for this product.
-                      </p>
-                    ) : (
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Client</TableHead>
-                            <TableHead>City</TableHead>
-                            <TableHead>Project</TableHead>
-                            <TableHead>Region</TableHead>
-                            <TableHead className="text-right">Qty</TableHead>
-                            <TableHead>Status</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {breakdown.allocations
-                            .sort((a, b) => b.quantity - a.quantity)
-                            .map((alloc, i) => (
-                              <TableRow key={i}>
-                                <TableCell className="font-semibold text-foreground uppercase">{alloc.client || "—"}</TableCell>
-                                <TableCell className="text-muted-foreground uppercase">{alloc.city || "—"}</TableCell>
-                                <TableCell className="text-foreground">{alloc.project_name}</TableCell>
-                                <TableCell>
-                                  <Badge variant="outline" className="text-xs">{alloc.region}</Badge>
-                                </TableCell>
-                                <TableCell className="text-right font-semibold">{alloc.quantity}</TableCell>
-                                <TableCell>
-                                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${statusColor(alloc.allocation_status)}`}>
-                                    {alloc.allocation_status.replace("_", " ")}
-                                  </span>
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                        </TableBody>
-                      </Table>
-                    )}
+                  <div className="rounded-xl border-2 border-blue-200 bg-blue-50/60 dark:bg-blue-950/20 p-3 text-center">
+                    <CheckCircle2 className="h-4 w-4 mx-auto text-blue-600 mb-1" />
+                    <p className="text-2xl font-bold text-blue-700">{selectedStats.delivered}</p>
+                    <p className="text-[10px] text-blue-600 font-bold uppercase tracking-wider">Delivered</p>
                   </div>
-
-                  <Separator />
-
-                  <div>
-                    <h4 className="text-sm font-semibold text-foreground mb-3">
-                      Serialized Items ({breakdown.serialized_items.length})
-                    </h4>
-                    {breakdown.serialized_items.length === 0 ? (
-                      <div className="bg-muted/30 border border-dashed rounded-lg p-8 text-center">
-                        <p className="text-sm text-muted-foreground mb-2">No serialized items found for this product.</p>
-                        <p className="text-xs text-muted-foreground">Transition to Serialized Tracking is required.</p>
-                      </div>
-                    ) : (
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Serial Number</TableHead>
-                            <TableHead>MAC Address</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead>Location</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {breakdown.serialized_items.map((item) => (
-                            <TableRow key={item.id}>
-                              <TableCell className="font-mono text-xs">{item.device_id}</TableCell>
-                              <TableCell className="font-mono text-xs">{item.mac_address || "-"}</TableCell>
-                              <TableCell>
-                                <Badge variant="secondary" className="text-[10px] uppercase font-bold">
-                                  {item.status}
-                                </Badge>
-                              </TableCell>
-                              <TableCell className="text-xs text-muted-foreground">
-                                {sites.find(s => s.id === item.site_id)?.name || "Warehouse"}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    )}
+                  <div className="rounded-xl border-2 border-purple-200 bg-purple-50/60 dark:bg-purple-950/20 p-3 text-center">
+                    <Monitor className="h-4 w-4 mx-auto text-purple-600 mb-1" />
+                    <p className="text-2xl font-bold text-purple-700">{selectedStats.internalUse}</p>
+                    <p className="text-[10px] text-purple-600 font-bold uppercase tracking-wider">Internal</p>
                   </div>
                 </div>
-              ) : null}
+
+                {/* Shipped / Installed row if any */}
+                {(selectedStats.shipped > 0 || selectedStats.installed > 0) && (
+                  <div className="grid grid-cols-2 gap-3">
+                    {selectedStats.shipped > 0 && (
+                      <div className="rounded-xl border p-3 text-center">
+                        <Truck className="h-4 w-4 mx-auto text-slate-500 mb-1" />
+                        <p className="text-xl font-bold">{selectedStats.shipped}</p>
+                        <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Shipped</p>
+                      </div>
+                    )}
+                    {selectedStats.installed > 0 && (
+                      <div className="rounded-xl border p-3 text-center">
+                        <CheckCircle2 className="h-4 w-4 mx-auto text-slate-500 mb-1" />
+                        <p className="text-xl font-bold">{selectedStats.installed}</p>
+                        <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Installed</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Device list grouped by status */}
+                {selectedStats.devices.length === 0 ? (
+                  <div className="bg-muted/30 border border-dashed rounded-xl p-8 text-center">
+                    <p className="text-sm text-muted-foreground">No serialized units registered for this product.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {/* In Stock */}
+                    {selectedStats.devices.filter(d => d.status === 'In Stock').length > 0 && (
+                      <DeviceGroup
+                        label="In Stock"
+                        color="emerald"
+                        devices={selectedStats.devices.filter(d => d.status === 'In Stock')}
+                        getSiteName={getSiteName}
+                      />
+                    )}
+                    {/* Assigned */}
+                    {selectedStats.devices.filter(d => d.status === 'Assigned').length > 0 && (
+                      <DeviceGroup
+                        label="Assigned"
+                        color="amber"
+                        devices={selectedStats.devices.filter(d => d.status === 'Assigned')}
+                        getSiteName={getSiteName}
+                        showSite
+                      />
+                    )}
+                    {/* Delivered */}
+                    {selectedStats.devices.filter(d => d.status === 'Delivered').length > 0 && (
+                      <DeviceGroup
+                        label="Delivered"
+                        color="blue"
+                        devices={selectedStats.devices.filter(d => d.status === 'Delivered')}
+                        getSiteName={getSiteName}
+                        showSite
+                      />
+                    )}
+                    {/* Shipped */}
+                    {selectedStats.devices.filter(d => d.status === 'Shipped').length > 0 && (
+                      <DeviceGroup
+                        label="Shipped"
+                        color="slate"
+                        devices={selectedStats.devices.filter(d => d.status === 'Shipped')}
+                        getSiteName={getSiteName}
+                        showSite
+                      />
+                    )}
+                    {/* Internal Use */}
+                    {selectedStats.devices.filter(d => d.status === 'Internal Use').length > 0 && (
+                      <DeviceGroup
+                        label="Internal Use"
+                        color="purple"
+                        devices={selectedStats.devices.filter(d => d.status === 'Internal Use')}
+                        getSiteName={getSiteName}
+                        showNotes
+                      />
+                    )}
+                  </div>
+                )}
+              </div>
             </>
           )}
         </DialogContent>
       </Dialog>
     </MainLayout>
+  );
+}
+
+// Reusable device group component
+function DeviceGroup({
+  label,
+  color,
+  devices,
+  getSiteName,
+  showSite = false,
+  showNotes = false,
+}: {
+  label: string;
+  color: string;
+  devices: DeviceItem[];
+  getSiteName: (id: string | null) => string | null;
+  showSite?: boolean;
+  showNotes?: boolean;
+}) {
+  const colorMap: Record<string, { header: string; dot: string; badge: string }> = {
+    emerald: { header: "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-100 dark:border-emerald-900/30 text-emerald-700 dark:text-emerald-400", dot: "bg-emerald-500", badge: "bg-emerald-100 text-emerald-800" },
+    amber: { header: "bg-amber-50 dark:bg-amber-950/20 border-amber-100 dark:border-amber-900/30 text-amber-700 dark:text-amber-400", dot: "bg-amber-500", badge: "bg-amber-100 text-amber-800" },
+    blue: { header: "bg-blue-50 dark:bg-blue-950/20 border-blue-100 dark:border-blue-900/30 text-blue-700 dark:text-blue-400", dot: "bg-blue-500", badge: "bg-blue-100 text-blue-800" },
+    purple: { header: "bg-purple-50 dark:bg-purple-950/20 border-purple-100 dark:border-purple-900/30 text-purple-700 dark:text-purple-400", dot: "bg-purple-500", badge: "bg-purple-100 text-purple-800" },
+    slate: { header: "bg-slate-50 dark:bg-slate-900 border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-400", dot: "bg-slate-400", badge: "bg-slate-100 text-slate-700" },
+  };
+  const c = colorMap[color] || colorMap.slate;
+
+  return (
+    <div className="rounded-xl border border-slate-100 dark:border-slate-800 overflow-hidden">
+      <div className={`px-4 py-2 border-b flex items-center justify-between ${c.header}`}>
+        <span className="text-[10px] font-black uppercase tracking-wider">{label}</span>
+        <Badge className={`${c.badge} border-none text-[9px] font-bold`}>{devices.length}</Badge>
+      </div>
+      <div className="divide-y divide-slate-50 dark:divide-slate-900 max-h-56 overflow-y-auto">
+        {devices
+          .sort((a, b) => String(a.device_id).localeCompare(String(b.device_id)))
+          .map((d) => {
+            const siteName = showSite ? getSiteName(d.site_id) : null;
+            return (
+              <div key={d.id} className="px-4 py-2 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
+                <div className="flex items-center gap-2.5">
+                  <div className={`h-1.5 w-1.5 rounded-full shrink-0 ${c.dot}`} />
+                  <div>
+                    <span className="font-mono text-xs font-semibold text-foreground">{d.device_id}</span>
+                    {d.mac_address && (
+                      <span className="text-[10px] text-muted-foreground font-mono ml-2">{d.mac_address}</span>
+                    )}
+                    {showNotes && d.notes && (
+                      <p className="text-[10px] text-muted-foreground mt-0.5">{d.notes}</p>
+                    )}
+                  </div>
+                </div>
+                <div className="text-right shrink-0 ml-4">
+                  {siteName && (
+                    <p className="text-[10px] font-semibold text-foreground truncate max-w-[140px]">{siteName}</p>
+                  )}
+                  {(d.country || d.region) && (
+                    <p className="text-[9px] text-muted-foreground">{d.country}{d.region ? ` · ${d.region}` : ''}</p>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+      </div>
+    </div>
   );
 }
