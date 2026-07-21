@@ -1,118 +1,89 @@
+# Saturation Matrix — Capacity (Admin) & PM Planner (PM)
 
-## Stato attuale (verificato)
+Rebuild the two existing tabs (`CapacityDashboard` + `PMPlanner`) around a single "Weekly Saturation Matrix" model: PMs as rows, ISO weeks as columns, hours-per-project as cells, HR availability as vertical blockers, 40h hard cap.
 
-- Il PM può già creare **Milestones** (`cert_wbs_phases`) e **Attività** (`cert_tasks`) tramite `TimelineSetupWizard.tsx` e le hook in `usePMPortalData.ts`.
-- **Non esiste** alcun sistema di invito/collaborazione tra PM (nessun match per "collaborator/invite/guest" nel codice).
-- RLS attuale: l'accesso PM alle certificazioni passa da `is_cert_pm()` che controlla `certifications.pm_id` (singolo owner).
+## 1. Data model (Supabase)
 
-Da costruire quindi da zero: modello dati collaborazioni, workflow approvazione Admin, aggiornamento RLS per accesso condiviso, UI di invito lato PM e UI di governance lato Admin.
+Reuse what exists, add what's missing.
 
----
+- **Resources** → `profiles` (PMs via `user_roles`). Weekly max = **40h** (constant, no schema change).
+- **Unavailability** → existing `hr_availability` (`user_id`, `start_date`, `end_date`, `status`). Statuses treated as "off": `vacation`, `sick`, `off`, `unavailable`. Feeds violet vertical blockers.
+- **Projects** → `certifications` (`id`, `name`, `allocated_hours` = total budget, `handover_date` / issued date = irrevocable deadline, `pm_id`). Milestones from `certification_milestones` (per-milestone `allocated_hours`).
+- **Allocations (weekly)** → **new table `pm_weekly_allocations`**:
+  - `user_id` (PM), `certification_id`, `milestone_id` nullable, `week_start` (ISO Monday, `date`), `planned_hours` numeric(5,2), `note`, timestamps.
+  - Unique `(user_id, certification_id, milestone_id, week_start)`.
+  - RLS: PM can CRUD own rows; Admin full; guest collaborators read-only.
+- **DB validation trigger** on `pm_weekly_allocations` (INSERT/UPDATE):
+  1. Compute `Σ planned_hours` for `(user_id, week_start)` including NEW row.
+  2. If sum > 40 → `RAISE EXCEPTION 'WEEKLY_CAP_EXCEEDED'` (hard-stop).
+  3. If overlaps an `hr_availability` off-period → mark row `has_conflict = true` (surface, don't block on insert; block only for the 40h rule).
+  4. If `Σ planned_hours` per certification > `certifications.allocated_hours` → `has_overbudget = true` (soft flag; strategic red).
+- **Views**:
+  - `view_pm_week_load`: `(user_id, week_start, total_planned, off_days, cap_effective, saturation_pct)`.
+  - `view_cert_allocation_status`: `(certification_id, remaining_budget, weeks_to_deadline, unallocated_hours, is_red)` — red if `unallocated_hours > 0` and no weeks left before handover.
 
-## 1. Modello Dati (migrazione Supabase)
+Existing `pm_calendar_slots` (30-min slots) stays for the tactical view; the new weekly table is the source of truth for the matrix.
 
-Nuova tabella `cert_collaborations`:
+## 2. Math & validation rules
 
-- `certification_id` → FK certifications
-- `owner_pm_id` → chi invita (uuid)
-- `guest_pm_id` → chi è invitato (uuid)
-- `scope` → enum: `certification` | `phase` | `tasks` (granularità dell'accesso)
-- `phase_ids` uuid[] (nullable, se scope=phase)
-- `task_ids` uuid[] (nullable, se scope=tasks)
-- `estimated_hours` numeric
-- `message` text (motivazione al PM invitato + note per Admin)
-- `status` enum: `pending` | `approved` | `rejected` | `changes_requested` | `revoked`
-- `admin_id` (chi ha deciso), `admin_note`, `decided_at`
-- `created_at`, `updated_at`
+- Weekly load `C_s = Σ planned_hours` per PM per ISO week.
+- **Hard-stop**: `C_s ≤ 40`, enforced in DB trigger + client-side pre-check.
+- **Vacation override**: if any day of the week is in an "off" `hr_availability` period → effective cap for that week = `40 × (workable_days / 5)`. Existing allocations flagged `has_conflict`.
+- **Strategic red** (Admin only): certification's `Σ planned_hours < allocated_hours` AND no free weekly capacity remains before `handover_date`.
 
-Grants standard + RLS:
-- INSERT: `owner_pm_id = auth.uid()` e il chiamante è PM della cert (`is_cert_pm`).
-- SELECT: owner OR guest OR admin.
-- UPDATE (decisione): solo `is_admin(auth.uid())`.
-- UPDATE (revoca/edit draft): solo owner mentre `status='pending'`; admin sempre.
+## 3. PM Planner (PM side) — write surface
 
-Helper security-definer `public.is_cert_collaborator(cert_id, uid)` → true se esiste una `cert_collaborations` approvata dove `guest_pm_id = uid` per quella cert.
+Replace current `PMPlanner.tsx` weekly scheduler with a **Weekly Saturation Grid**:
 
-Aggiornamento RLS (senza toccare le policy owner esistenti, aggiunte in OR):
+- Row 1: total saturation (`C_s / 40`) with color band (grey <30, green 32–40, amber 30–32, red never — impossible by trigger).
+- One row per assigned certification (`pm_id = me` OR guest via `cert_collaborations`).
+- Columns: rolling 16 weeks (configurable), grouped header by month.
+- Cell: numeric input (hours 0–40, step 0.5). On blur → upsert `pm_weekly_allocations`. On trigger error → toast "Week Wxx already full (40h)".
+- Cell visual: **heatmap** (light→dark blue by hours) — simpler and consistent across rows than variable-height bars.
+- Deadline marker: red diamond glyph on the cert row at the week containing `handover_date`.
+- Vacation: violet vertical band across ALL rows for that PM's off-weeks; input disabled there.
+- Left side kept: Contract Overview + Milestone budget mapping (already present). Add "Unallocated hours" counter per cert (`budget − Σ planned`).
 
-- `certifications` SELECT: aggiungere policy "guest collaborator can read" via `is_cert_collaborator`.
-- `cert_wbs_phases` / `cert_tasks` SELECT: idem (lettura contesto).
-- `cert_tasks` UPDATE: consentita al guest **solo** sui task dove `assignee_id = auth.uid()` (scrittura ristretta ai propri task, come da specifica).
-- Tabelle correlate al progetto già lette in modo derivato (milestones, checklists) → aggiungere SELECT via `is_cert_collaborator` dove necessario.
+## 4. Capacity Dashboard (Admin side) — read/oversight surface
 
-Tabella `audit_logs`: log automatico su insert/decisione tramite trigger (integra con AuditTrail esistente).
+Replace current tactical/operational/strategic toggle with one **PM × Week matrix** (Gantt-inverted):
 
----
+- Y axis: expandable tree — Level 1 = PM; expand ("+") to show one row per certification assigned to that PM.
+- X axis: weeks (configurable range 8–26 weeks), month grouping header.
+- PM row cell shows aggregate `C_s` with status color:
+  - **Grey/Yellow** `< 30h` (under-saturation),
+  - **Green** `32–40h`,
+  - **Red** never on the PM row (blocked by trigger).
+- Cert child row cell shows hours for that cert (heatmap intensity).
+- **Red marker on cert row**: `view_cert_allocation_status.is_red` — unallocated budget cannot fit before deadline.
+- Violet vertical band for PM's `hr_availability` off-weeks across all their child rows.
+- Filters: PM multi-select, cert status, date range.
+- Read-only for Admin (no cell editing here — governance only).
 
-## 2. Notifiche
+## 5. Permissions
 
-Riusiamo il pattern `task_alerts` esistente:
-- Alla creazione richiesta → alert per tutti gli Admin (`kind='collab_request'`).
-- Alla decisione → alert per l'owner e il guest.
-- All'approvazione → alert al guest con link al progetto.
+- **Admin**: read all, no cell edit in Capacity. Creating projects / setting budget / handover stays in existing project flows.
+- **PM**: read/write own rows in `pm_weekly_allocations`; read own `certifications` + guest via `cert_collaborations`. Cannot edit `allocated_hours` or `handover_date`.
+- **HR availability**: consumed read-only from `hr_availability`; edits stay in HR module.
 
----
+## 6. Files touched
 
-## 3. UI — PM Owner (in `TimelineSetupWizard` / vista Timeline PM)
+- Migration: `pm_weekly_allocations` + trigger + 2 views + RLS + GRANTs.
+- `src/hooks/useSaturationMatrix.ts` (new): fetch matrix, mutations with optimistic + rollback on trigger error.
+- `src/components/projects/pm/PMPlanner.tsx`: swap scheduler block for `<SaturationGridEditable>`.
+- `src/components/dashboard/capacity/CapacityDashboard.tsx`: replace 3-view toggle with `<SaturationMatrixAdmin>` tree.
+- Shared `src/components/capacity/SaturationCell.tsx`, `SaturationLegend.tsx`, `useIsoWeeks.ts`.
+- Keep `pm_calendar_slots` + `useCapacityPlanner.ts` untouched (still powers day-level tactical view if reintroduced later).
 
-Nuova sezione **"Collaborators"** nel dettaglio progetto PM:
+## 7. Rollout order
 
-- Bottone **"Invite collaborator"** sopra la lista task/milestones.
-- Multi-select task/milestone (o "intera certificazione") già presente nella timeline (aggiungiamo checkbox riga).
-- Dialog `InviteCollaboratorDialog.tsx`:
-  - Select PM (lista utenti con ruolo PM esclusi owner corrente).
-  - Scope calcolato dalla selezione (cert/phase/tasks).
-  - Input ore stimate + textarea messaggio.
-  - Submit → insert in `cert_collaborations` (status pending).
-- Pannello "Pending / Active collaborators" con stato badge e possibilità di revocare/annullare draft.
+1. Migration + trigger + views (approval gate).
+2. `useSaturationMatrix` hook + shared cell/legend components.
+3. PM Planner editable grid (write path, hard-stop, deadline diamond, vacation band).
+4. Admin Capacity tree matrix (read path, red-project detection, filters).
+5. QA: exceed-40 rejection, vacation conflict flag, unallocated-budget red, guest cert visibility.
 
----
+## Open decisions
 
-## 4. UI — Admin Governance
-
-Nuova tab **"Collaboration Requests"** dentro `AdminTasks.tsx` (e badge counter nel TopNavbar per pending):
-
-- Tabella con: Owner PM, Guest PM, Project (Client · City · Project), Scope (con lista task/milestone), Estimated hours, Message, Created.
-- Azioni per riga: **Approve**, **Reject**, **Request changes** (dialog con nota obbligatoria).
-- Filtri: stato, PM, progetto.
-- Integrazione in `AuditTrail.tsx`: mostra eventi `collaboration.*`.
-
----
-
-## 5. UI — PM Guest
-
-- In `PMProjectsBoard.tsx` la query "my certifications" viene estesa: unisce cert dove `pm_id = me` OR esiste collaborazione approvata → certificazioni "guest" visibili con badge **"Collaborator"**.
-- Nella vista progetto per il guest: read-only ovunque, tranne i task dove è `assignee_id` (usa già `useCertTasksByAssignee`).
-- Banner in alto: "You're collaborating on this project. Owner: <PM name>".
-
----
-
-## 6. Hook & servizi
-
-- `src/hooks/useCollaborations.ts`:
-  - `useMyCollaborationRequests()` (owner view)
-  - `useGuestCollaborations()` (guest view, per estendere lista progetti)
-  - `usePendingCollabAdmin()` (admin queue)
-  - `useCreateCollabRequest`, `useDecideCollabRequest`, `useRevokeCollabRequest`.
-- Estensione `usePMProjects` per includere le cert dove sono guest approvato (UNION).
-
----
-
-## 7. Dettagli tecnici
-
-- Tutte le mutation invalidano le query keys standardizzate (`cert-tasks-*`, `pm-projects`, `admin-collab-requests`).
-- Trigger `updated_at` + trigger che, all'approvazione, inserisce `task_alerts` per owner+guest.
-- Nessuna rimozione di RLS esistenti; nuove policy additive con `is_cert_collaborator`.
-- Fissiamo controllo su edge case: se il task cambia `assignee_id` dopo l'approvazione, il guest perde il write sul task (comportamento voluto).
-- Revoca collaborazione: admin o owner → aggiorna `status='revoked'` e le policy smettono di dare accesso al guest.
-
----
-
-## 8. Ordine di implementazione
-
-1. Migrazione (tabella `cert_collaborations`, enum, funzione `is_cert_collaborator`, policy additive, trigger audit+alert).
-2. Hook `useCollaborations.ts` + estensione `usePMProjects`.
-3. UI PM Owner: `InviteCollaboratorDialog` + sezione Collaborators nella pagina progetto PM.
-4. UI Admin: tab "Collaboration Requests" in `AdminTasks` + integrazione AuditTrail.
-5. UI PM Guest: badge "Collaborator", banner read-only, gating write sui task propri.
-6. QA end-to-end: create → pending → approve → guest vede progetto → guest edita solo propri task → revoca.
+- Default matrix horizon: 16 weeks rolling — confirm or change.
+- Milestone-level allocation in the grid: keep as optional dimension (dropdown on cell) or force cert-level only for v1? Proposal: **cert-level only in v1**, milestone tagging in v2.
