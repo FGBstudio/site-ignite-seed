@@ -262,11 +262,14 @@ export default function Hardwares() {
 
   const getDisplayLocation = (h: any) => {
     if (!h) return "Unspecified";
-    if (h.status === 'In Stock' || h.status === 'Assigned') {
+    if (h.status === 'Assigned' || h.status === 'Delivered') {
+      const site = sites.find((s: any) => s.id === h.site_id);
+      return site?.name || h.country || "Assigned Project";
+    }
+    if (h.status === 'In Stock') {
       return getOfficeName(h);
     }
-    const site = sites.find((s: any) => s.id === h.site_id);
-    return site?.country || h.country || "Global Stock";
+    return h.country || "Global Stock";
   };
 
   const getHierarchicalBreakdown = (cat: string) => {
@@ -1092,8 +1095,10 @@ export default function Hardwares() {
                   <Label className="text-[10px] uppercase text-muted-foreground">Location / Country</Label>
                   <p className="text-sm font-bold text-foreground flex items-center gap-1">
                     <Package className="h-3 w-3 text-[#009193]" />
-                    {detailedHardware?.status === 'Assigned' 
-                      ? (sites.find(s => s.id === detailedHardware?.site_id)?.name || 'Active Project')
+                    {detailedHardware?.status === 'Assigned' || detailedHardware?.status === 'Delivered'
+                      ? (sites.find(s => s.id === detailedHardware?.site_id)?.name || detailedHardware?.country || 'Active Project')
+                      : detailedHardware?.status === 'In Stock'
+                      ? getOfficeName(detailedHardware)
                       : (detailedHardware?.country || "Global Stock")}
                   </p>
                 </div>
