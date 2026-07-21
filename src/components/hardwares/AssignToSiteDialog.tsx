@@ -295,75 +295,7 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
 
     setSaving(true);
     try {
-      console.log("Logistics Trigger: Starting. Site ID:", selectedSiteId, "Name:", selectedCert?.sites?.name);
-      toast({ title: "Logistics Sync Started", description: "Creating automated shipment record..." });
-
-      // 1. Automated Logistics Trigger: Create or reuse Outbound Shipment (Do this first!)
-      let newShipmentId: string | null = null;
-      try {
-        // Try matching by name (Case-Insensitive) OR by ID (if they share UUIDs)
-        const { data: locations, error: locErr } = await (supabase as any)
-          .from("ops_locations")
-          .select("id")
-          .or(`name.ilike."${selectedCert?.sites?.name || "___NOT_FOUND___"}",id.eq."${selectedSiteId || "00000000-0000-0000-0000-000000000000"}"`)
-          .limit(1);
-        
-        if (locErr) console.error("Logistics Trigger: Location search error:", locErr);
-        
-        const destinationId = locations?.[0]?.id;
-
-        if (destinationId) {
-          // Check if there is an existing awaiting dispatch outbound shipment to consolidate
-          const { data: existingShips, error: existErr } = await (supabase as any)
-            .from("ops_shipments")
-            .select("id, notes")
-            .eq("shipment_type", "outbound")
-            .eq("status", "awaiting dispatch")
-            .eq("destination_location_id", destinationId)
-            .order("created_at", { ascending: false })
-            .limit(1);
-
-          if (existErr) console.error("Logistics Trigger: Existing shipment search error:", existErr);
-
-          if (existingShips && existingShips[0]) {
-            newShipmentId = existingShips[0].id;
-            console.log("Logistics Trigger: Consolidating into existing shipment:", newShipmentId);
-
-            const oldNotes = existingShips[0].notes || "";
-            const appendNotes = `; Consolidated hardware assignment for site: ${selectedCert?.sites?.name || "Unknown"}`;
-            if (!oldNotes.includes(appendNotes)) {
-              await (supabase as any)
-                .from("ops_shipments")
-                .update({ notes: (oldNotes + appendNotes).substring(0, 1000) })
-                .eq("id", newShipmentId);
-            }
-          }
-        }
-        
-        if (!newShipmentId) {
-          const shipmentPayload = {
-            shipment_type: "outbound",
-            status: "awaiting dispatch",
-            destination_location_id: destinationId || null,
-            notes: `Automated shipment triggered by hardware assignment to site: ${selectedCert?.sites?.name || "Unknown"}`
-          };
-
-          const { data: shipData, error: shipErr } = await (supabase as any)
-            .from("ops_shipments")
-            .insert([shipmentPayload])
-            .select();
-
-          if (shipErr) {
-            console.error("Logistics Trigger: Shipment creation failed:", shipErr);
-            toast({ title: "Logistics Error", description: `Shipment failed: ${shipErr.message}`, variant: "destructive" });
-          } else if (shipData && shipData[0]) {
-            newShipmentId = shipData[0].id;
-            console.log("Logistics Trigger: Shipment created:", newShipmentId);
-          }
-        }
-      } catch (logisticsErr) {
-        console.error("Logistics trigger inner error:", logisticsErr);
-      }
+      console.log("Logistics Trigger: Bypassing automatic shipment. Assigning physical hardware directly.");
 
       // 2. Update physical hardware
       for (const slot of filledSlots) {
@@ -381,15 +313,6 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
           .update(update as any)
           .eq("id", slot.hardwareId!);
         if (hwErr) throw hwErr;
-
-        // Link to shipment if created
-        if (newShipmentId) {
-          await (supabase as any).from("ops_hardware_movements").insert({
-            hardware_id: slot.hardwareId,
-            shipment_id: newShipmentId,
-            action: "dispatched"
-          });
-        }
       }
 
       // 3. Update allocations
