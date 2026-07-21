@@ -340,11 +340,17 @@ export default function Hardwares() {
       return;
     }
 
+    const selectedProduct = products.find(p => p.id === newHardware.product_id);
+    const hardwareType = selectedProduct?.name || null;
+    const category = hardwareType === "Mango" ? "Energy" : "AIR";
+
     const { error } = await (supabase as any).from("hardwares").insert([{
       device_id: newHardware.device_id,
       mac_address: newHardware.mac_address || null,
       product_id: newHardware.product_id,
-      status: newHardware.status
+      status: newHardware.status,
+      hardware_type: hardwareType,
+      category: category
     }]);
 
     if (error) {
@@ -638,12 +644,12 @@ export default function Hardwares() {
             <Monitor className="h-5 w-5 text-purple-600" />
           </div>
           <div className="flex-1">
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Internal Use</p>
+            <p className="text-xs uppercase tracking-wider text-muted-foreground font-bold">Internal Use</p>
             <div className="flex items-baseline gap-2">
               <p className="text-3xl font-bold text-purple-600">{internalTotal}</p>
-              <span className="text-[10px] font-bold text-muted-foreground uppercase">units</span>
+              <span className="text-[11px] font-bold text-muted-foreground uppercase">units</span>
             </div>
-            <p className="text-[10px] text-muted-foreground font-semibold mt-1">Display / Other Internal Use</p>
+            <p className="text-[11px] text-muted-foreground font-semibold mt-1">Display / Other Internal Use</p>
           </div>
         </div>
       </div>
@@ -675,30 +681,35 @@ export default function Hardwares() {
                 const stockCount = Object.values(byType).reduce((s, t) => s + t.stock, 0);
                 const assignedCount = Object.values(byType).reduce((s, t) => s + t.assigned, 0);
                 const internalCount = Object.values(byType).reduce((s, t) => s + t.internal, 0);
+                
+                // Set color themes based on active status
+                const activeBorderClass = 
+                  selectedKpi === 'AIR' ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-950/20 shadow-md ring-1 ring-blue-500/30' : 
+                  selectedKpi === 'Energy' ? 'border-orange-500 bg-orange-50/50 dark:bg-orange-950/20 shadow-md ring-1 ring-orange-500/30' : 
+                  'border-purple-500 bg-purple-50/50 dark:bg-purple-950/20 shadow-md ring-1 ring-purple-500/30';
+
                 return (
                   <button
                     key={officeName}
                     onClick={() => setKpiExpandedOffice(isActive ? null : officeName)}
                     className={`flex-1 rounded-xl border-2 p-4 text-left transition-all hover:shadow-md ${
-                      isActive
-                        ? `border-${kpiColor}-500 bg-${kpiColor}-50/50 dark:bg-${kpiColor}-950/20 shadow-sm`
-                        : 'border-slate-100 dark:border-slate-900 bg-white/60 dark:bg-slate-950/60 hover:border-slate-200'
+                      isActive ? activeBorderClass : 'border-slate-100 dark:border-slate-900 bg-white/60 dark:bg-slate-950/60 hover:border-slate-200'
                     }`}
                   >
                     <div className="flex items-center justify-between mb-2">
-                      <p className="text-sm font-bold text-foreground">{officeName}</p>
+                      <p className="text-base font-bold text-foreground">{officeName}</p>
                       {isActive 
                         ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
                         : <ChevronRight className="h-4 w-4 text-muted-foreground" />
                       }
                     </div>
-                    <p className="text-2xl font-bold text-foreground">
+                    <p className="text-3xl font-extrabold text-foreground">
                       {selectedKpi === 'Internal' ? internalCount : (stockCount + assignedCount)}
                     </p>
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {stockCount > 0 && <Badge className="bg-emerald-100 text-emerald-800 border-none text-[9px] font-bold px-1.5">{stockCount} Stock</Badge>}
-                      {assignedCount > 0 && <Badge className="bg-amber-100 text-amber-800 border-none text-[9px] font-bold px-1.5">{assignedCount} Assigned</Badge>}
-                      {internalCount > 0 && <Badge className="bg-purple-100 text-purple-800 border-none text-[9px] font-bold px-1.5">{internalCount} Internal</Badge>}
+                    <div className="flex flex-wrap gap-1 mt-2.5">
+                      {stockCount > 0 && <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400 border-none text-[10px] font-bold px-2 py-0.5">{stockCount} Stock</Badge>}
+                      {assignedCount > 0 && <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400 border-none text-[10px] font-bold px-2 py-0.5">{assignedCount} Assigned</Badge>}
+                      {internalCount > 0 && <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-950/40 dark:text-purple-400 border-none text-[10px] font-bold px-2 py-0.5">{internalCount} Internal</Badge>}
                     </div>
                   </button>
                 );
@@ -711,34 +722,34 @@ export default function Hardwares() {
               if (!officeData) return null;
               const typologies = Object.entries(officeData.byType);
               return (
-                <div className="rounded-2xl border border-slate-100 dark:border-slate-900 bg-white/50 dark:bg-slate-950/50 p-5 animate-in slide-in-from-top-2">
-                  <div className="flex items-center justify-between mb-4">
-                    <h4 className="text-sm font-bold text-foreground">{kpiExpandedOffice} — Device Detail</h4>
-                    <Badge variant="outline" className="text-[10px] font-bold">{officeData.total} total units</Badge>
+                <div className="rounded-2xl border border-slate-100 dark:border-slate-900 bg-white/50 dark:bg-slate-950/50 p-5 animate-in slide-in-from-top-2">                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-lg font-bold text-foreground">{kpiExpandedOffice} — Device Detail</h4>
+                    <Badge variant="outline" className="text-xs font-black px-3 py-1 bg-slate-50 dark:bg-slate-900 border-slate-200">{officeData.total} total units</Badge>
                   </div>
                   <div className={`grid gap-4`} style={{ gridTemplateColumns: `repeat(${typologies.length}, minmax(0, 1fr))` }}>
                     {typologies.map(([typName, counts]) => (
-                      <div key={typName} className="flex flex-col rounded-xl border border-slate-100 dark:border-slate-800 overflow-hidden">
+                      <div key={typName} className="flex flex-col rounded-xl border border-slate-150 dark:border-slate-800 overflow-hidden shadow-sm bg-white/40 dark:bg-slate-900/10">
                         {/* Column Header */}
-                        <div className="bg-slate-50 dark:bg-slate-900 px-3 py-2.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                          <span className="text-xs font-black uppercase tracking-wider text-foreground">{typName}</span>
-                          <Badge variant="outline" className="text-[9px] font-bold">{counts.stock + counts.assigned + counts.internal}</Badge>
+                        <div className="bg-slate-100/70 dark:bg-slate-900/80 px-3.5 py-3 border-b border-slate-150 dark:border-slate-800 flex items-center justify-between">
+                          <span className="text-sm font-black uppercase tracking-wider text-foreground">{typName}</span>
+                          <Badge variant="outline" className="text-xs font-bold px-2 py-0.5 bg-white dark:bg-slate-950">{counts.stock + counts.assigned + counts.internal}</Badge>
                         </div>
 
                         {/* In Stock Section */}
                         {counts.stock > 0 && (
                           <div className="flex-1">
-                            <div className="px-3 py-1.5 bg-emerald-50/80 dark:bg-emerald-950/20 border-b border-emerald-100 dark:border-emerald-900/30">
-                              <span className="text-[9px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400">In Stock ({counts.stock})</span>
+                            <div className="px-3.5 py-2 bg-emerald-50/80 dark:bg-emerald-950/20 border-b border-emerald-100 dark:border-emerald-900/30 flex justify-between items-center">
+                              <span className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">In Stock</span>
+                              <span className="text-[11px] font-bold text-emerald-600 bg-emerald-100/50 dark:bg-emerald-900/30 px-1.5 rounded">{counts.stock}</span>
                             </div>
-                            <div className="divide-y divide-slate-50 dark:divide-slate-900 max-h-52 overflow-y-auto">
+                            <div className="divide-y divide-slate-50 dark:divide-slate-900 max-h-52 overflow-y-auto custom-scrollbar">
                               {counts.devices
                                 .filter(d => d.status === 'In Stock')
                                 .sort((a, b) => String(a.device_id).localeCompare(String(b.device_id)))
                                 .map((d: any) => (
-                                  <div key={d.id} className="px-3 py-1.5 flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
+                                  <div key={d.id} className="px-3.5 py-2 flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
                                     <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
-                                    <span className="font-mono text-[11px] font-semibold text-foreground">{d.device_id}</span>
+                                    <span className="font-mono text-sm font-bold text-foreground">{d.device_id}</span>
                                   </div>
                                 ))}
                             </div>
@@ -748,22 +759,23 @@ export default function Hardwares() {
                         {/* Assigned Section */}
                         {counts.assigned > 0 && (
                           <div className="flex-1">
-                            <div className="px-3 py-1.5 bg-amber-50/80 dark:bg-amber-950/20 border-y border-amber-100 dark:border-amber-900/30">
-                              <span className="text-[9px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-400">Assigned ({counts.assigned})</span>
+                            <div className="px-3.5 py-2 bg-amber-50/80 dark:bg-amber-950/20 border-y border-amber-100 dark:border-amber-900/30 flex justify-between items-center">
+                              <span className="text-[11px] font-extrabold uppercase tracking-wider text-amber-700 dark:text-amber-400">Assigned</span>
+                              <span className="text-[11px] font-bold text-amber-600 bg-amber-100/50 dark:bg-amber-900/30 px-1.5 rounded">{counts.assigned}</span>
                             </div>
-                            <div className="divide-y divide-slate-50 dark:divide-slate-900 max-h-52 overflow-y-auto">
+                            <div className="divide-y divide-slate-50 dark:divide-slate-900 max-h-52 overflow-y-auto custom-scrollbar">
                               {counts.devices
                                 .filter(d => d.status === 'Assigned')
                                 .sort((a, b) => String(a.device_id).localeCompare(String(b.device_id)))
                                 .map((d: any) => {
                                   const site = sites.find((s: any) => s.id === d.site_id);
                                   return (
-                                    <div key={d.id} className="px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
+                                    <div key={d.id} className="px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
                                       <div className="flex items-center gap-2">
                                         <div className="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0" />
-                                        <span className="font-mono text-[11px] font-semibold text-foreground">{d.device_id}</span>
+                                        <span className="font-mono text-sm font-bold text-foreground">{d.device_id}</span>
                                       </div>
-                                      {site && <p className="text-[10px] text-muted-foreground pl-3.5 truncate">{site.name}</p>}
+                                      {site && <p className="text-[11px] text-muted-foreground pl-3.5 truncate font-medium">{site.name}</p>}
                                     </div>
                                   );
                                 })}
@@ -774,20 +786,21 @@ export default function Hardwares() {
                         {/* Internal Use Section */}
                         {counts.internal > 0 && (
                           <div className="flex-1">
-                            <div className="px-3 py-1.5 bg-purple-50/80 dark:bg-purple-950/20 border-y border-purple-100 dark:border-purple-900/30">
-                              <span className="text-[9px] font-black uppercase tracking-wider text-purple-700 dark:text-purple-400">Internal Use ({counts.internal})</span>
+                            <div className="px-3.5 py-2 bg-purple-50/80 dark:bg-purple-950/20 border-y border-purple-100 dark:border-purple-900/30 flex justify-between items-center">
+                              <span className="text-[11px] font-extrabold uppercase tracking-wider text-purple-700 dark:text-purple-400">Internal Use</span>
+                              <span className="text-[11px] font-bold text-purple-600 bg-purple-100/50 dark:bg-purple-900/30 px-1.5 rounded">{counts.internal}</span>
                             </div>
-                            <div className="divide-y divide-slate-50 dark:divide-slate-900 max-h-52 overflow-y-auto">
+                            <div className="divide-y divide-slate-50 dark:divide-slate-900 max-h-52 overflow-y-auto custom-scrollbar">
                               {counts.devices
                                 .filter(d => d.status === 'Internal Use')
                                 .sort((a, b) => String(a.device_id).localeCompare(String(b.device_id)))
                                 .map((d: any) => (
-                                  <div key={d.id} className="px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
+                                  <div key={d.id} className="px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
                                     <div className="flex items-center gap-2">
                                       <div className="h-1.5 w-1.5 rounded-full bg-purple-500 shrink-0" />
-                                      <span className="font-mono text-[11px] font-semibold text-foreground">{d.device_id}</span>
+                                      <span className="font-mono text-sm font-bold text-foreground">{d.device_id}</span>
                                     </div>
-                                    {d.notes && <p className="text-[10px] text-muted-foreground pl-3.5 truncate">{d.notes}</p>}
+                                    {d.notes && <p className="text-[11px] text-muted-foreground pl-3.5 truncate font-medium">{d.notes}</p>}
                                   </div>
                                 ))}
                             </div>
@@ -900,32 +913,32 @@ export default function Hardwares() {
               <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent border-b border-[#009193]/10">
-                    <TableHead className="text-[11px] uppercase tracking-wider font-bold py-2">
+                    <TableHead className="text-xs uppercase tracking-wider font-bold py-2.5">
                       <ExcelFilterButton label="Device ID" values={colValues(h => String(h.device_id))} state={getCol('device_id')} onChange={setCol('device_id')} />
                     </TableHead>
-                    <TableHead className="text-[11px] uppercase tracking-wider font-bold py-2">
+                    <TableHead className="text-xs uppercase tracking-wider font-bold py-2.5">
                       <ExcelFilterButton label="Catalog Name" values={colValues(h => products.find((p: any) => p.id === h.product_id)?.name || 'Unknown')} state={getCol('catalog')} onChange={setCol('catalog')} />
                     </TableHead>
-                    <TableHead className="text-[11px] uppercase tracking-wider font-bold py-2">
+                    <TableHead className="text-xs uppercase tracking-wider font-bold py-2.5">
                       <ExcelFilterButton label="Type" values={colValues(h => h.hardware_type || '-')} state={getCol('type')} onChange={setCol('type')} />
                     </TableHead>
-                    <TableHead className="text-[11px] uppercase tracking-wider font-bold py-2">
+                    <TableHead className="text-xs uppercase tracking-wider font-bold py-2.5">
                       <ExcelFilterButton label="PO #" values={colValues(h => h.po || '-')} state={getCol('po')} onChange={setCol('po')} />
                     </TableHead>
-                    <TableHead className="text-[11px] uppercase tracking-wider font-bold py-2">
+                    <TableHead className="text-xs uppercase tracking-wider font-bold py-2.5">
                       <ExcelFilterButton label="Status" values={colValues(h => h.status || '-')} state={getCol('status')} onChange={setCol('status')} />
                     </TableHead>
-                    <TableHead className="text-[11px] uppercase tracking-wider font-bold py-2">
-                      <ExcelFilterButton label="Location" values={colValues(h => { if (h.site_id) { const s = sites.find((s: any) => s.id === h.site_id); return s?.country || h.country || '(Blanks)'; } return h.country || '(Blanks)'; })} state={getCol('location')} onChange={setCol('location')} />
+                    <TableHead className="text-xs uppercase tracking-wider font-bold py-2.5">
+                      <ExcelFilterButton label="Location" values={colValues(h => { if (h.site_id) { const s = sites.find((s: any) => s.id === h.site_id); return s?.name || h.country || '(Blanks)'; } return h.country || '(Blanks)'; })} state={getCol('location')} onChange={setCol('location')} />
                     </TableHead>
-                    <TableHead className="text-[11px] uppercase tracking-wider font-bold py-2">
+                    <TableHead className="text-xs uppercase tracking-wider font-bold py-2.5">
                       <ExcelFilterButton label="Created" values={colValues(h => new Date(h.created_at).toLocaleDateString())} state={getCol('created')} onChange={setCol('created')} />
                     </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredHardwares.length === 0 ? (
-                    <TableRow><TableCell colSpan={7} className="text-center py-10 text-muted-foreground">No records found for {selectedCategory}.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={7} className="text-center py-10 text-muted-foreground text-sm">No records found for {selectedCategory}.</TableCell></TableRow>
                   ) : (
                     filteredHardwares.map((item) => (
                       <TableRow 
@@ -933,14 +946,14 @@ export default function Hardwares() {
                         className="hover:bg-[#009193]/5 transition-colors group cursor-pointer"
                         onClick={() => setDetailedHardware(item)}
                       >
-                        <TableCell className="font-mono text-xs font-bold text-foreground">{item.device_id}</TableCell>
-                        <TableCell className="text-xs">{products.find(p => p.id === item.product_id)?.name || "Unknown"}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">{item.hardware_type || "-"}</TableCell>
-                        <TableCell className="font-mono text-xs font-bold text-[#009193]">{item.po || "-"}</TableCell>
+                        <TableCell className="font-mono text-sm font-bold text-foreground">{item.device_id}</TableCell>
+                        <TableCell className="text-sm">{products.find(p => p.id === item.product_id)?.name || "Unknown"}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{item.hardware_type || "-"}</TableCell>
+                        <TableCell className="font-mono text-sm font-bold text-[#009193]">{item.po || "-"}</TableCell>
                         <TableCell>
                           {item.status === 'Delivered' && item.hardware_type !== 'CO2' && item.online_status ? (
                             <div className="flex items-center gap-2">
-                              <Badge className={`text-[10px] font-bold uppercase border-none px-2 py-0.5 ${
+                              <Badge className={`text-[11px] font-bold uppercase border-none px-2 py-0.5 ${
                                 item.online_status === 'online'
                                   ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400'
                                   : item.online_status === 'offline'
@@ -955,11 +968,11 @@ export default function Hardwares() {
                                 {item.online_status}
                               </Badge>
                               {item.last_seen && (
-                                <span className="text-[10px] text-muted-foreground font-medium">{timeAgo(item.last_seen)}</span>
+                                <span className="text-[11px] text-muted-foreground font-medium">{timeAgo(item.last_seen)}</span>
                               )}
                             </div>
                           ) : (
-                            <Badge className={`text-[10px] uppercase font-bold border-none w-fit px-2 py-0.5 ${
+                            <Badge className={`text-[11px] uppercase font-bold border-none w-fit px-2 py-0.5 ${
                               item.status === 'Assigned' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400' :
                               item.status === 'Delivered' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400' :
                               item.status === 'Internal Use' ? 'bg-purple-100 text-purple-800 dark:bg-purple-950/40 dark:text-purple-400' :
@@ -970,17 +983,17 @@ export default function Hardwares() {
                             </Badge>
                           )}
                         </TableCell>
-                        <TableCell className="text-xs font-semibold text-[#009193]">
+                        <TableCell className="text-sm font-semibold text-foreground dark:text-slate-200">
                           {(() => {
                             if (item.site_id) {
                               const site = sites.find((s: any) => s.id === item.site_id);
-                              return site?.country || item.country || <span className="text-muted-foreground font-normal italic">Unspecified</span>;
+                              return site?.name || item.country || <span className="text-muted-foreground font-normal italic">Unspecified</span>;
                             }
                             return item.country || <span className="text-muted-foreground font-normal italic">Unspecified</span>;
                           })()}
                         </TableCell>
 
-                        <TableCell className="text-[11px] text-muted-foreground">
+                        <TableCell className="text-xs text-muted-foreground">
                           {new Date(item.created_at).toLocaleDateString()}
                         </TableCell>
                       </TableRow>
