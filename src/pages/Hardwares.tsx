@@ -956,7 +956,13 @@ export default function Hardwares() {
                               )}
                             </div>
                           ) : (
-                            <Badge className="text-[10px] uppercase font-bold bg-[#009193]/10 text-[#009193] border-none w-fit">
+                            <Badge className={`text-[10px] uppercase font-bold border-none w-fit px-2 py-0.5 ${
+                              item.status === 'Assigned' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400' :
+                              item.status === 'Delivered' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400' :
+                              item.status === 'Internal Use' ? 'bg-purple-100 text-purple-800 dark:bg-purple-950/40 dark:text-purple-400' :
+                              item.status === 'In Stock' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400' :
+                              'bg-[#009193]/10 text-[#009193]'
+                            }`}>
                               {item.status}
                             </Badge>
                           )}
