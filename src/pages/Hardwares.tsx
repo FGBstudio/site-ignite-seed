@@ -39,7 +39,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
-import * as XLSX from "xlsx";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell, Legend } from "recharts";
 import { format } from "date-fns";
 
 export default function Hardwares() {
@@ -74,6 +74,8 @@ export default function Hardwares() {
   const [expandedOffice, setExpandedOffice] = useState<string | null>(null);
   const [selectedKpi, setSelectedKpi] = useState<string | null>(null); // 'AIR' | 'Energy' | 'Internal'
   const [kpiExpandedOffice, setKpiExpandedOffice] = useState<string | null>(null);
+  const [airChartOffice, setAirChartOffice] = useState<string>("ALL"); // "ALL" | "Italy Office" | "China Office" | "USA Office"
+  const [energyChartOffice, setEnergyChartOffice] = useState<string>("ALL");
 
   const fetchData = async () => {
     setLoading(true);
@@ -197,24 +199,38 @@ export default function Hardwares() {
     } catch (err: any) {
       toast({ 
         title: "Unassignment Failed", 
-        description: err.message, 
+        description: "Unassignment failed: " + err.message, 
         variant: "destructive" 
       });
     } finally {
       setLoading(false);
     }
   };
-  // AIR Metrics (exclude Internal Use)
-  const airTotal = hardwares.filter(h => getHwCategory(h) === 'AIR' && h.status !== 'Internal Use').length;
-  const airStock = hardwares.filter(h => getHwCategory(h) === 'AIR' && h.status === 'In Stock').length;
-  const airAssigned = hardwares.filter(h => getHwCategory(h) === 'AIR' && h.status === 'Assigned').length;
+  // AIR Metrics (Category === 'AIR')
+  const airItems = hardwares.filter(h => getHwCategory(h) === 'AIR');
+  const airTotal = airItems.length;
+  const airStock = airItems.filter(h => h.status === 'In Stock').length;
+  const airAssigned = airItems.filter(h => h.status === 'Assigned').length;
+  const airDeliveredItems = airItems.filter(h => h.status === 'Delivered');
+  const airDelivered = airDeliveredItems.length;
+  // Monitored sensors for online/offline badge (excluding CO2)
+  const airMonitoredItems = airDeliveredItems.filter(h => (h.hardware_type || '').trim().toUpperCase() !== 'CO2');
+  const airOnline = airMonitoredItems.filter(h => h.online_status === 'online').length;
+  const airOffline = airMonitoredItems.length - airOnline;
 
-  // Energy Metrics (exclude Internal Use)
-  const energyTotal = hardwares.filter(h => getHwCategory(h) === 'Energy' && h.status !== 'Internal Use').length;
-  const energyStock = hardwares.filter(h => getHwCategory(h) === 'Energy' && h.status === 'In Stock').length;
-  const energyAssigned = hardwares.filter(h => getHwCategory(h) === 'Energy' && h.status === 'Assigned').length;
+  // Energy Metrics (Category === 'Energy')
+  const energyItems = hardwares.filter(h => getHwCategory(h) === 'Energy');
+  const energyTotal = energyItems.length;
+  const energyStock = energyItems.filter(h => h.status === 'In Stock').length;
+  const energyAssigned = energyItems.filter(h => h.status === 'Assigned').length;
+  const energyDeliveredItems = energyItems.filter(h => h.status === 'Delivered');
+  const energyDelivered = energyDeliveredItems.length;
+  // Monitored sensors for online/offline badge (excluding Mango)
+  const energyMonitoredItems = energyDeliveredItems.filter(h => (h.hardware_type || '').trim().toUpperCase() !== 'MANGO');
+  const energyOnline = energyMonitoredItems.filter(h => h.online_status === 'online').length;
+  const energyOffline = energyMonitoredItems.length - energyOnline;
 
-  // Internal Use Metrics
+  // Internal Use Metrics (status === 'Internal Use')
   const internalItems = hardwares.filter(h => h.status === 'Internal Use');
   const internalTotal = internalItems.length;
 
@@ -569,9 +585,9 @@ export default function Hardwares() {
         </div>
       </div>
 
-      {/* KPI Command Center */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        {/* Total Card */}
+      {/* Executive Portfolio Overview Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        {/* Total Summary */}
         <div 
           onClick={() => { setSelectedCategory(null); setSelectedKpi(null); setKpiExpandedOffice(null); }}
           className={`premium-card glass p-5 flex items-center gap-3 transition-all cursor-pointer hover:shadow-lg border-2 ${!selectedCategory && !selectedKpi ? 'border-[#009193] bg-[#009193]/5' : 'border-transparent'}`}
@@ -580,76 +596,98 @@ export default function Hardwares() {
             <LayoutGrid className="h-5 w-5 text-[#009193]" />
           </div>
           <div>
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Total</p>
-            <p className="text-3xl font-bold text-foreground">{totalUnits}</p>
-            <div className="flex gap-1.5 mt-1">
-              <Badge variant="outline" className="text-[9px] border-blue-500/20 text-blue-600 px-1 py-0">{airTotal} AIR</Badge>
-              <Badge variant="outline" className="text-[9px] border-orange-500/20 text-orange-600 px-1 py-0">{energyTotal} ENRG</Badge>
+            <p className="text-xs uppercase tracking-wider text-muted-foreground font-bold">Total Inventory</p>
+            <p className="text-3xl font-extrabold text-foreground">{totalUnits}</p>
+            <div className="flex flex-wrap gap-1 mt-1.5">
+              <Badge variant="outline" className="text-[10px] border-blue-500/30 text-blue-600 font-bold px-1.5 py-0.5">{airTotal} AIR</Badge>
+              <Badge variant="outline" className="text-[10px] border-orange-500/30 text-orange-600 font-bold px-1.5 py-0.5">{energyTotal} Energy</Badge>
+              <Badge variant="outline" className="text-[10px] border-purple-500/30 text-purple-600 font-bold px-1.5 py-0.5">{internalTotal} Internal</Badge>
             </div>
           </div>
         </div>
 
-        {/* AIR Card */}
+        {/* AIR Portfolio Card */}
         <div 
-          onClick={() => { setSelectedCategory('AIR'); setSelectedKpi('AIR'); setKpiExpandedOffice(null); }}
-          className={`premium-card glass p-5 flex items-center gap-3 transition-all cursor-pointer hover:shadow-lg border-2 ${selectedKpi === 'AIR' ? 'border-blue-600 bg-blue-500/5' : 'border-transparent'}`}
+          onClick={() => { 
+            if (selectedKpi === 'AIR') {
+              setSelectedKpi(null);
+              setSelectedCategory(null);
+            } else {
+              setSelectedCategory('AIR'); 
+              setSelectedKpi('AIR'); 
+            }
+            setKpiExpandedOffice(null); 
+          }}
+          className={`premium-card glass p-5 flex flex-col justify-between transition-all cursor-pointer hover:shadow-lg border-2 ${selectedKpi === 'AIR' ? 'border-blue-600 bg-blue-500/5 ring-2 ring-blue-500/20' : 'border-transparent'}`}
         >
-          <div className="h-11 w-11 rounded-full bg-blue-600/10 flex items-center justify-center shrink-0">
-            <Wind className="h-5 w-5 text-blue-600" />
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-full bg-blue-600/10 flex items-center justify-center shrink-0">
+              <Wind className="h-5 w-5 text-blue-600" />
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-wider text-muted-foreground font-extrabold">AIR Hardware</p>
+              <p className="text-3xl font-black text-blue-600">{airTotal}</p>
+            </div>
           </div>
-          <div className="flex-1">
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">AIR Stock</p>
-            <div className="flex items-baseline gap-2">
-              <p className="text-3xl font-bold text-blue-600">{airStock}</p>
-              <span className="text-[10px] font-bold text-muted-foreground uppercase">Available stock</span>
-            </div>
-            <div className="mt-1.5 flex items-center justify-between">
-              <span className="text-[10px] font-bold text-muted-foreground">Assigned: {airAssigned}</span>
-              <div className="w-16 h-1 bg-blue-100 rounded-full overflow-hidden">
-                <div className="h-full bg-blue-600 transition-all" style={{ width: `${airTotal > 0 ? (airAssigned/airTotal)*100 : 0}%` }} />
-              </div>
-            </div>
+          <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+            <span className="text-[11px] font-bold text-blue-600 group-hover:underline flex items-center gap-1">
+              Click here for details <ChevronRight className="h-3 w-3" />
+            </span>
+            <Badge className="bg-blue-50 text-blue-700 dark:bg-blue-950/40 border-none text-[10px] font-bold">
+              {airStock} Stock
+            </Badge>
           </div>
         </div>
 
-        {/* Energy Card */}
+        {/* Energy Portfolio Card */}
         <div 
-          onClick={() => { setSelectedCategory('Energy'); setSelectedKpi('Energy'); setKpiExpandedOffice(null); }}
-          className={`premium-card glass p-5 flex items-center gap-3 transition-all cursor-pointer hover:shadow-lg border-2 ${selectedKpi === 'Energy' ? 'border-orange-600 bg-orange-500/5' : 'border-transparent'}`}
+          onClick={() => { 
+            if (selectedKpi === 'Energy') {
+              setSelectedKpi(null);
+              setSelectedCategory(null);
+            } else {
+              setSelectedCategory('Energy'); 
+              setSelectedKpi('Energy'); 
+            }
+            setKpiExpandedOffice(null); 
+          }}
+          className={`premium-card glass p-5 flex flex-col justify-between transition-all cursor-pointer hover:shadow-lg border-2 ${selectedKpi === 'Energy' ? 'border-orange-600 bg-orange-500/5 ring-2 ring-orange-500/20' : 'border-transparent'}`}
         >
-          <div className="h-11 w-11 rounded-full bg-orange-600/10 flex items-center justify-center shrink-0">
-            <Zap className="h-5 w-5 text-orange-600" />
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-full bg-orange-600/10 flex items-center justify-center shrink-0">
+              <Zap className="h-5 w-5 text-orange-600" />
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-wider text-muted-foreground font-extrabold">Energy Hardware</p>
+              <p className="text-3xl font-black text-orange-600">{energyTotal}</p>
+            </div>
           </div>
-          <div className="flex-1">
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Energy Stock</p>
-            <div className="flex items-baseline gap-2">
-              <p className="text-3xl font-bold text-orange-600">{energyStock}</p>
-              <span className="text-[10px] font-bold text-muted-foreground uppercase">Available stock</span>
-            </div>
-            <div className="mt-1.5 flex items-center justify-between">
-              <span className="text-[10px] font-bold text-muted-foreground">Assigned: {energyAssigned}</span>
-              <div className="w-16 h-1 bg-orange-100 rounded-full overflow-hidden">
-                <div className="h-full bg-orange-600 transition-all" style={{ width: `${energyTotal > 0 ? (energyAssigned/energyTotal)*100 : 0}%` }} />
-              </div>
-            </div>
+          <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+            <span className="text-[11px] font-bold text-orange-600 group-hover:underline flex items-center gap-1">
+              Click here for details <ChevronRight className="h-3 w-3" />
+            </span>
+            <Badge className="bg-orange-50 text-orange-700 dark:bg-orange-950/40 border-none text-[10px] font-bold">
+              {energyStock} Stock
+            </Badge>
           </div>
         </div>
 
         {/* Internal Use Card */}
         <div 
           onClick={() => { setSelectedKpi('Internal'); setSelectedCategory(null); setKpiExpandedOffice(null); }}
-          className={`premium-card glass p-5 flex items-center gap-3 transition-all cursor-pointer hover:shadow-lg border-2 ${selectedKpi === 'Internal' ? 'border-purple-600 bg-purple-500/5' : 'border-transparent'}`}
+          className={`premium-card glass p-5 flex flex-col justify-between transition-all cursor-pointer hover:shadow-lg border-2 ${selectedKpi === 'Internal' ? 'border-purple-600 bg-purple-500/5' : 'border-transparent'}`}
         >
-          <div className="h-11 w-11 rounded-full bg-purple-600/10 flex items-center justify-center shrink-0">
-            <Monitor className="h-5 w-5 text-purple-600" />
-          </div>
-          <div className="flex-1">
-            <p className="text-xs uppercase tracking-wider text-muted-foreground font-bold">Internal Use</p>
-            <div className="flex items-baseline gap-2">
-              <p className="text-3xl font-bold text-purple-600">{internalTotal}</p>
-              <span className="text-[11px] font-bold text-muted-foreground uppercase">units</span>
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-full bg-purple-600/10 flex items-center justify-center shrink-0">
+              <Monitor className="h-4 w-4 text-purple-600" />
             </div>
-            <p className="text-[11px] text-muted-foreground font-semibold mt-1">Display / Other Internal Use</p>
+            <div>
+              <p className="text-xs uppercase tracking-wider text-muted-foreground font-bold">Internal Use</p>
+              <p className="text-xl font-bold text-purple-600">{internalTotal} <span className="text-[10px] text-muted-foreground font-normal">units</span></p>
+            </div>
+          </div>
+          <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 text-xs text-muted-foreground font-medium">
+            <p>Display / Demo / Office Testing</p>
           </div>
         </div>
       </div>
@@ -665,13 +703,13 @@ export default function Hardwares() {
             {/* Office Breakdown Row */}
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground px-1">
-                {kpiLabel} — Office Breakdown
+                {kpiLabel} — Detailed Office & Typology Breakdown
               </h3>
               <button 
                 onClick={() => { setSelectedKpi(null); setKpiExpandedOffice(null); }}
-                className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-900"
+                className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-900 flex items-center gap-1 text-xs"
               >
-                <X className="h-4 w-4" />
+                <X className="h-4 w-4" /> Close Panel
               </button>
             </div>
 
@@ -815,6 +853,131 @@ export default function Hardwares() {
           </div>
         );
       })()}
+
+      {/* Regional Facet Interactive Charts */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8">
+        {/* AIR Interactive Regional Facet Chart */}
+        <div className="premium-card glass p-5 rounded-2xl border border-slate-200/60 dark:border-slate-800">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+            <div className="flex items-center gap-2">
+              <div className="h-3 w-3 rounded-full bg-blue-600" />
+              <h3 className="text-sm font-bold text-foreground">AIR — Stock vs Assigned by Typology</h3>
+            </div>
+            {/* Regional Facet Pills */}
+            <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl">
+              {["ALL", "Italy Office", "China Office", "USA Office"].map(off => (
+                <button
+                  key={off}
+                  onClick={() => setAirChartOffice(off)}
+                  className={`text-[10px] font-bold px-2 py-1 rounded-lg transition-all ${
+                    airChartOffice === off
+                      ? "bg-blue-600 text-white shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {off === "ALL" ? "All Hubs" : off.replace(" Office", "")}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="h-64 w-full">
+            {(() => {
+              const airItems = getKpiItems('AIR').filter(h => 
+                airChartOffice === "ALL" || getOfficeName(h) === airChartOffice
+              );
+              
+              const typologiesMap: Record<string, { stock: number; assigned: number }> = {};
+              airItems.forEach(h => {
+                const typ = h.hardware_type || 'Unknown';
+                if (!typologiesMap[typ]) typologiesMap[typ] = { stock: 0, assigned: 0 };
+                if (h.status === 'In Stock') typologiesMap[typ].stock++;
+                else if (h.status === 'Assigned') typologiesMap[typ].assigned++;
+              });
+
+              const chartData = Object.entries(typologiesMap).map(([typ, counts]) => ({
+                name: typ,
+                "In Stock": counts.stock,
+                "Assigned": counts.assigned,
+              }));
+
+              return (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <XAxis dataKey="name" tick={{ fontSize: 11, fontWeight: 'bold' }} />
+                    <YAxis tick={{ fontSize: 11 }} />
+                    <Tooltip contentStyle={{ borderRadius: '8px', fontSize: '12px', fontWeight: 'bold' }} />
+                    <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
+                    <Bar dataKey="In Stock" fill="#10b981" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="Assigned" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              );
+            })()}
+          </div>
+        </div>
+
+        {/* Energy Interactive Regional Facet Chart */}
+        <div className="premium-card glass p-5 rounded-2xl border border-slate-200/60 dark:border-slate-800">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+            <div className="flex items-center gap-2">
+              <div className="h-3 w-3 rounded-full bg-orange-600" />
+              <h3 className="text-sm font-bold text-foreground">Energy — Stock vs Assigned by Typology</h3>
+            </div>
+            {/* Regional Facet Pills */}
+            <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl">
+              {["ALL", "Italy Office", "China Office", "USA Office"].map(off => (
+                <button
+                  key={off}
+                  onClick={() => setEnergyChartOffice(off)}
+                  className={`text-[10px] font-bold px-2 py-1 rounded-lg transition-all ${
+                    energyChartOffice === off
+                      ? "bg-orange-600 text-white shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {off === "ALL" ? "All Hubs" : off.replace(" Office", "")}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="h-64 w-full">
+            {(() => {
+              const energyItems = getKpiItems('Energy').filter(h => 
+                energyChartOffice === "ALL" || getOfficeName(h) === energyChartOffice
+              );
+
+              const typologiesMap: Record<string, { stock: number; assigned: number }> = {};
+              energyItems.forEach(h => {
+                const typ = h.hardware_type || 'Unknown';
+                if (!typologiesMap[typ]) typologiesMap[typ] = { stock: 0, assigned: 0 };
+                if (h.status === 'In Stock') typologiesMap[typ].stock++;
+                else if (h.status === 'Assigned') typologiesMap[typ].assigned++;
+              });
+
+              const chartData = Object.entries(typologiesMap).map(([typ, counts]) => ({
+                name: typ,
+                "In Stock": counts.stock,
+                "Assigned": counts.assigned,
+              }));
+
+              return (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <XAxis dataKey="name" tick={{ fontSize: 11, fontWeight: 'bold' }} />
+                    <YAxis tick={{ fontSize: 11 }} />
+                    <Tooltip contentStyle={{ borderRadius: '8px', fontSize: '12px', fontWeight: 'bold' }} />
+                    <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
+                    <Bar dataKey="In Stock" fill="#10b981" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="Assigned" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              );
+            })()}
+          </div>
+        </div>
+      </div>
 
       {/* Legacy Category Breakdown (shown when category is selected but not via KPI panel) */}
       {selectedCategory && !selectedKpi && (
