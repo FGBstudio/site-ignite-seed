@@ -629,13 +629,18 @@ export default function Hardwares() {
               <p className="text-3xl font-black text-blue-600">{airTotal}</p>
             </div>
           </div>
-          <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-            <span className="text-[11px] font-bold text-blue-600 group-hover:underline flex items-center gap-1">
+          <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-1">
+            <span className="text-[11px] font-bold text-blue-600 group-hover:underline flex items-center gap-0.5 shrink-0">
               Click here for details <ChevronRight className="h-3 w-3" />
             </span>
-            <Badge className="bg-blue-50 text-blue-700 dark:bg-blue-950/40 border-none text-[10px] font-bold">
-              {airStock} Stock
-            </Badge>
+            <div className="flex items-center gap-1">
+              <Badge className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 border-none text-[10px] font-bold px-1.5 py-0.5">
+                {airStock} Stock
+              </Badge>
+              <Badge className="bg-amber-50 text-amber-700 dark:bg-amber-950/40 border-none text-[10px] font-bold px-1.5 py-0.5">
+                {airAssigned} Assigned
+              </Badge>
+            </div>
           </div>
         </div>
 
@@ -662,13 +667,18 @@ export default function Hardwares() {
               <p className="text-3xl font-black text-orange-600">{energyTotal}</p>
             </div>
           </div>
-          <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-            <span className="text-[11px] font-bold text-orange-600 group-hover:underline flex items-center gap-1">
+          <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-1">
+            <span className="text-[11px] font-bold text-orange-600 group-hover:underline flex items-center gap-0.5 shrink-0">
               Click here for details <ChevronRight className="h-3 w-3" />
             </span>
-            <Badge className="bg-orange-50 text-orange-700 dark:bg-orange-950/40 border-none text-[10px] font-bold">
-              {energyStock} Stock
-            </Badge>
+            <div className="flex items-center gap-1">
+              <Badge className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 border-none text-[10px] font-bold px-1.5 py-0.5">
+                {energyStock} Stock
+              </Badge>
+              <Badge className="bg-amber-50 text-amber-700 dark:bg-amber-950/40 border-none text-[10px] font-bold px-1.5 py-0.5">
+                {energyAssigned} Assigned
+              </Badge>
+            </div>
           </div>
         </div>
 
