@@ -196,7 +196,32 @@ export function SaturationMatrix({
     return <div className="py-6 text-sm text-muted-foreground">No PMs to display.</div>;
   }
 
+  const rangeLabel = `${format(parseISO(fromWeek), "d MMM yyyy")} → ${format(
+    addDays(parseISO(toWeek), 6),
+    "d MMM yyyy",
+  )}`;
+
   return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-1">
+          <Button size="sm" variant="outline" onClick={() => setWeekOffset((o) => o - weekCount)}>
+            <ChevronLeft className="h-4 w-4" />
+            Prev
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setWeekOffset(0)} disabled={weekOffset === 0}>
+            Today
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setWeekOffset((o) => o + weekCount)}>
+            Next
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+          <span className="ml-2 text-xs text-muted-foreground tabular-nums">{rangeLabel}</span>
+        </div>
+        <Button size="sm" variant="ghost" onClick={toggleAll}>
+          {allExpanded ? "Collapse all" : "Expand all"}
+        </Button>
+      </div>
     <div className="overflow-x-auto rounded-md border">
       <table className="min-w-full border-collapse text-xs">
         <thead className="bg-muted/40">
