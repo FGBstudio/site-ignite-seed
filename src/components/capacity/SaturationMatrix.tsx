@@ -58,7 +58,15 @@ export function SaturationMatrix({
   anchorDate = new Date(),
   currentUserId,
 }: SaturationMatrixProps) {
-  const weeks = useMemo(() => buildWeekRange(anchorDate, weekCount), [anchorDate, weekCount]);
+  const [weekOffset, setWeekOffset] = useState(0);
+  const effectiveAnchor = useMemo(
+    () => addWeeks(anchorDate, weekOffset),
+    [anchorDate, weekOffset],
+  );
+  const weeks = useMemo(
+    () => buildWeekRange(effectiveAnchor, weekCount),
+    [effectiveAnchor, weekCount],
+  );
   const fromWeek = weeks[0];
   const toWeek = weeks[weeks.length - 1];
   const fromDate = fromWeek;
@@ -72,6 +80,16 @@ export function SaturationMatrix({
 
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+
+  const allExpanded = users.every((u) => expanded[u.id] ?? true);
+  const toggleAll = () => {
+    const next = !allExpanded;
+    const map: Record<string, boolean> = {};
+    users.forEach((u) => {
+      map[u.id] = next;
+    });
+    setExpanded(map);
+  };
 
   // index allocations by (user|cert|week)
   const allocIndex = useMemo(() => {
