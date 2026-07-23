@@ -84,7 +84,7 @@ export function useMySaturationCerts(userId: string | undefined) {
     queryFn: async () => {
       const { data: owned, error: e1 } = await supabase
         .from("certifications")
-        .select("id, name, pm_id, allocated_hours, handover_date, status")
+        .select(CERT_SELECT)
         .eq("pm_id", userId!);
       if (e1) throw e1;
 
@@ -94,16 +94,16 @@ export function useMySaturationCerts(userId: string | undefined) {
         .eq("guest_pm_id", userId!)
         .eq("status", "approved");
       const collabIds = ((collabs ?? []) as any[]).map((c) => c.certification_id).filter(Boolean);
-      let guests: SaturationCert[] = [];
+      let guests: any[] = [];
       if (collabIds.length > 0) {
         const { data: g } = await supabase
           .from("certifications")
-          .select("id, name, pm_id, allocated_hours, handover_date, status")
+          .select(CERT_SELECT)
           .in("id", collabIds);
-        guests = (g ?? []) as any;
+        guests = (g ?? []) as any[];
       }
       const map = new Map<string, SaturationCert>();
-      [...(owned ?? []), ...guests].forEach((c: any) => map.set(c.id, c));
+      [...((owned ?? []) as any[]), ...guests].forEach((c: any) => map.set(c.id, normalizeCert(c)));
       return Array.from(map.values());
     },
   });
