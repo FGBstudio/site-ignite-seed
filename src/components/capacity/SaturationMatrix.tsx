@@ -256,8 +256,8 @@ export function SaturationMatrix({
             const isExpanded = expanded[u.id] ?? true;
             const offSet = offWeek.get(u.id) ?? new Set();
             return (
-              <>
-                <tr key={`u-${u.id}`} className="border-t bg-background">
+              <Fragment key={`u-frag-${u.id}`}>
+                <tr className="border-t bg-background">
                   <td className="sticky left-0 z-10 bg-background border-r px-3 py-2 font-semibold">
                     <button
                       className="flex items-center gap-1 hover:text-primary"
