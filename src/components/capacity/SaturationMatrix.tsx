@@ -307,9 +307,19 @@ export function SaturationMatrix({
                     return (
                       <tr key={`c-${u.id}-${c.id}`} className="border-t">
                         <td className="sticky left-0 z-10 bg-background border-r px-3 py-1 pl-8 text-muted-foreground">
-                          <div className="truncate max-w-[200px]" title={c.name}>
-                            {c.name}
-                          </div>
+                          {(() => {
+                            const composite = [c.client, c.city, c.name]
+                              .map((s) => (s ?? "").toString().trim())
+                              .filter(Boolean)
+                              .join(" · ")
+                              .toUpperCase();
+                            const label = composite || c.name;
+                            return (
+                              <div className="truncate max-w-[240px]" title={label}>
+                                {label}
+                              </div>
+                            );
+                          })()}
                           {c.allocated_hours ? (
                             <div className="text-[10px]">Budget: {c.allocated_hours}h</div>
                           ) : null}
