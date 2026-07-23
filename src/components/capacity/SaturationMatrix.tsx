@@ -385,6 +385,7 @@ export function SaturationMatrix({
         </tbody>
       </table>
     </div>
+    </div>
   );
 }
 
