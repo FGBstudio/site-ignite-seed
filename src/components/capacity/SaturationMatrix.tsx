@@ -1,9 +1,9 @@
-import { useMemo, useState } from "react";
-import { addDays, format, parseISO } from "date-fns";
+import { Fragment, useMemo, useState } from "react";
+import { addDays, addWeeks, format, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, ChevronRight, Diamond } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Diamond } from "lucide-react";
 import { toast } from "sonner";
 import {
   buildWeekRange,
@@ -58,7 +58,15 @@ export function SaturationMatrix({
   anchorDate = new Date(),
   currentUserId,
 }: SaturationMatrixProps) {
-  const weeks = useMemo(() => buildWeekRange(anchorDate, weekCount), [anchorDate, weekCount]);
+  const [weekOffset, setWeekOffset] = useState(0);
+  const effectiveAnchor = useMemo(
+    () => addWeeks(anchorDate, weekOffset),
+    [anchorDate, weekOffset],
+  );
+  const weeks = useMemo(
+    () => buildWeekRange(effectiveAnchor, weekCount),
+    [effectiveAnchor, weekCount],
+  );
   const fromWeek = weeks[0];
   const toWeek = weeks[weeks.length - 1];
   const fromDate = fromWeek;
@@ -72,6 +80,16 @@ export function SaturationMatrix({
 
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+
+  const allExpanded = users.every((u) => expanded[u.id] ?? true);
+  const toggleAll = () => {
+    const next = !allExpanded;
+    const map: Record<string, boolean> = {};
+    users.forEach((u) => {
+      map[u.id] = next;
+    });
+    setExpanded(map);
+  };
 
   // index allocations by (user|cert|week)
   const allocIndex = useMemo(() => {
@@ -178,7 +196,32 @@ export function SaturationMatrix({
     return <div className="py-6 text-sm text-muted-foreground">No PMs to display.</div>;
   }
 
+  const rangeLabel = `${format(parseISO(fromWeek), "d MMM yyyy")} → ${format(
+    addDays(parseISO(toWeek), 6),
+    "d MMM yyyy",
+  )}`;
+
   return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-1">
+          <Button size="sm" variant="outline" onClick={() => setWeekOffset((o) => o - weekCount)}>
+            <ChevronLeft className="h-4 w-4" />
+            Prev
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setWeekOffset(0)} disabled={weekOffset === 0}>
+            Today
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setWeekOffset((o) => o + weekCount)}>
+            Next
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+          <span className="ml-2 text-xs text-muted-foreground tabular-nums">{rangeLabel}</span>
+        </div>
+        <Button size="sm" variant="ghost" onClick={toggleAll}>
+          {allExpanded ? "Collapse all" : "Expand all"}
+        </Button>
+      </div>
     <div className="overflow-x-auto rounded-md border">
       <table className="min-w-full border-collapse text-xs">
         <thead className="bg-muted/40">
@@ -213,8 +256,8 @@ export function SaturationMatrix({
             const isExpanded = expanded[u.id] ?? true;
             const offSet = offWeek.get(u.id) ?? new Set();
             return (
-              <>
-                <tr key={`u-${u.id}`} className="border-t bg-background">
+              <Fragment key={`u-frag-${u.id}`}>
+                <tr className="border-t bg-background">
                   <td className="sticky left-0 z-10 bg-background border-r px-3 py-2 font-semibold">
                     <button
                       className="flex items-center gap-1 hover:text-primary"
@@ -264,9 +307,19 @@ export function SaturationMatrix({
                     return (
                       <tr key={`c-${u.id}-${c.id}`} className="border-t">
                         <td className="sticky left-0 z-10 bg-background border-r px-3 py-1 pl-8 text-muted-foreground">
-                          <div className="truncate max-w-[200px]" title={c.name}>
-                            {c.name}
-                          </div>
+                          {(() => {
+                            const composite = [c.client, c.city, c.name]
+                              .map((s) => (s ?? "").toString().trim())
+                              .filter(Boolean)
+                              .join(" · ")
+                              .toUpperCase();
+                            const label = composite || c.name;
+                            return (
+                              <div className="truncate max-w-[240px]" title={label}>
+                                {label}
+                              </div>
+                            );
+                          })()}
                           {c.allocated_hours ? (
                             <div className="text-[10px]">Budget: {c.allocated_hours}h</div>
                           ) : null}
@@ -336,11 +389,12 @@ export function SaturationMatrix({
                       </tr>
                     );
                   })}
-              </>
+              </Fragment>
             );
           })}
         </tbody>
       </table>
+    </div>
     </div>
   );
 }
