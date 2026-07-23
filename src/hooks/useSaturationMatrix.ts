@@ -21,6 +21,26 @@ export interface SaturationCert {
   allocated_hours: number | null;
   handover_date: string | null;
   status: string | null;
+  client: string | null;
+  city: string | null;
+}
+
+const CERT_SELECT =
+  "id, name, pm_id, allocated_hours, handover_date, status, client, sites(city, brands(name))";
+
+function normalizeCert(row: any): SaturationCert {
+  const site = row?.sites ?? null;
+  const brandName = site?.brands?.name ?? null;
+  return {
+    id: row.id,
+    name: row.name,
+    pm_id: row.pm_id ?? null,
+    allocated_hours: row.allocated_hours ?? null,
+    handover_date: row.handover_date ?? null,
+    status: row.status ?? null,
+    client: (row.client && String(row.client).trim()) || brandName || null,
+    city: site?.city ?? null,
+  };
 }
 
 export interface SaturationHrOff {
