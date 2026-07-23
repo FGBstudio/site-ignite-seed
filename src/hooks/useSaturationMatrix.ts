@@ -116,10 +116,10 @@ export function useAllSaturationCerts() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("certifications")
-        .select("id, name, pm_id, allocated_hours, handover_date, status")
+        .select(CERT_SELECT)
         .not("pm_id", "is", null);
       if (error) throw error;
-      return (data ?? []) as unknown as SaturationCert[];
+      return ((data ?? []) as any[]).map(normalizeCert);
     },
   });
 }
