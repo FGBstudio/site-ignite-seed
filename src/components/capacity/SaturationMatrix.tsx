@@ -379,7 +379,7 @@ export function SaturationMatrix({
                       </tr>
                     );
                   })}
-              </>
+              </Fragment>
             );
           })}
         </tbody>
