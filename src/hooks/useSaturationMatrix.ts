@@ -2,6 +2,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { addWeeks, format, startOfWeek } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 
+export const WEEKLY_CAP = 40;
+
+
 export interface PmWeeklyAllocation {
   id: string;
   user_id: string;
