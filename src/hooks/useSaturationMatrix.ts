@@ -2,6 +2,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { addWeeks, format, startOfWeek } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 
+export const WEEKLY_CAP = 40;
+
+
 export interface PmWeeklyAllocation {
   id: string;
   user_id: string;
@@ -219,5 +222,68 @@ export function useDeleteAllocation() {
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["pm-weekly-allocations"] }),
+  });
+}
+
+export interface CertAllocationRisk {
+  certification_id: string;
+  pm_id: string | null;
+  budget: number;
+  planned: number;
+  unallocated_hours: number;
+  handover_date: string | null;
+  weeks_to_deadline: number;
+  is_red: boolean;
+  label: string;
+}
+
+/**
+ * Projects whose remaining budget cannot physically fit before the deadline
+ * (server-side view `view_cert_allocation_status`). Red = structural risk.
+ */
+export function useUnallocatedBudgetRisks() {
+  return useQuery({
+    queryKey: ["cert-allocation-risks"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("view_cert_allocation_status" as any)
+        .select("*")
+        .eq("is_red", true);
+      if (error) throw error;
+      const rows = (data ?? []) as any[];
+      if (rows.length === 0) return [] as CertAllocationRisk[];
+
+      const { data: certs } = await supabase
+        .from("certifications")
+        .select("id, name, client, sites(city, brands(name))")
+        .in(
+          "id",
+          rows.map((r) => r.certification_id),
+        );
+      const labels = new Map<string, string>();
+      ((certs ?? []) as any[]).forEach((c) => {
+        const brand = c?.sites?.brands?.name ?? null;
+        const label = [(c.client && String(c.client).trim()) || brand, c?.sites?.city, c.name]
+          .map((s: any) => (s ?? "").toString().trim())
+          .filter(Boolean)
+          .join(" · ")
+          .toUpperCase();
+        labels.set(c.id, label || c.name);
+      });
+
+      return rows
+        .map((r) => ({
+          certification_id: r.certification_id,
+          pm_id: r.pm_id ?? null,
+          budget: Number(r.budget ?? 0),
+          planned: Number(r.planned ?? 0),
+          unallocated_hours: Number(r.unallocated_hours ?? 0),
+          handover_date: r.handover_date ?? null,
+          weeks_to_deadline: Number(r.weeks_to_deadline ?? 0),
+          is_red: !!r.is_red,
+          label: labels.get(r.certification_id) ?? r.certification_id,
+        }))
+        .sort((a, b) => b.unallocated_hours - a.unallocated_hours) as CertAllocationRisk[];
+    },
   });
 }
