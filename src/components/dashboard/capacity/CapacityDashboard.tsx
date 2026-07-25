@@ -9,6 +9,7 @@ import {
   useAllSaturationCerts,
   usePmProfiles,
 } from "@/hooks/useSaturationMatrix";
+import { UnallocatedBudgetPanel } from "@/components/capacity/UnallocatedBudgetPanel";
 
 export function CapacityDashboard() {
   const [horizon, setHorizon] = useState<number>(16);
@@ -27,6 +28,8 @@ export function CapacityDashboard() {
   }, [profiles, certs]);
 
   return (
+    <div className="space-y-4">
+    <UnallocatedBudgetPanel />
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <div>
@@ -54,5 +57,6 @@ export function CapacityDashboard() {
         <SaturationMatrix mode="read" users={users} certs={certs} weekCount={horizon} />
       </CardContent>
     </Card>
+    </div>
   );
 }
