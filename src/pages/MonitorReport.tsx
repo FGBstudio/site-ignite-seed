@@ -18,11 +18,15 @@ import { PivotTableRenderer } from "@/components/monitor/PivotTableRenderer";
 const emptyFilter: ExcelFilterState = { selectedValues: undefined, sort: null };
 
 function matches(f: ExcelFilterState, v: string | null | undefined): boolean {
-  if (f.selectedValues === undefined) return true;
+  if (!f.selectedValues || f.selectedValues.length === 0) return true;
   return f.selectedValues.includes(v ?? "");
 }
 
+import { DemandPlannerTab } from "@/components/monitor/DemandPlannerTab";
+import { TrendingUp, Table } from "lucide-react";
+
 export default function MonitorReport() {
+  const [modeTab, setModeTab] = useState<"pivot" | "planner">("pivot");
   const [domain, setDomain] = useState<PivotDomain>("energy");
   const [statusF, setStatusF] = useState<ExcelFilterState>(emptyFilter);
   const [categoryF, setCategoryF] = useState<ExcelFilterState>(emptyFilter);
@@ -55,14 +59,16 @@ export default function MonitorReport() {
     countries: Array.from(new Set(normalized.map((r) => r.country).filter(Boolean) as string[])),
   }), [normalized]);
 
-  const filtered = useMemo(() => normalized.filter((r) =>
-    matches(statusF, r.status) &&
-    matches(categoryF, r.category) &&
-    matches(pmF, r.pm) &&
-    matches(brandF, r.brand) &&
-    matches(regionF, r.region) &&
-    matches(countryF, r.country)
-  ), [normalized, statusF, categoryF, pmF, brandF, regionF, countryF]);
+  const filtered = useMemo(() => {
+    return normalized.filter((r) => (
+      matches(statusF, r.status) &&
+      matches(categoryF, r.category) &&
+      matches(pmF, r.pm) &&
+      matches(brandF, r.brand) &&
+      matches(regionF, r.region) &&
+      matches(countryF, r.country)
+    ));
+  }, [normalized, statusF, categoryF, pmF, brandF, regionF, countryF]);
 
   const tree = useMemo(() => buildPivotTree(filtered), [filtered]);
 
@@ -75,44 +81,64 @@ export default function MonitorReport() {
   };
 
   return (
-    <MainLayout title="Monitor · Report" subtitle="Aggregated pivot analytics across Energy, Air Quality and Water">
-      <div className="space-y-4">
-        <Tabs value={domain} onValueChange={(v) => setDomain(v as PivotDomain)}>
-          <TabsList className="grid w-full grid-cols-3 max-w-[520px]">
-            <TabsTrigger value="energy" className="gap-2"><Zap className="h-4 w-4" /> Energy</TabsTrigger>
-            <TabsTrigger value="air" className="gap-2"><Wind className="h-4 w-4" /> Air Quality</TabsTrigger>
-            <TabsTrigger value="water" className="gap-2"><Droplet className="h-4 w-4" /> Water</TabsTrigger>
-          </TabsList>
-        </Tabs>
+    <MainLayout title="Monitor · Report & Demand Planning" subtitle="Aggregated pivot analytics and future hardware demand forecasting">
+      <div className="space-y-6">
+        {/* Top-Level Mode Selector */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border/60 pb-4">
+          <Tabs value={modeTab} onValueChange={(v) => setModeTab(v as any)}>
+            <TabsList className="grid grid-cols-2 w-full sm:w-[500px] bg-slate-100 dark:bg-slate-900 p-1 rounded-2xl">
+              <TabsTrigger value="pivot" className="gap-2 text-xs font-bold data-[state=active]:bg-white dark:data-[state=active]:bg-slate-950 data-[state=active]:shadow-sm">
+                <Table className="h-4 w-4 text-emerald-600" /> 📊 Aggregated Pivot Report
+              </TabsTrigger>
+              <TabsTrigger value="planner" className="gap-2 text-xs font-extrabold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground shadow-sm">
+                <TrendingUp className="h-4 w-4" /> 📦 Demand Planner & Forecast
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
 
-        <Card>
-          <CardContent className="py-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <ExcelFilterButton label="Status" values={uniques.statuses} state={statusF} onChange={setStatusF} />
-              <ExcelFilterButton label="Category" values={uniques.categories} state={categoryF} onChange={setCategoryF} />
-              <ExcelFilterButton label="PM" values={uniques.pms} state={pmF} onChange={setPmF} />
-              <ExcelFilterButton label="Brand" values={uniques.brands} state={brandF} onChange={setBrandF} />
-              <ExcelFilterButton label="Region" values={uniques.regions} state={regionF} onChange={setRegionF} />
-              <ExcelFilterButton label="Country" values={uniques.countries} state={countryF} onChange={setCountryF} />
-              {hasAnyFilter && (
-                <Button variant="ghost" size="sm" onClick={clearFilters} className="text-xs text-indigo-600 hover:text-indigo-700 h-9 px-2.5 font-semibold">
-                  Clear
-                </Button>
+        {modeTab === "planner" ? (
+          <DemandPlannerTab />
+        ) : (
+          <div className="space-y-4">
+            <Tabs value={domain} onValueChange={(v) => setDomain(v as PivotDomain)}>
+              <TabsList className="grid w-full grid-cols-3 max-w-[520px]">
+                <TabsTrigger value="energy" className="gap-2"><Zap className="h-4 w-4" /> Energy</TabsTrigger>
+                <TabsTrigger value="air" className="gap-2"><Wind className="h-4 w-4" /> Air Quality</TabsTrigger>
+                <TabsTrigger value="water" className="gap-2"><Droplet className="h-4 w-4" /> Water</TabsTrigger>
+              </TabsList>
+            </Tabs>
+
+            <Card>
+              <CardContent className="py-4 space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <ExcelFilterButton label="Status" values={uniques.statuses} state={statusF} onChange={setStatusF} />
+                  <ExcelFilterButton label="Category" values={uniques.categories} state={categoryF} onChange={setCategoryF} />
+                  <ExcelFilterButton label="PM" values={uniques.pms} state={pmF} onChange={setPmF} />
+                  <ExcelFilterButton label="Brand" values={uniques.brands} state={brandF} onChange={setBrandF} />
+                  <ExcelFilterButton label="Region" values={uniques.regions} state={regionF} onChange={setRegionF} />
+                  <ExcelFilterButton label="Country" values={uniques.countries} state={countryF} onChange={setCountryF} />
+                  {hasAnyFilter && (
+                    <Button variant="ghost" size="sm" onClick={clearFilters} className="text-xs text-indigo-600 hover:text-indigo-700 h-9 px-2.5 font-semibold">
+                      Reset Filters
+                    </Button>
+                  )}
+                  <div className="ml-auto text-xs text-muted-foreground font-semibold">
+                    {filtered.length} record{filtered.length === 1 ? "" : "s"} · {tree.length} date{tree.length === 1 ? "" : "s"}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="overflow-hidden p-4">
+              {isLoading ? (
+                <p className="py-12 text-center text-sm text-muted-foreground">Loading…</p>
+              ) : (
+                <PivotTableRenderer tree={tree} domain={domain} />
               )}
-              <div className="ml-auto text-xs text-muted-foreground">
-                {filtered.length} record{filtered.length === 1 ? "" : "s"} · {tree.length} date{tree.length === 1 ? "" : "s"}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="overflow-hidden">
-          {isLoading ? (
-            <p className="py-12 text-center text-sm text-muted-foreground">Loading…</p>
-          ) : (
-            <PivotTableRenderer tree={tree} valueHeader="Sum of n°" />
-          )}
-        </Card>
+            </Card>
+          </div>
+        )}
       </div>
     </MainLayout>
   );
