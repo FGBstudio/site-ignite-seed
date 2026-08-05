@@ -22,7 +22,7 @@ export interface NormalizedRecord {
   leed: number;
   well: number;
   co2: number;
-  unassigned: number;
+  unassigned?: number;
   // Raw filter fields (kept so the controller can filter uniformly).
   status: string | null;
   category: string | null;
