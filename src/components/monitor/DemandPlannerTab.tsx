@@ -8,6 +8,7 @@ import { useMonitorRows } from "@/hooks/useMonitorRows";
 import { useAirRows } from "@/hooks/useAirRows";
 import { adaptEnergy, adaptAir, buildPivotTree, parseDate, NormalizedRecord } from "@/lib/monitorPivot";
 import { PivotTableRenderer } from "@/components/monitor/PivotTableRenderer";
+import { useAirProductMap } from "@/hooks/useAirProducts";
 import {
   ResponsiveContainer,
   BarChart,
@@ -79,7 +80,7 @@ export function DemandPlannerTab() {
 
   const airBySiteId = useMemo(() => {
     const map = new Map<string, NormalizedRecord>();
-    const airRecords = adaptAir(air.data ?? []);
+    const airRecords = adaptAir(air.data ?? [], airProducts.data);
     airRecords.forEach((r) => {
       if (r.siteId) map.set(r.siteId, r);
     });

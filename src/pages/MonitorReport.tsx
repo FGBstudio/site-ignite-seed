@@ -10,9 +10,10 @@ import { useMonitorRows } from "@/hooks/useMonitorRows";
 import { useAirRows } from "@/hooks/useAirRows";
 import { useWaterRows } from "@/hooks/useWaterRows";
 import {
-  adaptEnergy, adaptAir, adaptWater, buildPivotTree,
+  adaptEnergy, adaptAir, adaptWater, buildPivotTree, bucketTotals,
   type NormalizedRecord, type PivotDomain,
 } from "@/lib/monitorPivot";
+import { useAirProductMap } from "@/hooks/useAirProducts";
 import { PivotTableRenderer } from "@/components/monitor/PivotTableRenderer";
 
 const emptyFilter: ExcelFilterState = { selectedValues: undefined, sort: null };
@@ -38,6 +39,7 @@ export default function MonitorReport() {
   const energy = useMonitorRows();
   const air = useAirRows();
   const water = useWaterRows();
+  const airProducts = useAirProductMap();
 
   const isLoading =
     (domain === "energy" && energy.isLoading) ||
@@ -46,9 +48,9 @@ export default function MonitorReport() {
 
   const normalized: NormalizedRecord[] = useMemo(() => {
     if (domain === "energy") return adaptEnergy(energy.data ?? []);
-    if (domain === "air") return adaptAir(air.data ?? []);
+    if (domain === "air") return adaptAir(air.data ?? [], airProducts.data);
     return adaptWater(water.data ?? []);
-  }, [domain, energy.data, air.data, water.data]);
+  }, [domain, energy.data, air.data, water.data, airProducts.data]);
 
   const uniques = useMemo(() => ({
     statuses: Array.from(new Set(normalized.map((r) => r.status).filter(Boolean) as string[])),
@@ -71,6 +73,7 @@ export default function MonitorReport() {
   }, [normalized, statusF, categoryF, pmF, brandF, regionF, countryF]);
 
   const tree = useMemo(() => buildPivotTree(filtered), [filtered]);
+  const totals = useMemo(() => bucketTotals(tree), [tree]);
 
   const hasAnyFilter = [statusF, categoryF, pmF, brandF, regionF, countryF]
     .some((f) => f.selectedValues !== undefined || f.sort !== null);
@@ -129,6 +132,22 @@ export default function MonitorReport() {
                 </div>
               </CardContent>
             </Card>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {([
+                { key: "current", label: "Closing this quarter", hint: "In scadenza", value: totals.current, tone: "text-amber-600" },
+                { key: "next", label: "Next quarter", hint: "Mid-construction", value: totals.next, tone: "text-blue-600" },
+                { key: "long", label: "Long-range forecast", hint: "6-month blocks", value: totals.long, tone: "text-emerald-600" },
+              ] as const).map((t) => (
+                <Card key={t.key}>
+                  <CardContent className="py-4">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">{t.label}</p>
+                    <p className={`mt-1 text-2xl font-black tabular-nums ${t.tone}`}>{t.value.toLocaleString("en-US")}</p>
+                    <p className="text-[10px] text-muted-foreground">{t.hint}</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
 
             <Card className="overflow-hidden p-4">
               {isLoading ? (
