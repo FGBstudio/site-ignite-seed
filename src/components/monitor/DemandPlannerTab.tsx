@@ -66,6 +66,8 @@ export function DemandPlannerTab() {
     staleTime: 60_000,
   });
 
+  const airProducts = useAirProductMap();
+
   const isLoading = (domain === "energy" ? energy.isLoading : air.isLoading);
 
   // Build hardware lookup maps by site_id from site_energy_records and site_air_records
@@ -85,7 +87,7 @@ export function DemandPlannerTab() {
       if (r.siteId) map.set(r.siteId, r);
     });
     return map;
-  }, [air.data]);
+  }, [air.data, airProducts.data]);
 
   const rawRecords: NormalizedRecord[] = useMemo(() => {
     // 1. Filter certifications strictly by selected monitoring during quotation/onboarding

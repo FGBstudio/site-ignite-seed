@@ -20,6 +20,7 @@ export function HardwareProcurementReport() {
 
   const energy = useMonitorRows();
   const air = useAirRows();
+  const airProducts = useAirProductMap();
 
   const isLoading = energy.isLoading || air.isLoading;
 
@@ -27,7 +28,7 @@ export function HardwareProcurementReport() {
   const rawRecords: NormalizedRecord[] = useMemo(() => {
     if (domain === "energy") return adaptEnergy(energy.data ?? []);
     return adaptAir(air.data ?? [], airProducts.data);
-  }, [domain, energy.data, air.data]);
+  }, [domain, energy.data, air.data, airProducts.data]);
 
   // Tab 1: Current Portfolio Records (Installed / Active / Delivered)
   const currentRecords = useMemo(() => {
