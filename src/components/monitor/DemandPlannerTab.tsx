@@ -6,8 +6,9 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useMonitorRows } from "@/hooks/useMonitorRows";
 import { useAirRows } from "@/hooks/useAirRows";
-import { adaptEnergy, adaptAir, buildPivotTree, parseDate, NormalizedRecord } from "@/lib/monitorPivot";
+import { adaptEnergy, adaptAir, buildPivotTree, parseDate, buildLabel, NormalizedRecord } from "@/lib/monitorPivot";
 import { PivotTableRenderer } from "@/components/monitor/PivotTableRenderer";
+import { useAirProductMap } from "@/hooks/useAirProducts";
 import {
   ResponsiveContainer,
   BarChart,
@@ -54,7 +55,7 @@ export function DemandPlannerTab() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("certifications")
-        .select("id, name, status, site_id, handover_date, created_at, region, has_energy_monitoring, has_iaq_monitoring, has_water_monitoring, sites(country, region)")
+        .select("id, name, status, site_id, handover_date, created_at, region, has_energy_monitoring, has_iaq_monitoring, has_water_monitoring, sites(country, region, city, name, brands(name))")
         .in("status", ["da_configurare", "in_corso", "in_progress", "quotation", "quotation_approved", "potential"]);
       if (error) {
         console.error("Error fetching certifications deals:", error);
@@ -64,6 +65,8 @@ export function DemandPlannerTab() {
     },
     staleTime: 60_000,
   });
+
+  const airProducts = useAirProductMap();
 
   const isLoading = (domain === "energy" ? energy.isLoading : air.isLoading);
 
@@ -79,12 +82,12 @@ export function DemandPlannerTab() {
 
   const airBySiteId = useMemo(() => {
     const map = new Map<string, NormalizedRecord>();
-    const airRecords = adaptAir(air.data ?? []);
+    const airRecords = adaptAir(air.data ?? [], airProducts.data);
     airRecords.forEach((r) => {
       if (r.siteId) map.set(r.siteId, r);
     });
     return map;
-  }, [air.data]);
+  }, [air.data, airProducts.data]);
 
   const rawRecords: NormalizedRecord[] = useMemo(() => {
     // 1. Filter certifications strictly by selected monitoring during quotation/onboarding
@@ -160,7 +163,11 @@ export function DemandPlannerTab() {
       return {
         date: isNaN(d.getTime()) ? new Date() : d,
         region: reg,
-        projectName: c.name || "Commercial Project",
+        projectName: buildLabel(
+          (Array.isArray(site?.brands) ? site?.brands[0]?.name : site?.brands?.name) ?? null,
+          site?.city ?? null,
+          c.name || site?.name || "Commercial Project",
+        ),
         value: value,
         siteId: siteId,
         bridges,

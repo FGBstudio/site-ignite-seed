@@ -7,6 +7,7 @@ import { useMonitorRows } from "@/hooks/useMonitorRows";
 import { useAirRows } from "@/hooks/useAirRows";
 import { adaptEnergy, adaptAir, buildPivotTree, NormalizedRecord } from "@/lib/monitorPivot";
 import { PivotTableRenderer } from "@/components/monitor/PivotTableRenderer";
+import { useAirProductMap } from "@/hooks/useAirProducts";
 import { ProjectsReports } from "@/components/projects/ProjectsReports";
 
 export function HardwareProcurementReport() {
@@ -19,14 +20,15 @@ export function HardwareProcurementReport() {
 
   const energy = useMonitorRows();
   const air = useAirRows();
+  const airProducts = useAirProductMap();
 
   const isLoading = energy.isLoading || air.isLoading;
 
   // Adapt raw data
   const rawRecords: NormalizedRecord[] = useMemo(() => {
     if (domain === "energy") return adaptEnergy(energy.data ?? []);
-    return adaptAir(air.data ?? []);
-  }, [domain, energy.data, air.data]);
+    return adaptAir(air.data ?? [], airProducts.data);
+  }, [domain, energy.data, air.data, airProducts.data]);
 
   // Tab 1: Current Portfolio Records (Installed / Active / Delivered)
   const currentRecords = useMemo(() => {

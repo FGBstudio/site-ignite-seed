@@ -2,6 +2,7 @@
 import { Fragment, useState } from "react";
 import { ChevronRight, ChevronDown, Plus, Minus } from "lucide-react";
 import type { PivotDate, PivotDomain } from "@/lib/monitorPivot";
+import { BUCKET_LABEL } from "@/lib/monitorPivot";
 
 interface Props {
   tree: PivotDate[];
@@ -59,6 +60,7 @@ export function PivotTableRenderer({ tree, domain = "energy", valueHeader }: Pro
   const grandLeed = tree.reduce((s, d) => s + d.leed, 0);
   const grandWell = tree.reduce((s, d) => s + d.well, 0);
   const grandCo2 = tree.reduce((s, d) => s + d.co2, 0);
+  const grandUnassigned = tree.reduce((s, d) => s + (d.unassigned ?? 0), 0);
 
   return (
     <div className="space-y-2">
@@ -95,6 +97,7 @@ export function PivotTableRenderer({ tree, domain = "energy", valueHeader }: Pro
                   <th className="text-right px-3.5 py-2.5 border-b border-border font-bold text-blue-600">LEED</th>
                   <th className="text-right px-3.5 py-2.5 border-b border-border font-bold text-amber-600">WELL</th>
                   <th className="text-right px-3.5 py-2.5 border-b border-border font-bold text-emerald-600">CO2</th>
+                  <th className="text-right px-3.5 py-2.5 border-b border-border font-bold text-slate-500">Unassigned</th>
                   <th className="text-right px-3.5 py-2.5 border-b border-border font-bold text-foreground">Total Monitors</th>
                 </>
               ) : (
@@ -104,10 +107,21 @@ export function PivotTableRenderer({ tree, domain = "energy", valueHeader }: Pro
             </tr>
           </thead>
           <tbody>
-            {tree.map((d) => {
+            {tree.map((d, di) => {
               const isDateCollapsed = collapsedDates.has(d.dateKey);
+              const showBucketHeader = di === 0 || tree[di - 1].bucket !== d.bucket;
               return (
                 <Fragment key={d.dateKey}>
+                  {showBucketHeader && (
+                    <tr className="bg-primary/5">
+                      <td
+                        colSpan={domain === "energy" ? 7 : domain === "air" ? 7 : 3}
+                        className="px-3.5 py-1.5 border-b border-border text-[10px] font-extrabold uppercase tracking-wider text-primary"
+                      >
+                        {BUCKET_LABEL[d.bucket]}
+                      </td>
+                    </tr>
+                  )}
                   {/* Date Header Row (Level 1) */}
                   <tr
                     onClick={() => toggleDate(d.dateKey)}
@@ -133,6 +147,7 @@ export function PivotTableRenderer({ tree, domain = "energy", valueHeader }: Pro
                         <td className="px-3.5 py-2 text-right border-b border-border tabular-nums font-bold text-blue-600">{d.leed || "—"}</td>
                         <td className="px-3.5 py-2 text-right border-b border-border tabular-nums font-bold text-amber-600">{d.well || "—"}</td>
                         <td className="px-3.5 py-2 text-right border-b border-border tabular-nums font-bold text-emerald-600">{d.co2 || "—"}</td>
+                        <td className="px-3.5 py-2 text-right border-b border-border tabular-nums font-bold text-slate-500">{d.unassigned || "—"}</td>
                         <td className="px-3.5 py-2 text-right border-b border-border tabular-nums font-extrabold">{d.value.toLocaleString("en-US")}</td>
                       </>
                     ) : (
@@ -172,6 +187,7 @@ export function PivotTableRenderer({ tree, domain = "energy", valueHeader }: Pro
                                 <td className="px-3.5 py-1.5 text-right border-b border-border/60 tabular-nums text-blue-600/90">{r.leed || "—"}</td>
                                 <td className="px-3.5 py-1.5 text-right border-b border-border/60 tabular-nums text-amber-600/90">{r.well || "—"}</td>
                                 <td className="px-3.5 py-1.5 text-right border-b border-border/60 tabular-nums text-emerald-600/90">{r.co2 || "—"}</td>
+                                <td className="px-3.5 py-1.5 text-right border-b border-border/60 tabular-nums text-slate-500">{r.unassigned || "—"}</td>
                                 <td className="px-3.5 py-1.5 text-right border-b border-border/60 tabular-nums font-bold">{r.value.toLocaleString("en-US")}</td>
                               </>
                             ) : (
@@ -245,6 +261,7 @@ export function PivotTableRenderer({ tree, domain = "energy", valueHeader }: Pro
                                       <td className="px-3.5 py-1.5 text-right border-b border-border/40 tabular-nums">{p.leed || "—"}</td>
                                       <td className="px-3.5 py-1.5 text-right border-b border-border/40 tabular-nums">{p.well || "—"}</td>
                                       <td className="px-3.5 py-1.5 text-right border-b border-border/40 tabular-nums">{p.co2 || "—"}</td>
+                                      <td className="px-3.5 py-1.5 text-right border-b border-border/40 tabular-nums text-slate-500">{p.unassigned || "—"}</td>
                                       <td className="px-3.5 py-1.5 text-right border-b border-border/40 tabular-nums font-semibold">{p.value.toLocaleString("en-US")}</td>
                                     </>
                                   ) : (
@@ -279,6 +296,7 @@ export function PivotTableRenderer({ tree, domain = "energy", valueHeader }: Pro
                   <td className="px-3.5 py-2.5 text-right tabular-nums text-blue-700">{grandLeed.toLocaleString("en-US")}</td>
                   <td className="px-3.5 py-2.5 text-right tabular-nums text-amber-700">{grandWell.toLocaleString("en-US")}</td>
                   <td className="px-3.5 py-2.5 text-right tabular-nums text-emerald-700">{grandCo2.toLocaleString("en-US")}</td>
+                  <td className="px-3.5 py-2.5 text-right tabular-nums text-slate-500">{grandUnassigned.toLocaleString("en-US")}</td>
                   <td className="px-3.5 py-2.5 text-right tabular-nums text-foreground">{grandTotal.toLocaleString("en-US")}</td>
                 </>
               ) : (
