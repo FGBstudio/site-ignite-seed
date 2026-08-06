@@ -162,9 +162,26 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
           
         if (certErr) console.error("Error loading certifications:", certErr);
 
-        const mappedCerts = (existingCerts || []).map((c: any) => ({
-          id: c.id, cert_type: c.cert_type, cert_rating: c.level, 
-        }));
+        // Same mapping as ProjectFormModal. `level` is the legacy column: it usually
+        // mirrors cert_rating, but on 112 certifications it holds the medal instead
+        // (Faenza: level "PLATINUM", cert_rating "ID+C"). Reading it first pushed the
+        // medal into the Rating System field, which matches no entry in RATING_SYSTEMS
+        // and renders blank — and that emptied Subtype too, since its options derive
+        // from the selected rating. cert_level and project_subtype were simply never
+        // mapped, so they came up blank on every edit regardless.
+        const mappedCerts = (existingCerts || []).map((c: any) => {
+          const medals = CERT_LEVELS[c.cert_type] || [];
+          const legacyIsMedal = !!c.level && medals.some((m) => m.toUpperCase() === String(c.level).toUpperCase());
+          return {
+            id: c.id,
+            cert_type: c.cert_type,
+            cert_rating: c.cert_rating || (legacyIsMedal ? "" : c.level || ""),
+            cert_level:
+              c.cert_level ||
+              (legacyIsMedal ? medals.find((m) => m.toUpperCase() === String(c.level).toUpperCase()) ?? "" : ""),
+            project_subtype: c.project_subtype || "",
+          };
+        });
 
         form.reset({
           name: project.name, client: project.client, region: project.region as any,
@@ -240,7 +257,15 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
 
       for (const certConf of data.certifications) {
         const certPayload = {
-          site_id: siteId, cert_type: certConf.cert_type, level: certConf.cert_rating || null,
+          site_id: siteId,
+          cert_type: certConf.cert_type,
+          // The form shows Rating System and Target Level, but neither column was
+          // ever written: only the legacy `level` was, so editing here silently
+          // discarded both. `level` stays as the legacy mirror of the RATING —
+          // what every reader falls back to — never the medal.
+          cert_rating: certConf.cert_rating || null,
+          cert_level: certConf.cert_level || null,
+          level: certConf.cert_rating || null,
         };
 
         const fullCertPayload = {

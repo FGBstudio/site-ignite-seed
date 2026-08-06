@@ -229,16 +229,34 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
 
           if (certErr) console.error("Error loading certifications:", certErr);
 
-          const mappedCerts = (existingCerts || []).map((c: any) => ({
-            id: c.id,
-            cert_type: c.cert_type,
-            cert_rating: c.level || c.cert_rating,
-            pm_id: c.pm_id || "",
-            project_subtype: c.project_subtype || "",
-            allocated_hours: c.allocated_hours != null ? Number(c.allocated_hours) : null,
-            has_iaq_monitoring: !!c.has_iaq_monitoring,
-            has_energy_monitoring: !!c.has_energy_monitoring,
-          }));
+          // `level` is the legacy column: it normally mirrors cert_rating (705 rows
+          // do), but on 112 certifications it holds the medal instead — Faenza has
+          // level = "PLATINUM" with cert_rating = "ID+C". Reading it first put the
+          // medal into the Rating System field, which then matched no entry in
+          // RATING_SYSTEMS and rendered as empty; that in turn emptied Subtype,
+          // whose options are derived from the selected rating. Prefer the
+          // dedicated column, exactly as every other reader does
+          // (useAdminPlannerData, usePMDashboard, useCeoDashboardData).
+          const mappedCerts = (existingCerts || []).map((c: any) => {
+            const medals = CERT_LEVELS[c.cert_type] || [];
+            const legacyIsMedal = !!c.level && medals.some((m) => m.toUpperCase() === String(c.level).toUpperCase());
+            return {
+              id: c.id,
+              cert_type: c.cert_type,
+              cert_rating: c.cert_rating || (legacyIsMedal ? "" : c.level || ""),
+              // Never mapped before, so the medal was blank on every edit. When it
+              // was only ever stored in the legacy column, recover it from there and
+              // normalise the casing to what the dropdown offers ("PLATINUM" → "Platinum").
+              cert_level:
+                c.cert_level ||
+                (legacyIsMedal ? medals.find((m) => m.toUpperCase() === String(c.level).toUpperCase()) ?? "" : ""),
+              pm_id: c.pm_id || "",
+              project_subtype: c.project_subtype || "",
+              allocated_hours: c.allocated_hours != null ? Number(c.allocated_hours) : null,
+              has_iaq_monitoring: !!c.has_iaq_monitoring,
+              has_energy_monitoring: !!c.has_energy_monitoring,
+            };
+          });
 
           const baseName = project.name.includes(" - ") ? project.name.split(" - ")[0] : project.name;
 
@@ -366,6 +384,10 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
           cert_rating: certConf.cert_rating || null,
           cert_level: certConf.cert_level || null,
           project_subtype: certConf.project_subtype || null,
+          // `level` is the legacy mirror of the RATING, not the medal — the same
+          // thing NewQuotationWizard and SiteProjectOnboardingForm write, and what
+          // every reader falls back to. Saving therefore repairs the 112 rows where
+          // a medal had ended up here, now that the load step rescues it first.
           level: certConf.cert_rating || null,
           allocated_hours: certConf.allocated_hours ?? null,
         };
