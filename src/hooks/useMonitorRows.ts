@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { SiteEnergyRecord } from "@/types/site-energy";
 import { useEnergyProductPrices, type EnergyPriceMap } from "@/lib/productPricing";
 import { loadIdentityMaps } from "@/lib/monitorIdentity";
+import { energyBucketFromName } from "@/lib/monitorPivot";
 
 export interface ShipmentAgg {
   customs_cost: number;
@@ -17,6 +18,14 @@ export interface ShipmentAgg {
 export interface MonitorRow extends SiteEnergyRecord {
   pm_name: string | null;
   po_numbers: string[];
+  // Devices physically assigned to the site, counted from `hardwares`. The
+  // counters on site_energy_records are hand-maintained and drift from reality
+  // (801 declared against 648 real), so the report reads these instead: a
+  // device only has an id once it exists.
+  produced_bridges: number;
+  produced_pan10: number;
+  produced_pan12: number;
+  produced_pan14: number;
   inbound: ShipmentAgg;
   outbound: ShipmentAgg;
   // Live derived (re-computed on the fly using product prices)
@@ -38,7 +47,14 @@ const FGB_RESOURCE_HOURS = 1 + 0.5 + 0.25 + 0.25 + 0.25 + 1 + 0.5 + 1 / 6 + 1 + 
 const FGB_RESOURCE_DEFAULT_EUR = 50 * FGB_RESOURCE_HOURS;
 
 interface ProfileRow { id: string; display_name: string | null; full_name: string | null; first_name: string | null; last_name: string | null; }
-interface HardwareJoin { site_id: string | null; purchase_order_id: string | null; ops_purchase_orders: { po_number: string | null } | null; }
+interface HardwareJoin {
+  site_id: string | null;
+  purchase_order_id: string | null;
+  hardware_type: string | null;
+  category: string | null;
+  status: string | null;
+  ops_purchase_orders: { po_number: string | null } | null;
+}
 interface ShipmentRow { purchase_order_id: string | null; shipment_type: string | null; customs_cost: number | null; vat: number | null; total_shipping_cost: number | null; tracking_number: string | null; }
 
 function pmName(p?: ProfileRow | null): string | null {
@@ -113,7 +129,7 @@ export function useMonitorRows() {
         siteIds.length
           ? supabase
               .from("hardwares" as never)
-              .select("site_id, purchase_order_id, ops_purchase_orders(po_number)")
+              .select("site_id, purchase_order_id, hardware_type, category, status, ops_purchase_orders(po_number)")
               .in("site_id", siteIds)
           : Promise.resolve({ data: [], error: null }),
       ]);
@@ -124,6 +140,23 @@ export function useMonitorRows() {
       const hardwares = (hardwaresRes.data ?? []) as unknown as HardwareJoin[];
       const poNumbersBySite = new Map<string, Set<string>>();
       const poIdsBySite = new Map<string, Set<string>>();
+
+      // Devices that physically exist on each site, by report bucket. "In Stock"
+      // is excluded: those are on a shelf, not committed to this project.
+      type Produced = { bridges: number; pan10: number; pan12: number; pan14: number };
+      const producedBySite = new Map<string, Produced>();
+      for (const h of hardwares) {
+        if (!h.site_id) continue;
+        if ((h.category ?? "").toLowerCase() !== "energy") continue;
+        if ((h.status ?? "") === "In Stock") continue;
+        const bucket = energyBucketFromName(h.hardware_type);
+        if (!bucket) continue; // Mango has never had a column in this report
+        if (!producedBySite.has(h.site_id)) {
+          producedBySite.set(h.site_id, { bridges: 0, pan10: 0, pan12: 0, pan14: 0 });
+        }
+        producedBySite.get(h.site_id)![bucket] += 1;
+      }
+
       for (const h of hardwares) {
         if (!h.site_id) continue;
         if (h.ops_purchase_orders?.po_number) {
@@ -163,6 +196,8 @@ export function useMonitorRows() {
         const inbound = aggForPoIds(r.site_id ? poIdsBySite.get(r.site_id) : undefined, "inbound");
         const outbound = aggForPoIds(r.site_id ? poIdsBySite.get(r.site_id) : undefined, "outbound");
         const live = deriveLive(r, priceInfo!.prices, inbound, outbound);
+        const produced = (r.site_id ? producedBySite.get(r.site_id) : undefined)
+          ?? { bridges: 0, pan10: 0, pan12: 0, pan14: 0 };
         const id =
           (r.certification_id ? identity.byCertId.get(r.certification_id) : null) ??
           (r.site_id ? identity.bySiteId.get(r.site_id) : null);
@@ -176,6 +211,10 @@ export function useMonitorRows() {
           project_name: id?.project ?? r.project_name ?? null,
           pm_name: pmName(profilesById.get(r.pm_id ?? "")),
           po_numbers: r.site_id ? Array.from(poNumbersBySite.get(r.site_id) ?? []) : [],
+          produced_bridges: produced.bridges,
+          produced_pan10: produced.pan10,
+          produced_pan12: produced.pan12,
+          produced_pan14: produced.pan14,
           inbound,
           outbound,
           ...live,

@@ -19,6 +19,7 @@ import {
   DialogTitle, DialogTrigger 
 } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { TypologyMixEditor } from "./TypologyMixEditor";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -924,7 +925,7 @@ function AirRow({
   airProducts: { id: string; name: string }[];
   airProductsMap: Map<string, string>;
 }) {
-  const [isEditingHandover, setIsEditingHandover] = useState(false);
+  // Handover date is no longer editable here: Operations owns it.
   const [isEditingShipment, setIsEditingShipment] = useState(false);
   const [isEditingNotes, setIsEditingNotes] = useState(false);
 
@@ -977,44 +978,16 @@ function AirRow({
       </td>
 
 
+      {/* 4. Monitor typology — quantities per product, not a single choice:
+           a project can legitimately carry LEED + WELL + CO2 together. */}
       <td className="px-4 py-4">
-        {r.air_product_ids.length > 0 ? (
-          <div className="flex flex-wrap gap-1">
-            {(() => {
-              const productCounts = r.air_product_ids.reduce((acc, pid) => {
-                acc[pid] = (acc[pid] || 0) + 1;
-                return acc;
-              }, {} as Record<string, number>);
-              return Object.entries(productCounts).map(([pid, count]) => (
-                <Badge
-                  key={pid}
-                  variant="outline"
-                  className="text-[10px] font-semibold bg-indigo-50 text-indigo-700 border-indigo-200 px-2 h-5 flex items-center gap-1 whitespace-nowrap"
-                  title={airProductsMap.get(pid) ?? pid.slice(0, 8)}
-                >
-                  <span className="truncate max-w-[130px]">{count > 1 ? `${count}x ` : ''}{airProductsMap.get(pid) ?? pid.slice(0, 8)}</span>
-                </Badge>
-              ));
-            })()}
-          </div>
-        ) : (
-          <Select
-            onValueChange={async (productId) => {
-              await onUpdate(r.id, 'air_product_ids', [productId], r);
-            }}
-          >
-            <SelectTrigger className="h-7 w-40 text-[11px] border-dashed border-slate-300 text-slate-400 bg-transparent focus:ring-0">
-              <SelectValue placeholder="Select type..." />
-            </SelectTrigger>
-            <SelectContent>
-              {airProducts.map(p => (
-                <SelectItem key={p.id} value={p.id} className="text-xs">
-                  {p.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
+        <TypologyMixEditor
+          productIds={r.air_product_ids}
+          airProducts={airProducts}
+          productNameById={airProductsMap}
+          totalSensors={r.total_sensors}
+          onSave={(ids) => onUpdate(r.id, 'air_product_ids', ids, r)}
+        />
       </td>
 
       {/* 1c. Region */}
@@ -1072,42 +1045,22 @@ function AirRow({
         </div>
       </td>
 
-      {/* 5. Handover Date (Inline Editable) */}
-      {isEditingHandover ? (
-        <td className="px-4 py-4 whitespace-nowrap">
-          <Input 
-            type="date"
-            defaultValue={r.handover_date ? new Date(r.handover_date).toISOString().split('T')[0] : ''}
-            autoFocus
-            onBlur={async (e) => {
-              setIsEditingHandover(false);
-              const newVal = e.target.value;
-              if (newVal !== (r.handover_date ? new Date(r.handover_date).toISOString().split('T')[0] : '')) {
-                await onUpdate(r.id, 'handover_date', newVal ? new Date(newVal).toISOString() : null, r);
-              }
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                (e.target as HTMLInputElement).blur();
-              }
-            }}
-            className="h-8 text-xs bg-white focus-visible:ring-indigo-500/20 w-36"
-          />
-        </td>
-      ) : (
-        <td 
-          className="px-4 py-4 whitespace-nowrap cursor-pointer hover:bg-slate-50/50" 
-          onClick={() => setIsEditingHandover(true)}
-        >
-          <span className={cn(
-            "text-xs font-medium inline-flex items-center gap-1.5",
-            isOverdue ? "text-rose-600 font-semibold" : "text-slate-600"
-          )}>
-            {isOverdue && <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-rose-500" />}
-            {r.handover_date ? format(new Date(r.handover_date), "MMM d, yy") : <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-600 border border-amber-300">TBD</span>}
-          </span>
-        </td>
-      )}
+      {/* 5. Handover Date — read-only mirror of Operations.
+           The date is owned by certifications.handover_date and kept in sync by
+           trg_cert_sync_monitor_handover; editing it here would be silently
+           overwritten on the next project save. */}
+      <td
+        className="px-4 py-4 whitespace-nowrap"
+        title="Handover date comes from Operations (project record) and cannot be edited here"
+      >
+        <span className={cn(
+          "text-xs font-medium inline-flex items-center gap-1.5",
+          isOverdue ? "text-rose-600 font-semibold" : "text-slate-600"
+        )}>
+          {isOverdue && <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-rose-500" />}
+          {r.handover_date ? format(new Date(r.handover_date), "MMM d, yy") : <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-600 border border-amber-300">TBD</span>}
+        </span>
+      </td>
 
       {/* 6. Shipment Date (Inline Editable) */}
       {isEditingShipment ? (

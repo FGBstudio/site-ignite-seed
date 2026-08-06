@@ -131,6 +131,7 @@ export function DemandPlannerTab() {
       let leed = airInfo ? airInfo.leed : (domain === "air" ? Number(c.total_sensors ?? 0) : 0);
       let well = airInfo ? airInfo.well : 0;
       let co2 = airInfo ? airInfo.co2 : 0;
+      let coco2 = airInfo ? airInfo.coco2 : 0;
 
       // Apply potential baseline requirement for estimated/unconfirmed stage when includeEstimates is true
       if (isEstimated) {
@@ -144,6 +145,7 @@ export function DemandPlannerTab() {
             leed = 1;
             well = 0;
             co2 = 0;
+            coco2 = 0;
           }
         } else {
           bridges = 0;
@@ -153,15 +155,22 @@ export function DemandPlannerTab() {
           leed = 0;
           well = 0;
           co2 = 0;
+          coco2 = 0;
         }
       }
 
-      const value = domain === "energy" 
+      const value = domain === "energy"
         ? (bridges + pan10 + pan12 + pan14)
-        : (leed + well + co2);
+        : (leed + well + co2 + coco2);
 
       return {
         date: isNaN(d.getTime()) ? new Date() : d,
+        // The planner deliberately falls back to created_at/today for pipeline
+        // deals, so only a real handover date counts as confirmed here.
+        dateSource: c.handover_date ? ("handover" as const) : ("fallback" as const),
+        // Estimated rows are forecast demand, not assigned hardware.
+        assigned: isEstimated ? 0 : value,
+        requested: isEstimated ? value : 0,
         region: reg,
         projectName: buildLabel(
           (Array.isArray(site?.brands) ? site?.brands[0]?.name : site?.brands?.name) ?? null,
@@ -177,6 +186,9 @@ export function DemandPlannerTab() {
         leed,
         well,
         co2,
+        coco2,
+        // Estimated rows have no SKU detail: the baseline is a family guess.
+        byProduct: isEstimated ? {} : (airInfo?.byProduct ?? {}),
         status: c.status,
         category: null,
         pm: null,
