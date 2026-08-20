@@ -26,6 +26,11 @@ export interface MonitorRow extends SiteEnergyRecord {
   produced_pan10: number;
   produced_pan12: number;
   produced_pan14: number;
+  /** Assigned devices outside the four buckets — Mango today. Without this they
+   *  were dropped from the report entirely instead of landing in "Other". */
+  produced_other: number;
+  /** Assigned devices per hardware_type, so the report can name the SKUs. */
+  produced_by_type: Record<string, number>;
   inbound: ShipmentAgg;
   outbound: ShipmentAgg;
   // Live derived (re-computed on the fly using product prices)
@@ -143,18 +148,28 @@ export function useMonitorRows() {
 
       // Devices that physically exist on each site, by report bucket. "In Stock"
       // is excluded: those are on a shelf, not committed to this project.
-      type Produced = { bridges: number; pan10: number; pan12: number; pan14: number };
+      type Produced = {
+        bridges: number; pan10: number; pan12: number; pan14: number;
+        other: number; byType: Record<string, number>;
+      };
+      const emptyProduced = (): Produced =>
+        ({ bridges: 0, pan10: 0, pan12: 0, pan14: 0, other: 0, byType: {} });
+
       const producedBySite = new Map<string, Produced>();
       for (const h of hardwares) {
         if (!h.site_id) continue;
         if ((h.category ?? "").toLowerCase() !== "energy") continue;
         if ((h.status ?? "") === "In Stock") continue;
+        if (!producedBySite.has(h.site_id)) producedBySite.set(h.site_id, emptyProduced());
+        const agg = producedBySite.get(h.site_id)!;
+        // A type outside the four buckets — Mango — used to be skipped, which
+        // dropped 7 assigned devices out of the report altogether. They belong
+        // in "Other": they exist, they just have no column of their own.
         const bucket = energyBucketFromName(h.hardware_type);
-        if (!bucket) continue; // Mango has never had a column in this report
-        if (!producedBySite.has(h.site_id)) {
-          producedBySite.set(h.site_id, { bridges: 0, pan10: 0, pan12: 0, pan14: 0 });
-        }
-        producedBySite.get(h.site_id)![bucket] += 1;
+        if (bucket) agg[bucket] += 1;
+        else agg.other += 1;
+        const type = (h.hardware_type ?? "").trim() || "Unspecified";
+        agg.byType[type] = (agg.byType[type] ?? 0) + 1;
       }
 
       for (const h of hardwares) {
@@ -196,8 +211,7 @@ export function useMonitorRows() {
         const inbound = aggForPoIds(r.site_id ? poIdsBySite.get(r.site_id) : undefined, "inbound");
         const outbound = aggForPoIds(r.site_id ? poIdsBySite.get(r.site_id) : undefined, "outbound");
         const live = deriveLive(r, priceInfo!.prices, inbound, outbound);
-        const produced = (r.site_id ? producedBySite.get(r.site_id) : undefined)
-          ?? { bridges: 0, pan10: 0, pan12: 0, pan14: 0 };
+        const produced = (r.site_id ? producedBySite.get(r.site_id) : undefined) ?? emptyProduced();
         const id =
           (r.certification_id ? identity.byCertId.get(r.certification_id) : null) ??
           (r.site_id ? identity.bySiteId.get(r.site_id) : null);
@@ -215,6 +229,8 @@ export function useMonitorRows() {
           produced_pan10: produced.pan10,
           produced_pan12: produced.pan12,
           produced_pan14: produced.pan14,
+          produced_other: produced.other,
+          produced_by_type: produced.byType,
           inbound,
           outbound,
           ...live,

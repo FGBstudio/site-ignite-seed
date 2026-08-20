@@ -14,7 +14,8 @@ import { useWaterRows } from "@/hooks/useWaterRows";
 import { useRequestedDemand } from "@/hooks/useRequestedDemand";
 import {
   adaptEnergy, adaptAir, adaptWater, buildPivotTree, bucketTotals,
-  type NormalizedRecord, type PivotDomain, type PivotTotals,
+  buildHeadlines, buildLongRows, typologyBreakdown,
+  type NormalizedRecord, type PivotDomain,
 } from "@/lib/monitorPivot";
 import { useAirProductMap } from "@/hooks/useAirProducts";
 import { PivotTableRenderer } from "@/components/monitor/PivotTableRenderer";
@@ -31,29 +32,6 @@ function matches(f: ExcelFilterState, v: string | null | undefined): boolean {
 
 import { DemandPlannerTab } from "@/components/monitor/DemandPlannerTab";
 import { TrendingUp, Table } from "lucide-react";
-
-/** Compact hardware breakdown shown under each horizon headline. */
-function breakdownOf(domain: PivotDomain, t: PivotTotals): string {
-  if (domain === "energy") {
-    const parts = [
-      t.bridges ? `${t.bridges} bridge` : null,
-      t.pan10 ? `${t.pan10}× Pan-10` : null,
-      t.pan12 ? `${t.pan12}× Pan-12` : null,
-      t.pan14 ? `${t.pan14}× Pan-14` : null,
-    ].filter(Boolean);
-    return parts.length ? parts.join(" · ") : "—";
-  }
-  if (domain === "air") {
-    const parts = [
-      t.leed ? `${t.leed} LEED` : null,
-      t.well ? `${t.well} WELL` : null,
-      t.co2 ? `${t.co2} CO2` : null,
-      t.unassigned ? `${t.unassigned} n/a` : null,
-    ].filter(Boolean);
-    return parts.length ? parts.join(" · ") : "—";
-  }
-  return t.value ? `${t.value} sensors` : "—";
-}
 
 export default function MonitorReport() {
   const [modeTab, setModeTab] = useState<"pivot" | "planner">("pivot");
@@ -83,9 +61,11 @@ export default function MonitorReport() {
 
   const normalized: NormalizedRecord[] = useMemo(() => {
     const req = includeRequested ? requested.data : undefined;
-    if (domain === "energy") return adaptEnergy(energy.data ?? [], req);
+    // Air records are per site, energy and water per certification — each
+    // adapter gets the index that matches its own grain.
+    if (domain === "energy") return adaptEnergy(energy.data ?? [], req?.byCertification);
     if (domain === "air") return adaptAir(air.data ?? [], airProducts.data, req);
-    return adaptWater(water.data ?? [], req);
+    return adaptWater(water.data ?? [], req?.byCertification);
   }, [domain, energy.data, air.data, water.data, airProducts.data, requested.data, includeRequested]);
 
   const uniques = useMemo(() => ({
@@ -114,21 +94,38 @@ export default function MonitorReport() {
     () => buildPivotTree(filtered, { hidePast, offsetDays }),
     [filtered, hidePast, offsetDays],
   );
-  const totals = useMemo(() => bucketTotals(tree), [tree]);
-
   // Overdue and undated rows must stay visible as headline numbers even when the
-  // table hides them — they are demand that has not gone away.
-  const alwaysTotals = useMemo(
+  // table hides them — they are demand that has not gone away. Hiding past rows
+  // only ever removes the `past` bucket, so this one set of totals is correct
+  // for every card, and the cards need no second source.
+  const completeTotals = useMemo(
     () => bucketTotals(buildPivotTree(filtered, { hidePast: false, offsetDays })),
     [filtered, offsetDays],
+  );
+
+  // The single place horizons are computed. The cards below render this, and
+  // the very same array is handed to the PDF and to the Excel reconciliation
+  // sheet — an export that derived its own is what made the PDF disagree.
+  const headlines = useMemo(
+    () => buildHeadlines(completeTotals, new Date(), hidePast),
+    [completeTotals, hidePast],
+  );
+
+  // The flat source table behind the Excel. Built from the same filtered
+  // records and the same bucketing, deliberately ignoring `hidePast`.
+  const longRows = useMemo(
+    () => buildLongRows(filtered, domain, { offsetDays }),
+    [filtered, domain, offsetDays],
   );
 
   const hasAnyFilter = [statusF, categoryF, pmF, brandF, regionF, countryF]
     .some((f) => f.selectedValues !== undefined || f.sort !== null);
 
-  // Reproduced in the exported file's header: a spreadsheet that does not say
-  // what it was filtered by cannot be reconciled with the screen it came from.
-  const filterSummary = useMemo(() => {
+  // Reproduced in the exported file's header. Every switch is reported,
+  // including the ones left alone: a sheet that only mentions what somebody
+  // happened to flip cannot be reconciled with the screen it came from, because
+  // the reader cannot tell a default from an omission.
+  const filterLines = useMemo(() => {
     const parts = ([
       ["Status", statusF], ["Category", categoryF], ["PM", pmF],
       ["Brand", brandF], ["Region", regionF], ["Country", countryF],
@@ -136,10 +133,12 @@ export default function MonitorReport() {
       .filter(([, f]) => f.selectedValues !== undefined)
       .map(([label, f]) => `${label}: ${Array.from(f.selectedValues ?? []).join(", ") || "none"}`);
 
-    if (hidePast) parts.push("past periods hidden");
-    if (!includeRequested) parts.push("requested demand excluded");
-    if (planOnSite) parts.push("planned on-site (handover − lead time)");
-    return parts.join(" · ");
+    parts.push(`Hide past handovers: ${hidePast ? "on" : "off"}`);
+    parts.push(`Include requested (not yet assigned): ${includeRequested ? "on" : "off"}`);
+    parts.push(
+      `Plan on on-site date (handover − ${ON_SITE_LEAD_DAYS}d): ${planOnSite ? "on" : "off"}`,
+    );
+    return parts;
   }, [statusF, categoryF, pmF, brandF, regionF, countryF, hidePast, includeRequested, planOnSite]);
 
   const clearFilters = () => {
@@ -147,12 +146,15 @@ export default function MonitorReport() {
     setBrandF(emptyFilter); setRegionF(emptyFilter); setCountryF(emptyFilter);
   };
 
-  const headlines = [
-    { key: "current", label: "Closing this quarter", hint: "In scadenza", totals: totals.current, tone: "text-amber-600" },
-    { key: "next", label: "Next quarter", hint: "Mid-construction", totals: totals.next, tone: "text-blue-600" },
-    { key: "long", label: "Long-range forecast", hint: "6-month blocks", totals: totals.long, tone: "text-emerald-600" },
-    { key: "past", label: "Overdue", hint: hidePast ? "Hidden in the table below" : "Handover already passed", totals: alwaysTotals.past, tone: "text-destructive" },
-  ] as const;
+  /** Colour is presentation, so it stays here rather than in the pure lib. */
+  const TONE: Record<string, string> = {
+    current: "text-amber-600",
+    next: "text-blue-600",
+    long: "text-emerald-600",
+    past: "text-destructive",
+  };
+  const cards = headlines.filter((h) => h.isCard);
+  const tbd = headlines.find((h) => !h.isCard);
 
   return (
     <MainLayout title="Monitor · Report & Demand Planning" subtitle="Aggregated pivot analytics and future hardware demand forecasting">
@@ -222,9 +224,9 @@ export default function MonitorReport() {
                       Plan on on-site date (handover − {ON_SITE_LEAD_DAYS}d)
                     </Label>
                   </div>
-                  {alwaysTotals.tbd.value > 0 && (
+                  {(tbd?.totals.requested ?? 0) > 0 && (
                     <span className="text-[11px] text-muted-foreground">
-                      ⚠ {alwaysTotals.tbd.value.toLocaleString("en-US")} units on projects with no handover date
+                      ⚠ {tbd!.totals.requested.toLocaleString("en-US")} units to produce on projects with no handover date
                     </span>
                   )}
                 </div>
@@ -232,14 +234,20 @@ export default function MonitorReport() {
             </Card>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-              {headlines.map((t) => (
+              {cards.map((t) => (
                 <Card key={t.key}>
                   <CardContent className="py-4">
                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">{t.label}</p>
-                    <p className={`mt-1 text-2xl font-black tabular-nums ${t.tone}`}>
-                      {t.totals.value.toLocaleString("en-US")}
+                    {/*
+                      Units still to produce, not the project total. A project
+                      already delivered — HIG Ballygunner's 65, Patrizia Ripa89's
+                      10 — is hardware that exists and must not be ordered twice.
+                    */}
+                    <p className={`mt-1 text-2xl font-black tabular-nums ${TONE[t.key]}`}>
+                      {t.totals.requested.toLocaleString("en-US")}
                     </p>
-                    <p className="text-[10px] text-muted-foreground">{breakdownOf(domain, t.totals)}</p>
+                    <p className="text-[10px] text-muted-foreground">{typologyBreakdown(domain, t.totals)}</p>
+                    <p className="text-[10px] text-muted-foreground/70">{t.range}</p>
                     <p className="text-[10px] text-muted-foreground/70 mt-0.5">{t.hint}</p>
                   </CardContent>
                 </Card>
@@ -250,7 +258,13 @@ export default function MonitorReport() {
               {isLoading ? (
                 <p className="py-12 text-center text-sm text-muted-foreground">Loading…</p>
               ) : (
-                <PivotTableRenderer tree={tree} domain={domain} filterSummary={filterSummary} />
+                <PivotTableRenderer
+                  tree={tree}
+                  domain={domain}
+                  filterLines={filterLines}
+                  headlines={headlines}
+                  longRows={longRows}
+                />
               )}
             </Card>
           </div>

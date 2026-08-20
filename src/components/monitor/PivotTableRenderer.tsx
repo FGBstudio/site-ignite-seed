@@ -2,7 +2,7 @@
 // breakdown, so the quarter numbers are readable without expanding anything.
 import { Fragment, useState } from "react";
 import { Plus, Minus, FileSpreadsheet, FileText, Loader2 } from "lucide-react";
-import type { PivotDate, PivotDomain, PivotTotals, PivotBucket } from "@/lib/monitorPivot";
+import type { PivotDate, PivotDomain, PivotTotals, PivotBucket, Headline, LongRow } from "@/lib/monitorPivot";
 import { BUCKET_LABEL, TYPOLOGY_LABEL, typologyFromProductName } from "@/lib/monitorPivot";
 import { flattenPivot, grandTotals, exportPivotExcel, exportPivotPdf } from "@/lib/monitorExport";
 import { useToast } from "@/hooks/use-toast";
@@ -11,8 +11,16 @@ interface Props {
   tree: PivotDate[];
   domain?: PivotDomain;
   valueHeader?: string;
-  /** Active filters, summarised for the export header. Empty when unfiltered. */
-  filterSummary?: string;
+  /** Every filter and toggle, one entry each, for the export header. */
+  filterLines?: string[];
+  /**
+   * The headline blocks rendered as cards on screen, passed straight through to
+   * the exports. They are NOT recomputed here: the PDF deriving its own
+   * horizons is what made it disagree with this table.
+   */
+  headlines?: Headline[];
+  /** The flat source table the Excel is built from. */
+  longRows?: LongRow[];
 }
 
 /** Only the numeric totals are renderable as a column — `byProduct` is a map. */
@@ -149,7 +157,14 @@ function statusBadge(rawSt: string): { style: string; label: string } {
   return { style: "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300", label: rawSt || "Upcoming" };
 }
 
-export function PivotTableRenderer({ tree, domain = "energy", valueHeader, filterSummary = "" }: Props) {
+export function PivotTableRenderer({
+  tree,
+  domain = "energy",
+  valueHeader,
+  filterLines = [],
+  headlines = [],
+  longRows = [],
+}: Props) {
   const [collapsedDates, setCollapsedDates] = useState<Set<string>>(new Set());
   const [collapsedRegions, setCollapsedRegions] = useState<Set<string>>(new Set());
   const [exporting, setExporting] = useState<"excel" | "pdf" | null>(null);
@@ -212,19 +227,24 @@ export function PivotTableRenderer({ tree, domain = "energy", valueHeader, filte
 
   const grand = cols.map((c) => tree.reduce((s, d) => s + (d[c.key] ?? 0), 0));
 
-  // Exports mirror the screen: same columns, same filters, same rows expanded.
+  // The PDF mirrors the screen — same columns, same filters, same rows expanded
+  // — while the Excel ships the flat source table the pivot is built from, so
+  // it can be pivoted again. Both are handed their totals; neither derives any.
   const runExport = async (format: "excel" | "pdf") => {
     setExporting(format);
     try {
-      const rows = flattenPivot(tree, cols, collapsedDates, collapsedRegions);
       const meta = {
         domain: domain.charAt(0).toUpperCase() + domain.slice(1),
-        filterSummary,
+        domainKey: domain,
+        filterLines,
         generatedAt: new Date().toISOString().slice(0, 16).replace("T", " "),
       };
-      const args = [rows, cols, grandTotals(tree, cols), meta] as const;
-      if (format === "excel") await exportPivotExcel(...args);
-      else await exportPivotPdf(...args);
+      if (format === "excel") {
+        await exportPivotExcel(longRows, meta, headlines);
+      } else {
+        const rows = flattenPivot(tree, cols, collapsedDates, collapsedRegions);
+        await exportPivotPdf(rows, cols, grandTotals(tree, cols), meta, headlines);
+      }
     } catch (e) {
       // The libraries are loaded on demand, so a failure here is worth surfacing
       // rather than leaving the button spinning with nothing downloaded.

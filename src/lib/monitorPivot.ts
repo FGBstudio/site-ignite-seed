@@ -160,6 +160,27 @@ export const STATUS_LABEL: Record<MonitorStatus, string> = {
 };
 
 /**
+ * Cancellation label, written by fn_recalculate_site_air when a project is
+ * cancelled. Deliberately NOT a rung on STATUS_LADDER: the ladder ranks how far
+ * along a project is, and "cancelled" is orthogonal to that — folding it in
+ * would let a cancelled project win the "least advanced" tie-break and mislabel
+ * a whole aggregate.
+ */
+export const CANCELLED_STATUS = "Cancelled";
+
+/** Both spellings, and the aggregate forms ("2 Cancelled") the column can hold. */
+const CANCELLED_TEST = /\bcancell?ed\b/;
+
+/**
+ * True when a monitor row belongs to a cancelled project. Such a row still
+ * shows — the number it used to need is remembered in its notes — but every
+ * quantity it contributes is zero.
+ */
+export function isCancelledStatus(raw: string | null | undefined): boolean {
+  return CANCELLED_TEST.test((raw ?? "").trim().toLowerCase());
+}
+
+/**
  * Collapses any status string — plain or count-aggregated — to one canonical
  * value. Statuses that are not shipment states (certification statuses such as
  * `in_corso` or `da_configurare`) are passed through untouched.
@@ -167,6 +188,10 @@ export const STATUS_LABEL: Record<MonitorStatus, string> = {
 export function canonicalStatus(raw: string | null | undefined): string | null {
   const s = (raw ?? "").trim().toLowerCase();
   if (!s) return null;
+
+  // Checked before the ladder so both spellings collapse to one filter entry
+  // instead of two, and so a cancelled row never reads as "Requested".
+  if (CANCELLED_TEST.test(s)) return CANCELLED_STATUS;
 
   const found = STATUS_PATTERNS.filter((p) => p.test.test(s)).map((p) => p.status);
   if (found.length === 0) return raw!.trim();
@@ -393,9 +418,28 @@ function macroRegion(region: string | null | undefined, country: string | null |
 }
 
 /** Requested (not yet assigned) demand for one certification, per domain. */
+/** Demand indexed both ways; see useRequestedDemand for why both are needed. */
+export interface RequestedDemandMaps {
+  byCertification: Map<string, RequestedDemand>;
+  bySite: Map<string, RequestedDemand>;
+}
+
 export interface RequestedDemand {
-  /** Total units requested from Operations/PM. */
+  /** Units still to produce: requested and not yet shipped or installed. */
   quantity: number;
+  /**
+   * Units already shipped or installed. Not demand, so never part of
+   * `quantity` — kept only to discount the floor `total_sensors` sets on an
+   * Upcoming row, which counts every live allocation regardless of stage.
+   */
+  servedQuantity?: number;
+  /**
+   * Units belonging to a project on hold. Neither demand nor delivered:
+   * suspended. They keep their place in the Monitor Hub, where the row still
+   * states what the project will need, and count zero everywhere the report
+   * asks what to order.
+   */
+  heldQuantity?: number;
   /** Requested typology mix, when the request names specific AIR products. */
   typologies?: Record<AirTypology, number>;
   /** Requested mix per product name, so requested SKUs stay distinct too. */
@@ -456,21 +500,37 @@ export function adaptEnergy(
     const p10 = hasHardwareCounts ? Number(r.produced_pan10 ?? 0) : Number(r.no_pan10 ?? 0);
     const p12 = hasHardwareCounts ? Number(r.produced_pan12 ?? 0) : Number(r.no_pan12 ?? 0);
     const p14 = hasHardwareCounts ? Number(r.produced_pan14 ?? 0) : Number(r.no_pan14 ?? 0);
-    const produced = b + p10 + p12 + p14;
+    // Devices outside the four buckets exist and must be counted; they land in
+    // "Other" rather than being dropped, exactly as unmapped AIR products do.
+    const other = hasHardwareCounts ? Number(r.produced_other ?? 0) : 0;
+    const produced = b + p10 + p12 + p14 + other;
 
     // Requested but never given a device id — the production order.
     const askedFor = Number(req?.quantity ?? 0);
     const toProduce = Math.max(askedFor - produced, 0);
 
     // The request names products; spread it over the buckets it actually names,
-    // never stretched (the quantities are explicit), remainder left out of the
-    // breakdown but still counted in the total.
+    // never stretched (the quantities are explicit), remainder left in "Other".
     const requestedByBucket: Record<string, number> = {};
     for (const [name, qty] of Object.entries(req?.byProduct ?? {})) {
       const bucket = energyBucketFromName(name);
       if (bucket && qty > 0) requestedByBucket[bucket] = (requestedByBucket[bucket] ?? 0) + qty;
     }
     const toProduceSplit = distributeExplicit(toProduce, requestedByBucket);
+
+    // Per-SKU breakdown across both halves, so Energy gets the same chips and
+    // tooltip as AIR: "3× FGB-12" says what to build, "Pan-12" does not.
+    const byProduct: Record<string, number> = { ...(r.produced_by_type ?? {}) };
+    if (toProduce > 0) {
+      const requestedNames = Object.entries(req?.byProduct ?? {}).filter(([, q]) => q > 0);
+      const requestedTotal = requestedNames.reduce((s, [, q]) => s + q, 0);
+      for (const [name, qty] of requestedNames) {
+        // Scale the request down to the part still outstanding, so the chips
+        // describe what is left to build rather than the original order.
+        const share = requestedTotal > 0 ? Math.round((qty * toProduce) / requestedTotal) : 0;
+        if (share > 0) byProduct[name] = (byProduct[name] ?? 0) + share;
+      }
+    }
 
     const tot = produced + toProduce;
 
@@ -496,11 +556,16 @@ export function adaptEnergy(
       well: 0,
       co2: 0,
       coco2: 0,
-      unassigned: 0,
-      // Units the request did not attribute to any bucket (Mango, Greeny, or a
-      // generic placeholder) still count in the total; they just have no column.
+      // "Other": devices that exist but sit outside the four buckets…
+      unassigned: other,
+      // …and units the request did not attribute to any of them (Mango, Greeny,
+      // or a generic placeholder). Both count in the total; neither has a column.
       unassignedToProduce: toProduceSplit.unassigned,
-      typologySource: "monitoring",
+      byProduct,
+      // Nothing describes this project's mix when neither side names a product,
+      // which is what the "NO TYPOLOGY" marker is for.
+      typologySource:
+        produced > 0 ? "monitoring" : sumCounts(requestedByBucket) > 0 ? "request" : "none",
       status: canonicalStatusLabel(r.status),
       category: r.category ?? null,
       pm: r.pm_name ?? null,
@@ -528,11 +593,20 @@ export function adaptEnergy(
 export function adaptAir(
   rows: AirMonitorRow[],
   productNameById?: Map<string, string>,
-  requestedByCertId?: Map<string, RequestedDemand>,
+  requested?: RequestedDemandMaps,
 ): NormalizedRecord[] {
   const out: NormalizedRecord[] = [];
   for (const r of rows) {
-    const req = r.certification_id ? requestedByCertId?.get(r.certification_id) : undefined;
+    // site_air_records holds one row per SITE, so the demand has to be read per
+    // site too. A site certified under several schemas splits its requests
+    // across those certifications, and reading only the one this record points
+    // at lost the rest — Offices HQ showed 5 WELL black and buried its 15
+    // CO-CO2 black under "Unassigned" because they hang off a sibling
+    // certification. The certification lookup stays as a fallback for records
+    // whose certification carries no site.
+    const req =
+      (r.id ? requested?.bySite?.get(r.id) : undefined) ??
+      (r.certification_id ? requested?.byCertification?.get(r.certification_id) : undefined);
     const { date, dateSource } = resolveDate(r.handover_date, r.latest_shipment_date);
 
     // A device only has an id once it physically exists, so `total_sensors` is
@@ -542,7 +616,18 @@ export function adaptAir(
     // measured on 2026-08-06, all 92 Upcoming rows have zero hardware and none
     // of the other 277 is Upcoming.
     const isUpcoming = /^\s*upcoming\s*$/i.test(r.status ?? "");
-    const declared = Number(r.total_sensors ?? 0);
+
+    // A cancelled project contributes nothing to either half. The row survives —
+    // it names a project that existed, and the count it used to need is spelled
+    // out in its notes — but it must not add a single unit to any total.
+    //
+    // Enforced here as well as in fn_recalculate_site_air, which zeroes
+    // total_sensors: the demand half does not come from that column at all, it
+    // comes from project_allocations via useRequestedDemand, so zeroing the
+    // record alone would still let a cancelled project ask for sensors.
+    const isCancelled = isCancelledStatus(r.status);
+
+    const declared = isCancelled ? 0 : Number(r.total_sensors ?? 0);
     const produced = isUpcoming ? 0 : declared;
 
     // What the project asked for, across every live allocation status.
@@ -554,7 +639,18 @@ export function adaptAir(
     // those 38 sensors vanish from the report, Kering Eyewear's 20 among them.
     // Taking the larger of the two keeps them while still letting a fuller
     // allocation (420 units against 302 declared) win where both exist.
-    const askedFor = Math.max(Number(req?.quantity ?? 0), isUpcoming ? declared : 0);
+    // `declared` is a floor, not a truth: on an Upcoming row it counts every
+    // live allocation, shipped and installed ones included. Discount those, or
+    // a fully served project would come back as demand through the floor —
+    // BAY Cappagh Ratoath Road, 127 units, is exactly that case.
+    // Suspended units are discounted from the floor for the same reason served
+    // ones are: on an Upcoming row `declared` is the whole request, so a project
+    // put on hold would climb straight back into the production order through
+    // the floor even though its allocations no longer count as demand.
+    const served = Number(req?.servedQuantity ?? 0);
+    const held = Number(req?.heldQuantity ?? 0);
+    const declaredFloor = isUpcoming ? Math.max(declared - served - held, 0) : 0;
+    const askedFor = isCancelled ? 0 : Math.max(Number(req?.quantity ?? 0), declaredFloor);
     // Units still to build: a request that has not been given an id yet.
     const toProduce = Math.max(askedFor - produced, 0);
     // The project needs both halves; they never double-count because toProduce
@@ -569,7 +665,10 @@ export function adaptAir(
     const requestedByProduct = keepTypedProducts(req?.byProduct ?? {});
 
     let typologySource: TypologySource;
-    if (sumCounts(monitoringByProduct) > 0) typologySource = "monitoring";
+    // Nothing is being built, so no mix describes this row — claiming one would
+    // put a "NO TYPOLOGY"-style attribution on units that do not exist.
+    if (isCancelled) typologySource = "none";
+    else if (sumCounts(monitoringByProduct) > 0) typologySource = "monitoring";
     else if (sumCounts(requestedByProduct) > 0) typologySource = "request";
     else typologySource = "none";
 
@@ -728,6 +827,19 @@ export const BUCKET_LABEL: Record<PivotBucket, string> = {
   next: "Mid-construction — next quarter",
   long: "Long-range forecast (6-month blocks)",
   tbd: "Handover date to be defined — not plannable yet",
+};
+
+/**
+ * Bucket names for the Excel source sheet, whose headers are in Italian.
+ * Typed against PivotBucket so a new bucket cannot be added on screen and
+ * forgotten here.
+ */
+export const BUCKET_LABEL_IT: Record<PivotBucket, string> = {
+  past: "Arretrati",
+  current: "Trimestre corrente",
+  next: "Trimestre successivo",
+  long: "Lungo periodo",
+  tbd: "Senza data",
 };
 
 /** Reading resolution of a period node, derived from its distance from today. */
@@ -1057,6 +1169,239 @@ export function bucketTotals(tree: PivotPeriod[]): Record<PivotBucket, PivotTota
     tbd: emptyTotals(),
   };
   for (const p of tree) addInto(out[p.bucket], p);
+  return out;
+}
+
+// ── Shared headline blocks ──────────────────────────────────────────────────
+//
+// The cards on screen, the cards in the PDF and the reconciliation sheet of the
+// Excel all read this one function. Nothing downstream derives a horizon of its
+// own: the export doing exactly that is how the PDF came to contradict the
+// table it was printed from — rolling 30/90-day windows against calendar
+// quarters, two cards against four, and a cumulative second card against
+// per-period ones.
+
+function startOfQuarter(d: Date): Date {
+  return new Date(d.getFullYear(), (quarterOf(d) - 1) * 3, 1);
+}
+
+/** Day 0 of the following month is the last day of this one. */
+function endOfQuarter(d: Date): Date {
+  const s = startOfQuarter(d);
+  return new Date(s.getFullYear(), s.getMonth() + 3, 0);
+}
+
+function fmtRangeDay(d: Date): string {
+  return `${d.getDate()} ${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+export interface Headline {
+  key: PivotBucket;
+  label: string;
+  hint: string;
+  /** The window spelled out, so nobody has to infer what the label covers. */
+  range: string;
+  totals: PivotTotals;
+  /** True when the table below is hiding these rows from view. */
+  hiddenInTable: boolean;
+  /** TBD is a warning line rather than one of the four horizon cards. */
+  isCard: boolean;
+}
+
+/**
+ * Headline blocks for every bucket, with the calendar window each one spans.
+ *
+ * `byBucket` must come from a tree built with `hidePast: false` — hiding past
+ * rows is a display choice, and the Overdue card has to keep reporting them.
+ * The boundaries below are derived from the same quarter arithmetic `bucketOf`
+ * uses, so a card can never claim a window the bucketing does not honour.
+ */
+export function buildHeadlines(
+  byBucket: Record<PivotBucket, PivotTotals>,
+  now: Date = new Date(),
+  hidePast = false,
+): Headline[] {
+  const today = startOfDay(now);
+  const curEnd = endOfQuarter(today);
+  const nextStart = addDays(curEnd, 1);
+  const nextEnd = endOfQuarter(nextStart);
+  const longStart = addDays(nextEnd, 1);
+
+  return [
+    {
+      key: "current", label: "Closing this quarter", hint: "In scadenza",
+      range: `${fmtRangeDay(today)} – ${fmtRangeDay(curEnd)}`,
+      totals: byBucket.current, hiddenInTable: false, isCard: true,
+    },
+    {
+      key: "next", label: "Next quarter", hint: "Mid-construction",
+      range: `${fmtRangeDay(nextStart)} – ${fmtRangeDay(nextEnd)}`,
+      totals: byBucket.next, hiddenInTable: false, isCard: true,
+    },
+    {
+      key: "long", label: "Long-range forecast", hint: "6-month blocks",
+      range: `from ${fmtRangeDay(longStart)}`,
+      totals: byBucket.long, hiddenInTable: false, isCard: true,
+    },
+    {
+      key: "past", label: "Overdue",
+      hint: hidePast ? "Hidden in the table below" : "Handover already passed",
+      range: `before ${fmtRangeDay(today)}`,
+      totals: byBucket.past, hiddenInTable: hidePast, isCard: true,
+    },
+    {
+      key: "tbd", label: "No handover date", hint: "Not plannable yet",
+      range: "handover date missing",
+      totals: byBucket.tbd, hiddenInTable: false, isCard: false,
+    },
+  ];
+}
+
+// ── Long (source) table ─────────────────────────────────────────────────────
+
+/** Fields carried by both a record and an aggregated node, so one table serves both. */
+type TypologyField = keyof PivotTotals & keyof NormalizedRecord;
+
+/** Typology columns per domain: label, produced field, still-to-produce field. */
+const LONG_TYPOLOGIES: Record<PivotDomain, Array<[string, TypologyField, TypologyField]>> = {
+  air: [
+    ["LEED", "leed", "leedToProduce"],
+    ["WELL", "well", "wellToProduce"],
+    ["CO2", "co2", "co2ToProduce"],
+    ["CO-CO2", "coco2", "coco2ToProduce"],
+    ["Unassigned", "unassigned", "unassignedToProduce"],
+  ],
+  energy: [
+    ["Bridge", "bridges", "bridgesToProduce"],
+    ["Pan-10", "pan10", "pan10ToProduce"],
+    ["Pan-12", "pan12", "pan12ToProduce"],
+    ["Pan-14", "pan14", "pan14ToProduce"],
+    ["Other", "unassigned", "unassignedToProduce"],
+  ],
+  water: [],
+};
+
+/**
+ * The "22 LEED · 80 CO2 · 42 CO-CO2" line under a headline: the mix of what is
+ * still to PRODUCE. Shared by the cards on screen and the ones in the PDF, so
+ * the two cannot drift apart.
+ */
+export function typologyBreakdown(domain: PivotDomain, t: PivotTotals): string {
+  const cols = LONG_TYPOLOGIES[domain];
+  if (!cols.length) return t.requested ? `${t.requested} sensors` : "—";
+  const parts = cols
+    .map(([label, , toProduceKey]) => {
+      const qty = Number(t[toProduceKey] ?? 0);
+      if (!qty) return null;
+      return `${qty} ${label === "Unassigned" ? "n/a" : label}`;
+    })
+    .filter(Boolean);
+  return parts.length ? parts.join(" · ") : "—";
+}
+
+export interface LongRow {
+  project: string;
+  client: string | null;
+  city: string | null;
+  brand: string | null;
+  region: string;
+  country: string | null;
+  pm: string | null;
+  /** Contractual handover, untouched by the on-site lead time. */
+  handover: Date | null;
+  /** The date the bucket, quarter and month below are computed on. */
+  planDate: Date | null;
+  bucket: PivotBucket;
+  bucketLabel: string;
+  quarter: string;
+  month: string;
+  status: string | null;
+  typology: string;
+  /** Units already on site. */
+  delivered: number;
+  /** Units built and assigned, not yet delivered. */
+  assigned: number;
+  toProduce: number;
+  notes: string | null;
+}
+
+/**
+ * True when every unit on the row has reached the site.
+ *
+ * `canonicalStatus` collapses a project to its LEAST advanced shipment, so a
+ * partly delivered project reads as not-yet-delivered. Conservative by design,
+ * and exact on the current data: none of the 385 air rows carries a compound
+ * status, so no row is split across two stages.
+ */
+function isOnSite(status: string | null | undefined): boolean {
+  const c = canonicalStatus(status);
+  return c === "delivered" || c === "installed";
+}
+
+/**
+ * The flat source table the pivot is built from: one row per project ×
+ * typology, in long format, so it can be pivoted again in a spreadsheet.
+ *
+ * `hidePast` is deliberately NOT honoured here. Hiding overdue rows is a
+ * display choice of the table on screen, while the Overdue card keeps counting
+ * them — dropping them from the source sheet would make its bucket sums
+ * disagree with the very cards it exists to reconcile.
+ */
+export function buildLongRows(
+  records: NormalizedRecord[],
+  domain: PivotDomain,
+  options: PivotOptions = {},
+): LongRow[] {
+  const now = options.now ?? new Date();
+  const offsetDays = options.offsetDays ?? 0;
+  const out: LongRow[] = [];
+
+  for (const r of records) {
+    const planDate = r.date && offsetDays ? addDays(r.date, -offsetDays) : r.date;
+    const bucket = bucketOf(planDate, now);
+    const onSite = isOnSite(r.status);
+
+    const emit = (typology: string, produced: number, toProduce: number): boolean => {
+      if (!produced && !toProduce) return false;
+      out.push({
+        project: r.projectName,
+        client: r.client ?? null,
+        city: r.city ?? null,
+        brand: r.brand ?? null,
+        region: r.region,
+        country: r.country ?? null,
+        pm: r.pm ?? null,
+        handover: r.date,
+        planDate,
+        bucket,
+        bucketLabel: BUCKET_LABEL_IT[bucket],
+        quarter: planDate ? fmtQuarterLabel(planDate) : "",
+        month: planDate ? `${MONTH_NAMES[planDate.getMonth()]} ${planDate.getFullYear()}` : "",
+        status: canonicalStatusLabel(r.status),
+        typology,
+        delivered: onSite ? produced : 0,
+        assigned: onSite ? 0 : produced,
+        toProduce,
+        notes: r.note?.trim() || null,
+      });
+      return true;
+    };
+
+    const cols = LONG_TYPOLOGIES[domain];
+    if (!cols.length) {
+      emit("Sensors", r.assigned ?? 0, r.requested ?? 0);
+      continue;
+    }
+
+    let emitted = false;
+    for (const [label, producedKey, toProduceKey] of cols) {
+      if (emit(label, Number(r[producedKey] ?? 0), Number(r[toProduceKey] ?? 0))) emitted = true;
+    }
+    // A record whose units carry no typology at all must still reach the sheet,
+    // or its hardware silently stops being ordered.
+    if (!emitted) emit("Unassigned", r.assigned ?? 0, r.requested ?? 0);
+  }
+
   return out;
 }
 
