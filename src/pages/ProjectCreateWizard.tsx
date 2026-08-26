@@ -6,8 +6,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useHoldings, useBrands, useSites } from "@/hooks/useProjectDetails";
 import { useProjectManagers } from "@/hooks/useProjectManagers";
 import { useWizardDraft, EMPTY_CERT, type WizardDraft, type CertEntry } from "@/hooks/useWizardDraft";
-import { getCertificationTemplate, CERT_TYPES, CERT_RATINGS, CERT_LEVELS, CERT_SUBTYPES } from "@/data/certificationTemplates";
-import { RATING_SYSTEMS, RATING_SUBTYPES, type RatingSystem } from "@/data/ratingSubtypes";
+import { getCertificationTemplate } from "@/data/certificationTemplates";
+import { useCertCatalog } from "@/hooks/useCertCatalog";
 import { toast } from "@/hooks/use-toast";
 
 import { Button } from "@/components/ui/button";
@@ -215,12 +215,9 @@ export default function ProjectCreateWizard() {
 
             if (templateInfo) {
               const rows: any[] = [];
-              templateInfo.timeline.forEach((t) => {
-                rows.push({
-                  certification_id: certData.id, category: "Timeline", requirement: t.name,
-                  milestone_type: "timeline", status: "pending",
-                });
-              });
+              // La timeline la crea il database — fn_materialize_timeline legge
+              // cert_timeline_steps quando il progetto esce dalla fase
+              // commerciale. Qui resta la scorecard, non ancora in tabella.
               templateInfo.scorecard.forEach((s) => {
                 rows.push({
                   certification_id: certData.id, category: s.category, requirement: s.requirement,
@@ -685,16 +682,12 @@ function CertConfigCard({ cert, index, errors, pms, loadingPMs, isAdmin, onUpdat
   onUpdate: (p: Partial<CertEntry>) => void;
   onRemove: () => void;
 }) {
-  const ratings = CERT_RATINGS[cert.cert_type] || [];
-  const levels = CERT_LEVELS[cert.cert_type] || [];
-
-  // For LEED, subtypes come from RATING_SUBTYPES; for others from CERT_SUBTYPES
-  let subtypes: string[] = [];
-  if (cert.cert_type === "LEED" && cert.cert_rating) {
-    subtypes = RATING_SUBTYPES[cert.cert_rating as RatingSystem] || [];
-  } else if (cert.cert_rating) {
-    subtypes = CERT_SUBTYPES[`${cert.cert_type}|${cert.cert_rating}`] || [];
-  }
+  // Rating, tipologia e medaglie vengono dal catalogo: prima LEED pescava da un
+  // elenco e gli altri schemi da un altro, e i due non erano d'accordo.
+  const catalog = useCertCatalog();
+  const ratings = catalog.ratingsOf(cert.cert_type);
+  const subtypes = catalog.typologiesOf(cert.cert_type, cert.cert_rating || null);
+  const levels = catalog.levelsOf(cert.cert_type, cert.cert_rating || null, cert.project_subtype || null);
 
   return (
     <Card className="border-primary/20">
@@ -722,7 +715,7 @@ function CertConfigCard({ cert, index, errors, pms, loadingPMs, isAdmin, onUpdat
           <FieldWrapper label="Target Level">
             <Select value={cert.cert_level} onValueChange={(v) => onUpdate({ cert_level: v })} disabled={levels.length === 0}>
               <SelectTrigger><SelectValue placeholder={levels.length === 0 ? "N/A" : "Select level"} /></SelectTrigger>
-              <SelectContent>{levels.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}</SelectContent>
+              <SelectContent>{levels.map((l) => <SelectItem key={l.level} value={l.level}>{l.level}</SelectItem>)}</SelectContent>
             </Select>
           </FieldWrapper>
 

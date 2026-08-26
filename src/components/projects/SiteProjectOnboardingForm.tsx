@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { useHoldings, useBrands, useSites } from "@/hooks/useProjectDetails";
+import { fetchAssignableManagers } from "@/hooks/useProjectManagers";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 // IMPORT FIXATO: I componenti Form mancavano!
@@ -24,7 +25,7 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { NewBrandButton, NewHoldingButton } from "@/components/projects/BrandHoldingCreator";
 
-import { RATING_SYSTEMS, RATING_SUBTYPES, type RatingSystem } from "@/data/ratingSubtypes";
+import { useCertCatalog } from "@/hooks/useCertCatalog";
 import { getCertificationTemplate } from "@/data/certificationTemplates";
 import type { Product, Project, ProjectAllocation } from "@/types/custom-tables";
 
@@ -111,6 +112,8 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
   const { data: brands = [], isLoading: loadingBrands } = useBrands(selectedHoldingId || undefined);
   const { data: sites = [], isLoading: loadingSites } = useSites(selectedBrandId || undefined);
 
+  const catalog = useCertCatalog();
+
   const form = useForm<ProjectFormData>({
     resolver: zodResolver(formSchema),
     defaultValues: { 
@@ -132,15 +135,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
       if (!isAdmin) return;
       setLoadingPMs(true);
       try {
-        const { data: rolesData, error: rolesError } = await supabase.from("user_roles").select("user_id").eq("role", "PM");
-        if (rolesError) throw rolesError;
-        if (!rolesData || rolesData.length === 0) return setPmList([]);
-        const pmIds = rolesData.map(r => r.user_id);
-        const { data: profilesData, error: profilesError } = await supabase.from("profiles").select("id, full_name, display_name, first_name, last_name, email").in("id", pmIds);
-        if (profilesError) throw profilesError;
-        setPmList((profilesData || []).map((p: any) => ({
-          id: p.id, full_name: p.full_name || p.display_name || [p.first_name, p.last_name].filter(Boolean).join(" ") || p.email || "PM",
-        })));
+        setPmList(await fetchAssignableManagers());
       } catch (err) {
         console.error("Error fetching PMs:", err);
       } finally {
@@ -289,7 +284,9 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
           const templateInfo = getCertificationTemplate(certConf.cert_type, certConf.cert_rating, certConf.project_subtype);
           if (templateInfo) {
             const milestoneRows: any[] = [];
-            templateInfo.timeline.forEach((t) => milestoneRows.push({ certification_id: newCert.id, category: "Timeline", requirement: t.name, milestone_type: "timeline", status: "pending" }));
+            // La timeline la crea il database — fn_materialize_timeline legge
+            // cert_timeline_steps quando il progetto esce dalla fase commerciale.
+            // Qui resta la scorecard, che in tabella non c'è ancora.
             templateInfo.scorecard.forEach((s) => milestoneRows.push({ certification_id: newCert.id, category: s.category, requirement: s.requirement, milestone_type: "scorecard", max_score: s.max_score, score: 0, status: "pending" }));
 
             if (milestoneRows.length > 0) {
@@ -481,8 +478,10 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
                       const certType = cert.cert_type;
                       const watchedRating = form.watch(`certifications.${index}.cert_rating`);
                       
-                      const availableLevels = CERT_LEVELS[certType] || [];
-                      const availableSubtypes = watchedRating && RATING_SUBTYPES[watchedRating as RatingSystem] ? RATING_SUBTYPES[watchedRating as RatingSystem] : [];
+                      const watchedSubtype = form.watch(`certifications.${index}.project_subtype`);
+                      const availableRatings = catalog.ratingsOf(certType);
+                      const availableSubtypes = catalog.typologiesOf(certType, watchedRating || null);
+                      const availableLevels = catalog.levelsOf(certType, watchedRating || null, watchedSubtype || null);
 
                       return (
                         <div key={index} className="p-5 border-2 border-slate-100 rounded-xl bg-white shadow-sm relative group hover:border-primary/30 transition-colors">
@@ -494,10 +493,10 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
                           <h5 className="font-bold text-lg text-slate-800 mb-4 border-b pb-2">{CERT_DISPLAY_LABELS[certType] ?? certType} Configuration</h5>
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <FormField control={form.control} name={`certifications.${index}.cert_rating`} render={({ field: f }) => (
-                              <FormItem><FormLabel>Rating System</FormLabel><Select onValueChange={(v) => { f.onChange(v); form.setValue(`certifications.${index}.project_subtype`, undefined); }} value={f.value || ""}><FormControl><SelectTrigger><SelectValue placeholder="Select Rating" /></SelectTrigger></FormControl><SelectContent>{RATING_SYSTEMS.map((v) => (<SelectItem key={v} value={v}>{v}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>
+                              <FormItem><FormLabel>Rating System</FormLabel><Select onValueChange={(v) => { f.onChange(v); form.setValue(`certifications.${index}.project_subtype`, undefined); }} value={f.value || ""}><FormControl><SelectTrigger><SelectValue placeholder="Select Rating" /></SelectTrigger></FormControl><SelectContent>{availableRatings.map((v) => (<SelectItem key={v} value={v}>{v}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>
                             )} />
                             <FormField control={form.control} name={`certifications.${index}.cert_level`} render={({ field: f }) => (
-                              <FormItem><FormLabel>Target Level (Medal)</FormLabel><Select onValueChange={f.onChange} value={f.value || ""} disabled={availableLevels.length === 0}><FormControl><SelectTrigger><SelectValue placeholder={availableLevels.length === 0 ? "N/A" : "Select level"} /></SelectTrigger></FormControl><SelectContent>{availableLevels.map((v) => (<SelectItem key={v} value={v}>{v}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>
+                              <FormItem><FormLabel>Target Level (Medal)</FormLabel><Select onValueChange={f.onChange} value={f.value || ""} disabled={availableLevels.length === 0}><FormControl><SelectTrigger><SelectValue placeholder={availableLevels.length === 0 ? "N/A" : "Select level"} /></SelectTrigger></FormControl><SelectContent>{availableLevels.map((l) => (<SelectItem key={l.level} value={l.level}>{l.level}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>
                             )} />
                             <FormField control={form.control} name={`certifications.${index}.project_subtype`} render={({ field: f }) => (
                               <FormItem><FormLabel>Subtype</FormLabel><Select onValueChange={f.onChange} value={f.value || ""} disabled={availableSubtypes.length === 0}><FormControl><SelectTrigger><SelectValue placeholder={availableSubtypes.length === 0 ? "N/A" : "Select subtype"} /></SelectTrigger></FormControl><SelectContent>{availableSubtypes.map((v) => (<SelectItem key={v} value={v}>{v}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>

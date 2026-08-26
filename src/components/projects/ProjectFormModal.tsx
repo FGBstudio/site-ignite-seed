@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { useHoldings, useBrands, useSites } from "@/hooks/useProjectDetails";
+import { fetchAssignableManagers } from "@/hooks/useProjectManagers";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
@@ -23,7 +24,7 @@ import { CalendarIcon, Plus, Trash2, Loader2, Edit3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 
-import { RATING_SYSTEMS, RATING_SUBTYPES, type RatingSystem } from "@/data/ratingSubtypes";
+import { useCertCatalog } from "@/hooks/useCertCatalog";
 import { getCertificationTemplate } from "@/data/certificationTemplates";
 import type { Product, Project, ProjectAllocation } from "@/types/custom-tables";
 import { QuotationBudgetBuilder, emptyBuilder } from "@/components/projects/QuotationBudgetBuilder";
@@ -40,7 +41,18 @@ const PROJECT_STATUSES = [
 ] as const;
 const ALLOCATION_STATUSES = ["Draft", "Allocated", "Requested", "Shipped", "Installed_Online"] as const;
 
-const AVAILABLE_CERTS = ["LEED", "WELL", "BREEAM", "ESG", "GRESB"] as const;
+/**
+ * Gli schemi selezionabili vengono da `cert_catalog`, la stessa tabella che il
+ * database consulta per rifiutare le combinazioni inventate: quello che il menu
+ * non offre, il database non accetta. Prima erano quattro elenchi diversi in
+ * quattro file, e nessuno coincideva con gli altri.
+ *
+ * Qui non resta nessuna lista: il tipo e' una stringa libera per la validazione
+ * del form, perche' il vocabolario vero e' altrove. Un tipo che il catalogo non
+ * conosce viene fermato al salvataggio, con un messaggio che dice quale campo
+ * e' sbagliato — non con un rifiuto muto come accadeva prima, quando 114
+ * progetti risultavano impossibili da salvare senza che si capisse perche'.
+ */
 
 const CERT_DISPLAY_LABELS: Record<string, string> = {
   LEED: "LEED",
@@ -48,15 +60,29 @@ const CERT_DISPLAY_LABELS: Record<string, string> = {
   BREEAM: "BREEAM",
   ESG: "ESG - Taxonomy",
   GRESB: "GRESB",
+  Air: "Air — ClAir IAQ",
+  Energy: "Energy — Greeny",
   Energy_Audit: "Energy Audit",
+  TAXONOMY: "Taxonomy",
+  CSRD: "CSRD",
 };
 
-const CERT_LEVELS: Record<string, string[]> = {
+/**
+ * Le medaglie NON si scelgono piu' da qui — vengono dal catalogo, che le sa per
+ * combinazione e non per schema: il Bronze di WELL esiste solo sul v2 Pilot e
+ * WiredScore Home ha il solo Certified.
+ *
+ * Questa mappa sopravvive per un unico scopo storico. La colonna `level` e'
+ * legacy: di norma rispecchia cert_rating, ma su 112 certificazioni contiene la
+ * medaglia — Faenza ha level = "PLATINUM" con cert_rating = "ID+C". Per capire
+ * quale delle due cose contenga serve sapere se quel valore somiglia a una
+ * medaglia, e questo controllo gira mentre il catalogo e' ancora in
+ * caricamento. Non e' un vocabolario: e' un riconoscitore di formato.
+ */
+const LEGACY_MEDAL_SHAPES: Record<string, string[]> = {
   LEED: ["Certified", "Silver", "Gold", "Platinum"],
   WELL: ["Bronze", "Silver", "Gold", "Platinum"],
   BREEAM: ["Pass", "Good", "Very Good", "Excellent", "Outstanding"],
-  ESG: [],
-  GRESB: [],
 };
 
 const formSchema = z.object({
@@ -75,7 +101,7 @@ const formSchema = z.object({
   certifications: z.array(z.object({
     id: z.string().optional(),
     project_id: z.string().optional(),
-    cert_type: z.enum(["LEED", "WELL", "BREEAM", "ESG", "GRESB"]),
+    cert_type: z.string().min(1, "Certification type required"),
     cert_rating: z.string().optional(),
     cert_level: z.string().optional(),
     project_subtype: z.string().optional(),
@@ -133,6 +159,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
   const { data: holdings = [], isLoading: loadingHoldings } = useHoldings();
   const { data: brands = [], isLoading: loadingBrands } = useBrands(selectedHoldingId || undefined);
   const { data: sites = [], isLoading: loadingSites } = useSites(selectedBrandId || undefined);
+  const catalog = useCertCatalog();
 
   const isQuotationMode = mode === "create_quotation";
   const isConfirmMode = mode === "confirm_project";
@@ -165,15 +192,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
       if (mode === "create_quotation") return; // No PMs needed
       setLoadingPMs(true);
       try {
-        const { data: rolesData, error: rolesError } = await supabase.from("user_roles").select("user_id").eq("role", "PM");
-        if (rolesError) throw rolesError;
-        if (!rolesData || rolesData.length === 0) return setPmList([]);
-        const pmIds = rolesData.map(r => r.user_id);
-        const { data: profilesData, error: profilesError } = await supabase.from("profiles").select("id, full_name, display_name, first_name, last_name, email").in("id", pmIds);
-        if (profilesError) throw profilesError;
-        setPmList((profilesData || []).map((p: any) => ({
-          id: p.id, full_name: p.full_name || p.display_name || [p.first_name, p.last_name].filter(Boolean).join(" ") || p.email || "PM",
-        })));
+        setPmList(await fetchAssignableManagers());
       } catch (err) {
         console.error("Error fetching PMs:", err);
       } finally {
@@ -238,7 +257,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
           // dedicated column, exactly as every other reader does
           // (useAdminPlannerData, usePMDashboard, useCeoDashboardData).
           const mappedCerts = (existingCerts || []).map((c: any) => {
-            const medals = CERT_LEVELS[c.cert_type] || [];
+            const medals = LEGACY_MEDAL_SHAPES[c.cert_type] || [];
             const legacyIsMedal = !!c.level && medals.some((m) => m.toUpperCase() === String(c.level).toUpperCase());
             return {
               id: c.id,
@@ -426,13 +445,13 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
             if (templateInfo) {
               const milestoneRows: any[] = [];
               
-              templateInfo.timeline.forEach((t) => {
-                milestoneRows.push({ 
-                  certification_id: newCert.id, category: "Timeline", requirement: t.name, 
-                  milestone_type: "timeline", status: "pending" 
-                });
-              });
-              
+              // La timeline NON si genera piu' qui: la crea il database quando
+              // il progetto esce dalla fase commerciale (fn_materialize_timeline,
+              // che legge cert_timeline_steps). Quattro componenti che generavano
+              // la stessa cosa erano quattro modi di sbagliarla — e dopo la
+              // riorganizzazione del vocabolario il registro locale avrebbe
+              // pescato la scaletta sbagliata per BREEAM In-Use e per ogni WELL.
+              // La scorecard resta qui: i punteggi non sono ancora in tabella.
               templateInfo.scorecard.forEach((s) => {
                 milestoneRows.push({ 
                   certification_id: newCert.id, category: s.category, requirement: s.requirement, 
@@ -810,7 +829,8 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
                 <div className="p-4 bg-slate-50 border rounded-lg">
                   <h4 className="text-sm font-semibold mb-3 text-slate-700">Toggle Schemas:</h4>
                   <div className="flex flex-wrap gap-3">
-                    {AVAILABLE_CERTS.map((type) => {
+                    {catalog.schemes.map(({ scheme, label }) => {
+                      const type = scheme;
                       const isSelected = watchedCerts.some(c => c.cert_type === type);
                       return (
                         <div key={type} className={cn("flex items-center space-x-2 border rounded-full px-4 py-2 transition-colors", isSelected ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground hover:bg-muted")}>
@@ -827,7 +847,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
                               }
                             }}
                           />
-                          <Label htmlFor={`cert-${type}`} className="cursor-pointer font-medium">{CERT_DISPLAY_LABELS[type] ?? type}</Label>
+                          <Label htmlFor={`cert-${type}`} className="cursor-pointer font-medium">{label}</Label>
                         </div>
                       );
                     })}
@@ -840,8 +860,14 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
                       const certType = form.watch(`certifications.${index}.cert_type`);
                       const watchedRating = form.watch(`certifications.${index}.cert_rating`);
                       
-                      const availableLevels = CERT_LEVELS[certType] || [];
-                      const availableSubtypes = watchedRating && RATING_SUBTYPES[watchedRating as RatingSystem] ? RATING_SUBTYPES[watchedRating as RatingSystem] : [];
+                      const watchedSubtype = form.watch(`certifications.${index}.project_subtype`);
+                      // Tre tendine a cascata dal catalogo. I rating sono vuoti
+                      // dove lo schema non ne ha — WELL, WiredScore, Envision —
+                      // e le medaglie dipendono dalla combinazione, non dal solo
+                      // schema: il Bronze di WELL vive solo sul v2 Pilot.
+                      const availableRatings = catalog.ratingsOf(certType);
+                      const availableSubtypes = catalog.typologiesOf(certType, watchedRating || null);
+                      const availableLevels = catalog.levelsOf(certType, watchedRating || null, watchedSubtype || null);
 
                       return (
                         <div key={field.id} className="p-5 border-2 border-slate-100 rounded-xl bg-white shadow-sm relative group hover:border-primary/30 transition-colors">
@@ -855,9 +881,9 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
                             <FormField control={form.control} name={`certifications.${index}.cert_rating`} render={({ field: f }) => (
                               <FormItem>
                                 <FormLabel>Rating System</FormLabel>
-                                <Select onValueChange={(v) => { f.onChange(v); form.setValue(`certifications.${index}.project_subtype`, undefined); }} value={f.value || ""}>
-                                  <FormControl><SelectTrigger><SelectValue placeholder="Select Rating" /></SelectTrigger></FormControl>
-                                  <SelectContent>{RATING_SYSTEMS.map((v) => (<SelectItem key={v} value={v}>{v}</SelectItem>))}</SelectContent>
+                                <Select onValueChange={(v) => { f.onChange(v); form.setValue(`certifications.${index}.project_subtype`, undefined); }} value={f.value || ""} disabled={availableRatings.length === 0}>
+                                  <FormControl><SelectTrigger><SelectValue placeholder={availableRatings.length === 0 ? "N/A per questo schema" : "Select Rating"} /></SelectTrigger></FormControl>
+                                  <SelectContent>{availableRatings.map((v) => (<SelectItem key={v} value={v}>{v}</SelectItem>))}</SelectContent>
                                 </Select>
                                 <FormMessage />
                               </FormItem>
@@ -867,7 +893,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
                                 <FormLabel>Target Level (Medal)</FormLabel>
                                 <Select onValueChange={f.onChange} value={f.value || ""} disabled={availableLevels.length === 0}>
                                   <FormControl><SelectTrigger><SelectValue placeholder={availableLevels.length === 0 ? "N/A" : "Select level"} /></SelectTrigger></FormControl>
-                                  <SelectContent>{availableLevels.map((v) => (<SelectItem key={v} value={v}>{v}</SelectItem>))}</SelectContent>
+                                  <SelectContent>{availableLevels.map((l) => (<SelectItem key={l.level} value={l.level}>{l.level}{l.score_min != null ? ` · ${l.score_min}–${l.score_max}` : ""}</SelectItem>))}</SelectContent>
                                 </Select>
                                 <FormMessage />
                               </FormItem>

@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useHoldings, useBrands, useSites } from "@/hooks/useProjectDetails";
 import { useAuth } from "@/contexts/AuthContext";
 import { NewHoldingButton, NewBrandButton } from "@/components/projects/BrandHoldingCreator";
-import { getRatings, getSubtypes } from "@/data/ratingSubtypes";
+import { useCertCatalog } from "@/hooks/useCertCatalog";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { PAYMENT_SCHEMES, TRIGGER_LABELS, generateTranches, validateCustomTranches, type PaymentSchemeId, type TriggerEvent } from "@/lib/paymentSchemes";
@@ -37,8 +37,25 @@ import {
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 const REGIONS = ["Europe", "America", "APAC", "ME"] as const;
-const AVAILABLE_CERTS = ["LEED", "WELL", "BREEAM", "ESG", "GRESB", "Energy_Audit"] as const;
-type CertType = (typeof AVAILABLE_CERTS)[number];
+/**
+ * Gli schemi quotabili.
+ *
+ * `Air` ed `Energy` stanno qui accanto a LEED perché esistono progetti in cui
+ * il monitoraggio È il progetto: nessuna certificazione ambientale, solo i
+ * sensori. Oggi sono 81 in tabella, tutti di tipo Energy, nati prima che il
+ * tipo Air esistesse.
+ *
+ * Da non confondere con le caselle "Monitoring services" più sotto: quelle
+ * dicono che un progetto LEED comprende ANCHE il monitoraggio. Il tipo dice
+ * che il monitoraggio è tutto il progetto.
+ */
+/**
+ * Gli schemi offerti in quotazione vengono da `cert_catalog`, la stessa tabella
+ * che il database usa per rifiutare le combinazioni inventate. Prima erano una
+ * lista fissa qui, una diversa nel form progetto, una terza nei template e una
+ * quarta nel vincolo CHECK — e nessuna coincideva con le altre.
+ */
+type CertType = string;
 
 const CERT_DISPLAY_LABELS: Record<string, string> = {
   LEED: "LEED",
@@ -47,8 +64,11 @@ const CERT_DISPLAY_LABELS: Record<string, string> = {
   ESG: "Taxonomy ESG",
   GRESB: "GRESB",
   Energy_Audit: "Energy Audit",
+  Air: "Air — ClAir IAQ",
+  Energy: "Energy — Greeny",
 };
 
+/** Le medaglie previste da ogni schema. Vuoto = lo schema non ne ha. */
 const CERT_LEVELS: Record<CertType, string[]> = {
   LEED: ["Certified", "Silver", "Gold", "Platinum"],
   WELL: ["Bronze", "Silver", "Gold", "Platinum"],
@@ -56,6 +76,8 @@ const CERT_LEVELS: Record<CertType, string[]> = {
   ESG: [],
   GRESB: [],
   Energy_Audit: [],
+  Air: [],
+  Energy: [],
 };
 
 type QuotationStrategy = "single" | "split" | null;
@@ -88,12 +110,38 @@ interface MonitoringFlags {
   hardwareRedirect: boolean;
 }
 
+/**
+ * Quanti dispositivi promette l'offerta, quando l'offerta lo dice.
+ *
+ * Spuntare la casella È già la richiesta — vale come se l'avesse fatta il PM.
+ * Il numero, se c'è, decide cosa succede all'approvazione: con un numero il
+ * progetto entra subito anche nel Monitor con quella quantità; senza, entra
+ * solo in Operations e sarà il PM a formulare la richiesta più avanti.
+ *
+ * Stringa e non numero perché il campo può restare vuoto, ed è proprio il
+ * vuoto a portare l'informazione "non lo sappiamo ancora".
+ */
+interface MonitoringQuantities {
+  iaq: string;
+  energy: string;
+  water: string;
+}
+
+const emptyQuantities = (): MonitoringQuantities => ({ iaq: "", energy: "", water: "" });
+
+/** Il numero digitato, o null se il campo è vuoto o non è un numero valido. */
+const parseQuantity = (raw: string): number | null => {
+  const n = Number.parseInt(raw, 10);
+  return Number.isFinite(n) && n > 0 ? n : null;
+};
+
 interface CertConfig {
   cert_type: CertType;
   cert_rating: string;
   cert_level: string;
   project_subtype: string;
   flags: MonitoringFlags;
+  quantities: MonitoringQuantities;
   // Quotation fields per certification
   services_fees: string;
   gbci_fees: string;
@@ -107,6 +155,46 @@ function emptyFlags(): MonitoringFlags {
   return { iaq: false, energy: false, water: false, hardwareRedirect: false };
 }
 
+/**
+ * Un servizio di monitoraggio nell'offerta: se serve, e quanti.
+ *
+ * Il campo della quantità compare solo a servizio spuntato, perché "quanti" ha
+ * senso soltanto dopo aver detto "sì". Restare vuoto è una risposta legittima e
+ * significa "servono, ma il numero lo definirà il PM".
+ */
+function MonitoringService({
+  label,
+  checked,
+  quantity,
+  onToggle,
+  onQuantity,
+}: {
+  label: string;
+  checked: boolean;
+  quantity: string;
+  onToggle: (value: boolean) => void;
+  onQuantity: (value: string) => void;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <label className="flex items-center gap-2 text-sm cursor-pointer">
+        <Checkbox checked={checked} onCheckedChange={(v) => onToggle(!!v)} />
+        {label}
+      </label>
+      {checked && (
+        <Input
+          value={quantity}
+          onChange={(e) => onQuantity(e.target.value)}
+          placeholder="qty"
+          inputMode="numeric"
+          className="h-7 w-16 text-xs text-center"
+          aria-label={`Quantity for ${label}`}
+        />
+      )}
+    </div>
+  );
+}
+
 function emptyCertConfig(type: CertType): CertConfig {
   return {
     cert_type: type,
@@ -114,6 +202,7 @@ function emptyCertConfig(type: CertType): CertConfig {
     cert_level: "",
     project_subtype: "",
     flags: emptyFlags(),
+    quantities: emptyQuantities(),
     services_fees: "",
     gbci_fees: "",
     total_fees: "",
@@ -174,6 +263,7 @@ interface Props {
 export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }: Props) {
   const { toast } = useToast();
   const { isAdmin } = useAuth();
+  const catalog = useCertCatalog();
   const [step, setStep] = useState<StepNum>(1);
   const [quotationStrategy, setQuotationStrategy] = useState<QuotationStrategy>(null);
   const [site, setSite] = useState<SiteState>(emptySite());
@@ -256,7 +346,30 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
     setServices((s) => ({
       ...s,
       certifications: s.certifications.map((c) =>
-        c.cert_type === type ? { ...c, flags: { ...c.flags, [flag]: value } } : c
+        c.cert_type === type
+          ? {
+              ...c,
+              flags: { ...c.flags, [flag]: value },
+              // Togliendo il servizio si toglie anche la quantità: lasciarla
+              // scritta significherebbe promettere dispositivi che l'offerta
+              // non contiene più.
+              quantities:
+                !value && (flag === "iaq" || flag === "energy" || flag === "water")
+                  ? { ...c.quantities, [flag]: "" }
+                  : c.quantities,
+            }
+          : c
+      ),
+    }));
+  };
+
+  const updateCertQuantity = (type: CertType, domain: keyof MonitoringQuantities, value: string) => {
+    // Solo cifre: il campo dice quanti pezzi, non accetta altro.
+    const clean = value.replace(/[^\d]/g, "");
+    setServices((s) => ({
+      ...s,
+      certifications: s.certifications.map((c) =>
+        c.cert_type === type ? { ...c, quantities: { ...c.quantities, [domain]: clean } } : c
       ),
     }));
   };
@@ -490,6 +603,12 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
             has_iaq_monitoring: cert.flags.iaq,
             has_energy_monitoring: cert.flags.energy,
             has_water_monitoring: cert.flags.water,
+            // Quante unità promette l'offerta. NULL significa "servono ma non
+            // sappiamo ancora quante": all'approvazione il progetto entrerà solo
+            // in Operations, e il Monitor lo vedrà quando il PM farà la richiesta.
+            quoted_iaq_quantity: cert.flags.iaq ? parseQuantity(cert.quantities.iaq) : null,
+            quoted_energy_quantity: cert.flags.energy ? parseQuantity(cert.quantities.energy) : null,
+            quoted_water_quantity: cert.flags.water ? parseQuantity(cert.quantities.water) : null,
             has_hardware_redirection: cert.flags.hardwareRedirect,
             services_fees: cert.services_fees ? Number(cert.services_fees) : null,
             gbci_fees: cert.gbci_fees ? Number(cert.gbci_fees) : null,
@@ -735,7 +854,8 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
       </div>
 
       <div className="flex flex-wrap gap-2">
-        {AVAILABLE_CERTS.map((type) => {
+        {catalog.schemes.filter((sc) => sc.isSellable).map(({ scheme, label }) => {
+          const type = scheme;
           const selected = services.certifications.some((c) => c.cert_type === type);
           return (
             <button
@@ -750,7 +870,7 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
               )}
             >
               {selected && <CheckCircle2 className="h-3.5 w-3.5" />}
-              {CERT_DISPLAY_LABELS[type] ?? type}
+              {label}
             </button>
           );
         })}
@@ -761,9 +881,9 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
       {services.certifications.length > 0 && (
         <div className="space-y-3">
           {services.certifications.map((cert) => {
-            const levels = CERT_LEVELS[cert.cert_type] ?? [];
-            const ratings = getRatings(cert.cert_type);
-            const subtypes = cert.cert_rating ? getSubtypes(cert.cert_type, cert.cert_rating) : [];
+            const ratings = catalog.ratingsOf(cert.cert_type);
+            const subtypes = catalog.typologiesOf(cert.cert_type, cert.cert_rating || null);
+            const levels = catalog.levelsOf(cert.cert_type, cert.cert_rating || null, cert.project_subtype || null);
             return (
               <Card key={cert.cert_type} className="border-primary/20">
                 <CardContent className="pt-4">
@@ -783,7 +903,7 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
                       <Label className="text-xs">Target Level</Label>
                       <Select value={cert.cert_level} onValueChange={(v) => updateCert(cert.cert_type, "cert_level", v)} disabled={levels.length === 0}>
                         <SelectTrigger className="h-8 text-sm"><SelectValue placeholder={levels.length === 0 ? "N/A" : "Select"} /></SelectTrigger>
-                        <SelectContent>{levels.map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent>
+                        <SelectContent>{levels.map((l) => <SelectItem key={l.level} value={l.level}>{l.level}</SelectItem>)}</SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-1">
@@ -802,26 +922,38 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
                       <div className="flex flex-wrap gap-x-5 gap-y-2">
                         {showsIaqEnergyWater(cert.cert_type) && (
                           <>
-                            <label className="flex items-center gap-2 text-sm cursor-pointer">
-                              <Checkbox checked={cert.flags.iaq} onCheckedChange={(v) => updateCertFlag(cert.cert_type, "iaq", !!v)} />
-                              ClAir IAQ
-                            </label>
-                            <label className="flex items-center gap-2 text-sm cursor-pointer">
-                              <Checkbox checked={cert.flags.energy} onCheckedChange={(v) => updateCertFlag(cert.cert_type, "energy", !!v)} />
-                              Greeny Energy
-                            </label>
-                            <label className="flex items-center gap-2 text-sm cursor-pointer">
-                              <Checkbox checked={cert.flags.water} onCheckedChange={(v) => updateCertFlag(cert.cert_type, "water", !!v)} />
-                              Water
-                            </label>
+                            <MonitoringService
+                              label="ClAir IAQ"
+                              checked={cert.flags.iaq}
+                              quantity={cert.quantities.iaq}
+                              onToggle={(v) => updateCertFlag(cert.cert_type, "iaq", v)}
+                              onQuantity={(v) => updateCertQuantity(cert.cert_type, "iaq", v)}
+                            />
+                            <MonitoringService
+                              label="Greeny Energy"
+                              checked={cert.flags.energy}
+                              quantity={cert.quantities.energy}
+                              onToggle={(v) => updateCertFlag(cert.cert_type, "energy", v)}
+                              onQuantity={(v) => updateCertQuantity(cert.cert_type, "energy", v)}
+                            />
+                            <MonitoringService
+                              label="Water"
+                              checked={cert.flags.water}
+                              quantity={cert.quantities.water}
+                              onToggle={(v) => updateCertFlag(cert.cert_type, "water", v)}
+                              onQuantity={(v) => updateCertQuantity(cert.cert_type, "water", v)}
+                            />
                           </>
                         )}
                         {showsEnergyRedirect(cert.cert_type) && (
                           <>
-                            <label className="flex items-center gap-2 text-sm cursor-pointer">
-                              <Checkbox checked={cert.flags.energy} onCheckedChange={(v) => updateCertFlag(cert.cert_type, "energy", !!v)} />
-                              Greeny Energy
-                            </label>
+                            <MonitoringService
+                              label="Greeny Energy"
+                              checked={cert.flags.energy}
+                              quantity={cert.quantities.energy}
+                              onToggle={(v) => updateCertFlag(cert.cert_type, "energy", v)}
+                              onQuantity={(v) => updateCertQuantity(cert.cert_type, "energy", v)}
+                            />
                             <label className="flex items-center gap-2 text-sm cursor-pointer">
                               <Checkbox checked={cert.flags.hardwareRedirect} onCheckedChange={(v) => updateCertFlag(cert.cert_type, "hardwareRedirect", !!v)} />
                               Hardware Redirection
@@ -829,6 +961,11 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
                           </>
                         )}
                       </div>
+                      <p className="text-[11px] text-muted-foreground mt-2.5 leading-relaxed">
+                        Spuntare un servizio <strong>è già la richiesta</strong>. Se scrivi anche quanti, all'approvazione
+                        il progetto entra subito nel Monitor con quel numero; se lo lasci vuoto entra solo in Operations
+                        e sarà il PM a chiedere i dispositivi.
+                      </p>
                     </div>
                   )}
 
