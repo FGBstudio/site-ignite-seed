@@ -111,25 +111,29 @@ function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChan
     if (!certId) return toast({ variant: "destructive", title: "Missing base certification in database." });
     setSaving(true);
     try {
-      const rows = template.timeline.map((step) => ({
-        certification_id: certId,
-        category: step.name,
-        requirement: step.name,
-        milestone_type: "timeline" as const,
-        order_index: step.order_index,
-        max_score: 0,
-        score: 0,
-        status: "pending",
-        notes: JSON.stringify({
-          type: step.type,
-          assigned_to_role: step.assigned_to_role,
-          offset_days: step.offset_days || null,
-        }),
-      }));
-      await supabase.from("certification_milestones").insert(rows as any);
+      // La scaletta la costruisce il database: legge cert_timeline_steps
+      // attraverso la chiave che cert_catalog assegna a questa combinazione,
+      // compila da sola le date che il sistema già conosce — handover e
+      // spedizioni — e calcola le scadenze a valle. Qui non si decide più
+      // niente: si chiede.
+      const { data: created, error: rpcError } = await supabase.rpc(
+        "fn_materialize_timeline" as never,
+        { p_certification_id: certId } as never,
+      );
+      if (rpcError) throw rpcError;
+
       refetch();
       qc.invalidateQueries({ queryKey: ["pm-dashboard"] });
-      toast({ title: "Timeline initialized successfully" });
+      toast(
+        Number(created) > 0
+          ? { title: `Timeline creata — ${created} milestone` }
+          : {
+              variant: "destructive",
+              title: "Nessuna scaletta per questa combinazione",
+              description:
+                "Il progetto ha già una timeline, oppure il suo schema non ne ha ancora una a catalogo.",
+            },
+      );
     } catch (e: any) {
       toast({ variant: "destructive", title: "Error", description: e.message });
     } finally {
