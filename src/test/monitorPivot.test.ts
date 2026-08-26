@@ -17,6 +17,7 @@ import {
   adaptEnergy,
   energyBucketFromName,
   isCancelledStatus,
+  isOnHoldStatus,
   type NormalizedRecord,
 } from "@/lib/monitorPivot";
 
@@ -111,7 +112,7 @@ describe("per-SKU breakdown", () => {
   it("family columns always equal the sum of the SKUs shown under them", () => {
     // The real Kering Eyewear row: 20 sensors, 15 CO2 black + 5 WELL black.
     const [out] = adaptAir(
-      [{ id: "s1", total_sensors: 20, air_product_ids: [
+      [{ id: "s1", site_id: "s1", total_sensors: 20, air_product_ids: [
         ...Array(15).fill("cb"), ...Array(5).fill("wb"),
       ] }] as never,
       NAMES,
@@ -127,7 +128,7 @@ describe("per-SKU breakdown", () => {
     // no hardware is attached, and marks the row 'Upcoming'. Counting that as
     // produced is what hid 420 units of real production demand.
     const [out] = adaptAir(
-      [{ id: "s3", total_sensors: 20, status: "Upcoming", certification_id: "c1", air_product_ids: [] }] as never,
+      [{ id: "s3", site_id: "s3", total_sensors: 20, status: "Upcoming", certification_id: "c1", air_product_ids: [] }] as never,
       NAMES,
       certDemand([["c1", { quantity: 20, byProduct: { "WELL ClAir": 20 } }]]),
     );
@@ -142,7 +143,7 @@ describe("per-SKU breakdown", () => {
     // A project with 127 installed and 20 still requested reports 20 — it does
     // not vanish, and the 127 do not come back through the declared floor.
     const [out] = adaptAir(
-      [{ id: "s20", total_sensors: 147, status: "Upcoming", air_product_ids: [] }] as never,
+      [{ id: "s20", site_id: "s20", total_sensors: 147, status: "Upcoming", air_product_ids: [] }] as never,
       NAMES,
       siteDemand([["s20", {
         quantity: 20, servedQuantity: 127, byProduct: { "WELL ClAir": 20 },
@@ -157,7 +158,7 @@ describe("per-SKU breakdown", () => {
     // BAY Cappagh Ratoath Road: 127 CO2 ClAir Installed_Online, nothing left to
     // order. The row stays in the report at zero rather than disappearing.
     const [out] = adaptAir(
-      [{ id: "s21", total_sensors: 127, status: "Upcoming", air_product_ids: [] }] as never,
+      [{ id: "s21", site_id: "s21", total_sensors: 127, status: "Upcoming", air_product_ids: [] }] as never,
       NAMES,
       siteDemand([["s21", { quantity: 0, servedQuantity: 127, byProduct: {} }]]),
     );
@@ -169,7 +170,7 @@ describe("per-SKU breakdown", () => {
     // On hold is paused, not cancelled: the Hub keeps stating the 24 sensors
     // the project will need, while the report orders none of them today.
     const [out] = adaptAir(
-      [{ id: "s30", total_sensors: 24, status: "Upcoming", air_product_ids: [] }] as never,
+      [{ id: "s30", site_id: "s30", total_sensors: 24, status: "Upcoming", air_product_ids: [] }] as never,
       NAMES,
       siteDemand([["s30", { quantity: 0, heldQuantity: 24, byProduct: {} }]]),
     );
@@ -181,7 +182,7 @@ describe("per-SKU breakdown", () => {
     // One certification suspended, a sibling still running: the running one
     // must still get its sensors built.
     const [out] = adaptAir(
-      [{ id: "s31", total_sensors: 30, status: "Upcoming", air_product_ids: [] }] as never,
+      [{ id: "s31", site_id: "s31", total_sensors: 30, status: "Upcoming", air_product_ids: [] }] as never,
       NAMES,
       siteDemand([["s31", {
         quantity: 6, heldQuantity: 24, byProduct: { "WELL ClAir": 6 },
@@ -197,7 +198,7 @@ describe("per-SKU breakdown", () => {
     // only the allocations dropped the row to zero and it disappeared.
     const [out] = adaptAir(
       [{
-        id: "s7", total_sensors: 20, status: "Upcoming", certification_id: null,
+        id: "s7", site_id: "s7", total_sensors: 20, status: "Upcoming", certification_id: null,
         air_product_ids: [...Array(15).fill("cb"), ...Array(5).fill("wb")],
       }] as never,
       NAMES,
@@ -214,7 +215,7 @@ describe("per-SKU breakdown", () => {
     // black, and the monitor lists no typology at all. Scaling the mix put all
     // 20 under WELL; the 15 nobody described belong in Unassigned.
     const [out] = adaptAir(
-      [{ id: "s9", total_sensors: 20, status: "Upcoming", certification_id: "c6", air_product_ids: [] }] as never,
+      [{ id: "s9", site_id: "s9", total_sensors: 20, status: "Upcoming", certification_id: "c6", air_product_ids: [] }] as never,
       NAMES,
       certDemand([["c6", { quantity: 5, byProduct: { "WELL ClAir black": 5 } }]]),
     );
@@ -224,32 +225,50 @@ describe("per-SKU breakdown", () => {
     expect(out.byProduct).toEqual({ "WELL ClAir black": 5 });
   });
 
-  it("gathers demand from every certification on the site", () => {
-    // Offices HQ: site_air_records holds one row per SITE, but the site is
-    // certified under several schemas and its requests are split across them —
-    // 5 WELL black on the certification the record points at, 15 CO-CO2 black
-    // on a sibling. Reading only the referenced certification buried the 15
-    // under "Unassigned".
-    const [out] = adaptAir(
-      [{ id: "site-hq", total_sensors: 20, status: "Upcoming", certification_id: "cert-well", air_product_ids: [] }] as never,
+  it("gives each certification on a site its own demand, counted once", () => {
+    // Offices HQ in Padova: two certifications on one site, LEED asking for 15
+    // CO-CO2 black and WELL for 5 WELL black. They are two rows, and each reads
+    // only its own request — handing both the site's total would count 20 twice.
+    const [leed, well] = adaptAir(
+      [
+        { id: "row-leed", site_id: "site-hq", total_sensors: 15, status: "Upcoming", certification_id: "cert-leed", air_product_ids: [] },
+        { id: "row-well", site_id: "site-hq", total_sensors: 5, status: "Upcoming", certification_id: "cert-well", air_product_ids: [] },
+      ] as never,
       new Map([["x", "CO-CO2 ClAir black"]]),
-      siteDemand([["site-hq", {
-        quantity: 20,
-        byProduct: { "WELL ClAir black": 5, "CO-CO2 ClAir black": 15 },
-      }]]),
+      certDemand([
+        ["cert-leed", { quantity: 15, byProduct: { "CO-CO2 ClAir black": 15 } }],
+        ["cert-well", { quantity: 5, byProduct: { "WELL ClAir black": 5 } }],
+      ]),
     );
-    expect(out.wellToProduce).toBe(5);
-    expect(out.coco2ToProduce).toBe(15);
-    expect(out.unassignedToProduce).toBe(0);
-    expect(out.byProduct).toEqual({ "WELL ClAir black": 5, "CO-CO2 ClAir black": 15 });
-    expect(out.value).toBe(20);
+    expect(leed.coco2ToProduce).toBe(15);
+    expect(leed.wellToProduce).toBe(0);
+    expect(well.wellToProduce).toBe(5);
+    expect(well.coco2ToProduce).toBe(0);
+    expect(leed.value + well.value).toBe(20);
+    expect(leed.unassignedToProduce + well.unassignedToProduce).toBe(0);
+  });
+
+  it("does not lend a site's demand to a row that has a certification of its own", () => {
+    // The per-site index is a fallback for rows with no project. A row that
+    // names one and whose certification asks for nothing asks for nothing —
+    // borrowing the site's total would take a sibling's sensors.
+    const [out] = adaptAir(
+      [
+        { id: "row-a", site_id: "site-hq", total_sensors: 0, status: "Upcoming", certification_id: "cert-a", air_product_ids: [] },
+        { id: "row-b", site_id: "site-hq", total_sensors: 8, status: "Upcoming", certification_id: "cert-b", air_product_ids: [] },
+      ] as never,
+      NAMES,
+      siteDemand([["site-hq", { quantity: 8, byProduct: { "WELL ClAir": 8 } }]]),
+    );
+    expect(out.requested).toBe(0);
+    expect(out.wellToProduce).toBe(0);
   });
 
   it("still treats a single monitor product id as a label for the whole row", () => {
     // 156 rows carry one product id standing for every sensor on the row —
     // there the mix must scale, or a 122-sensor project would show one unit.
     const [out] = adaptAir(
-      [{ id: "s10", total_sensors: 122, status: "3 delivered", air_product_ids: ["w"] }] as never,
+      [{ id: "s10", site_id: "s10", total_sensors: 122, status: "3 delivered", air_product_ids: ["w"] }] as never,
       NAMES,
     );
     expect(out.well).toBe(122);
@@ -258,7 +277,7 @@ describe("per-SKU breakdown", () => {
 
   it("lets a fuller allocation win over the stored count on an Upcoming row", () => {
     const [out] = adaptAir(
-      [{ id: "s8", total_sensors: 5, status: "Upcoming", certification_id: "c5", air_product_ids: [] }] as never,
+      [{ id: "s8", site_id: "s8", total_sensors: 5, status: "Upcoming", certification_id: "c5", air_product_ids: [] }] as never,
       NAMES,
       certDemand([["c5", { quantity: 12, byProduct: { "WELL ClAir": 12 } }]]),
     );
@@ -269,7 +288,7 @@ describe("per-SKU breakdown", () => {
   it("splits a partially served project into produced and still-to-build", () => {
     const [out] = adaptAir(
       [{
-        id: "s4", total_sensors: 12, status: "3 delivered", certification_id: "c2",
+        id: "s4", site_id: "s4", total_sensors: 12, status: "3 delivered", certification_id: "c2",
         air_product_ids: Array(12).fill("w"),
       }] as never,
       NAMES,
@@ -285,7 +304,7 @@ describe("per-SKU breakdown", () => {
   it("never reports negative demand when more was produced than requested", () => {
     const [out] = adaptAir(
       [{
-        id: "s5", total_sensors: 30, status: "5 delivered", certification_id: "c3",
+        id: "s5", site_id: "s5", total_sensors: 30, status: "5 delivered", certification_id: "c3",
         air_product_ids: Array(30).fill("w"),
       }] as never,
       NAMES,
@@ -301,7 +320,7 @@ describe("per-SKU breakdown", () => {
     // must keep its own typology instead of one overwriting the other.
     const [out] = adaptAir(
       [{
-        id: "s6", total_sensors: 4, status: "1 delivered", certification_id: "c4",
+        id: "s6", site_id: "s6", total_sensors: 4, status: "1 delivered", certification_id: "c4",
         air_product_ids: Array(4).fill("l"),
       }] as never,
       NAMES,
@@ -315,7 +334,7 @@ describe("per-SKU breakdown", () => {
 
   it("leaves units with an unmappable product in Unassigned", () => {
     const [out] = adaptAir(
-      [{ id: "s2", total_sensors: 4, air_product_ids: ["x"] }] as never,
+      [{ id: "s2", site_id: "s2", total_sensors: 4, air_product_ids: ["x"] }] as never,
       new Map([["x", "Mystery sensor"]]),
     );
     expect(out.unassigned).toBe(4);
@@ -587,7 +606,7 @@ describe("cancelled projects", () => {
 
   it("contributes zero even when the record still declares sensors", () => {
     const [out] = adaptAir(
-      [{ id: "s1", status: "Cancelled", total_sensors: 24, air_product_ids: ["wb"] }] as never,
+      [{ id: "s1", site_id: "s1", status: "Cancelled", total_sensors: 24, air_product_ids: ["wb"] }] as never,
       new Map([["wb", "WELL ClAir black"]]),
     );
     expect(out.value).toBe(0);
@@ -604,7 +623,7 @@ describe("cancelled projects", () => {
     // only source of demand — project_allocations kept asking through
     // useRequestedDemand, so zeroing the record alone was not enough.
     const [out] = adaptAir(
-      [{ id: "s1", status: "Cancelled", total_sensors: 0, air_product_ids: [] }] as never,
+      [{ id: "s1", site_id: "s1", status: "Cancelled", total_sensors: 0, air_product_ids: [] }] as never,
       new Map(),
       siteDemand([["s1", { quantity: 24, byProduct: { "WELL ClAir black": 24 } }]]),
     );
@@ -618,7 +637,7 @@ describe("cancelled projects", () => {
     // its notes carrying what it would have needed.
     const [out] = adaptAir(
       [{
-        id: "s1", status: "Cancelled", total_sensors: 0, air_product_ids: [],
+        id: "s1", site_id: "s1", status: "Cancelled", total_sensors: 0, air_product_ids: [],
         project_name: "Boxengo Famagosta", city: "Milan", brand_name: "BOXENGO",
         notes: "consegna sospesa - [Cancellato: 24 sensori previsti]",
       }] as never,
@@ -631,12 +650,73 @@ describe("cancelled projects", () => {
 
   it("leaves a live project untouched", () => {
     const [out] = adaptAir(
-      [{ id: "s1", status: "Upcoming", total_sensors: 0, air_product_ids: [] }] as never,
+      [{ id: "s1", site_id: "s1", status: "Upcoming", total_sensors: 0, air_product_ids: [] }] as never,
       new Map(),
       siteDemand([["s1", { quantity: 24, byProduct: { "WELL ClAir black": 24 } }]]),
     );
     expect(out.requested).toBe(24);
     expect(out.wellToProduce).toBe(24);
+  });
+});
+
+describe("projects on hold", () => {
+  const NAMES = new Map([["w", "WELL ClAir"]]);
+
+  it("recognises every spelling the column can carry", () => {
+    expect(isOnHoldStatus("On hold")).toBe(true);
+    expect(isOnHoldStatus("on-hold")).toBe(true);
+    expect(isOnHoldStatus("on_hold")).toBe(true);
+    expect(isOnHoldStatus("Upcoming")).toBe(false);
+    expect(isOnHoldStatus("Cancelled")).toBe(false);
+    expect(isOnHoldStatus(null)).toBe(false);
+  });
+
+  it("collapses to one filter entry", () => {
+    // "on hold" contains no ladder keyword, so without the early check the
+    // dropdown would carry one entry per spelling the recalculation wrote.
+    expect(canonicalStatusLabel("On hold")).toBe("On hold");
+    expect(canonicalStatusLabel("on_hold")).toBe("On hold");
+  });
+
+  it("does not read a suspended request as already produced", () => {
+    // The trap this status introduces: fn_recalculate_site_air writes "On hold"
+    // where it used to write "Upcoming", and "Upcoming" was the only marker
+    // saying total_sensors holds a request rather than finished devices. Read
+    // as a shipment status, these 24 units would count as built.
+    const [out] = adaptAir(
+      [{ id: "s40", site_id: "s40", status: "On hold", total_sensors: 24, air_product_ids: [] }] as never,
+      NAMES,
+      siteDemand([["s40", { quantity: 0, heldQuantity: 24, byProduct: {} }]]),
+    );
+    expect(out.assigned).toBe(0);
+    expect(out.requested).toBe(0);
+    expect(out.value).toBe(0);
+  });
+
+  it("orders nothing even while allocations still name products", () => {
+    const [out] = adaptAir(
+      [{ id: "s41", site_id: "s41", status: "On hold", total_sensors: 6, air_product_ids: [] }] as never,
+      NAMES,
+      siteDemand([["s41", { quantity: 6, byProduct: { "WELL ClAir": 6 } }]]),
+    );
+    expect(out.requested).toBe(0);
+    expect(out.wellToProduce).toBe(0);
+    expect(out.typologySource).toBe("none");
+  });
+
+  it("keeps the row readable, badge included", () => {
+    // Suspended is not deleted: Operations must still find the project, and the
+    // Hub still states what it will need the day it restarts.
+    const [out] = adaptAir(
+      [{
+        id: "s42", site_id: "s42", status: "On hold", total_sensors: 1, air_product_ids: [],
+        project_name: "Umeda Hankyu WRTW", city: "Osaka", brand_name: "VERSACE",
+      }] as never,
+      NAMES,
+    );
+    expect(out.projectName).toBe("VERSACE OSAKA Umeda Hankyu WRTW");
+    expect(out.status).toBe("On hold");
+    expect(out.value).toBe(0);
   });
 });
 

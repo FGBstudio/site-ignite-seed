@@ -55,6 +55,19 @@ interface Certification {
   sites?: { name: string | null; country: string | null; region: string | null } | null;
 }
 
+/** Contatori di site_energy_records, letti solo per mostrare la stima. */
+interface EnergyEstimateRow {
+  total_bridges: number | null;
+  no_pan10: number | null;
+  no_pan12: number | null;
+  no_pan14: number | null;
+  no_mango: number | null;
+  /** Valorizzato dal momento in cui l'assegnazione prende il posto della stima. */
+  planned_counts: {
+    bridges?: number; pan10?: number; pan12?: number; pan14?: number; mango?: number;
+  } | null;
+}
+
 interface AssignmentSlot {
   requestedProductId: string;
   productId: string;
@@ -135,6 +148,49 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
       return (data ?? []) as unknown as Allocation[];
     },
   });
+
+  // La stima del CT Builder per questo progetto: quanti e quali apparecchi il
+  // calcolo sui quadri elettrici dice necessari. Serve a chi assegna come
+  // riferimento — non è un vincolo, e infatti non viene mai confrontata con
+  // quello che poi si sceglie di montare.
+  const { data: energyRecord } = useQuery<EnergyEstimateRow | null>({
+    queryKey: ["energy-estimate", certificationId],
+    enabled: Boolean(certificationId) && mode === "ENERGY",
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("site_energy_records" as never)
+        .select("total_bridges, no_pan10, no_pan12, no_pan14, no_mango, planned_counts")
+        .eq("certification_id", certificationId)
+        .maybeSingle();
+      if (error) throw error;
+      return (data ?? null) as unknown as EnergyEstimateRow | null;
+    },
+  });
+
+  // Dove leggere la stima dipende da chi comanda i contatori: finché nessuno ha
+  // assegnato apparecchi sono i contatori stessi, dal primo apparecchio in poi
+  // quelli diventano l'assegnazione e la stima resta congelata in planned_counts.
+  const estimate = useMemo(() => {
+    if (!energyRecord) return null;
+    const frozen = energyRecord.planned_counts;
+    const src = frozen ?? {
+      bridges: energyRecord.total_bridges,
+      pan10: energyRecord.no_pan10,
+      pan12: energyRecord.no_pan12,
+      pan14: energyRecord.no_pan14,
+      mango: energyRecord.no_mango,
+    };
+    const rows: Array<[string, number]> = [
+      ["Bridge", Number(src.bridges ?? 0)],
+      ["FGB-10", Number(src.pan10 ?? 0)],
+      ["FGB-12", Number(src.pan12 ?? 0)],
+      ["FGB-14", Number(src.pan14 ?? 0)],
+      ["Mango", Number(src.mango ?? 0)],
+    ];
+    const visible = rows.filter(([, n]) => n > 0);
+    if (visible.length === 0) return null;
+    return { rows: visible, alreadyTakenOver: frozen != null };
+  }, [energyRecord]);
 
   // Hardware fisicamente già sul sito (fonte di verità per l'assegnazione reale)
   const { data: onSiteHardwares = [] } = useQuery<Hardware[]>({
@@ -331,34 +387,23 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
       }
 
       // 4. Energy metrics
-      if (mode === "ENERGY") {
-        const { data: refreshed } = await supabase
-          .from("hardwares")
-          .select("id, hardware_type, product_id, status")
-          .eq("site_id", selectedSiteId)
-          .neq("status", "In Stock");
-        const list = (refreshed ?? []) as Array<{ hardware_type: string | null }>;
-        let no_pan10 = 0, no_pan12 = 0, no_pan14 = 0, total_bridges = 0;
-        for (const h of list) {
-          const t = (h.hardware_type ?? "").toUpperCase();
-          if (t.includes("PAN-10") || t.includes("FGB10")) no_pan10++;
-          else if (t.includes("PAN-12") || t.includes("FGB12")) no_pan12++;
-          else if (t.includes("PAN-14") || t.includes("FGB14")) no_pan14++;
-          if (t.includes("BRIDGE")) total_bridges++;
-        }
-        const total_sensors = no_pan10 + no_pan12 + no_pan14;
-        const payload: Record<string, unknown> = {
-          certification_id: certificationId,
-          total_sensors,
-          no_pan10,
-          no_pan12,
-          no_pan14,
-          total_bridges,
-          ...(bridgeOpen ? bridgeCfg : {}),
-        };
+      //
+      // I contatori per tipo non si scrivono più da qui: li ricalcola
+      // fn_recalculate_site_energy, che parte dal trigger su `hardwares` non
+      // appena l'assegnazione qui sopra è andata a segno. Contarli in questo
+      // punto significava fotografarli una volta sola: se un apparecchio veniva
+      // poi rimosso o riassegnato, i numeri restavano fermi all'ultimo
+      // salvataggio — 801 dichiarati contro 813 realmente assegnati.
+      //
+      // Resta invece la configurazione del bridge, che è una scelta di rete e
+      // non un conteggio: nessuno la può derivare dall'inventario.
+      if (mode === "ENERGY" && bridgeOpen) {
         await supabase
           .from("site_energy_records" as never)
-          .upsert(payload as never, { onConflict: "certification_id" });
+          .upsert(
+            { certification_id: certificationId, ...bridgeCfg } as never,
+            { onConflict: "certification_id" },
+          );
       }
 
       // 5. Air metrics
@@ -551,6 +596,26 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
               </div>
             </details>
           )}
+          {/* La stima del CT Builder, in sola lettura.
+              Chi assegna la vede e decide: può montarne meno, o di tipo diverso.
+              È il numero che il calcolo sui quadri elettrici ha prodotto, non un
+              impegno — per questo non diventa mai una richiesta. */}
+          {mode === "ENERGY" && estimate && (
+            <div className="rounded-md border border-amber-500/20 bg-amber-500/5 p-3 space-y-1">
+              <p className="text-[11px] uppercase tracking-wider font-bold text-amber-700 flex items-center gap-1.5">
+                <Sparkles className="h-3 w-3" /> Estimated by the CT Builder
+              </p>
+              <p className="text-xs text-foreground">
+                {estimate.rows.map(([name, n]) => `${n}× ${name}`).join(", ")}
+              </p>
+              <p className="text-[11px] text-muted-foreground italic">
+                {estimate.alreadyTakenOver
+                  ? "Frozen estimate — the assigned devices are what count from here on."
+                  : "An estimate, not a constraint: assign what the site actually needs."}
+              </p>
+            </div>
+          )}
+
                  {/* Slot da assegnare */}
           {slots.length > 0 && (
             <div className="space-y-2">

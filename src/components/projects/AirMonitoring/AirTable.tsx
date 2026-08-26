@@ -480,25 +480,33 @@ export function AirTable() {
     });
   }, [filtered, sortConfig]);
 
+  /**
+   * `recordId` is the monitoring line. A site can carry several — one per
+   * certification — so anything written on site_air_records is keyed by the
+   * record. What is written on the hardware stays keyed by the site: an
+   * apparatus knows which site it is installed in, not which certification
+   * paid for it.
+   */
   const updateField = async (
-    siteId: string,
+    recordId: string,
     field: 'handover_date' | 'latest_shipment_date' | 'status' | 'notes' | 'air_product_ids',
     value: any,
     record: AirMonitorRow
   ): Promise<boolean> => {
+    const siteId = record.site_id;
     try {
       if (field === 'notes') {
         const { error } = await supabase
           .from("site_air_records")
           .update({ notes: value })
-          .eq("site_id", siteId);
+          .eq("id", recordId);
         if (error) throw error;
-      } 
+      }
       else if (field === 'handover_date') {
         const { error } = await supabase
           .from("site_air_records")
           .update({ handover_date: value })
-          .eq("site_id", siteId);
+          .eq("id", recordId);
         if (error) throw error;
       }
       else if (field === 'latest_shipment_date') {
@@ -512,14 +520,14 @@ export function AirTable() {
         const { error: airErr } = await supabase
           .from("site_air_records")
           .update({ latest_shipment_date: value })
-          .eq("site_id", siteId);
+          .eq("id", recordId);
         if (airErr) throw airErr;
       }
       else if (field === 'status') {
         const { error: airErr } = await supabase
           .from("site_air_records")
           .update({ status: value })
-          .eq("site_id", siteId);
+          .eq("id", recordId);
         if (airErr) throw airErr;
 
         if (value === 'Delivered') {
@@ -559,7 +567,7 @@ export function AirTable() {
         const { error } = await supabase
           .from('site_air_records')
           .update({ air_product_ids: value } as unknown as never)
-          .eq('site_id', siteId);
+          .eq('id', recordId);
         if (error) throw error;
       } else {
         throw new Error(`Unsupported field update: ${field}`);
@@ -905,6 +913,194 @@ export function AirTable() {
   );
 }
 
+/**
+ * Il progetto a cui la riga appartiene, e il modo per sceglierlo.
+ *
+ * Una riga senza certificazione non è solo brutta da vedere: la regola di
+ * sicurezza dell'aria filtra sul PM del record, e senza progetto quel PM resta
+ * vuoto — la riga diventa invisibile a chiunque non sia admin. Per questo la
+ * scelta è offerta qui, dove il dato si guarda.
+ *
+ * Le certificazioni proposte sono solo quelle dello STESSO sito: è il vincolo
+ * che tiene insieme le due viste, la mappa che entra dal luogo e Operations che
+ * entra dal progetto.
+ */
+function CertificationCell({ r }: { r: AirMonitorRow }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const [query, setQuery] = useState("");
+
+  // Tutte le certificazioni, non solo quelle del sito: 63 delle righe da
+  // agganciare stanno su siti che una certificazione non ce l'hanno, e limitare
+  // l'elenco al sito le lasciava senza alcuna alternativa. Quelle dello stesso
+  // sito restano in cima, perché sono la scelta giusta quando esistono.
+  const { data: certs = [], isLoading } = useQuery({
+    queryKey: ["all-certifications-for-linking"],
+    enabled: open,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("certifications")
+        .select("id, name, cert_type, status, site_id, sites(name, city, brand_id)")
+        .order("name");
+      if (error) throw error;
+
+      const { data: brands } = await supabase.from("brands").select("id, name");
+      const brandById = new Map((brands ?? []).map((b: any) => [b.id, b.name as string]));
+
+      return (data ?? []).map((c: any) => {
+        const site = Array.isArray(c.sites) ? c.sites[0] : c.sites;
+        return {
+          id: c.id as string,
+          name: (c.name ?? "(unnamed)") as string,
+          cert_type: c.cert_type as string | null,
+          status: c.status as string | null,
+          site_id: c.site_id as string | null,
+          client: (site?.brand_id ? brandById.get(site.brand_id) : null) ?? "—",
+          city: (site?.city as string | null) ?? "—",
+          siteName: (site?.name as string | null) ?? "—",
+        };
+      });
+    },
+  });
+
+  // Cliente, città e progetto: le tre coordinate con cui si riconosce un
+  // progetto in questo sistema. Ogni parola digitata deve comparire da qualche
+  // parte, così "pomellato rodeo" trova anche se le due stanno in campi diversi.
+  const visible = useMemo(() => {
+    const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
+    const matches = certs.filter((c) => {
+      if (terms.length === 0) return true;
+      const hay = `${c.client} ${c.city} ${c.name} ${c.siteName} ${c.cert_type ?? ""}`.toLowerCase();
+      return terms.every((t) => hay.includes(t));
+    });
+    // Stesso sito in cima, poi il resto in ordine alfabetico per cliente.
+    return matches
+      .sort((a, b) => {
+        const sa = a.site_id === r.site_id ? 0 : 1;
+        const sb = b.site_id === r.site_id ? 0 : 1;
+        if (sa !== sb) return sa - sb;
+        return `${a.client} ${a.city}`.localeCompare(`${b.client} ${b.city}`);
+      })
+      .slice(0, 60);
+  }, [certs, query, r.site_id]);
+
+  const attach = async (certificationId: string | null) => {
+    setSaving(true);
+    try {
+      const { error } = await supabase.rpc("fn_attach_air_record_to_certification" as never, {
+        p_record_id: r.id,
+        p_certification_id: certificationId,
+      } as never);
+      if (error) throw error;
+      await qc.invalidateQueries({ queryKey: ["monitor-air-rows"] });
+      toast({
+        title: certificationId ? "Project linked" : "Project unlinked",
+        description: certificationId
+          ? "The row now takes its name from the certification."
+          : "The row no longer belongs to a project.",
+      });
+      setOpen(false);
+    } catch (e: any) {
+      toast({ title: "Could not link", description: e.message, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          className={cn(
+            "text-left w-full truncate rounded px-1.5 py-1 -mx-1.5 transition-colors hover:bg-slate-200/60",
+            !r.certification_id && "text-amber-700 italic",
+          )}
+          title={r.certification_id ? "Linked to a certification — click to change" : "Not linked to any certification — click to choose"}
+        >
+          {r.project_name}
+          {!r.certification_id && <span className="ml-1.5 text-[10px] not-italic font-bold uppercase">· no project</span>}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[26rem] p-0" align="start">
+        <div className="px-3 py-2.5 border-b border-slate-100 space-y-2">
+          <p className="text-[11px] uppercase tracking-wider font-bold text-slate-500">Link to a certification</p>
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+            <Input
+              autoFocus
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Client, city or project..."
+              className="pl-8 h-8 text-xs"
+            />
+          </div>
+        </div>
+        <div className="max-h-72 overflow-y-auto">
+          {isLoading ? (
+            <div className="px-3 py-6 text-center text-xs text-slate-400">
+              <Loader2 className="w-4 h-4 animate-spin inline" />
+            </div>
+          ) : visible.length === 0 ? (
+            <p className="px-3 py-5 text-xs text-slate-500">No certification matches that search.</p>
+          ) : (
+            visible.map((c) => {
+              const sameSite = c.site_id === r.id;
+              return (
+                <button
+                  key={c.id}
+                  disabled={saving}
+                  onClick={() => attach(c.id)}
+                  className={cn(
+                    "w-full text-left px-3 py-2 text-xs hover:bg-slate-50 border-b border-slate-50 last:border-b-0 disabled:opacity-50",
+                    c.id === r.certification_id && "bg-indigo-50/60",
+                  )}
+                >
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="font-bold text-slate-800 uppercase truncate max-w-[8rem]">{c.client}</span>
+                    <span className="text-slate-400 uppercase text-[10px] truncate max-w-[6rem]">{c.city}</span>
+                    <span className="text-slate-800 truncate flex-1">{c.name}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-slate-400">
+                    <span>{c.cert_type ?? "—"}</span>
+                    <span>·</span>
+                    <span>{c.status ?? "—"}</span>
+                    {sameSite ? (
+                      <span className="ml-auto text-emerald-600 font-bold uppercase">same site</span>
+                    ) : (
+                      <span className="ml-auto text-amber-600 uppercase truncate max-w-[9rem]" title={c.siteName}>
+                        other site · {c.siteName}
+                      </span>
+                    )}
+                    {c.id === r.certification_id && <span className="text-indigo-600 font-bold uppercase">current</span>}
+                  </div>
+                </button>
+              );
+            })
+          )}
+        </div>
+        {!isLoading && certs.length > visible.length && (
+          <p className="px-3 py-1.5 text-[10px] text-slate-400 border-t border-slate-100">
+            Showing {visible.length} of {certs.length} — refine the search to narrow it down.
+          </p>
+        )}
+        {r.certification_id && (
+          <button
+            disabled={saving}
+            onClick={() => attach(null)}
+            className="w-full text-left px-3 py-2 text-[11px] text-rose-600 hover:bg-rose-50 border-t border-slate-100 disabled:opacity-50"
+          >
+            Unlink from this project
+          </button>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function AirRow({
   r,
   idx,
@@ -953,14 +1149,24 @@ function AirRow({
         "group-hover:bg-slate-100 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.12)]"
       )}>
         <div className="flex items-center gap-2">
+          {/* Derived from sensor_health by fn_refresh_air_online_status, which
+              runs with the offline-detection cron. "Partial" means some of the
+              line's sensors are reporting and some are not — showing it as
+              Online would hide a dead device, Offline would bury the live ones. */}
           <span className={cn(
             "w-2 h-2 rounded-full shrink-0",
             r.online_status === 'Online'
               ? 'bg-emerald-500'
-              : r.online_status === 'Offline'
-                ? 'bg-rose-500'
-                : 'bg-slate-300'
-          )} title={r.online_status || 'Pending'} />
+              : r.online_status === 'Partial'
+                ? 'bg-amber-500'
+                : r.online_status === 'Offline'
+                  ? 'bg-rose-500'
+                  : 'bg-slate-300'
+          )} title={
+            r.online_status === 'Partial'
+              ? 'Partial — some sensors are not reporting'
+              : r.online_status || 'No device yet'
+          } />
           <span className="text-sm font-bold tracking-tight truncate uppercase">
             {r.brand_name || <span className="text-slate-300 italic normal-case">—</span>}
           </span>
@@ -972,14 +1178,18 @@ function AirRow({
         {r.city || <span className="text-slate-300 italic normal-case">—</span>}
       </td>
 
-      {/* 3. PROJECT */}
+      {/* 3. PROJECT — il nome è quello della certificazione agganciata.
+           Dove l'aggancio manca lo si sceglie qui: su un sito con più progetti
+           è un giudizio, non un calcolo, quindi la decisione resta a una
+           persona. */}
       <td className="px-4 py-4 text-sm text-slate-800 font-medium">
-        <span className="truncate">{r.project_name}</span>
+        <CertificationCell r={r} />
       </td>
 
 
-      {/* 4. Monitor typology — quantities per product, not a single choice:
-           a project can legitimately carry LEED + WELL + CO2 together. */}
+      {/* 4. Monitor typology — quantities per product, not a single choice: one
+           certification can legitimately ask for LEED + WELL + CO2 together.
+           Two certifications on the same site are two records, not one mix. */}
       <td className="px-4 py-4">
         <TypologyMixEditor
           productIds={r.air_product_ids}
@@ -1010,7 +1220,9 @@ function AirRow({
         ) : <span className="text-slate-400 italic">Unassigned</span>}
       </td>
 
-      {/* 3. Sensors assigned */}
+      {/* 3. Sensors assigned. The device list is the site's: on a site with two
+           certifications it shows every apparatus installed there, not only the
+           ones this line paid for — hardwares carries no certification. */}
       <td className="px-4 py-4 text-center">
         <Dialog>
           <DialogTrigger asChild>
@@ -1031,7 +1243,7 @@ function AirRow({
                 <Monitor className="w-5 h-5" /> {r.project_name}
               </DialogTitle>
             </DialogHeader>
-            <DeviceModalContent siteId={r.id} projectName={r.project_name} />
+            <DeviceModalContent siteId={r.site_id} projectName={r.project_name} />
           </DialogContent>
         </Dialog>
       </td>
@@ -1113,7 +1325,7 @@ function AirRow({
 
       {/* 7. Status (Inline Dropdown Select) */}
       <td className="px-4 py-4">
-        <Select 
+        <Select
           value={getSelectStatus(r.status)} 
           onValueChange={async (v) => {
             await onUpdate(r.id, 'status', v, r);

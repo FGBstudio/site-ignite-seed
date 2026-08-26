@@ -44,6 +44,12 @@ export interface NormalizedRecord {
   requested: number;
   note?: string | null;
   siteId?: string | null;
+  /**
+   * The project this line belongs to. A site can host several — air and energy
+   * both keep one monitoring line per certification — so the site alone no
+   * longer identifies a record.
+   */
+  certificationId?: string | null;
   // Hardware breakdown counts — units already produced.
   bridges: number;
   pan10: number;
@@ -181,6 +187,29 @@ export function isCancelledStatus(raw: string | null | undefined): boolean {
 }
 
 /**
+ * Suspension label, written by fn_recalculate_site_air when every live
+ * certification on the site is on hold. Like CANCELLED_STATUS it sits outside
+ * STATUS_LADDER: being paused says nothing about how far along a project is.
+ */
+export const ON_HOLD_STATUS = "On hold";
+
+/** "On hold", "on-hold", "on_hold", and the aggregate forms the column can hold. */
+const ON_HOLD_TEST = /\bon[\s_-]?hold\b/;
+
+/**
+ * True when a monitor row belongs to a project on hold.
+ *
+ * The status matters beyond the badge: on a row with no hardware attached the
+ * recalculation writes "On hold" where it would otherwise write "Upcoming",
+ * and "Upcoming" is what tells this file that `total_sensors` holds a pending
+ * request rather than produced units. Without this test those units would read
+ * as already built.
+ */
+export function isOnHoldStatus(raw: string | null | undefined): boolean {
+  return ON_HOLD_TEST.test((raw ?? "").trim().toLowerCase());
+}
+
+/**
  * Collapses any status string — plain or count-aggregated — to one canonical
  * value. Statuses that are not shipment states (certification statuses such as
  * `in_corso` or `da_configurare`) are passed through untouched.
@@ -192,6 +221,10 @@ export function canonicalStatus(raw: string | null | undefined): string | null {
   // Checked before the ladder so both spellings collapse to one filter entry
   // instead of two, and so a cancelled row never reads as "Requested".
   if (CANCELLED_TEST.test(s)) return CANCELLED_STATUS;
+  // Same reasoning, and it must come before the ladder for a second reason:
+  // "on hold" contains no rung word, so the ladder would pass it through with
+  // whatever spelling the row happened to carry.
+  if (ON_HOLD_TEST.test(s)) return ON_HOLD_STATUS;
 
   const found = STATUS_PATTERNS.filter((p) => p.test.test(s)).map((p) => p.status);
   if (found.length === 0) return raw!.trim();
@@ -544,6 +577,7 @@ export function adaptEnergy(
       requested: toProduce,
       note: r.notes ?? null,
       siteId: r.site_id || r.id || null,
+      certificationId: r.certification_id ?? null,
       bridges: b,
       pan10: p10,
       pan12: p12,
@@ -595,18 +629,31 @@ export function adaptAir(
   productNameById?: Map<string, string>,
   requested?: RequestedDemandMaps,
 ): NormalizedRecord[] {
+  // A site can carry one monitoring row per certification pursued there, so the
+  // demand is read per certification: reading it per site would hand each of a
+  // site's rows the whole site's request and count it as many times as there are
+  // rows. Offices HQ in Padova is the case — LEED asks for 15 CO-CO2, WELL for
+  // 5 WELL, and they are two rows.
+  const rowsPerSite = new Map<string, number>();
+  for (const r of rows) {
+    if (!r.site_id) continue;
+    rowsPerSite.set(r.site_id, (rowsPerSite.get(r.site_id) ?? 0) + 1);
+  }
+
   const out: NormalizedRecord[] = [];
   for (const r of rows) {
-    // site_air_records holds one row per SITE, so the demand has to be read per
-    // site too. A site certified under several schemas splits its requests
-    // across those certifications, and reading only the one this record points
-    // at lost the rest — Offices HQ showed 5 WELL black and buried its 15
-    // CO-CO2 black under "Unassigned" because they hang off a sibling
-    // certification. The certification lookup stays as a fallback for records
-    // whose certification carries no site.
+    // The per-site lookup survives for two cases where per-certification finds
+    // nothing: a row with no project yet, and the lone row of a site whose
+    // request happens to hang off a sibling certification that has no row of
+    // its own. Where the site has several rows it is never used — that is
+    // exactly where it would double-count.
+    const byCert = r.certification_id
+      ? requested?.byCertification?.get(r.certification_id)
+      : undefined;
+    const siteIsSingleRow = !r.site_id || (rowsPerSite.get(r.site_id) ?? 0) <= 1;
     const req =
-      (r.id ? requested?.bySite?.get(r.id) : undefined) ??
-      (r.certification_id ? requested?.byCertification?.get(r.certification_id) : undefined);
+      byCert ??
+      (siteIsSingleRow && r.site_id ? requested?.bySite?.get(r.site_id) : undefined);
     const { date, dateSource } = resolveDate(r.handover_date, r.latest_shipment_date);
 
     // A device only has an id once it physically exists, so `total_sensors` is
@@ -627,7 +674,17 @@ export function adaptAir(
     // record alone would still let a cancelled project ask for sensors.
     const isCancelled = isCancelledStatus(r.status);
 
-    const declared = isCancelled ? 0 : Number(r.total_sensors ?? 0);
+    // A project on hold contributes nothing either, for a different reason: its
+    // units are neither built nor ordered, they are suspended. The row keeps
+    // stating them in the Monitor Hub, which reads site_air_records directly,
+    // while the report — which answers "what do we still have to build" — counts
+    // none of them. Held allocations are already discounted upstream in
+    // useRequestedDemand; this covers the row itself, whose stored count would
+    // otherwise come back through `declared`.
+    const isOnHold = isOnHoldStatus(r.status);
+    const isSuspended = isCancelled || isOnHold;
+
+    const declared = isSuspended ? 0 : Number(r.total_sensors ?? 0);
     const produced = isUpcoming ? 0 : declared;
 
     // What the project asked for, across every live allocation status.
@@ -650,7 +707,7 @@ export function adaptAir(
     const served = Number(req?.servedQuantity ?? 0);
     const held = Number(req?.heldQuantity ?? 0);
     const declaredFloor = isUpcoming ? Math.max(declared - served - held, 0) : 0;
-    const askedFor = isCancelled ? 0 : Math.max(Number(req?.quantity ?? 0), declaredFloor);
+    const askedFor = isSuspended ? 0 : Math.max(Number(req?.quantity ?? 0), declaredFloor);
     // Units still to build: a request that has not been given an id yet.
     const toProduce = Math.max(askedFor - produced, 0);
     // The project needs both halves; they never double-count because toProduce
@@ -667,7 +724,7 @@ export function adaptAir(
     let typologySource: TypologySource;
     // Nothing is being built, so no mix describes this row — claiming one would
     // put a "NO TYPOLOGY"-style attribution on units that do not exist.
-    if (isCancelled) typologySource = "none";
+    if (isSuspended) typologySource = "none";
     else if (sumCounts(monitoringByProduct) > 0) typologySource = "monitoring";
     else if (sumCounts(requestedByProduct) > 0) typologySource = "request";
     else typologySource = "none";
@@ -701,7 +758,8 @@ export function adaptAir(
       assigned: produced,
       requested: toProduce,
       note: r.notes ?? null,
-      siteId: r.id || null, // AirMonitorRow.id is the site_id
+      siteId: r.site_id || null,
+      certificationId: r.certification_id ?? null,
       bridges: 0,
       pan10: 0,
       pan12: 0,

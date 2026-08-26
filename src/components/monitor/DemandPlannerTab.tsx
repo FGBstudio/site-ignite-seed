@@ -70,34 +70,46 @@ export function DemandPlannerTab() {
 
   const isLoading = (domain === "energy" ? energy.isLoading : air.isLoading);
 
-  // Build hardware lookup maps by site_id from site_energy_records and site_air_records
-  const energyBySiteId = useMemo(() => {
-    const map = new Map<string, NormalizedRecord>();
-    const energyRecords = adaptEnergy(energy.data ?? []);
-    energyRecords.forEach((r) => {
-      if (r.siteId) map.set(r.siteId, r);
+  /**
+   * Monitoring lines indexed for lookup from a certification. Both indexes are
+   * filled: the certification is the exact key — a site pursuing two schemas
+   * keeps one line per certification and the site alone would pick whichever
+   * came last — while the site key still serves lines with no project yet.
+   */
+  const indexLines = (records: NormalizedRecord[]) => {
+    const byCertification = new Map<string, NormalizedRecord>();
+    const bySite = new Map<string, NormalizedRecord>();
+    records.forEach((r) => {
+      if (r.certificationId) byCertification.set(r.certificationId, r);
+      if (r.siteId && !bySite.has(r.siteId)) bySite.set(r.siteId, r);
     });
-    return map;
-  }, [energy.data]);
+    return {
+      has: (certId: string | null, siteId: string) =>
+        (certId ? byCertification.has(certId) : false) || bySite.has(siteId),
+      get: (certId: string | null, siteId: string) =>
+        (certId ? byCertification.get(certId) : undefined) ?? bySite.get(siteId),
+    };
+  };
 
-  const airBySiteId = useMemo(() => {
-    const map = new Map<string, NormalizedRecord>();
-    const airRecords = adaptAir(air.data ?? [], airProducts.data);
-    airRecords.forEach((r) => {
-      if (r.siteId) map.set(r.siteId, r);
-    });
-    return map;
-  }, [air.data, airProducts.data]);
+  const energyLines = useMemo(
+    () => indexLines(adaptEnergy(energy.data ?? [])),
+    [energy.data],
+  );
+
+  const airLines = useMemo(
+    () => indexLines(adaptAir(air.data ?? [], airProducts.data)),
+    [air.data, airProducts.data],
+  );
 
   const rawRecords: NormalizedRecord[] = useMemo(() => {
     // 1. Filter certifications strictly by selected monitoring during quotation/onboarding
     const domainCerts = certDeals.filter((c: any) => {
       const siteId = c.site_id || c.id;
       if (domain === "air") {
-        return c.has_iaq_monitoring === true || airBySiteId.has(siteId);
+        return c.has_iaq_monitoring === true || airLines.has(c.id ?? null, siteId);
       }
       if (domain === "energy") {
-        return c.has_energy_monitoring === true || energyBySiteId.has(siteId);
+        return c.has_energy_monitoring === true || energyLines.has(c.id ?? null, siteId);
       }
       if (domain === "water") {
         return c.has_water_monitoring === true;
@@ -113,8 +125,8 @@ export function DemandPlannerTab() {
       const siteId = c.site_id || c.id;
 
       // Look up hardware quantities from site_energy_records or site_air_records if available
-      const energyInfo = domain === "energy" ? energyBySiteId.get(siteId) : undefined;
-      const airInfo = domain === "air" ? airBySiteId.get(siteId) : undefined;
+      const energyInfo = domain === "energy" ? energyLines.get(c.id ?? null, siteId) : undefined;
+      const airInfo = domain === "air" ? airLines.get(c.id ?? null, siteId) : undefined;
 
       const confirmedValue = domain === "energy" 
         ? (energyInfo ? energyInfo.value : (Number(c.total_bridges ?? 0) + Number(c.no_pan10 ?? 0) + Number(c.no_pan12 ?? 0) + Number(c.no_pan14 ?? 0)))
@@ -197,7 +209,7 @@ export function DemandPlannerTab() {
         isEstimated,
       };
     });
-  }, [domain, certDeals, energyBySiteId, airBySiteId, includeEstimates]);
+  }, [domain, certDeals, energyLines, airLines, includeEstimates]);
 
   // Filter ONLY unassigned future demand records matching Rule 1 & Rule 2
   const plannerRecords = useMemo(() => {

@@ -9,7 +9,12 @@ export interface AirDevice {
 }
 
 export interface AirMonitorRow {
-  id: string; // site_id
+  /**
+   * The record's own id. A site can carry more than one monitoring line — one
+   * per certification pursued there — so the site no longer identifies a row.
+   */
+  id: string;
+  site_id: string;
   certification_id: string | null;
   project_name: string;
   pm_name: string | null;
@@ -49,6 +54,7 @@ export function useAirRows() {
       const { data, error } = await supabase
         .from('site_air_records')
         .select(`
+          id,
           site_id,
           certification_id,
           status,
@@ -113,7 +119,8 @@ export function useAirRows() {
         const brandName = site?.brand_id ? (brandsMap.get(site.brand_id) || null) : null;
 
         return {
-          id: record.site_id,
+          id: record.id,
+          site_id: record.site_id,
           certification_id: record.certification_id ?? cert?.id ?? null,
           project_name: cert?.name || site?.name || record.project_name || `Site: ${record.site_id.slice(0, 8)}`,
           pm_name: pm ? (pm.full_name || pm.display_name || [pm.first_name, pm.last_name].filter(Boolean).join(" ")) : null,
