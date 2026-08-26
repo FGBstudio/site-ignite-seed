@@ -394,17 +394,62 @@ export default function Projects() {
     return Array.from(pms.entries()).map(([id, name]) => ({ id, name }));
   }, [allProjects]);
 
+  /**
+   * Tutto ciò che la tabella mostra, appiattito in una stringa per progetto.
+   *
+   * La ricerca in alto guardava solo nome e cliente: digitare una città, un PM
+   * o un tipo di certificazione non trovava niente, anche se quelle colonne
+   * sono lì sotto gli occhi. Si indicizza una volta sola per elenco, non a ogni
+   * battuta, perché i progetti sono più di mille.
+   */
+  const searchIndex = useMemo(() => {
+    const index = new Map<string, string>();
+    for (const p of allProjects) {
+      index.set(
+        p.id,
+        [
+          p.name,
+          p.client,
+          p.brand_name,
+          p.holding_name,
+          p.city,
+          p.region,
+          p.country,
+          p.typology,
+          p.cert_type,
+          p.cert_type ? CERT_DISPLAY_LABELS[p.cert_type] : null,
+          p.cert_rating,
+          p.project_subtype,
+          p.pm_name,
+          SETUP_STATUS_META[p.setup_status as keyof typeof SETUP_STATUS_META]?.label ?? p.setup_status,
+          p.handover_date ? format(new Date(p.handover_date), "dd MMM yyyy") : null,
+          p.issued_date ? format(new Date(p.issued_date), "dd MMM yyyy") : null,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase(),
+      );
+    }
+    return index;
+  }, [allProjects]);
+
   const baseFiltered = useMemo(() => {
+    // Ogni parola digitata deve comparire da qualche parte, non tutte nello
+    // stesso campo: "beverly rodeo" trova anche se la città sta in una colonna
+    // e il nome del progetto in un'altra.
+    const terms = search.toLowerCase().split(/\s+/).filter(Boolean);
+
     return allProjects.filter((p) => {
       // Operations never owns quotation/canceled — those live in /quotations
       if (p.setup_status === "potential" || p.setup_status === "quotation" || p.setup_status === "canceled") return false;
       if (statusTab !== "all" && p.setup_status !== statusTab) return false;
-      const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) || p.client.toLowerCase().includes(search.toLowerCase());
+      const haystack = searchIndex.get(p.id) ?? "";
+      const matchesSearch = terms.every((t) => haystack.includes(t));
       const matchesRegion = regionFilter === "all" || p.region === regionFilter;
       const matchesPm = pmFilter === "all" || p.pm_id === pmFilter;
       return matchesSearch && matchesRegion && matchesPm;
     });
-  }, [allProjects, statusTab, search, regionFilter, pmFilter]);
+  }, [allProjects, statusTab, search, regionFilter, pmFilter, searchIndex]);
 
   const filtered = useMemo(() => {
     return baseFiltered.filter((r) => {
@@ -573,7 +618,7 @@ export default function Projects() {
             <div className="flex flex-col sm:flex-row gap-3 flex-1">
               <div className="relative flex-1 max-w-sm">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input placeholder="Search project or client..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+                <Input placeholder="Search project, client, city, PM, certification..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
               </div>
               <Select value={regionFilter} onValueChange={setRegionFilter}>
                 <SelectTrigger className="w-40"><SelectValue placeholder="Region" /></SelectTrigger>
@@ -820,12 +865,39 @@ export default function Projects() {
                           )}
                         </td>
                         <td className="p-4">
-                          {project.project_allocations.length === 0 ? (
+                          {/*
+                            Two different facts, never merged into one number:
+                            the request Operations wrote (project_allocations)
+                            and the devices that physically exist on the site
+                            (hardwares). A device can arrive without a request —
+                            Monitoring assigns it directly — so counting only
+                            the requests showed "None" on projects that have a
+                            sensor installed and reported as such everywhere
+                            else in the app.
+                          */}
+                          {project.project_allocations.length === 0 && project.assigned_hardware_count === 0 ? (
                             <span className="text-muted-foreground text-xs">None</span>
                           ) : (
-                            <Badge variant="outline" className="text-xs">
-                              {project.project_allocations.length} items
-                            </Badge>
+                            <div className="flex flex-wrap items-center gap-1">
+                              {project.assigned_hardware_count > 0 && (
+                                <Badge
+                                  variant="outline"
+                                  className="text-xs bg-emerald-50 text-emerald-700 border-emerald-200"
+                                  title="Devices physically assigned to this site"
+                                >
+                                  {project.assigned_hardware_count} assigned
+                                </Badge>
+                              )}
+                              {project.project_allocations.length > 0 && (
+                                <Badge
+                                  variant="outline"
+                                  className="text-xs"
+                                  title="Hardware requests logged for this project"
+                                >
+                                  {project.project_allocations.length} items
+                                </Badge>
+                              )}
+                            </div>
                           )}
                         </td>
                         <td className="p-4 flex gap-2">

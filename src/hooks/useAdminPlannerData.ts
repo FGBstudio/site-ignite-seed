@@ -47,6 +47,20 @@ export interface AdminPlannerProject {
   typology: string | null;
   country: string | null;
   project_allocations: any[];
+  /**
+   * Devices physically assigned to this project's SITE, free stock excluded.
+   *
+   * Kept apart from `project_allocations`: those are the request Operations
+   * wrote, this is the hardware that exists. A device can reach a site without
+   * ever passing through a request — Monitoring assigns it directly — and 280
+   * certifications are in exactly that state, so counting only the requests
+   * reports "None" on projects that have a sensor installed.
+   *
+   * Counted per site, like `site_air_records`: several certifications on one
+   * site therefore report the same devices, because those devices serve all of
+   * them.
+   */
+  assigned_hardware_count: number;
   certification_milestones: any[];
   plannerData: GanttRowData;
   macro_phase: MacroPhase;
@@ -131,6 +145,37 @@ export function useAdminPlannerData() {
         }
       }
 
+      // 3-bis. Devices physically on site, free stock excluded — the same
+      // filter usePhysicalHardware applies on the project detail page, so the
+      // table and the detail can never disagree.
+      //
+      // Swept whole rather than filtered by the site ids in scope: PostgREST
+      // puts `.in()` into the query string, and the ~1000 uuids a full project
+      // list carries overflow the request URI, which fails the call outright.
+      // The table is ~1.5k rows, so reading it all costs less than the filter
+      // would have. Paged because PostgREST caps a response at 1000 rows and
+      // silently returns the first page — which reports zero devices on every
+      // project past the cut.
+      const hardwareBySite = new Map<string, number>();
+      const HARDWARE_PAGE = 1000;
+      for (let offset = 0; ; offset += HARDWARE_PAGE) {
+        const { data: page, error: hwError } = await supabase
+          .from("hardwares")
+          .select("site_id")
+          .neq("status", "In Stock")
+          .not("site_id", "is", null)
+          .range(offset, offset + HARDWARE_PAGE - 1);
+        // Never swallowed: a failure here is indistinguishable from "no device
+        // anywhere", and that is exactly the wrong answer to show.
+        if (hwError) throw hwError;
+        if (!page || page.length === 0) break;
+        for (const h of page as any[]) {
+          if (!h.site_id) continue;
+          hardwareBySite.set(h.site_id, (hardwareBySite.get(h.site_id) ?? 0) + 1);
+        }
+        if (page.length < HARDWARE_PAGE) break;
+      }
+
       // 4. Milestones for all certifications
       const certIds = (certs as any[]).map((c) => c.id);
       let milestones: any[] = [];
@@ -184,7 +229,9 @@ export function useAdminPlannerData() {
             holding_name: resolveHoldingName(c),
             typology: c.sites?.typology || null,
             country: c.sites?.country || null,
-            project_allocations: allocations, certification_milestones: certMilestones,
+            project_allocations: allocations,
+            assigned_hardware_count: hardwareBySite.get(c.site_id) ?? 0,
+            certification_milestones: certMilestones,
             plannerData: {
               id: c.id, label: c.name || c.cert_type || "Unnamed", subLabel: resolveClient(c), launchDate: c.created_at.slice(0,10),
               currentActivity, progress: 0, status: c.status === "canceled" ? "canceled" : "pending", segments: [], plannedHandoverDate: c.planned_handover_date || null, isDeadlineCritical: false,
@@ -326,7 +373,9 @@ export function useAdminPlannerData() {
           holding_name: resolveHoldingName(c),
           typology: c.sites?.typology || null,
           country: c.sites?.country || null,
-          project_allocations: allocations, certification_milestones: certMilestones,
+          project_allocations: allocations,
+          assigned_hardware_count: hardwareBySite.get(c.site_id) ?? 0,
+          certification_milestones: certMilestones,
           plannerData, macro_phase: macroPhase, is_deadline_critical,
           on_hold: !!c.on_hold, on_hold_reason: c.on_hold_reason || null, on_hold_at: c.on_hold_at || null, on_hold_by: c.on_hold_by || null,
         };
