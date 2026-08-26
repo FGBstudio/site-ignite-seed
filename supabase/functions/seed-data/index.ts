@@ -68,7 +68,7 @@ serve(async (req) => {
     const lauraId = allUsers?.users?.find((x: any) => x.email === "laura.bianchi@retailops.com")?.id;
 
     // Seed projects if empty
-    const { data: existingProjects } = await supabase.from("projects").select("id");
+    const { data: existingProjects } = await supabase.from("_deprecated_projects").select("id");
     if (!existingProjects || existingProjects.length === 0) {
       const futureDate = (days: number) => {
         const d = new Date();
@@ -76,7 +76,7 @@ serve(async (req) => {
         return d.toISOString().split("T")[0];
       };
 
-      await supabase.from("projects").insert([
+      await supabase.from("_deprecated_projects").insert([
         { name: "Miu Miu Dubai Mall", client: "Miu Miu", region: "ME", pm_id: marcoId, handover_date: futureDate(20), status: "Construction" },
         { name: "Prada San Diego", client: "Prada", region: "America", pm_id: lauraId, handover_date: futureDate(25), status: "Construction" },
         { name: "Prada Champs-Élysées", client: "Prada", region: "Europe", pm_id: marcoId, handover_date: futureDate(60), status: "Design" },

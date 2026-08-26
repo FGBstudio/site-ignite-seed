@@ -21,7 +21,7 @@ serve(async (req) => {
 
     // Step 1: Clear existing data (allocations first due to FK)
     await supabase.from("project_allocations").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-    await supabase.from("projects").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+    await supabase.from("_deprecated_projects").delete().neq("id", "00000000-0000-0000-0000-000000000000");
     await supabase.from("products").delete().neq("id", "00000000-0000-0000-0000-000000000000");
     log.push("Cleared existing data");
 
@@ -90,7 +90,7 @@ serve(async (req) => {
       const batch = projectRows.slice(i, i + 50);
       const batchRefs = projects.slice(i, i + 50);
       const { data: inserted, error: projErr } = await supabase
-        .from("projects")
+        .from("_deprecated_projects")
         .insert(batch)
         .select("id, name");
       if (projErr) {
