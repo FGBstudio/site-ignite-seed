@@ -26,13 +26,16 @@ import {
 
 import { useToast } from "@/hooks/use-toast";
 
+// Etichette e sigle sono quelle del planning cartaceo dell'ufficio ("FGB ITA_
+// Availability"), non una traduzione nostra: chi passa dal foglio all'app deve
+// ritrovare le stesse lettere.
 const STATUS_LABEL: Record<AvailabilityStatus, string> = {
   office: "Office",
   smart_working: "Smart working",
   unavailable: "Unavailable",
   travel: "Business Travel",
-  vacation: "Vacation / Holiday",
-  permit: "Permit",
+  vacation: "Holidays",
+  permit: "Personal Permit",
   sick: "Sick leave",
 };
 const STATUS_SHORT: Record<AvailabilityStatus, string> = {
@@ -40,7 +43,7 @@ const STATUS_SHORT: Record<AvailabilityStatus, string> = {
   smart_working: "S",
   unavailable: "U",
   travel: "T",
-  vacation: "V",
+  vacation: "H",
   permit: "Pp",
   sick: "M",
 };
