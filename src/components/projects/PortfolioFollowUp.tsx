@@ -7,59 +7,34 @@ import { cn } from "@/lib/utils";
 import { useAdminPlannerData, type AdminPlannerProject } from "@/hooks/useAdminPlannerData";
 import { useLateCertMilestones } from "@/hooks/useLateCertMilestones";
 import { ExcelFilterButton, type ExcelFilterState } from "@/components/common/ExcelFilterButton";
-
-type Status =
-  | "certified"
-  | "late"
-  | "on_hold"
-  | "quotation"
-  | "to_configure"
-  | "in_progress";
+import {
+  PROJECT_STATUS_META,
+  PROJECT_STATUS_ORDER,
+  classifyProjectStatus,
+  type ProjectStatus,
+} from "@/lib/projectStatus";
 
 const EMPTY_FILTER: ExcelFilterState = { selectedValues: undefined, sort: null };
 
-interface StatusMeta {
-  label: string;
-  colorVar: string; // css variable name (without hsl())
-}
-
-const STATUS_META: Record<Status, StatusMeta> = {
-  certified: { label: "Certified", colorVar: "success" },
-  late: { label: "Late", colorVar: "destructive" },
-  on_hold: { label: "On Hold", colorVar: "muted-foreground" },
-  in_progress: { label: "In Progress", colorVar: "primary" },
-  to_configure: { label: "To Configure", colorVar: "warning" },
-  quotation: { label: "Quotation", colorVar: "accent-foreground" },
-};
-
-// Order matches the Status Breakdown donut legend
-const LEGEND_ORDER: Status[] = [
-  "late",
-  "on_hold",
-  "in_progress",
-  "to_configure",
-  "quotation",
-  "certified",
-];
-
-function computeStatus(p: AdminPlannerProject, isLate: boolean): Status {
-  if (p.setup_status === "certificato" || p.issued_date) return "certified";
-  if (isLate) return "late";
-  if (p.on_hold) return "on_hold";
-  if (p.setup_status === "quotation") return "quotation";
-  if (p.setup_status === "da_configurare") return "to_configure";
-  return "in_progress";
-}
-
-function StatusIndicator({ status }: { status: Status }) {
+/**
+ * Questa card e il grafico "Status Breakdown" stanno uno accanto all'altro e
+ * devono raccontare la stessa cosa: elenco, ordine e colori vengono entrambi da
+ * src/lib/projectStatus.ts.
+ */
+function StatusIndicator({ status }: { status: ProjectStatus }) {
   if (status === "certified") {
-    return <CheckCircle2 className="h-4 w-4 text-success" strokeWidth={2.5} />;
+    return (
+      <CheckCircle2
+        className="h-4 w-4"
+        strokeWidth={2.5}
+        style={{ color: PROJECT_STATUS_META.certified.color }}
+      />
+    );
   }
-  const { colorVar } = STATUS_META[status];
   return (
     <span
       className="inline-block h-2.5 w-2.5 rounded-full"
-      style={{ background: `hsl(var(--${colorVar}))` }}
+      style={{ background: PROJECT_STATUS_META[status].color }}
     />
   );
 }
@@ -173,10 +148,10 @@ export function PortfolioFollowUp() {
               Legend
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-6 text-sm">
-              {LEGEND_ORDER.map((s) => (
+              {PROJECT_STATUS_ORDER.map((s) => (
                 <div key={s} className="flex items-center gap-2">
                   <StatusIndicator status={s} />
-                  <span className="text-foreground">{STATUS_META[s].label}</span>
+                  <span className="text-foreground">{PROJECT_STATUS_META[s].label}</span>
                 </div>
               ))}
             </div>
@@ -255,11 +230,15 @@ export function PortfolioFollowUp() {
                   </tr>
                 ) : (
                   filtered.map((p) => {
-                    const status = computeStatus(p, lateSet.has(p.id));
+                    const status = classifyProjectStatus(p);
+                    // Il ritardo non e' piu' uno stato — un progetto in
+                    // ritardo resta nella sua fase — ma resta un'evidenza
+                    // sulla riga, che e' l'informazione che serve qui.
+                    const isLate = lateSet.has(p.id) && status !== "certified";
                     const rowClass =
                       status === "certified"
                         ? "bg-[hsl(var(--success)/0.12)] hover:bg-[hsl(var(--success)/0.18)]"
-                        : status === "late"
+                        : isLate
                         ? "bg-[hsl(var(--destructive)/0.08)] hover:bg-[hsl(var(--destructive)/0.14)]"
                         : "hover:bg-muted/40";
                     return (

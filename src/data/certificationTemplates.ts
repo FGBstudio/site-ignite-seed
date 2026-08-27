@@ -497,7 +497,45 @@ export const MILESTONE_MACRO_PHASE: Record<string, string> = {
   "Certificazione": "Certification",
 };
 
+/** Lo stesso elenco indicizzato in minuscolo: i nomi reali variano di maiuscole. */
+const MILESTONE_MACRO_PHASE_LOWER: Record<string, string> = Object.fromEntries(
+  Object.entries(MILESTONE_MACRO_PHASE).map(([k, v]) => [k.toLowerCase(), v]),
+);
+
 export type MacroPhase = "Design" | "Construction" | "Certification" | "Certified";
+
+/**
+ * A quale fase appartiene una milestone, per parole chiave.
+ *
+ * MILESTONE_MACRO_PHASE sopra elencava i nomi uno per uno, ed era la tabella
+ * dei vecchi template: dopo il caricamento delle timeline dei PM quasi nessun
+ * nome combaciava piu' — nemmeno per maiuscole, "LEED GC training" contro
+ * "LEED GC Training" — e ogni progetto finiva in "Design". Un grafico che
+ * mostrava tutto il portafoglio in progettazione.
+ *
+ * Le parole chiave reggono anche i nomi che non abbiamo ancora visto, che e'
+ * esattamente il caso di uno schema di certificazione aggiunto domani.
+ * L'ordine dei controlli conta: "Submission" e "Attainment" sono certificazione
+ * anche quando la frase nomina il cantiere.
+ */
+export function macroPhaseOfMilestone(requirement: string | null | undefined): MacroPhase {
+  const r = (requirement || "").toLowerCase().trim();
+  if (!r) return "Design";
+
+  const exact = MILESTONE_MACRO_PHASE_LOWER[r];
+  if (exact) return exact as MacroPhase;
+
+  if (/submission|attainment|certification|review|assessor|auditor|verification|audit|closed-out|documentation received|dashboard/.test(r)) {
+    return "Certification";
+  }
+  if (/construction|cantiere|handover|gc training|shipment|installation|spedizione|ordine hardware|commissioning|site inspection|credits completed|site visit/.test(r)) {
+    return "Construction";
+  }
+  if (/pre-assessment|design|tendering|guidelines|kick-off|kickoff/.test(r)) {
+    return "Design";
+  }
+  return "Design";
+}
 
 /**
  * Compute the current macro-phase of a certification based on
@@ -515,7 +553,7 @@ export function computeMacroPhase(
 
   if (achieved.length === 0) return "Design";
 
-  return (MILESTONE_MACRO_PHASE[achieved[0].requirement || ""] as MacroPhase) || "Design";
+  return macroPhaseOfMilestone(achieved[0].requirement);
 }
 
 // ─── Available options for UI selects ───

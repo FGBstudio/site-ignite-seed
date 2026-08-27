@@ -9,6 +9,11 @@ import { PortfolioFollowUp } from "@/components/projects/PortfolioFollowUp";
 import { AlertTriangle, PauseCircle, Clock3, CheckCircle2, Activity } from "lucide-react";
 import { differenceInDays, format } from "date-fns";
 import { cn } from "@/lib/utils";
+import {
+  PROJECT_STATUS_META,
+  PROJECT_STATUS_ORDER,
+  countByProjectStatus,
+} from "@/lib/projectStatus";
 
 interface OnHoldInfo {
   certification_id: string;
@@ -68,7 +73,8 @@ function KpiTile({ label, value, icon: Icon, tone }: KpiTileProps) {
 
 interface DonutSegment {
   value: number;
-  colorVar: string;
+  /** Colore CSS gia' risolto: gli stati vengono da PROJECT_STATUS_META. */
+  color: string;
   label: string;
 }
 
@@ -89,7 +95,7 @@ function Donut({ segments, total }: { segments: DonutSegment[]; total: number })
               cx="85"
               cy="85"
               r={radius}
-              stroke={`hsl(var(--${s.colorVar}))`}
+              stroke={s.color}
               strokeWidth={stroke}
               fill="none"
               strokeDasharray={`${len} ${c - len}`}
@@ -111,7 +117,7 @@ function Donut({ segments, total }: { segments: DonutSegment[]; total: number })
       <div className="space-y-2 flex-1">
         {segments.map((s) => (
           <div key={s.label} className="flex items-center gap-2 text-sm">
-            <span className="h-2.5 w-2.5 rounded-full" style={{ background: `hsl(var(--${s.colorVar}))` }} />
+            <span className="h-2.5 w-2.5 rounded-full" style={{ background: s.color }} />
             <span className="text-foreground flex-1">{s.label}</span>
             <span className="font-semibold tabular-nums text-foreground">{s.value}</span>
           </div>
@@ -144,6 +150,8 @@ export function ProjectsReports() {
     () => projects.filter((p) => p.setup_status !== "canceled"),
     [projects]
   );
+
+  const statusCounts = useMemo(() => countByProjectStatus(activeProjects), [activeProjects]);
 
   const counts = useMemo(() => {
     const c = {
@@ -206,14 +214,14 @@ export function ProjectsReports() {
     );
   }
 
-  const statusSegments: DonutSegment[] = [
-    { value: counts.late, colorVar: "destructive", label: "Late" },
-    { value: counts.onHold, colorVar: "muted-foreground", label: "On Hold" },
-    { value: counts.in_progress, colorVar: "primary", label: "In Progress" },
-    { value: counts.to_configure, colorVar: "warning", label: "To Configure" },
-    { value: counts.quotation, colorVar: "accent-foreground", label: "Quotation" },
-    { value: counts.certified, colorVar: "success", label: "Certified" },
-  ];
+  // Grafico e legenda leggono lo stesso elenco e gli stessi colori: vedi
+  // src/lib/projectStatus.ts. Il totale del donut e' la somma di questi sei,
+  // non counts.total, altrimenti la ciambella non chiude il cerchio.
+  const statusSegments: DonutSegment[] = PROJECT_STATUS_ORDER.map((s) => ({
+    value: statusCounts[s],
+    color: PROJECT_STATUS_META[s].color,
+    label: PROJECT_STATUS_META[s].label,
+  }));
 
   const macroMax = Math.max(1, ...Object.values(macroPhaseCounts));
 
