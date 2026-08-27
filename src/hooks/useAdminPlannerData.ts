@@ -3,6 +3,7 @@ import { externalSupabase as supabase } from "@/integrations/supabase/externalCl
 import type { SetupStatus } from "@/hooks/usePMDashboard";
 import type { GanttRowData } from "@/components/dashboard/FGBPlanner";
 import { computeMacroPhase, type MacroPhase } from "@/data/certificationTemplates";
+import { displayPersonName } from "@/lib/personName";
 import { differenceInDays, parseISO } from "date-fns";
 
 const CERTIFICATION_ID_CHUNK_SIZE = 50;
@@ -65,7 +66,13 @@ export interface AdminPlannerProject {
   plannerData: GanttRowData;
   macro_phase: MacroPhase;
   is_deadline_critical?: boolean;
+  /** Nella valuta dell'offerta, non in euro: vedi `currency`. */
   total_fees?: number | null;
+  currency?: string | null;
+  /** Quanti euro vale una unita' di `currency`, congelato al salvataggio. */
+  fx_rate_to_eur?: number | null;
+  /** total_fees riportato in euro: e' questo che si somma. */
+  total_fees_eur?: number | null;
   quotation_sent_date?: string | null;
   sqm?: number | null;
   services_fees?: number | null;
@@ -118,7 +125,11 @@ export function useAdminPlannerData() {
           .in("id", pmIds);
         if (profiles) {
           for (const p of profiles) {
-            profilesMap.set(p.id, p.display_name || p.full_name || p.email || p.id);
+            // Formattato una volta sola qui: tabella, filtri, ricerca ed export
+            // leggono tutti questo campo, e se lo convertisse ognuno per conto
+            // suo la colonna PM e il filtro sulla colonna PM smetterebbero di
+            // corrispondere.
+            profilesMap.set(p.id, displayPersonName(p.display_name || p.full_name, p.email));
           }
         }
       }
@@ -238,7 +249,8 @@ export function useAdminPlannerData() {
               ...emptyDates
             } as unknown as GanttRowData,
             macro_phase: macroPhase, is_deadline_critical: false,
-            total_fees: c.total_fees, quotation_sent_date: c.quotation_sent_date, sqm: c.sqm, services_fees: c.services_fees, gbci_fees: c.gbci_fees,
+            total_fees: c.total_fees, currency: c.currency || "EUR", fx_rate_to_eur: c.fx_rate_to_eur ?? 1, total_fees_eur: c.total_fees_eur,
+            quotation_sent_date: c.quotation_sent_date, sqm: c.sqm, services_fees: c.services_fees, gbci_fees: c.gbci_fees,
             on_hold: !!c.on_hold, on_hold_reason: c.on_hold_reason || null, on_hold_at: c.on_hold_at || null, on_hold_by: c.on_hold_by || null,
           };
         }
@@ -377,6 +389,9 @@ export function useAdminPlannerData() {
           assigned_hardware_count: hardwareBySite.get(c.site_id) ?? 0,
           certification_milestones: certMilestones,
           plannerData, macro_phase: macroPhase, is_deadline_critical,
+          // Anche sui progetti gia' operativi: l'offerta approvata resta il
+          // valore del progetto, e senza questi campi non e' sommabile.
+          total_fees: c.total_fees, currency: c.currency || "EUR", fx_rate_to_eur: c.fx_rate_to_eur ?? 1, total_fees_eur: c.total_fees_eur,
           on_hold: !!c.on_hold, on_hold_reason: c.on_hold_reason || null, on_hold_at: c.on_hold_at || null, on_hold_by: c.on_hold_by || null,
         };
       });

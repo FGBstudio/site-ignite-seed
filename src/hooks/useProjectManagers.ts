@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { displayPersonName, byPersonName } from "@/lib/personName";
 
 /**
  * Chi può essere messo a capo di un progetto.
@@ -45,17 +46,20 @@ export async function fetchAssignableManagers(): Promise<AssignableManager[]> {
 
   if (profilesError) throw profilesError;
 
+  // "Cognome Nome" e ordine alfabetico: e' la forma in cui l'ufficio scrive i
+  // nomi, ed e' l'unica per cui l'ordinamento alfabetico significhi qualcosa —
+  // per nome proprio raggruppa le Anna, non i Rossi.
   return (profilesData || [])
     .map((p: any) => ({
       id: p.id,
-      full_name:
+      full_name: displayPersonName(
         p.full_name ||
-        p.display_name ||
-        [p.first_name, p.last_name].filter(Boolean).join(" ") ||
-        p.email ||
-        "PM",
+          p.display_name ||
+          [p.first_name, p.last_name].filter(Boolean).join(" "),
+        p.email,
+      ),
     }))
-    .sort((a, b) => a.full_name.localeCompare(b.full_name));
+    .sort((a, b) => byPersonName(a.full_name, b.full_name));
 }
 
 export function useProjectManagers() {

@@ -27,6 +27,9 @@ import {
 } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { QuotationBudgetBuilder } from "@/components/projects/QuotationBudgetBuilder";
+import { CurrencySelect, EurHint } from "@/components/common/Money";
+import { useFxRates } from "@/hooks/useFxRates";
+import { currencySymbol, formatMoney, eurEquivalent } from "@/lib/currency";
 import {
   type BudgetBuilderState,
   emptyBuilder,
@@ -270,6 +273,17 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
   const [services, setServices] = useState<ServicesState>(emptyServices());
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  /**
+   * La valuta e' dell'OFFERTA, non della singola certificazione: un'offerta
+   * unificata su piu' schemi e' un solo documento e un solo importo per il
+   * cliente, e mescolare valute al suo interno renderebbe il totale
+   * insommabile.
+   *
+   * La costruzione FTE e hardware resta in euro: sono i nostri costi.
+   */
+  const [currency, setCurrency] = useState("EUR");
+  const { data: fxRates = [] } = useFxRates();
+  const currencyRateToEur = fxRates.find((r) => r.code === currency)?.rateToEur ?? 1;
   const [isPotential, setIsPotential] = useState(false);
   const [projectNameTouched, setProjectNameTouched] = useState(false);
   const [clientTouched, setClientTouched] = useState(false);
@@ -452,7 +466,7 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
     (async () => {
       const { data: cert, error } = await supabase
         .from("certifications")
-        .select("id, name, client, region, handover_date, site_id, sites(id, brand_id, brands(id, holding_id))")
+        .select("id, name, client, region, handover_date, site_id, currency, sites(id, brand_id, brands(id, holding_id))")
         .eq("id", resumeCertId)
         .maybeSingle();
       if (error || !cert || cancelled) return;
@@ -461,6 +475,9 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
       const holdingId = s.brands?.holding_id || "";
       setIsPotential(false);
       setStep(2);
+      // Una potenziale ripresa mantiene la valuta con cui era stata registrata:
+      // ripartire da euro cambierebbe l'offerta senza che nessuno lo chieda.
+      setCurrency(((cert as any).currency || "EUR").toUpperCase());
       setSite({
         holdingId,
         brandId,
@@ -613,6 +630,10 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
             services_fees: cert.services_fees ? Number(cert.services_fees) : null,
             gbci_fees: cert.gbci_fees ? Number(cert.gbci_fees) : null,
             total_fees: cert.total_fees ? Number(cert.total_fees) : null,
+            // Solo la valuta: il cambio lo timbra il database al salvataggio,
+            // cosi' non esiste un percorso in cui l'importo e il cambio
+            // raccontano due giorni diversi.
+            currency,
             allocated_hours: allocatedHours,
             quotation_sent_date: services.quotationSentDate
               ? format(services.quotationSentDate, "yyyy-MM-dd")
@@ -877,6 +898,23 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
       </div>
       {errors.certs && <p className="text-xs text-destructive">{errors.certs}</p>}
 
+      {/*
+        La valuta si sceglie una volta per tutta l'offerta e sta qui in cima,
+        prima degli importi: chi compila deve sapere in che valuta sta
+        scrivendo prima di scrivere. Gli importi delle certificazioni qui sotto
+        sono tutti in questa valuta.
+      */}
+      {services.certifications.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border/60 bg-muted/30 px-3 py-2">
+          <Label className="text-xs font-medium">Quotation currency</Label>
+          <CurrencySelect value={currency} onChange={setCurrency} className="h-8 w-32" />
+          <p className="text-[11px] text-muted-foreground">
+            Tutti gli importi dell'offerta sono in questa valuta. Il calcolo FTE e
+            l'hardware restano in euro: sono costi nostri.
+          </p>
+        </div>
+      )}
+
       {/* Per-cert config */}
       {services.certifications.length > 0 && (
         <div className="space-y-3">
@@ -975,13 +1013,13 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="space-y-1">
-                        <Label className="text-xs">Services Fees (€)</Label>
+                        <Label className="text-xs">Services Fees ({currencySymbol(currency)})</Label>
                         <Input type="number" className="h-8 text-sm" placeholder="e.g. 15,000"
                           value={cert.services_fees}
                           onChange={(e) => patchCert(cert.cert_type, { services_fees: e.target.value })} />
                       </div>
                       <div className="space-y-1">
-                        <Label className="text-xs">GBCI / IWBI Fees (€)</Label>
+                        <Label className="text-xs">GBCI / IWBI Fees ({currencySymbol(currency)})</Label>
                         <Input type="number" className="h-8 text-sm" placeholder="e.g. 5,000"
                           value={cert.gbci_fees}
                           onChange={(e) => patchCert(cert.cert_type, { gbci_fees: e.target.value })} />
@@ -1015,13 +1053,18 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
 
                     {cert.quote_mode === "direct" ? (
                       <div className="space-y-1 max-w-xs">
-                        <Label className="text-xs font-medium">Total Quotation (€) *</Label>
+                        <Label className="text-xs font-medium">Total Quotation ({currencySymbol(currency)}) *</Label>
                         <Input
                           type="number"
                           placeholder="e.g. 20,000"
                           className={cn("h-8 text-sm", errors[`total_${cert.cert_type}`] && "border-destructive")}
                           value={cert.total_fees}
                           onChange={(e) => patchCert(cert.cert_type, { total_fees: e.target.value })}
+                        />
+                        <EurHint
+                          amount={cert.total_fees ? Number(cert.total_fees) : null}
+                          currency={currency}
+                          rateToEur={currencyRateToEur}
                         />
                         {errors[`total_${cert.cert_type}`] && (
                           <p className="text-xs text-destructive">{errors[`total_${cert.cert_type}`]}</p>
@@ -1031,7 +1074,7 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
                       <>
                         {cert.builder_applied && cert.total_fees && (
                           <div className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm">
-                            <span className="font-medium text-emerald-800">Applied: €{Number(cert.total_fees).toLocaleString()}</span>
+                            <span className="font-medium text-emerald-800">Applied: {formatMoney(Number(cert.total_fees), currency)}</span>
                             <span className="text-emerald-700 ml-2 text-xs">— recompute and click "Use this value" again to update.</span>
                           </div>
                         )}
@@ -1292,9 +1335,17 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
                     <span className="text-[11px] text-muted-foreground">{c.quote_mode === "builder" ? "Builder" : "Direct"}</span>
                   </div>
                   <div className="grid grid-cols-3 gap-2 text-xs">
-                    <div><p className="text-muted-foreground">Services</p><p className="font-medium">{c.services_fees ? `€${Number(c.services_fees).toLocaleString()}` : "—"}</p></div>
-                    <div><p className="text-muted-foreground">GBCI</p><p className="font-medium">{c.gbci_fees ? `€${Number(c.gbci_fees).toLocaleString()}` : "—"}</p></div>
-                    <div><p className="text-muted-foreground">Total</p><p className="font-semibold text-foreground">{c.total_fees ? `€${Number(c.total_fees).toLocaleString()}` : "—"}</p></div>
+                    <div><p className="text-muted-foreground">Services</p><p className="font-medium">{c.services_fees ? formatMoney(Number(c.services_fees), currency) : "—"}</p></div>
+                    <div><p className="text-muted-foreground">GBCI</p><p className="font-medium">{c.gbci_fees ? formatMoney(Number(c.gbci_fees), currency) : "—"}</p></div>
+                    <div>
+                      <p className="text-muted-foreground">Total</p>
+                      <p className="font-semibold text-foreground">{c.total_fees ? formatMoney(Number(c.total_fees), currency) : "—"}</p>
+                      {c.total_fees && (
+                        <p className="text-[10px] text-muted-foreground tabular-nums">
+                          {eurEquivalent(Number(c.total_fees), currency, currencyRateToEur)}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}

@@ -16,12 +16,17 @@ import { Label } from "@/components/ui/label";
 import { PAYMENT_SCHEMES, TRIGGER_LABELS, generateTranches, type PaymentSchemeId } from "@/lib/paymentSchemes";
 import { useInvoiceStore } from "../store/useInvoiceStore";
 import { CheckCircle2, FileText, Loader2, Receipt, Plus, ArrowRight } from "lucide-react";
+import { Money } from "@/components/common/Money";
+import { formatMoney } from "@/lib/currency";
 
 interface Cert {
   id: string;
   name: string;
   client: string;
+  /** Nella valuta dell'offerta: le tranche si emettono nella stessa. */
   total_fees: number | null;
+  currency: string | null;
+  fx_rate_to_eur: number | null;
   status: string;
   region: string | null;
   sites: { city: string | null } | null;
@@ -47,7 +52,7 @@ function useApprovedCerts() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("certifications")
-        .select("id, name, client, total_fees, status, region, sites ( city )")
+        .select("id, name, client, total_fees, currency, fx_rate_to_eur, status, region, sites ( city )")
         .in("status", ["quotation_approved", "da_configurare", "in_corso", "completato", "certificato"])
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -145,7 +150,7 @@ export function QuotationsToInvoicePanel() {
         } catch { /* store shape may differ — silent */ }
       }
 
-      toast({ title: "Invoice created", description: `${t.name} — €${Number(t.amount).toLocaleString()}` });
+      toast({ title: "Invoice created", description: `${t.name} — ${formatMoney(Number(t.amount), cert.currency)}` });
       qc.invalidateQueries({ queryKey: ["payments-all-tranches"] });
     } catch (err: any) {
       toast({ title: "Failed", description: err.message, variant: "destructive" });
@@ -192,7 +197,9 @@ export function QuotationsToInvoicePanel() {
                       <td className="p-3 font-semibold text-foreground">{c.client}</td>
                       <td className="p-3 text-muted-foreground">{c.sites?.city || "—"}</td>
                       <td className="p-3">{c.name}</td>
-                      <td className="p-3">{c.total_fees != null ? `€${Number(c.total_fees).toLocaleString()}` : "—"}</td>
+                      <td className="p-3">
+                        <Money amount={c.total_fees} currency={c.currency} rateToEur={c.fx_rate_to_eur} />
+                      </td>
                       <td className="p-3 text-right">
                         <Button size="sm" className="gap-1.5" onClick={() => { setSchemeChoice("quotation_construction_50_50"); setSchemeDialog(c); }}>
                           <Receipt className="h-3.5 w-3.5" /> Invoice
@@ -242,7 +249,11 @@ export function QuotationsToInvoicePanel() {
                             <div className="text-sm font-medium truncate">{t.name}</div>
                             <Badge variant="outline" className="shrink-0">{t.tranche_pct ?? "—"}%</Badge>
                           </div>
-                          <div className="text-lg font-semibold">€{Number(t.amount || 0).toLocaleString()}</div>
+                          {/* La tranche e' una quota dell'offerta, quindi nella
+                              valuta dell'offerta: cambiare unita' a meta' strada
+                              renderebbe la somma delle tranche diversa dal
+                              totale che il cliente ha firmato. */}
+                          <div className="text-lg font-semibold">{formatMoney(Number(t.amount || 0), c.currency)}</div>
                           <div className="text-xs text-muted-foreground">
                             {t.trigger_event ? TRIGGER_LABELS[t.trigger_event as keyof typeof TRIGGER_LABELS] : "—"}
                           </div>
@@ -274,7 +285,7 @@ export function QuotationsToInvoicePanel() {
             <DialogTitle>Split quotation into tranches</DialogTitle>
             <DialogDescription>
               Select the payment scheme for <strong>{schemeDialog?.name}</strong>.
-              Total: <strong>€{Number(schemeDialog?.total_fees || 0).toLocaleString()}</strong>
+              Total: <strong>{formatMoney(Number(schemeDialog?.total_fees || 0), schemeDialog?.currency)}</strong>
             </DialogDescription>
           </DialogHeader>
           <RadioGroup value={schemeChoice} onValueChange={(v) => setSchemeChoice(v as PaymentSchemeId)} className="space-y-2">

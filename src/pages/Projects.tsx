@@ -28,6 +28,9 @@ import { useAdminPlannerData, type AdminPlannerProject } from "@/hooks/useAdminP
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import type { Project, ProjectAllocation } from "@/types/custom-tables";
+import { byPersonName } from "@/lib/personName";
+import { formatMoney } from "@/lib/currency";
+import { Money } from "@/components/common/Money";
 
 const SETUP_STATUS_META = {
   potential: { label: "Potential", icon: FileText, className: "border-slate-400/30 bg-slate-50 text-slate-600" },
@@ -59,7 +62,7 @@ function getUniqueValues(colKey: string, rows: any[]): string[] {
     else if (colKey === 'region') val = r.region || '(Blanks)';
     else if (colKey === 'cert_type') val = r.cert_type ? (CERT_DISPLAY_LABELS[r.cert_type] ?? r.cert_type) : '(Blanks)';
     else if (colKey === 'cert_rating') val = r.cert_rating || '(Blanks)';
-    else if (colKey === 'total_fees') val = r.total_fees !== undefined && r.total_fees !== null ? `€${Number(r.total_fees).toLocaleString()}` : '(Blanks)';
+    else if (colKey === 'total_fees') val = r.total_fees !== undefined && r.total_fees !== null ? formatMoney(r.total_fees, r.currency) : '(Blanks)';
     else if (colKey === 'quotation_sent_date') val = r.quotation_sent_date ? format(new Date(r.quotation_sent_date), "dd MMM yyyy") : '(Blanks)';
     else if (colKey === 'project_subtype') val = r.project_subtype || '(Blanks)';
     else if (colKey === 'pm_name') val = r.pm_name || '(Blanks)';
@@ -88,7 +91,7 @@ function matchRowValue(r: any, colKey: string, selectedValues: string[] | null |
   else if (colKey === 'region') val = r.region || '(Blanks)';
   else if (colKey === 'cert_type') val = r.cert_type ? (CERT_DISPLAY_LABELS[r.cert_type] ?? r.cert_type) : '(Blanks)';
   else if (colKey === 'cert_rating') val = r.cert_rating || '(Blanks)';
-  else if (colKey === 'total_fees') val = r.total_fees !== undefined && r.total_fees !== null ? `€${Number(r.total_fees).toLocaleString()}` : '(Blanks)';
+  else if (colKey === 'total_fees') val = r.total_fees !== undefined && r.total_fees !== null ? formatMoney(r.total_fees, r.currency) : '(Blanks)';
   else if (colKey === 'quotation_sent_date') val = r.quotation_sent_date ? format(new Date(r.quotation_sent_date), "dd MMM yyyy") : '(Blanks)';
   else if (colKey === 'project_subtype') val = r.project_subtype || '(Blanks)';
   else if (colKey === 'pm_name') val = r.pm_name || '(Blanks)';
@@ -354,44 +357,107 @@ export default function Projects() {
     });
   }, [allProjects]);
 
-  const exportCSV = () => {
-    const headers = ["Project", "Client", "Region", "Cert Type", "Rating", "PM", "Handover", "Status"];
-    const rows = sortedAndFiltered.map(p => [
-      p.name,
-      p.client,
-      p.region,
-      p.cert_type ? (CERT_DISPLAY_LABELS[p.cert_type] ?? p.cert_type) : "",
-      p.cert_rating ?? "",
-      p.pm_name ?? "",
-      p.handover_date ? format(new Date(p.handover_date), "dd MMM yyyy") : "",
-      SETUP_STATUS_META[p.setup_status as keyof typeof SETUP_STATUS_META]?.label ?? p.setup_status
-    ]);
-    const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  /**
+   * Le colonne dell'export sono quelle della tabella, non un elenco a parte.
+   *
+   * Prima l'export aveva otto colonne fisse — e nell'ordine sbagliato, Project
+   * prima di Client — mentre la tabella ne mostra di diverse a seconda della
+   * scheda: Total Fees e Sent Date sulle quotazioni, Issue Date sui certificati,
+   * l'hardware sulle schede operative. Chi esportava non ritrovava cio' che
+   * aveva davanti.
+   *
+   * Le condizioni su `statusTab` qui sotto ricalcano quelle del <thead>: se una
+   * colonna cambia li', va cambiata anche qui.
+   */
+  const exportColumns = useMemo(() => {
+    const d = (v: string | null | undefined) => (v ? format(new Date(v), "dd MMM yyyy") : "");
+    const cols: Array<{ header: string; get: (p: AdminPlannerProject) => string }> = [
+      { header: "Client", get: (p) => p.client ?? "" },
+      { header: "City", get: (p) => p.city ?? "" },
+      { header: "Project", get: (p) => p.name ?? "" },
+      { header: "Region", get: (p) => p.region ?? "" },
+      { header: "Certification", get: (p) => (p.cert_type ? CERT_DISPLAY_LABELS[p.cert_type] ?? p.cert_type : "") },
+      { header: "Rating", get: (p) => p.cert_rating ?? "" },
+    ];
+
+    if (statusTab === "quotation") {
+      // Tre colonne e non una: l'importo cosi' com'e' stato offerto, la valuta
+      // in cui e' stato offerto, e lo stesso importo in euro. In un foglio di
+      // calcolo solo l'ultima si puo' sommare.
+      cols.push({ header: "Total Fees", get: (p) => (p.total_fees != null ? String(p.total_fees) : "") });
+      cols.push({ header: "Currency", get: (p) => p.currency ?? "EUR" });
+      cols.push({ header: "Total Fees (EUR)", get: (p) => (p.total_fees_eur != null ? String(p.total_fees_eur) : "") });
+      cols.push({ header: "Sent Date", get: (p) => d(p.quotation_sent_date) });
+    } else {
+      cols.push({ header: "Subtype", get: (p) => p.project_subtype ?? "" });
+      cols.push({ header: "PM", get: (p) => p.pm_name ?? "" });
+    }
+
+    cols.push(
+      statusTab === "certificato"
+        ? { header: "Issue Date", get: (p) => d(p.issued_date) }
+        : { header: "Handover", get: (p) => d(p.handover_date) },
+    );
+
+    cols.push({
+      header: "Config Status",
+      get: (p) => SETUP_STATUS_META[p.setup_status as keyof typeof SETUP_STATUS_META]?.label ?? p.setup_status ?? "",
+    });
+
+    if (statusTab !== "quotation" && statusTab !== "canceled") {
+      // In tabella sono due pastiglie nella stessa cella; in un foglio di
+      // calcolo due colonne separate si sommano e si filtrano, una cella con
+      // due numeri dentro no.
+      cols.push({ header: "Hardware Requested", get: (p) => String(p.project_allocations.length) });
+      cols.push({ header: "Hardware Installed", get: (p) => String(p.assigned_hardware_count) });
+    }
+
+    return cols;
+  }, [statusTab]);
+
+  const download = (content: string, mime: string, ext: string) => {
+    const blob = new Blob([content], { type: `${mime};charset=utf-8;` });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `projects-${format(new Date(), "yyyy-MM-dd")}.csv`;
+    a.download = `projects-${format(new Date(), "yyyy-MM-dd")}.${ext}`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const exportCSV = () => {
+    // sortedAndFiltered e non allProjects: si esporta cio' che si vede, con i
+    // filtri e l'ordinamento del momento.
+    const rows = sortedAndFiltered.map((p) => exportColumns.map((c) => c.get(p)));
+    const csv = [exportColumns.map((c) => c.header), ...rows]
+      .map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+    download(csv, "text/csv", "csv");
   };
 
   const exportJSON = () => {
-    const blob = new Blob([JSON.stringify(sortedAndFiltered, null, 2)], { type: "application/json;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `projects-${format(new Date(), "yyyy-MM-dd")}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const rows = sortedAndFiltered.map((p) =>
+      Object.fromEntries(exportColumns.map((c) => [c.header, c.get(p)])),
+    );
+    download(JSON.stringify(rows, null, 2), "application/json", "json");
   };
 
+  /**
+   * I PM che compaiono davvero nell'elenco, in ordine alfabetico di cognome.
+   *
+   * Prima uscivano nell'ordine in cui capitavano i progetti — cioe' in nessun
+   * ordine — e scritti "Nome Cognome", che rende l'alfabetico inutile. Il nome
+   * arriva gia' in forma "Cognome Nome" da useAdminPlannerData: qui si ordina
+   * soltanto, perche' riconvertirlo una seconda volta lo rovescerebbe di nuovo.
+   */
   const pmOptions = useMemo(() => {
     const pms = new Map<string, string>();
     for (const p of allProjects) {
       if (p.pm_id && p.pm_name) pms.set(p.pm_id, p.pm_name);
     }
-    return Array.from(pms.entries()).map(([id, name]) => ({ id, name }));
+    return Array.from(pms.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => byPersonName(a.name, b.name));
   }, [allProjects]);
 
   /**
@@ -464,7 +530,7 @@ export default function Projects() {
           else if (colKey === 'region') val = r.region || '';
           else if (colKey === 'cert_type') val = r.cert_type ? (CERT_DISPLAY_LABELS[r.cert_type] ?? r.cert_type) : '';
           else if (colKey === 'cert_rating') val = r.cert_rating || '';
-          else if (colKey === 'total_fees') val = r.total_fees !== undefined && r.total_fees !== null ? String(r.total_fees) : '';
+          else if (colKey === 'total_fees') val = r.total_fees !== undefined && r.total_fees !== null ? formatMoney(r.total_fees, r.currency) : '';
           else if (colKey === 'quotation_sent_date') val = r.quotation_sent_date ? format(new Date(r.quotation_sent_date), "dd MMM yyyy") : '';
           else if (colKey === 'project_subtype') val = r.project_subtype || '';
           else if (colKey === 'pm_name') val = r.pm_name || '';
@@ -495,8 +561,11 @@ export default function Projects() {
       let valB: any = b[sortConfig.key as keyof typeof b];
 
       if (sortConfig.key === 'total_fees') {
-        valA = a.total_fees ?? 0;
-        valB = b.total_fees ?? 0;
+        // Si ordina sull'equivalente in euro, non sul numero scritto: 10.000
+        // renminbi non valgono piu' di 5.000 sterline solo perche' il numero e'
+        // piu' grande.
+        valA = a.total_fees_eur ?? a.total_fees ?? 0;
+        valB = b.total_fees_eur ?? b.total_fees ?? 0;
       }
 
       if (valA === undefined || valA === null) valA = '';
@@ -524,6 +593,12 @@ export default function Projects() {
   }), [allProjects]);
 
   const operationsTotal = counts.quotation_approved + counts.da_configurare + counts.in_corso + counts.completato + counts.certificato;
+
+  /** Quanti progetti ha la scheda scelta, prima di ricerca, region, PM e filtri di colonna. */
+  const tabTotal =
+    statusTab === "all"
+      ? operationsTotal
+      : counts[statusTab as keyof typeof counts] ?? allProjects.filter((p) => p.setup_status === statusTab).length;
 
   const openEdit = async (project: AdminPlannerProject) => {
     const { data } = await supabase
@@ -639,6 +714,18 @@ export default function Projects() {
                   ))}
                 </SelectContent>
               </Select>
+              {/*
+                Quante righe si stanno guardando. I contatori delle schede in
+                alto sono fissi sul totale della scheda e non reagiscono a
+                ricerca, region, PM e filtri di colonna: senza questo numero,
+                dopo aver filtrato non si sa piu' quanto e' grande cio' che si
+                ha davanti.
+              */}
+              <div className="flex items-center text-sm text-muted-foreground whitespace-nowrap tabular-nums">
+                {sortedAndFiltered.length === tabTotal
+                  ? `${tabTotal} project${tabTotal === 1 ? "" : "s"}`
+                  : `Showing ${sortedAndFiltered.length} of ${tabTotal}`}
+              </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
               {isAdmin && (
@@ -751,13 +838,20 @@ export default function Projects() {
                     const StatusIcon = statusMeta.icon;
                     const isQuotation = project.setup_status === "quotation";
                     const isCanceled = project.setup_status === "canceled";
+                    const isCertified = project.setup_status === "certificato";
 
                     return (
                       <tr
                         key={project.id}
                         className={cn(
                           "border-b last:border-b-0 transition-colors",
-                          project.on_hold
+                          // Un progetto certificato e' finito: nessuna scadenza
+                          // lo riguarda piu'. La riga verde lo dice a colpo
+                          // d'occhio, e prevale sull'allarme scadenza che
+                          // altrimenti resterebbe acceso su un lavoro chiuso.
+                          isCertified
+                            ? "bg-success/10 hover:bg-success/20"
+                            : project.on_hold
                             ? "bg-destructive/15 hover:bg-destructive/20"
                             : project.is_deadline_critical
                             ? "bg-destructive/5 hover:bg-destructive/10"
@@ -797,9 +891,11 @@ export default function Projects() {
                         {statusTab === "quotation" ? (
                           <>
                             <td className="p-4 font-medium">
-                              {project.total_fees != null
-                                ? `€${Number(project.total_fees).toLocaleString()}`
-                                : "—"}
+                              <Money
+                                amount={project.total_fees}
+                                currency={project.currency}
+                                rateToEur={project.fx_rate_to_eur}
+                              />
                             </td>
                             <td className="p-4 text-muted-foreground">
                               {project.quotation_sent_date
@@ -823,6 +919,17 @@ export default function Projects() {
                           {statusTab === "certificato" ? (
                             <span className="font-medium text-foreground">
                               {project.issued_date ? format(new Date(project.issued_date), "dd MMM yyyy") : "—"}
+                            </span>
+                          ) : isCertified ? (
+                            /*
+                              Nella scheda "All" i progetti certificati
+                              comparivano con l'handover in arancione e un conto
+                              alla rovescia negativo: un allarme su una consegna
+                              gia' avvenuta. Resta la data, in verde, senza
+                              conteggio.
+                            */
+                            <span className="font-medium text-success">
+                              {format(new Date(project.handover_date), "dd MMM yyyy")}
                             </span>
                           ) : (
                             <>

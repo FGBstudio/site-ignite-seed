@@ -15,14 +15,20 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { NewQuotationWizard } from "@/components/projects/NewQuotationWizard";
-import { Plus, Search, FileText, CheckCircle2, Loader2, ArrowRight, XCircle, Ban, Sparkles, RotateCcw, ChevronDown, ChevronRight as ChevronRightIcon, Save } from "lucide-react";
+import { ProjectFormModal } from "@/components/projects/ProjectFormModal";
+import { Money } from "@/components/common/Money";
+import { Plus, Search, FileText, CheckCircle2, Loader2, ArrowRight, XCircle, Ban, Sparkles, RotateCcw, ChevronDown, ChevronRight as ChevronRightIcon, Save, Pencil } from "lucide-react";
 
 interface QuotationRow {
   id: string;
   name: string;
   client: string;
   region: string | null;
+  /** Nella valuta dell'offerta: vedi `currency`. Per sommare c'e' total_fees_eur. */
   total_fees: number | null;
+  currency: string | null;
+  fx_rate_to_eur: number | null;
+  total_fees_eur: number | null;
   handover_date: string | null;
   quotation_sent_date: string | null;
   quotation_approved_at: string | null;
@@ -74,7 +80,7 @@ function useQuotations() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("certifications")
-        .select("id, name, client, region, total_fees, handover_date, quotation_sent_date, quotation_approved_at, created_at, status, quotation_notes, quotation_group_id, cert_type, sites(city)")
+        .select("id, name, client, region, total_fees, currency, fx_rate_to_eur, total_fees_eur, handover_date, quotation_sent_date, quotation_approved_at, created_at, status, quotation_notes, quotation_group_id, cert_type, sites(city)")
         .order("created_at", { ascending: false })
         .limit(500);
       if (error) throw new Error(await readableFunctionError(error));
@@ -99,6 +105,10 @@ export default function Quotations() {
   const [savingNote, setSavingNote] = useState<string | null>(null);
   const [resumeDialog, setResumeDialog] = useState<QuotationRow | null>(null);
   const [resumingId, setResumingId] = useState<string | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editProject, setEditProject] = useState<any>(null);
+  const [editAllocations, setEditAllocations] = useState<any[]>([]);
+  const [openingEditId, setOpeningEditId] = useState<string | null>(null);
 
   const potential = useMemo(() => rows.filter((r) => r.status === "potential"), [rows]);
   const pending = useMemo(() => rows.filter((r) => r.status === "quotation"), [rows]);
@@ -219,6 +229,46 @@ export default function Quotations() {
     } finally { setResumingId(null); }
   };
 
+  /**
+   * Apre la modale di modifica su una quotazione gia' registrata.
+   *
+   * L'elenco carica solo le colonne che mostra, mentre la modale ha bisogno
+   * della riga intera — sito, PM, tipo, subtype, fee — quindi la si rilegge
+   * qui, insieme alle allocazioni hardware gia' richieste, che altrimenti la
+   * modale salverebbe come "nessuna" cancellandole.
+   */
+  const openEdit = async (id: string) => {
+    setOpeningEditId(id);
+    try {
+      const { data: cert, error } = await supabase
+        .from("certifications").select("*").eq("id", id).single();
+      if (error) throw error;
+      const { data: allocs } = await supabase
+        .from("project_allocations").select("*").eq("certification_id", id);
+      setEditProject(cert);
+      setEditAllocations((allocs || []) as any[]);
+      setEditOpen(true);
+    } catch (err) {
+      toast({ title: "Cannot open the quotation", description: readableError(err), variant: "destructive" });
+    } finally {
+      setOpeningEditId(null);
+    }
+  };
+
+  const EditButton = ({ id }: { id: string }) => (
+    <Button
+      size="sm"
+      variant="outline"
+      className="gap-1.5"
+      disabled={openingEditId === id}
+      onClick={() => openEdit(id)}
+      title="Edit this quotation"
+    >
+      {openingEditId === id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Pencil className="h-3.5 w-3.5" />}
+      Edit
+    </Button>
+  );
+
   const renderPotential = () => {
     const filtered = potential.filter(filterFn);
     if (isLoading) return <div className="space-y-2">{[0,1,2].map((i) => <Skeleton key={i} className="h-14 w-full" />)}</div>;
@@ -247,9 +297,12 @@ export default function Quotations() {
                 <td className="p-3 text-muted-foreground">{r.handover_date ? format(new Date(r.handover_date), "dd MMM yyyy") : "—"}</td>
                 <td className="p-3 text-muted-foreground">{r.created_at ? format(new Date(r.created_at), "dd MMM yyyy") : "—"}</td>
                 <td className="p-3 text-right">
-                  <Button size="sm" className="gap-1.5" onClick={() => { setResumeCertId(r.id); setWizardOpen(true); }}>
-                    <ArrowRight className="h-3.5 w-3.5" /> Go on with Services &amp; Quote
-                  </Button>
+                  <div className="flex items-center justify-end gap-2">
+                    <EditButton id={r.id} />
+                    <Button size="sm" className="gap-1.5" onClick={() => { setResumeCertId(r.id); setWizardOpen(true); }}>
+                      <ArrowRight className="h-3.5 w-3.5" /> Go on with Services &amp; Quote
+                    </Button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -291,7 +344,7 @@ export default function Quotations() {
                     <td className="p-3 text-muted-foreground uppercase">{r.sites?.city || "—"}</td>
                     <td className="p-3 text-foreground">{r.name}</td>
                     <td className="p-3">{r.region ? <Badge variant="outline">{r.region}</Badge> : "—"}</td>
-                    <td className="p-3 font-medium">{r.total_fees != null ? `€${Number(r.total_fees).toLocaleString()}` : "—"}</td>
+                    <td className="p-3 font-medium"><Money amount={r.total_fees} currency={r.currency} rateToEur={r.fx_rate_to_eur} /></td>
                     <td className="p-3 text-muted-foreground">{r.handover_date ? format(new Date(r.handover_date), "dd MMM yyyy") : "—"}</td>
                     <td className="p-3">
                       <Badge variant="outline" className="gap-1 text-destructive border-destructive/30 bg-destructive/10">
@@ -350,7 +403,17 @@ export default function Quotations() {
         if (existing) {
           existing._groupIds.push(r.id);
           if (r.cert_type) existing._certTypes.push(r.cert_type);
-          existing.total_fees = (existing.total_fees ?? 0) + (r.total_fees ?? 0);
+          // Le righe di un'offerta unificata possono essere in valute diverse:
+          // si sommano gli euro, che e' l'unica somma che significa qualcosa, e
+          // il totale mostrato diventa quello in euro.
+          existing.total_fees_eur = (existing.total_fees_eur ?? 0) + (r.total_fees_eur ?? 0);
+          if (r.currency !== existing.currency) {
+            existing.currency = "EUR";
+            existing.fx_rate_to_eur = 1;
+            existing.total_fees = existing.total_fees_eur;
+          } else {
+            existing.total_fees = (existing.total_fees ?? 0) + (r.total_fees ?? 0);
+          }
         } else {
           const d: Display = { ...r, _groupIds: [r.id], _certTypes: r.cert_type ? [r.cert_type] : [] };
           map.set(gid, d);
@@ -404,7 +467,7 @@ export default function Quotations() {
                     ) : "—"}
                   </td>
                   <td className="p-3">{r.region ? <Badge variant="outline">{r.region}</Badge> : "—"}</td>
-                  <td className="p-3 font-medium">{r.total_fees != null ? `€${Number(r.total_fees).toLocaleString()}` : "—"}</td>
+                  <td className="p-3 font-medium"><Money amount={r.total_fees} currency={r.currency} rateToEur={r.fx_rate_to_eur} /></td>
                   <td className="p-3 text-muted-foreground">{r.handover_date ? format(new Date(r.handover_date), "dd MMM yyyy") : "—"}</td>
                   <td className="p-3 text-muted-foreground">
                     {mode === "pending"
@@ -414,6 +477,7 @@ export default function Quotations() {
                   <td className="p-3 text-right">
                     {mode === "pending" ? (
                       <div className="flex items-center justify-end gap-2">
+                        <EditButton id={r.id} />
                         <Button size="sm" className="gap-1" disabled={approvingId === r.id} onClick={() => handleApprove(r.id, r._groupIds)}>
                           {approvingId === r.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
                           {isGroup ? "Approve all" : "Mark as Approved"}
@@ -469,6 +533,18 @@ export default function Quotations() {
         onOpenChange={(o) => { setWizardOpen(o); if (!o) setResumeCertId(undefined); }}
         resumeCertId={resumeCertId}
         onSaved={() => {
+          qc.invalidateQueries({ queryKey: ["quotations-list"] });
+          qc.invalidateQueries({ queryKey: ["admin-planner-all-certifications"] });
+        }}
+      />
+
+      <ProjectFormModal
+        open={editOpen}
+        onOpenChange={(o) => { setEditOpen(o); if (!o) { setEditProject(null); setEditAllocations([]); } }}
+        project={editProject}
+        existingAllocations={editAllocations}
+        onSaved={() => {
+          setEditOpen(false);
           qc.invalidateQueries({ queryKey: ["quotations-list"] });
           qc.invalidateQueries({ queryKey: ["admin-planner-all-certifications"] });
         }}

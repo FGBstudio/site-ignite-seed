@@ -28,6 +28,9 @@ import { useCertCatalog } from "@/hooks/useCertCatalog";
 import { getCertificationTemplate } from "@/data/certificationTemplates";
 import type { Product, Project, ProjectAllocation } from "@/types/custom-tables";
 import { QuotationBudgetBuilder, emptyBuilder } from "@/components/projects/QuotationBudgetBuilder";
+import { CurrencySelect, EurHint } from "@/components/common/Money";
+import { useFxRates } from "@/hooks/useFxRates";
+import { currencySymbol, formatMoney } from "@/lib/currency";
 import { computeBudget, HOURS_PER_DAY, type BudgetBuilderState } from "@/lib/quotationBudget";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Calculator, ChevronDown } from "lucide-react";
@@ -116,6 +119,8 @@ const formSchema = z.object({
   services_fees: z.number().optional(),
   gbci_fees: z.number().optional(),
   total_fees: z.number().optional(),
+  /** Gli importi qui sopra sono in QUESTA valuta. Il cambio lo timbra il database. */
+  currency: z.string().default("EUR"),
   quotation_notes: z.string().optional(),
   quotation_sent_date: z.date().optional().nullable(),
   po_sign_date: z.date().optional().nullable(),
@@ -164,13 +169,18 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
   const isQuotationMode = mode === "create_quotation";
   const isConfirmMode = mode === "confirm_project";
 
+  // Il cambio mostrato e' quello di oggi. Quello che finira' sulla riga lo
+  // decide il database al salvataggio, e sara' lo stesso: qui e' un'anteprima,
+  // non la fonte.
+  const { data: fxRates = [] } = useFxRates();
+
   const form = useForm<ProjectFormData>({
     resolver: zodResolver(formSchema),
     defaultValues: { 
       name: "", client: "", region: "Europe", handover_date: new Date(), 
       status: "Design", site_id: "", allocations: [], certifications: [],
       sqm: undefined, fgb_monitor: false, services_fees: undefined,
-      gbci_fees: undefined, total_fees: undefined, quotation_notes: "",
+      gbci_fees: undefined, total_fees: undefined, currency: "EUR", quotation_notes: "",
       quotation_sent_date: null, po_sign_date: null, confirm_pm_id: "",
       site_lat: "", site_lng: "",
     },
@@ -180,6 +190,10 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
   const { fields: certFields, append: appendCert, remove: removeCert } = useFieldArray({ control: form.control, name: "certifications" });
 
   const watchedCerts = form.watch("certifications") || [];
+
+  const quoteCurrency = (form.watch("currency") || "EUR").toUpperCase();
+  const quoteSymbol = currencySymbol(quoteCurrency);
+  const quoteRateToEur = fxRates.find((r) => r.code === quoteCurrency)?.rateToEur ?? 1;
 
   useEffect(() => {
     if (!open) return;
@@ -290,6 +304,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
             services_fees: (project as any).services_fees || undefined,
             gbci_fees: (project as any).gbci_fees || undefined,
             total_fees: (project as any).total_fees || undefined,
+            currency: (project as any).currency || "EUR",
             quotation_notes: (project as any).quotation_notes || "",
             quotation_sent_date: (project as any).quotation_sent_date ? new Date((project as any).quotation_sent_date) : null,
           });
@@ -302,7 +317,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
           status: isQuotationMode ? "quotation" : "da_configurare", site_id: "", 
           allocations: [], certifications: [],
           sqm: undefined, fgb_monitor: false, services_fees: undefined,
-          gbci_fees: undefined, total_fees: undefined, quotation_notes: "",
+          gbci_fees: undefined, total_fees: undefined, currency: "EUR", quotation_notes: "",
           quotation_sent_date: null, po_sign_date: null, confirm_pm_id: "",
         });
         setSelectedHoldingId(""); setSelectedBrandId(""); setShowNewSite(false); setNewSiteName("");
@@ -418,6 +433,11 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
           certPayload.services_fees = data.services_fees || null;
           certPayload.gbci_fees = data.gbci_fees || null;
           certPayload.total_fees = data.total_fees || null;
+          // Si scrive la valuta, non il cambio: quello lo timbra
+          // trg_certifications_stamp_fx leggendo i tassi del giorno, cosi' non
+          // esiste un percorso in cui l'importo dice una cosa e il cambio
+          // un'altra.
+          certPayload.currency = data.currency || "EUR";
           certPayload.quotation_notes = data.quotation_notes || null;
           certPayload.quotation_sent_date = data.quotation_sent_date ? format(data.quotation_sent_date, "yyyy-MM-dd") : null;
         }
@@ -537,7 +557,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
                   <div className="flex justify-between"><span className="text-muted-foreground">Rating</span><span className="font-medium">{(project as any).cert_rating || "—"}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Handover</span><span className="font-medium">{format(new Date(project.handover_date), "dd MMM yyyy")}</span></div>
                   {(project as any).total_fees != null && (
-                    <div className="flex justify-between"><span className="text-muted-foreground">Total Fees</span><span className="font-medium">€{Number((project as any).total_fees).toLocaleString()}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Total Fees</span><span className="font-medium">{formatMoney((project as any).total_fees, (project as any).currency)}</span></div>
                   )}
                 </CardContent>
               </Card>
@@ -759,24 +779,40 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
                         <FormMessage />
                       </FormItem>
                     )} />
+                    {/*
+                      La valuta sta davanti agli importi e non dopo: chi compila
+                      deve sapere in che valuta sta scrivendo prima di scrivere,
+                      non scoprirlo dopo. Vale per tutti e tre gli importi qui
+                      sotto, e le etichette lo dicono cambiando simbolo.
+                    */}
+                    <FormField control={form.control} name="currency" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Currency</FormLabel>
+                        <FormControl>
+                          <CurrencySelect value={field.value || "EUR"} onChange={field.onChange} className="w-full" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
                     <FormField control={form.control} name="services_fees" render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Services Fees (€)</FormLabel>
+                        <FormLabel>Services Fees ({quoteSymbol})</FormLabel>
                         <FormControl><Input type="number" placeholder="e.g. 15000" value={field.value ?? ""} onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)} /></FormControl>
                         <FormMessage />
                       </FormItem>
                     )} />
                     <FormField control={form.control} name="gbci_fees" render={({ field }) => (
                       <FormItem>
-                        <FormLabel>GBCI Fees (€)</FormLabel>
+                        <FormLabel>GBCI Fees ({quoteSymbol})</FormLabel>
                         <FormControl><Input type="number" placeholder="e.g. 5000" value={field.value ?? ""} onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)} /></FormControl>
                         <FormMessage />
                       </FormItem>
                     )} />
                     <FormField control={form.control} name="total_fees" render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Total Fees (€)</FormLabel>
+                        <FormLabel>Total Fees ({quoteSymbol})</FormLabel>
                         <FormControl><Input type="number" placeholder="e.g. 20000" value={field.value ?? ""} onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)} /></FormControl>
+                        <EurHint amount={field.value} currency={quoteCurrency} rateToEur={quoteRateToEur} />
                         <FormMessage />
                       </FormItem>
                     )} />
