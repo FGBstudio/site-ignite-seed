@@ -410,6 +410,44 @@ export default function SupplierOrders() {
           .from("ops_hardware_movements")
           .insert(movements);
         if (insErr) throw insErr;
+
+        // Auto-update hardware status and project allocations when shipped/delivered
+        if (payload.shipment_type === 'outbound') {
+          if (payload.status === 'in_transit' || payload.status === 'delivered') {
+            const shipDate = payload.shipped_date || new Date().toISOString().split('T')[0];
+            await (supabase as any)
+              .from("hardwares")
+              .update({
+                status: "Shipped",
+                shipment_date: shipDate
+              })
+              .in("id", selectedHwIds);
+
+            // Update allocations for destination site
+            const destLoc = locations.find(l => l.id === payload.destination_location_id);
+            const targetSiteId = destLoc?.site_id;
+            if (targetSiteId) {
+              const { data: certs } = await supabase
+                .from("certifications")
+                .select("id")
+                .eq("site_id", targetSiteId);
+              
+              const certIds = (certs || []).map(c => c.id);
+              if (certIds.length > 0) {
+                await (supabase as any)
+                  .from("project_allocations")
+                  .update({ status: "Shipped" })
+                  .in("certification_id", certIds)
+                  .in("status", ["Confirmed", "Partially Confirmed", "Requested"]);
+              }
+            }
+          } else if (payload.status === 'awaiting dispatch' || payload.status === 'upcoming') {
+            await (supabase as any)
+              .from("hardwares")
+              .update({ status: "Assigned" })
+              .in("id", selectedHwIds);
+          }
+        }
       }
       
       toast({ title: "Success", description: `Shipment updated with ${selectedHwIds.length} devices.` });
