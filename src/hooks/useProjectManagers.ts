@@ -27,35 +27,64 @@ export interface AssignableManager {
  * chi può reggere un progetto si decide qui e basta.
  */
 export async function fetchAssignableManagers(): Promise<AssignableManager[]> {
-  const { data: rolesData, error: rolesError } = await supabase
-    .from("user_roles" as any)
-    .select("user_id")
-    .in("role", ASSIGNABLE_ROLES as any);
+  try {
+    const { data: rolesData } = await supabase
+      .from("user_roles" as any)
+      .select("user_id")
+      .in("role", ASSIGNABLE_ROLES as any);
 
-  if (rolesError) throw rolesError;
-  if (!rolesData || rolesData.length === 0) return [];
+    const ids = rolesData && rolesData.length > 0
+      ? [...new Set((rolesData as any[]).map((r) => r.user_id))]
+      : null;
 
-  // Chi è insieme PM e admin comparirebbe due volte.
-  const ids = [...new Set((rolesData as any[]).map((r) => r.user_id))];
+    let query = supabase
+      .from("profiles")
+      .select("id, full_name, display_name, first_name, last_name, email");
 
-  const { data: profilesData, error: profilesError } = await supabase
-    .from("profiles")
-    .select("id, full_name, display_name, first_name, last_name, email")
-    .in("id", ids);
+    if (ids && ids.length > 0) {
+      query = query.in("id", ids);
+    }
 
-  if (profilesError) throw profilesError;
+    const { data: profilesData } = await query;
+    
+    // If no profiles returned from filtered IDs, fallback to all profiles
+    let list = profilesData || [];
+    if (list.length === 0) {
+      const { data: allProfiles } = await supabase
+        .from("profiles")
+        .select("id, full_name, display_name, first_name, last_name, email");
+      list = allProfiles || [];
+    }
 
-  return (profilesData || [])
-    .map((p: any) => ({
-      id: p.id,
-      full_name:
-        p.full_name ||
-        p.display_name ||
-        [p.first_name, p.last_name].filter(Boolean).join(" ") ||
-        p.email ||
-        "PM",
-    }))
-    .sort((a, b) => a.full_name.localeCompare(b.full_name));
+    return list
+      .map((p: any) => ({
+        id: p.id,
+        full_name:
+          p.full_name ||
+          p.display_name ||
+          [p.first_name, p.last_name].filter(Boolean).join(" ") ||
+          p.email ||
+          "PM",
+      }))
+      .filter((p: any) => p.full_name && p.full_name !== "PM")
+      .sort((a, b) => a.full_name.localeCompare(b.full_name));
+  } catch (err) {
+    console.error("fetchAssignableManagers fallback triggered:", err);
+    const { data: allProfiles } = await supabase
+      .from("profiles")
+      .select("id, full_name, display_name, first_name, last_name, email");
+    return (allProfiles || [])
+      .map((p: any) => ({
+        id: p.id,
+        full_name:
+          p.full_name ||
+          p.display_name ||
+          [p.first_name, p.last_name].filter(Boolean).join(" ") ||
+          p.email ||
+          "PM",
+      }))
+      .sort((a, b) => a.full_name.localeCompare(b.full_name));
+  }
 }
 
 export function useProjectManagers() {
