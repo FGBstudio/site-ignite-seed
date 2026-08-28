@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, ChevronDown, ChevronUp, Sparkles, CheckCircle2 } from "lucide-react";
+import { Loader2, ChevronDown, ChevronUp, Sparkles, CheckCircle2, Search, Check, Filter } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -17,6 +17,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -93,6 +106,8 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
   const [mode, setMode] = useState<Mode>("AIR");
   const [pmFilter, setPmFilter] = useState<string>("all");
   const [certificationId, setCertificationId] = useState<string>("");
+  const [projectDropdownOpen, setProjectDropdownOpen] = useState(false);
+  const [showOnlyPendingRequests, setShowOnlyPendingRequests] = useState(true);
   const [slots, setSlots] = useState<AssignmentSlot[]>([]);
   const [bridgeOpen, setBridgeOpen] = useState(false);
   const [bridgeCfg, setBridgeCfg] = useState({
@@ -118,8 +133,109 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
       setStockCountry("all");
       setPmFilter("all");
       setMode("AIR");
+      setProjectDropdownOpen(false);
     }
   }, [open]);
+
+  const isAllocationMatchingMode = (a: any, targetMode: Mode): boolean => {
+    const name = a.products?.name?.toUpperCase() || "";
+    const isEnergyProduct = /FGB\d+|PAN-?\d+|MANGO|SYS-ENERGY/i.test(name);
+    if (isEnergyProduct) {
+      return targetMode === "ENERGY";
+    }
+    const isAirProduct = name.includes("CLAIR") || name.includes("WELL") || name.includes("LEED") || name.includes("CO2") || /SYS-AIR/i.test(name);
+    if (isAirProduct) {
+      return targetMode === "AIR";
+    }
+    const cat = (a.category || a.products?.category || "AIR").toUpperCase();
+    return cat === targetMode;
+  };
+
+  // Query all active allocations across projects to identify pending requests
+  const { data: allActiveAllocations = [] } = useQuery({
+    queryKey: ["all-active-allocations"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("project_allocations")
+        .select("id, certification_id, status, requested_quantity, quantity, category, products(name, category)")
+        .in("status", ["Requested", "Partially Confirmed", "Confirmed", "Draft"]);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const { data: energyEstimateCerts = [] } = useQuery({
+    queryKey: ["energy-estimate-certs"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("site_energy_records" as never)
+        .select("certification_id, total_bridges, no_pan10, no_pan12, no_pan14, no_mango, planned_counts");
+      if (error) return [];
+      return (data || [])
+        .filter((r: any) => {
+          const total = (r.total_bridges || 0) + (r.no_pan10 || 0) + (r.no_pan12 || 0) + (r.no_pan14 || 0) + (r.no_mango || 0);
+          const hasPlanned = r.planned_counts && Object.values(r.planned_counts).some((v: any) => Number(v) > 0);
+          return total > 0 || hasPlanned;
+        })
+        .map((r: any) => r.certification_id)
+        .filter(Boolean);
+    },
+  });
+
+  const certAllocationStats = useMemo(() => {
+    const stats = new Map<string, {
+      totalRequested: number;
+      hasRequested: boolean;
+      hasPartiallyConfirmed: boolean;
+      hasConfirmed: boolean;
+      requestedCount: number;
+    }>();
+
+    for (const a of allActiveAllocations as any[]) {
+      if (!a.certification_id) continue;
+      // Filter by the current selected Mode (AIR vs ENERGY)!
+      if (!isAllocationMatchingMode(a, mode)) continue;
+
+      const curr = stats.get(a.certification_id) || {
+        totalRequested: 0,
+        hasRequested: false,
+        hasPartiallyConfirmed: false,
+        hasConfirmed: false,
+        requestedCount: 0,
+      };
+      const qty = a.requested_quantity ?? a.quantity ?? 0;
+      curr.totalRequested += qty;
+      if (a.status === "Requested") {
+        curr.hasRequested = true;
+        curr.requestedCount += qty;
+      }
+      if (a.status === "Partially Confirmed") {
+        curr.hasPartiallyConfirmed = true;
+      }
+      if (a.status === "Confirmed") {
+        curr.hasConfirmed = true;
+      }
+      stats.set(a.certification_id, curr);
+    }
+
+    if (mode === "ENERGY") {
+      for (const certId of energyEstimateCerts) {
+        const curr = stats.get(certId) || {
+          totalRequested: 0,
+          hasRequested: true,
+          hasPartiallyConfirmed: false,
+          hasConfirmed: false,
+          requestedCount: 1,
+        };
+        if (!curr.hasRequested && !curr.hasPartiallyConfirmed && !curr.hasConfirmed) {
+          curr.hasRequested = true;
+        }
+        stats.set(certId, curr);
+      }
+    }
+
+    return stats;
+  }, [allActiveAllocations, mode, energyEstimateCerts]);
 
   const { data: certifications = [] } = useQuery({
     queryKey: ["certs-for-assign"],
@@ -311,10 +427,33 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
     });
   }, [productSummary, totalRemaining]);
 
-  const filteredCerts = useMemo(
-    () => (pmFilter === "all" ? certifications : certifications.filter((c) => c.pm_id === pmFilter)),
-    [certifications, pmFilter],
-  );
+  const filteredCerts = useMemo(() => {
+    let list = certifications;
+    if (pmFilter !== "all") {
+      list = list.filter((c) => c.pm_id === pmFilter);
+    }
+    if (showOnlyPendingRequests) {
+      list = list.filter((c) => {
+        const stat = certAllocationStats.get(c.id);
+        if (!stat) return false;
+        return stat.hasRequested || stat.hasPartiallyConfirmed;
+      });
+    }
+    return list;
+  }, [certifications, pmFilter, showOnlyPendingRequests, certAllocationStats]);
+
+  const sortedAndFilteredCerts = useMemo(() => {
+    return [...filteredCerts].sort((a, b) => {
+      const statA = certAllocationStats.get(a.id);
+      const statB = certAllocationStats.get(b.id);
+      const scoreA = (statA?.hasRequested ? 100 : 0) + (statA?.hasPartiallyConfirmed ? 50 : 0);
+      const scoreB = (statB?.hasRequested ? 100 : 0) + (statB?.hasPartiallyConfirmed ? 50 : 0);
+      if (scoreA !== scoreB) return scoreB - scoreA;
+      const nameA = a.sites?.name || "";
+      const nameB = b.sites?.name || "";
+      return nameA.localeCompare(nameB);
+    });
+  }, [filteredCerts, certAllocationStats]);
 
   const selectedPm = pms.find((p) => p.id === selectedCert?.pm_id);
 
@@ -351,9 +490,75 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
 
     setSaving(true);
     try {
-      console.log("Logistics Trigger: Bypassing automatic shipment. Assigning physical hardware directly.");
+      // 1. Resolve destination in ops_locations for logistics sync
+      let destinationLocationId: string | null = null;
+      const siteName = selectedCert?.sites?.name || "Unknown Site";
 
-      // 2. Update physical hardware
+      try {
+        const { data: existingLocs } = await (supabase as any)
+          .from("ops_locations")
+          .select("id")
+          .or(`site_id.eq."${selectedSiteId}",name.ilike."${siteName.replace(/"/g, '')}"`)
+          .limit(1);
+
+        if (existingLocs && existingLocs[0]) {
+          destinationLocationId = existingLocs[0].id;
+        } else {
+          const { data: newLoc, error: locErr } = await (supabase as any)
+            .from("ops_locations")
+            .insert([{
+              name: siteName,
+              site_id: selectedSiteId,
+              country: selectedCert?.sites?.country || null,
+              region: selectedCert?.sites?.region || null,
+              type: "site"
+            }])
+            .select("id");
+          if (!locErr && newLoc && newLoc[0]) {
+            destinationLocationId = newLoc[0].id;
+          }
+        }
+      } catch (locLookupErr) {
+        console.error("Failed resolving ops_locations:", locLookupErr);
+      }
+
+      // 2. Create or consolidate Outbound Shipment in ops_shipments
+      let shipmentId: string | null = null;
+      if (destinationLocationId) {
+        try {
+          const { data: existingShipments } = await (supabase as any)
+            .from("ops_shipments")
+            .select("id, notes")
+            .eq("shipment_type", "outbound")
+            .in("status", ["awaiting dispatch", "upcoming"])
+            .eq("destination_location_id", destinationLocationId)
+            .order("created_at", { ascending: false })
+            .limit(1);
+
+          if (existingShipments && existingShipments[0]) {
+            shipmentId = existingShipments[0].id;
+            console.log("Consolidating into existing shipment:", shipmentId);
+          } else {
+            const { data: newShip, error: shipErr } = await (supabase as any)
+              .from("ops_shipments")
+              .insert([{
+                shipment_type: "outbound",
+                status: "awaiting dispatch",
+                destination_location_id: destinationLocationId,
+                notes: `Automated shipment for site: ${siteName}`
+              }])
+              .select("id");
+            if (!shipErr && newShip && newShip[0]) {
+              shipmentId = newShip[0].id;
+              console.log("Created automated shipment:", shipmentId);
+            }
+          }
+        } catch (shipErr) {
+          console.error("Failed creating/finding ops_shipments:", shipErr);
+        }
+      }
+
+      // 3. Update physical hardware & create movements
       for (const slot of filledSlots) {
         const update: Record<string, unknown> = {
           site_id: selectedSiteId,
@@ -369,9 +574,18 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
           .update(update as any)
           .eq("id", slot.hardwareId!);
         if (hwErr) throw hwErr;
+
+        // Link hardware to shipment movement
+        if (shipmentId) {
+          await (supabase as any).from("ops_hardware_movements").insert([{
+            hardware_id: slot.hardwareId,
+            shipment_id: shipmentId,
+            action: "dispatched"
+          }]);
+        }
       }
 
-      // 3. Update allocations
+      // 4. Update allocations
       for (const r of productSummary) {
         const justAssignedForThisRequest = filledSlots.filter((s) => s.requestedProductId === r.productId).length;
         const newOnSite = r.onSite + justAssignedForThisRequest;
@@ -386,17 +600,7 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
           .eq("id", alloc.id);
       }
 
-      // 4. Energy metrics
-      //
-      // I contatori per tipo non si scrivono più da qui: li ricalcola
-      // fn_recalculate_site_energy, che parte dal trigger su `hardwares` non
-      // appena l'assegnazione qui sopra è andata a segno. Contarli in questo
-      // punto significava fotografarli una volta sola: se un apparecchio veniva
-      // poi rimosso o riassegnato, i numeri restavano fermi all'ultimo
-      // salvataggio — 801 dichiarati contro 813 realmente assegnati.
-      //
-      // Resta invece la configurazione del bridge, che è una scelta di rete e
-      // non un conteggio: nessuno la può derivare dall'inventario.
+      // 5. Energy metrics
       if (mode === "ENERGY" && bridgeOpen) {
         await supabase
           .from("site_energy_records" as never)
@@ -406,27 +610,19 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
           );
       }
 
-      // 5. Air metrics
-      if (mode === "AIR") {
-        const { data: refreshed } = await supabase
-          .from("hardwares")
-          .select("id, device_id, mac_address, po, shipment_date, category, status")
-          .eq("site_id", selectedSiteId)
-          .neq("status", "In Stock");
-        
-        // AIR monitoring dashboard is handled automatically by DB triggers
-      }
-
-      qc.invalidateQueries({ queryKey: ["project-allocations", certificationId] });
+      // 6. Refresh queries
+      qc.invalidateQueries({ queryKey: ["project-allocations"] });
+      qc.invalidateQueries({ queryKey: ["all-active-allocations"] });
       qc.invalidateQueries({ queryKey: ["hardwares-on-site", selectedSiteId] });
+      qc.invalidateQueries({ queryKey: ["hardwares"] });
       qc.invalidateQueries({ queryKey: ["site-energy-records"] });
       qc.invalidateQueries({ queryKey: ["monitor-air-rows"] });
-      qc.invalidateQueries({ queryKey: ["ops_shipments"] }); // Refresh logistics too
-
+      qc.invalidateQueries({ queryKey: ["ops_shipments"] });
+      qc.invalidateQueries({ queryKey: ["ops_hardware_movements"] });
 
       toast({
         title: "Devices assigned",
-        description: `${filledSlots.length} physical device(s) linked to site.`,
+        description: `${filledSlots.length} physical device(s) linked to site. Shipment updated in Logistics.`,
       });
       onSaved();
       onOpenChange(false);
@@ -451,7 +647,13 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
             <button
               key={m}
               type="button"
-              onClick={() => setMode(m)}
+              onClick={() => {
+                if (mode !== m) {
+                  setMode(m);
+                  setCertificationId("");
+                  setSlots([]);
+                }
+              }}
               className={cn(
                 "px-4 py-1.5 text-xs font-medium rounded-md transition-colors",
                 mode === m ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground",
@@ -477,22 +679,104 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
               </Select>
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label className="text-[10px] font-bold uppercase text-slate-400">Project</Label>
-              <Select value={certificationId} onValueChange={setCertificationId}>
-                <SelectTrigger className="h-9 text-xs bg-slate-50 border-slate-200">
-                  <SelectValue placeholder="Select project" />
-                </SelectTrigger>
-                <SelectContent>
-                  {filteredCerts.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      <div className="flex flex-col">
-                        <span className="font-medium">{c.sites?.name || "Unnamed Site"}</span>
-                        {c.sites?.country && <span className="text-[10px] opacity-60 italic">{c.sites.country} {c.sites.region ? `(${c.sites.region})` : ""}</span>}
+              <div className="flex items-center justify-between">
+                <Label className="text-[10px] font-bold uppercase text-slate-400">Project</Label>
+                <button
+                  type="button"
+                  onClick={() => setShowOnlyPendingRequests(prev => !prev)}
+                  className={cn(
+                    "text-[9px] font-bold uppercase tracking-tight px-1.5 py-0.5 rounded transition-colors",
+                    showOnlyPendingRequests
+                      ? "bg-[#009193]/15 text-[#009193] hover:bg-[#009193]/25"
+                      : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                  )}
+                >
+                  {showOnlyPendingRequests ? "Showing: Pending Requests" : "Showing: All Projects"}
+                </button>
+              </div>
+              <Popover open={projectDropdownOpen} onOpenChange={setProjectDropdownOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={projectDropdownOpen}
+                    className="h-9 w-full justify-between text-xs bg-slate-50 border-slate-200 font-normal px-3 hover:bg-slate-100/80"
+                  >
+                    {selectedCert ? (
+                      <div className="flex items-center gap-2 truncate">
+                        <span className="font-semibold text-slate-800 truncate">
+                          {selectedCert.sites?.name || "Unnamed Site"}
+                        </span>
+                        {selectedCert.sites?.country && (
+                          <span className="text-[10px] text-slate-400 shrink-0">
+                            ({selectedCert.sites.country})
+                          </span>
+                        )}
                       </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                    ) : (
+                      <span className="text-slate-400">Search & select project...</span>
+                    )}
+                    <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[340px] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Search site, country, PM..." className="h-9 text-xs" />
+                    <CommandList className="max-h-[280px]">
+                      <CommandEmpty className="py-4 text-center text-xs text-slate-400">
+                        {showOnlyPendingRequests
+                          ? "No projects with pending requests found."
+                          : "No projects found."}
+                      </CommandEmpty>
+                      <CommandGroup>
+                        {sortedAndFilteredCerts.map((c) => {
+                          const stat = certAllocationStats.get(c.id);
+                          const pm = pms.find((p) => p.id === c.pm_id);
+                          const searchStr = `${c.sites?.name || ""} ${c.sites?.country || ""} ${c.sites?.region || ""} ${pm?.full_name || ""}`.toLowerCase();
+
+                          return (
+                            <CommandItem
+                              key={c.id}
+                              value={searchStr}
+                              onSelect={() => {
+                                setCertificationId(c.id);
+                                setProjectDropdownOpen(false);
+                              }}
+                              className="text-xs flex items-center justify-between cursor-pointer py-2 px-2.5 hover:bg-[#009193]/5"
+                            >
+                              <div className="flex flex-col flex-1 min-w-0 pr-2">
+                                <span className={cn("font-medium text-slate-900 truncate", c.id === certificationId && "text-[#009193] font-bold")}>
+                                  {c.sites?.name || "Unnamed Site"}
+                                </span>
+                                <div className="flex items-center gap-1.5 text-[10px] text-slate-400 mt-0.5">
+                                  {c.sites?.country && <span>{c.sites.country}</span>}
+                                  {c.sites?.region && <span>· {c.sites.region}</span>}
+                                  {pm && <span>· PM: {pm.full_name}</span>}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1 shrink-0">
+                                {stat?.hasRequested && (
+                                  <Badge variant="default" className="text-[9px] px-1.5 py-0 bg-amber-500/15 text-amber-700 border-amber-300">
+                                    {stat.requestedCount} Requested
+                                  </Badge>
+                                )}
+                                {!stat?.hasRequested && stat?.hasPartiallyConfirmed && (
+                                  <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-blue-300 text-blue-700 bg-blue-50">
+                                    Partial
+                                  </Badge>
+                                )}
+                                {c.id === certificationId && (
+                                  <Check className="h-4 w-4 text-[#009193] ml-1" />
+                                )}
+                              </div>
+                            </CommandItem>
+                          );
+                        })}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
 
