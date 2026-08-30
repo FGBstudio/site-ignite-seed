@@ -152,6 +152,24 @@ export default function SupplierOrders() {
     });
   }, [shipments]);
 
+  /**
+   * Una spedizione appartiene al mese scelto?
+   *
+   * Prima la risposta partiva da "si'" e veniva corretta solo se la spedizione
+   * aveva una data di partenza. Risultato: scegliendo un mese restavano in
+   * elenco anche tutte quelle non ancora partite — e nella scheda "Awaiting
+   * Dispatch", dove nessuna e' partita, il filtro non toglieva proprio niente.
+   *
+   * Senza data di partenza la spedizione non appartiene a nessun mese, quindi
+   * quando un mese e' selezionato resta fuori.
+   */
+  const matchesMonth = (s: any) => {
+    if (monthFilter === "ALL") return true;
+    if (!s.shipped_date) return false;
+    const d = new Date(s.shipped_date);
+    return `${d.toLocaleString('en-US', { month: 'long' })} ${d.getFullYear()}` === monthFilter;
+  };
+
   // Form States
   const initialPoForm = {
     po_number: "",
@@ -459,15 +477,8 @@ export default function SupplierOrders() {
     return shipments.filter(s => {
       if (s.shipment_type !== 'internal') return false;
       const matchesPortfolio = portfolioFilter === "ALL" || s.ops_hardware_movements?.some((m: any) => m.hardwares?.category?.toUpperCase() === portfolioFilter);
-      
-      let matchesMonth = true;
-      if (monthFilter !== "ALL" && s.shipped_date) {
-        const d = new Date(s.shipped_date);
-        const label = `${d.toLocaleString('en-US', { month: 'long' })} ${d.getFullYear()}`;
-        matchesMonth = label === monthFilter;
-      }
 
-      return matchesPortfolio && matchesMonth;
+      return matchesPortfolio && matchesMonth(s);
     });
   }, [shipments, portfolioFilter, monthFilter]);
 
@@ -488,15 +499,8 @@ export default function SupplierOrders() {
 
       const matchesOrigin = outboundOriginFilter === "ALL" || s.origin_location_id === outboundOriginFilter;
       const matchesPortfolio = portfolioFilter === "ALL" || s.ops_hardware_movements?.some((m: any) => m.hardwares?.category?.toUpperCase() === portfolioFilter);
-      
-      let matchesMonth = true;
-      if (monthFilter !== "ALL" && s.shipped_date) {
-        const d = new Date(s.shipped_date);
-        const label = `${d.toLocaleString('en-US', { month: 'long' })} ${d.getFullYear()}`;
-        matchesMonth = label === monthFilter;
-      }
-      
-      return matchesSearch && matchesSubTab && matchesOrigin && matchesPortfolio && matchesMonth;
+
+      return matchesSearch && matchesSubTab && matchesOrigin && matchesPortfolio && matchesMonth(s);
     });
 
     if (outboundSubTab !== 'awaiting') return rawList;

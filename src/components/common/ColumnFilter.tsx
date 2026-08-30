@@ -112,8 +112,13 @@ export function ColumnFilter<T>({
 
       <PopoverContent className="w-56 p-2 bg-white border border-slate-200 shadow-xl rounded-xl z-50">
         <div className="space-y-1 text-xs">
+          {/*
+            Riclicando la direzione gia' attiva si torna all'ordine naturale.
+            Prima l'ordinamento, una volta messo, non si poteva piu' togliere:
+            l'unica via d'uscita era ricaricare la pagina.
+          */}
           <button
-            onClick={() => setSortConfig({ key: colKey, direction: "asc" })}
+            onClick={() => setSortConfig(isSortedAsc ? null : { key: colKey, direction: "asc" })}
             className={cn(
               "w-full text-left px-2 py-1.5 rounded-lg flex items-center gap-2 hover:bg-slate-50 transition-colors font-medium text-slate-700",
               isSortedAsc && "bg-indigo-50/50 text-indigo-700 font-bold"
@@ -122,7 +127,7 @@ export function ColumnFilter<T>({
             <ArrowUp className="w-3.5 h-3.5" /> Sort A to Z
           </button>
           <button
-            onClick={() => setSortConfig({ key: colKey, direction: "desc" })}
+            onClick={() => setSortConfig(isSortedDesc ? null : { key: colKey, direction: "desc" })}
             className={cn(
               "w-full text-left px-2 py-1.5 rounded-lg flex items-center gap-2 hover:bg-slate-50 transition-colors font-medium text-slate-700",
               isSortedDesc && "bg-indigo-50/50 text-indigo-700 font-bold"
@@ -185,12 +190,20 @@ export function ColumnFilter<T>({
   );
 }
 
-/** Helper to apply filters + sort to a row set. */
+/**
+ * Applica filtri e ordinamento a un elenco di righe.
+ *
+ * `sortResolvers` serve alle colonne il cui testo non si ordina come il dato:
+ * una data scritta "dd MMM yy" ordinata alfabeticamente mette "01 Apr 26"
+ * prima di "02 Feb 25". La colonna mostra la data leggibile e si ordina sulla
+ * forma ISO, che in ordine alfabetico e' anche in ordine cronologico.
+ */
 export function applyColumnFiltersAndSort<T>(
   rows: T[],
   colFilters: ColFiltersMap,
   sortConfig: SortConfig,
-  resolvers: Record<string, (row: T) => string>
+  resolvers: Record<string, (row: T) => string>,
+  sortResolvers?: Record<string, (row: T) => string>
 ): T[] {
   const filtered = rows.filter((r) => {
     for (const key of Object.keys(colFilters)) {
@@ -200,6 +213,15 @@ export function applyColumnFiltersAndSort<T>(
       if (!resolver) continue;
       const raw = resolver(r);
       const val = raw && raw.trim() !== "" ? raw : "(Blanks)";
+
+      // La casella "Search values..." restringe l'elenco dei valori E filtra le
+      // righe. Prima restringeva soltanto l'elenco, mentre l'intestazione si
+      // accendeva come se la colonna fosse filtrata: si vedeva l'imbuto acceso
+      // e la tabella intatta.
+      if (f.search && !val.toLowerCase().includes(f.search.toLowerCase())) {
+        return false;
+      }
+
       if (f.selectedValues !== undefined && f.selectedValues !== null) {
         if (!f.selectedValues.includes(val)) return false;
       }
@@ -207,7 +229,7 @@ export function applyColumnFiltersAndSort<T>(
     return true;
   });
   if (!sortConfig) return filtered;
-  const resolver = resolvers[sortConfig.key];
+  const resolver = sortResolvers?.[sortConfig.key] ?? resolvers[sortConfig.key];
   if (!resolver) return filtered;
   const sorted = [...filtered].sort((a, b) => {
     const av = resolver(a) || "";

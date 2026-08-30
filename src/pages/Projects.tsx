@@ -52,28 +52,45 @@ const CERT_DISPLAY_LABELS: Record<string, string> = {
 };
 
 /* ─────────── Excel Header Cell Helper functions ─────────── */
+
+/**
+ * Cosa vale una colonna, per una riga. Un posto solo.
+ *
+ * Questo elenco esisteva in tre copie — una per costruire la lista dei valori,
+ * una per confrontare le spunte, una per la casella di ricerca — e le copie
+ * erano divergenti: nella terza mancava `city`, per cui scrivere qualcosa nella
+ * ricerca della colonna City lasciava il valore a stringa vuota e svuotava la
+ * tabella. Con un elenco solo quel tipo di errore non si ripresenta.
+ */
+const COLUMN_VALUE: Record<string, (r: any) => string> = {
+  name: r => r.name || '',
+  client: r => r.client || '',
+  city: r => r.city || '',
+  region: r => r.region || '',
+  cert_type: r => (r.cert_type ? (CERT_DISPLAY_LABELS[r.cert_type] ?? r.cert_type) : ''),
+  cert_rating: r => r.cert_rating || '',
+  total_fees: r => (r.total_fees !== undefined && r.total_fees !== null ? formatMoney(r.total_fees, r.currency) : ''),
+  quotation_sent_date: r => (r.quotation_sent_date ? format(new Date(r.quotation_sent_date), "dd MMM yyyy") : ''),
+  project_subtype: r => r.project_subtype || '',
+  pm_name: r => r.pm_name || '',
+  handover_date: r => (r.handover_date ? format(new Date(r.handover_date), "dd MMM yyyy") : ''),
+  issued_date: r => (r.issued_date ? format(new Date(r.issued_date), "dd MMM yyyy") : ''),
+  setup_status: r => SETUP_STATUS_META[r.setup_status as keyof typeof SETUP_STATUS_META]?.label || r.setup_status || '',
+};
+
+/** Il valore grezzo della colonna: stringa vuota se la riga non ce l'ha. */
+function columnValue(r: any, colKey: string): string {
+  return COLUMN_VALUE[colKey]?.(r) ?? '';
+}
+
+/** Lo stesso valore, ma come lo si legge nell'elenco delle spunte. */
+function columnLabel(r: any, colKey: string): string {
+  return columnValue(r, colKey) || '(Blanks)';
+}
+
 function getUniqueValues(colKey: string, rows: any[]): string[] {
   const values = new Set<string>();
-  rows.forEach(r => {
-    let val: any = '';
-    if (colKey === 'name') val = r.name || '(Blanks)';
-    else if (colKey === 'client') val = r.client || '(Blanks)';
-    else if (colKey === 'city') val = r.city || '(Blanks)';
-    else if (colKey === 'region') val = r.region || '(Blanks)';
-    else if (colKey === 'cert_type') val = r.cert_type ? (CERT_DISPLAY_LABELS[r.cert_type] ?? r.cert_type) : '(Blanks)';
-    else if (colKey === 'cert_rating') val = r.cert_rating || '(Blanks)';
-    else if (colKey === 'total_fees') val = r.total_fees !== undefined && r.total_fees !== null ? formatMoney(r.total_fees, r.currency) : '(Blanks)';
-    else if (colKey === 'quotation_sent_date') val = r.quotation_sent_date ? format(new Date(r.quotation_sent_date), "dd MMM yyyy") : '(Blanks)';
-    else if (colKey === 'project_subtype') val = r.project_subtype || '(Blanks)';
-    else if (colKey === 'pm_name') val = r.pm_name || '(Blanks)';
-    else if (colKey === 'handover_date') val = r.handover_date ? format(new Date(r.handover_date), "dd MMM yyyy") : '(Blanks)';
-    else if (colKey === 'issued_date') val = r.issued_date ? format(new Date(r.issued_date), "dd MMM yyyy") : '(Blanks)';
-    else if (colKey === 'setup_status') val = SETUP_STATUS_META[r.setup_status as keyof typeof SETUP_STATUS_META]?.label || r.setup_status || '(Blanks)';
-    
-    if (val !== undefined && val !== null) {
-      values.add(String(val));
-    }
-  });
+  rows.forEach(r => values.add(columnLabel(r, colKey)));
   return Array.from(values).sort((a, b) => {
     if (a === '(Blanks)') return 1;
     if (b === '(Blanks)') return -1;
@@ -83,23 +100,23 @@ function getUniqueValues(colKey: string, rows: any[]): string[] {
 
 function matchRowValue(r: any, colKey: string, selectedValues: string[] | null | undefined): boolean {
   if (selectedValues === null || selectedValues === undefined) return true;
-  
-  let val: string = '';
-  if (colKey === 'name') val = r.name || '(Blanks)';
-  else if (colKey === 'client') val = r.client || '(Blanks)';
-  else if (colKey === 'city') val = r.city || '(Blanks)';
-  else if (colKey === 'region') val = r.region || '(Blanks)';
-  else if (colKey === 'cert_type') val = r.cert_type ? (CERT_DISPLAY_LABELS[r.cert_type] ?? r.cert_type) : '(Blanks)';
-  else if (colKey === 'cert_rating') val = r.cert_rating || '(Blanks)';
-  else if (colKey === 'total_fees') val = r.total_fees !== undefined && r.total_fees !== null ? formatMoney(r.total_fees, r.currency) : '(Blanks)';
-  else if (colKey === 'quotation_sent_date') val = r.quotation_sent_date ? format(new Date(r.quotation_sent_date), "dd MMM yyyy") : '(Blanks)';
-  else if (colKey === 'project_subtype') val = r.project_subtype || '(Blanks)';
-  else if (colKey === 'pm_name') val = r.pm_name || '(Blanks)';
-  else if (colKey === 'handover_date') val = r.handover_date ? format(new Date(r.handover_date), "dd MMM yyyy") : '(Blanks)';
-  else if (colKey === 'issued_date') val = r.issued_date ? format(new Date(r.issued_date), "dd MMM yyyy") : '(Blanks)';
-  else if (colKey === 'setup_status') val = SETUP_STATUS_META[r.setup_status as keyof typeof SETUP_STATUS_META]?.label || r.setup_status || '(Blanks)';
-  
-  return selectedValues.includes(val);
+  return selectedValues.includes(columnLabel(r, colKey));
+}
+
+/**
+ * Su cosa si ordina una colonna, che non sempre e' cio' che si legge.
+ *
+ * Le date si mostrano "dd MMM yyyy" ma si ordinano sulla forma ISO del
+ * database: in ordine alfabetico "01 Apr 2026" verrebbe prima di "02 Feb 2025".
+ * Gli importi si ordinano in euro, perche' 10.000 renminbi non valgono piu' di
+ * 5.000 sterline solo perche' il numero e' piu' grande.
+ */
+function columnSortValue(r: any, colKey: string): string | number {
+  if (colKey === 'total_fees') return r.total_fees_eur ?? r.total_fees ?? 0;
+  if (colKey === 'handover_date') return r.handover_date ?? '';
+  if (colKey === 'issued_date') return r.issued_date ?? '';
+  if (colKey === 'quotation_sent_date') return r.quotation_sent_date ?? '';
+  return columnValue(r, colKey).toLowerCase();
 }
 
 /* ─────────── Excel Header Cell Component ─────────── */
@@ -524,21 +541,7 @@ export default function Projects() {
         if (!filter) continue;
 
         if (filter.search) {
-          let val = '';
-          if (colKey === 'name') val = r.name || '';
-          else if (colKey === 'client') val = r.client || '';
-          else if (colKey === 'region') val = r.region || '';
-          else if (colKey === 'cert_type') val = r.cert_type ? (CERT_DISPLAY_LABELS[r.cert_type] ?? r.cert_type) : '';
-          else if (colKey === 'cert_rating') val = r.cert_rating || '';
-          else if (colKey === 'total_fees') val = r.total_fees !== undefined && r.total_fees !== null ? formatMoney(r.total_fees, r.currency) : '';
-          else if (colKey === 'quotation_sent_date') val = r.quotation_sent_date ? format(new Date(r.quotation_sent_date), "dd MMM yyyy") : '';
-          else if (colKey === 'project_subtype') val = r.project_subtype || '';
-          else if (colKey === 'pm_name') val = r.pm_name || '';
-          else if (colKey === 'handover_date') val = r.handover_date ? format(new Date(r.handover_date), "dd MMM yyyy") : '';
-          else if (colKey === 'issued_date') val = r.issued_date ? format(new Date(r.issued_date), "dd MMM yyyy") : '';
-          else if (colKey === 'setup_status') val = SETUP_STATUS_META[r.setup_status as keyof typeof SETUP_STATUS_META]?.label || r.setup_status || '';
-
-          if (!val.toLowerCase().includes(filter.search.toLowerCase())) {
+          if (!columnValue(r, colKey).toLowerCase().includes(filter.search.toLowerCase())) {
             return false;
           }
         }
@@ -557,16 +560,8 @@ export default function Projects() {
     if (!sortConfig || sortConfig.direction === null) return filtered;
 
     return [...filtered].sort((a, b) => {
-      let valA: any = a[sortConfig.key as keyof typeof a];
-      let valB: any = b[sortConfig.key as keyof typeof b];
-
-      if (sortConfig.key === 'total_fees') {
-        // Si ordina sull'equivalente in euro, non sul numero scritto: 10.000
-        // renminbi non valgono piu' di 5.000 sterline solo perche' il numero e'
-        // piu' grande.
-        valA = a.total_fees_eur ?? a.total_fees ?? 0;
-        valB = b.total_fees_eur ?? b.total_fees ?? 0;
-      }
+      let valA: any = columnSortValue(a, sortConfig.key);
+      let valB: any = columnSortValue(b, sortConfig.key);
 
       if (valA === undefined || valA === null) valA = '';
       if (valB === undefined || valB === null) valB = '';

@@ -69,8 +69,6 @@ export default function Hardwares() {
 
   const [detailedHardware, setDetailedHardware] = useState<any | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [locationFilter, setLocationFilter] = useState<string>("all");
   const [colFilters, setColFilters] = useState<Record<string, { selectedValues: string[] | undefined; sort: 'asc'|'desc'|null }>>({});
   const [expandedOffice, setExpandedOffice] = useState<string | null>(null);
   const [selectedKpi, setSelectedKpi] = useState<string | null>(null); // 'AIR' | 'Energy' | 'Internal'
@@ -139,14 +137,20 @@ export default function Hardwares() {
       return matchesSearch && matchesCategory;
     });
 
-    // Apply per-column Excel filters
-    const applyCol = (key: string, getValue: (h: any) => string) => {
+    // Apply per-column Excel filters.
+    //
+    // `sortValue` esiste per le colonne il cui testo non si ordina come il
+    // dato: la data di creazione si mostra nel formato locale ma ordinata come
+    // stringa metterebbe "1/9/2025" dopo "30/8/2026". Si ordina sulla forma
+    // ISO, che in ordine alfabetico e' anche cronologica.
+    const applyCol = (key: string, getValue: (h: any) => string, sortValue?: (h: any) => string) => {
       const f = colFilters[key];
       if (f?.selectedValues !== undefined) {
         list = list.filter(h => f.selectedValues!.includes(getValue(h)));
       }
-      if (f?.sort === 'asc') list = [...list].sort((a, b) => getValue(a).localeCompare(getValue(b), undefined, { numeric: true }));
-      if (f?.sort === 'desc') list = [...list].sort((a, b) => getValue(b).localeCompare(getValue(a), undefined, { numeric: true }));
+      const key0 = sortValue ?? getValue;
+      if (f?.sort === 'asc') list = [...list].sort((a, b) => key0(a).localeCompare(key0(b), undefined, { numeric: true }));
+      if (f?.sort === 'desc') list = [...list].sort((a, b) => key0(b).localeCompare(key0(a), undefined, { numeric: true }));
     };
 
     applyCol('device_id', h => String(h.device_id));
@@ -161,7 +165,11 @@ export default function Hardwares() {
       }
       return h.country || '(Blanks)';
     });
-    applyCol('created', h => new Date(h.created_at).toLocaleDateString());
+    applyCol(
+      'created',
+      h => new Date(h.created_at).toLocaleDateString(),
+      h => (h.created_at ? new Date(h.created_at).toISOString() : ''),
+    );
 
     return list;
   })();

@@ -25,9 +25,41 @@ const emptyFilter: ExcelFilterState = { selectedValues: undefined, sort: null };
 /** Lead time between "material on site" and contractual handover. */
 const ON_SITE_LEAD_DAYS = 15;
 
+/** Cosa compare nell'elenco delle spunte quando la riga non ha quel valore. */
+const BLANKS = "(Blanks)";
+
+/**
+ * Una riga passa il filtro?
+ *
+ * Due correzioni rispetto a prima.
+ *
+ * Un elenco VUOTO significa "non ho selezionato niente", quindi non passa
+ * nessuno. Prima veniva trattato come "nessun filtro" e mostrava tutto: chi
+ * toglieva le spunte una per una vedeva la tabella tornare piena all'ultima.
+ *
+ * Le righe senza valore si confrontano con "(Blanks)" e non con la stringa
+ * vuota, perche' "(Blanks)" e' cio' che compare nell'elenco e quindi l'unica
+ * cosa che si possa spuntare. Prima erano irraggiungibili: 90 delle 437 righe
+ * aria non hanno un PM, e bastava filtrare per PM per non vederle piu', senza
+ * alcun modo di richiamarle.
+ */
 function matches(f: ExcelFilterState, v: string | null | undefined): boolean {
-  if (!f.selectedValues || f.selectedValues.length === 0) return true;
-  return f.selectedValues.includes(v ?? "");
+  if (f.selectedValues === undefined) return true;
+  const value = v == null || String(v).trim() === "" ? BLANKS : String(v);
+  return f.selectedValues.includes(value);
+}
+
+/** I valori di una colonna, con "(Blanks)" in fondo se qualche riga e' vuota. */
+function domainOf<T>(rows: T[], get: (r: T) => string | null | undefined): string[] {
+  const set = new Set<string>();
+  let hasBlank = false;
+  for (const r of rows) {
+    const v = get(r);
+    if (v == null || String(v).trim() === "") hasBlank = true;
+    else set.add(String(v));
+  }
+  const list = Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }));
+  return hasBlank ? [...list, BLANKS] : list;
 }
 
 import { DemandPlannerTab } from "@/components/monitor/DemandPlannerTab";
@@ -69,12 +101,12 @@ export default function MonitorReport() {
   }, [domain, energy.data, air.data, water.data, airProducts.data, requested.data, includeRequested]);
 
   const uniques = useMemo(() => ({
-    statuses: Array.from(new Set(normalized.map((r) => r.status).filter(Boolean) as string[])),
-    categories: Array.from(new Set(normalized.map((r) => r.category).filter(Boolean) as string[])),
-    pms: Array.from(new Set(normalized.map((r) => r.pm).filter(Boolean) as string[])),
-    brands: Array.from(new Set(normalized.map((r) => r.brand).filter(Boolean) as string[])),
-    regions: Array.from(new Set(normalized.map((r) => r.region).filter(Boolean))),
-    countries: Array.from(new Set(normalized.map((r) => r.country).filter(Boolean) as string[])),
+    statuses: domainOf(normalized, (r) => r.status),
+    categories: domainOf(normalized, (r) => r.category),
+    pms: domainOf(normalized, (r) => r.pm),
+    brands: domainOf(normalized, (r) => r.brand),
+    regions: domainOf(normalized, (r) => r.region),
+    countries: domainOf(normalized, (r) => r.country),
   }), [normalized]);
 
   const filtered = useMemo(() => {

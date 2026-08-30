@@ -449,9 +449,22 @@ function TabProgetti({ tasks, projects }: { tasks: CertTaskRow[]; projects: any[
     []
   );
 
+  /**
+   * Le colonne data si ordinano sulla forma ISO, non su quella leggibile.
+   * "dd MMM yy" in ordine alfabetico mette "01 Apr 26" prima di "02 Feb 25":
+   * ordinava per numero del giorno e poi per nome del mese.
+   */
+  const sortResolvers = useMemo(
+    () => ({
+      minStart: (r: any) => (r.minStart ? new Date(r.minStart).toISOString().slice(0, 10) : ""),
+      handover_date: (r: any) => (r.handover_date ? new Date(r.handover_date).toISOString().slice(0, 10) : ""),
+    }),
+    []
+  );
+
   const visible = useMemo(
-    () => applyColumnFiltersAndSort(projectData, colFilters, sortConfig, resolvers),
-    [projectData, colFilters, sortConfig, resolvers]
+    () => applyColumnFiltersAndSort(projectData, colFilters, sortConfig, resolvers, sortResolvers),
+    [projectData, colFilters, sortConfig, resolvers, sortResolvers]
   );
 
   const filterProps = { colFilters, setColFilters, sortConfig, setSortConfig };

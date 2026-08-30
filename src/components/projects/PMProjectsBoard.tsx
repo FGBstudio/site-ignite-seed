@@ -221,9 +221,14 @@ export function PMProjectsBoard() {
   );
 
   const visibleProjects = useMemo(() => {
+    // La ricerca guarda tutte le colonne che la tabella mostra, non il solo
+    // nome: digitare una citta' o un cliente che si ha davanti agli occhi non
+    // trovava niente.
     const term = search.trim().toLowerCase();
     const searched = term
-      ? baseProjects.filter((p) => p.name.toLowerCase().includes(term))
+      ? baseProjects.filter((p) =>
+          [p.name, p.client, p.sites?.city, p.region, p.cert_type, p.project_subtype]
+            .some((v) => (v ?? "").toString().toLowerCase().includes(term)))
       : baseProjects;
     return applyColumnFiltersAndSort(searched, colFilters, sortConfig, resolvers);
   }, [baseProjects, search, colFilters, sortConfig, resolvers]);

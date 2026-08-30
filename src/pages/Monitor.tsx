@@ -103,20 +103,43 @@ function EnergyTable() {
   const [frequencyF, setFrequencyF] = useState<ExcelFilterState>(emptyFilter);
   const [showNetwork, setShowNetwork] = useState(false);
 
+  /** Cosa compare nell'elenco delle spunte quando la riga non ha quel valore. */
+  const BLANKS = "(Blanks)";
+
+  /**
+   * I valori di una colonna, con "(Blanks)" in fondo quando qualche riga e'
+   * vuota. Senza, quelle righe non sono spuntabili e spariscono al primo
+   * filtro: 90 delle 437 righe aria non hanno un PM, e filtrando per PM
+   * sparivano tutte senza modo di richiamarle.
+   */
+  const domainOf = (get: (r: MonitorRow) => string | null | undefined): string[] => {
+    const set = new Set<string>();
+    let hasBlank = false;
+    for (const r of rows) {
+      const v = get(r);
+      if (v == null || String(v).trim() === "") hasBlank = true;
+      else set.add(String(v));
+    }
+    const list = Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }));
+    return hasBlank ? [...list, BLANKS] : list;
+  };
+
   const uniques = useMemo(() => ({
-    statuses: Array.from(new Set(rows.map((r) => r.status).filter(Boolean) as string[])),
-    categories: Array.from(new Set(rows.map((r) => r.category).filter(Boolean) as string[])),
-    pms: Array.from(new Set(rows.map((r) => r.pm_name).filter(Boolean) as string[])),
-    packages: Array.from(new Set(rows.map((r) => (r.package_type ?? "Customized") as string))),
-    regions: Array.from(new Set(rows.map((r) => r.region).filter(Boolean) as string[])),
-    countries: Array.from(new Set(rows.map((r) => r.country).filter(Boolean) as string[])),
-    brands: Array.from(new Set(rows.map((r) => r.brand_name).filter(Boolean) as string[])),
-    frequencies: Array.from(new Set(rows.map((r) => r.frequency).filter((v): v is number => typeof v === "number").map(String))),
+    statuses: domainOf((r) => r.status),
+    categories: domainOf((r) => r.category),
+    pms: domainOf((r) => r.pm_name),
+    packages: domainOf((r) => r.package_type ?? "Customized"),
+    regions: domainOf((r) => r.region),
+    countries: domainOf((r) => r.country),
+    brands: domainOf((r) => r.brand_name),
+    frequencies: domainOf((r) => (typeof r.frequency === "number" ? String(r.frequency) : null)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [rows]);
 
   const matchF = (f: ExcelFilterState, value: string | null | undefined) => {
     if (f.selectedValues === undefined) return true;
-    return f.selectedValues.includes(value ?? "");
+    const v = value == null || String(value).trim() === "" ? BLANKS : String(value);
+    return f.selectedValues.includes(v);
   };
 
   const filtered = useMemo(() => {
@@ -131,7 +154,7 @@ function EnergyTable() {
       if (!matchF(regionF, r.region)) return false;
       if (!matchF(countryF, r.country)) return false;
       if (!matchF(brandF, r.brand_name)) return false;
-      if (!matchF(frequencyF, r.frequency != null ? String(r.frequency) : "")) return false;
+      if (!matchF(frequencyF, r.frequency != null ? String(r.frequency) : null)) return false;
       return true;
     });
   }, [rows, search, statusF, categoryF, pmF, packageF, regionF, countryF, brandF, frequencyF]);
@@ -142,6 +165,10 @@ function EnergyTable() {
     if (statusF.sort) sortEntries.push({ key: "status", dir: statusF.sort });
     if (categoryF.sort) sortEntries.push({ key: "category", dir: categoryF.sort });
     if (pmF.sort) sortEntries.push({ key: "pm_name", dir: pmF.sort });
+    // Package mancava: cliccare "Sort A to Z" sulla sua colonna non faceva
+    // niente, mentre il pulsante "Clear filters" compariva come se qualcosa
+    // fosse cambiato.
+    if (packageF.sort) sortEntries.push({ key: "package_type", dir: packageF.sort });
     if (brandF.sort) sortEntries.push({ key: "brand_name", dir: brandF.sort });
     if (regionF.sort) sortEntries.push({ key: "region", dir: regionF.sort });
     if (countryF.sort) sortEntries.push({ key: "country", dir: countryF.sort });
@@ -157,7 +184,7 @@ function EnergyTable() {
       if (sa > sb) return dir === "asc" ? 1 : -1;
       return 0;
     });
-  }, [filtered, statusF.sort, categoryF.sort, pmF.sort, brandF.sort, regionF.sort, countryF.sort, frequencyF.sort]);
+  }, [filtered, statusF.sort, categoryF.sort, pmF.sort, packageF.sort, brandF.sort, regionF.sort, countryF.sort, frequencyF.sort]);
 
   const hasActiveFilter =
     !!search ||
