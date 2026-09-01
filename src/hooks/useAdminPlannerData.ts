@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { externalSupabase as supabase } from "@/integrations/supabase/externalClient";
 import type { SetupStatus } from "@/hooks/usePMDashboard";
 import type { GanttRowData } from "@/components/dashboard/FGBPlanner";
-import { computeMacroPhase, type MacroPhase } from "@/data/certificationTemplates";
+import { computeMacroPhase, macroPhaseOfMilestone, type MacroPhase } from "@/data/certificationTemplates";
 import { displayPersonName } from "@/lib/personName";
 import { differenceInDays, parseISO } from "date-fns";
 
@@ -326,12 +326,12 @@ export function useAdminPlannerData() {
               let displayStatus = m.status;
               if (m.status !== "achieved" && m.due_date < today) displayStatus = "late";
               
-              // Assegna la fase al segmento per i colori del Gantt
-              let phase = "Other";
-              const req = (m.requirement || "").toLowerCase();
-              if (req.includes("design")) phase = "Design";
-              else if (req.includes("construction") || req.includes("cantiere") || req.includes("handover")) phase = "Construction";
-              else if (req.includes("certif") || req.includes("review")) phase = "Certification";
+              // La fase colora la barra nel Gantt, e si riconosce con la stessa
+              // funzione che colora il grafico dei report. Qui c'era una terza
+              // copia della regola, e piu' corta: "LEED Project Submission" non
+              // contiene "certif", quindi finiva in "Other" e la barra usciva
+              // grigia insieme a mezza timeline.
+              const phase = macroPhaseOfMilestone(m.requirement);
 
               segments.push({
                 id: m.id, 

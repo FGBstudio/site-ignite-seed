@@ -5,6 +5,7 @@ import {
 import { useAdminPlannerData } from "@/hooks/useAdminPlannerData";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FGBPlanner } from "@/components/dashboard/FGBPlanner";
+import { byPersonName } from "@/lib/personName";
 
 export function AdminTimeline() {
   const { data: projects = [], isLoading } = useAdminPlannerData();
@@ -25,9 +26,13 @@ export function AdminTimeline() {
       if (p.brand_name) brands.add(p.brand_name);
     }
     return {
-      pmOptions: Array.from(pms.entries()).map(([id, name]) => ({ id, name })),
-      certOptions: Array.from(certs),
-      brandOptions: Array.from(brands),
+      // In ordine alfabetico, come le altre tendine PM: prima uscivano
+      // nell'ordine in cui capitavano i progetti.
+      pmOptions: Array.from(pms.entries())
+        .map(([id, name]) => ({ id, name }))
+        .sort((a, b) => byPersonName(a.name, b.name)),
+      certOptions: Array.from(certs).sort(),
+      brandOptions: Array.from(brands).sort(),
     };
   }, [projects]);
 
@@ -122,7 +127,10 @@ export function AdminTimeline() {
         </span>
       </div>
 
-      <div className="h-[calc(100vh-220px)] min-h-[500px] border rounded-lg shadow-sm bg-background">
+      {/* Nessuna cornice qui: il planner ha gia' la sua, e prima se ne vedevano
+          due una dentro l'altra. Piu' alto di prima perche' e' il contenuto
+          della scheda, non un riquadro accessorio. */}
+      <div className="h-[calc(100vh-190px)] min-h-[560px]">
         <FGBPlanner data={filtered.map((p) => p.plannerData)} />
       </div>
     </div>

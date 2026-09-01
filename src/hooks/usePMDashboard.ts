@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { computeMacroPhase, type MacroPhase } from "@/data/certificationTemplates";
+import { computeMacroPhase, macroPhaseOfMilestone, type MacroPhase } from "@/data/certificationTemplates";
 import { differenceInDays, parseISO } from "date-fns";
 import type { GanttRowData } from "@/components/dashboard/FGBPlanner";
 
@@ -252,12 +252,9 @@ export function usePMDashboard() {
               let displayStatus = m.status;
               if (m.status !== "achieved" && m.due_date < today) displayStatus = "late";
               
-              // Assegna la fase al segmento per i colori del Gantt
-              let phase = "Other";
-              const req = (m.requirement || "").toLowerCase();
-              if (req.includes("design")) phase = "Design";
-              else if (req.includes("construction") || req.includes("cantiere") || req.includes("handover")) phase = "Construction";
-              else if (req.includes("certif") || req.includes("review")) phase = "Certification";
+              // Stessa regola del Gantt admin e del grafico dei report: la fase
+              // di una milestone si riconosce in un posto solo.
+              const phase = macroPhaseOfMilestone(m.requirement);
 
               segments.push({
                 id: m.id, 

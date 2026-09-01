@@ -418,7 +418,7 @@ export function PMCalendar({ projects, adminMode, pmNames }: PMCalendarProps) {
 
       <CardContent className="px-0 flex-1 flex flex-col min-h-[600px]">
         {view === "timeline" ? (
-          <div className="flex-1 border rounded-lg shadow-sm bg-background p-4 min-h-[500px]">
+          <div className="flex-1 min-h-[560px]">
             <FGBPlanner data={filteredProjects.map(p => (p as any).plannerData || p)} />
           </div>
         ) : (

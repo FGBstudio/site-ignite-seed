@@ -357,8 +357,8 @@ export function PMProjectsBoard() {
         </TabsContent>
 
         <TabsContent value="planner" className="m-0 focus-visible:outline-none">
-          <div className="h-[600px] border rounded-lg shadow-sm bg-background">
-            <FGBPlanner 
+          <div className="h-[calc(100vh-260px)] min-h-[560px]">
+            <FGBPlanner
               data={projects.map(p => ({
                 ...p.plannerData,
                 onClickUrl: `/projects/${p.id}` 
