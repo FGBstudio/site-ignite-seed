@@ -9,7 +9,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { PROJECT_STATUS_META } from "@/lib/projectStatus";
+import { PROJECT_STATUS_META, ONLINE_COLOR } from "@/lib/projectStatus";
 
 export interface GanttSegment {
   id: string;
@@ -235,6 +235,9 @@ export function FGBPlanner({ data, dayWidth, defaultView = "split" }: FGBPlanner
     return isNaN(dateObj.getTime()) ? "—" : format(dateObj, "dd/MM/yy");
   };
 
+  // "Online" e' il traguardo dei progetti di monitoraggio, come "Certified" lo
+  // e' per le certificazioni: stessa evidenza, verde acqua del marchio invece
+  // del verde del certificato.
   const rowTint = (row: GanttRowData) =>
     row.status === "on_hold"
       ? "bg-destructive/10"
@@ -242,6 +245,8 @@ export function FGBPlanner({ data, dayWidth, defaultView = "split" }: FGBPlanner
       ? "bg-destructive/5"
       : row.status === "Certified"
       ? "bg-success/10"
+      : row.status === "Online"
+      ? "bg-primary/10"
       : row.id === "summary"
       ? "bg-primary/5"
       : "";
@@ -253,6 +258,8 @@ export function FGBPlanner({ data, dayWidth, defaultView = "split" }: FGBPlanner
       ? COLOR_ALARM
       : row.status === "Certified"
       ? COLOR_DONE
+      : row.status === "Online"
+      ? ONLINE_COLOR
       : "transparent";
 
   return (
@@ -598,8 +605,16 @@ function RowCells({
             <span
               className="inline-block max-w-full truncate rounded-full border px-1.5 py-0.5 text-[10px] font-medium"
               style={{
-                color: row.status === "on_hold" ? COLOR_ALARM : row.status === "Certified" ? COLOR_DONE : undefined,
-                borderColor: row.status === "on_hold" ? `${COLOR_ALARM}55` : row.status === "Certified" ? `${COLOR_DONE}55` : undefined,
+                color:
+                  row.status === "on_hold" ? COLOR_ALARM
+                  : row.status === "Certified" ? COLOR_DONE
+                  : row.status === "Online" ? ONLINE_COLOR
+                  : undefined,
+                borderColor:
+                  row.status === "on_hold" ? `${COLOR_ALARM}55`
+                  : row.status === "Certified" ? `${COLOR_DONE}55`
+                  : row.status === "Online" ? `${ONLINE_COLOR}55`
+                  : undefined,
               }}
             >
               {String(row.status).replace(/_/g, " ")}

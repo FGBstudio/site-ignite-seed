@@ -60,6 +60,28 @@ export interface ClassifiableProject {
 }
 
 /**
+ * Un progetto di monitoraggio che trasmette.
+ *
+ * Energy e Air non si certificano: si accendono. "Online" e' il loro
+ * traguardo — l'equivalente del certificato per una LEED — ed e' un fatto
+ * compiuto, non una scadenza che incombe. Da qui la riga in tinta e la data di
+ * consegna che smette di essere un allarme.
+ *
+ * Il colore e' il verde acqua del marchio invece del verde del certificato:
+ * accanto si distinguono, ma si capisce che dicono la stessa cosa.
+ */
+export const ONLINE_COLOR = "#009193";
+
+export function isMonitoringOnline(p: {
+  cert_type?: string | null;
+  cert_level?: string | null;
+}): boolean {
+  const scheme = (p.cert_type ?? "").toLowerCase();
+  if (scheme !== "energy" && scheme !== "air") return false;
+  return (p.cert_level ?? "").trim().toLowerCase() === "online";
+}
+
+/**
  * Un progetto sta in uno stato solo.
  *
  * L'ordine dei controlli e' la regola: certificato vince su tutto perche' e' un

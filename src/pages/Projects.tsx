@@ -31,6 +31,7 @@ import type { Project, ProjectAllocation } from "@/types/custom-tables";
 import { byPersonName } from "@/lib/personName";
 import { formatMoney } from "@/lib/currency";
 import { Money } from "@/components/common/Money";
+import { isMonitoringOnline } from "@/lib/projectStatus";
 
 const SETUP_STATUS_META = {
   potential: { label: "Potential", icon: FileText, className: "border-slate-400/30 bg-slate-50 text-slate-600" },
@@ -834,6 +835,10 @@ export default function Projects() {
                     const isQuotation = project.setup_status === "quotation";
                     const isCanceled = project.setup_status === "canceled";
                     const isCertified = project.setup_status === "certificato";
+                    // Un Energy o un Air che trasmette e' arrivato: vale quanto
+                    // un certificato, e va letto allo stesso modo.
+                    const isOnline = isMonitoringOnline(project);
+                    const isDone = isCertified || isOnline;
 
                     return (
                       <tr
@@ -844,8 +849,13 @@ export default function Projects() {
                           // lo riguarda piu'. La riga verde lo dice a colpo
                           // d'occhio, e prevale sull'allarme scadenza che
                           // altrimenti resterebbe acceso su un lavoro chiuso.
+                          // Il monitoraggio online usa il verde acqua del
+                          // marchio: accanto si distinguono, ma dicono la stessa
+                          // cosa — questo lavoro e' arrivato in fondo.
                           isCertified
                             ? "bg-success/10 hover:bg-success/20"
+                            : isOnline
+                            ? "bg-primary/10 hover:bg-primary/20"
                             : project.on_hold
                             ? "bg-destructive/15 hover:bg-destructive/20"
                             : project.is_deadline_critical
@@ -915,15 +925,16 @@ export default function Projects() {
                             <span className="font-medium text-foreground">
                               {project.issued_date ? format(new Date(project.issued_date), "dd MMM yyyy") : "—"}
                             </span>
-                          ) : isCertified ? (
+                          ) : isDone ? (
                             /*
                               Nella scheda "All" i progetti certificati
                               comparivano con l'handover in arancione e un conto
                               alla rovescia negativo: un allarme su una consegna
-                              gia' avvenuta. Resta la data, in verde, senza
-                              conteggio.
+                              gia' avvenuta. Resta la data, senza conteggio, nel
+                              colore del traguardo — verde per il certificato,
+                              verde acqua per il monitoraggio acceso.
                             */
-                            <span className="font-medium text-success">
+                            <span className={cn("font-medium", isOnline ? "text-primary" : "text-success")}>
                               {format(new Date(project.handover_date), "dd MMM yyyy")}
                             </span>
                           ) : (

@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { computeMacroPhase, macroPhaseOfMilestone, type MacroPhase } from "@/data/certificationTemplates";
+import { isMonitoringOnline } from "@/lib/projectStatus";
 import { differenceInDays, parseISO } from "date-fns";
 import type { GanttRowData } from "@/components/dashboard/FGBPlanner";
 
@@ -274,6 +275,10 @@ export function usePMDashboard() {
         let plannerStatus = "pending";
         if (setup_status === "certificato") {
           plannerStatus = "Certified"; // Imposto a Certified per attivare la riga verde in FGBPlanner
+        } else if (isMonitoringOnline({ cert_type: c.cert_type, cert_level: (c as any).cert_level })) {
+          // Il traguardo di un Energy o di un Air: riga in verde acqua, come
+          // "Certified" ma di un'altra tinta.
+          plannerStatus = "Online";
         } else if (hasTimeline && isTimelineConfigured) {
           const hasActive = timelineMilestones.some((m: any) => m.status === "in_progress" || m.status === "achieved");
           if (hasActive) {

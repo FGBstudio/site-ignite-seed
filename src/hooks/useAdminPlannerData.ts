@@ -4,6 +4,7 @@ import type { SetupStatus } from "@/hooks/usePMDashboard";
 import type { GanttRowData } from "@/components/dashboard/FGBPlanner";
 import { computeMacroPhase, macroPhaseOfMilestone, type MacroPhase } from "@/data/certificationTemplates";
 import { displayPersonName } from "@/lib/personName";
+import { isMonitoringOnline } from "@/lib/projectStatus";
 import { differenceInDays, parseISO } from "date-fns";
 
 const CERTIFICATION_ID_CHUNK_SIZE = 50;
@@ -66,6 +67,8 @@ export interface AdminPlannerProject {
   plannerData: GanttRowData;
   macro_phase: MacroPhase;
   is_deadline_critical?: boolean;
+  /** Il livello raggiunto. Per Energy e Air vale "Pending" oppure "Online". */
+  cert_level?: string | null;
   /** Nella valuta dell'offerta, non in euro: vedi `currency`. */
   total_fees?: number | null;
   currency?: string | null;
@@ -234,7 +237,7 @@ export function useAdminPlannerData() {
             id: c.id, name: c.name || c.cert_type || "Unnamed", client: resolveClient(c), region: c.region,
             city: c.sites?.city || null, issued_date: c.issued_date || null,
             status: c.status, handover_date: c.handover_date, site_id: c.site_id, cert_type: c.cert_type,
-            cert_rating: c.cert_rating || c.level, pm_id: c.pm_id, created_at: c.created_at,
+            cert_rating: c.cert_rating || c.level, cert_level: c.cert_level, pm_id: c.pm_id, created_at: c.created_at,
             project_subtype: c.project_subtype, setup_status: c.status as SetupStatus, missing: [], pm_name: pmName,
             brand_name: resolveBrandName(c),
             holding_name: resolveHoldingName(c),
@@ -257,6 +260,9 @@ export function useAdminPlannerData() {
 
         const isCertified = !!c.issued_date || c.status === "certificato";
         const isCompleted = c.status === "completato";
+        // Un Energy o un Air che trasmette e' arrivato dove doveva: la sua
+        // scadenza di consegna non e' piu' un allarme.
+        const isOnline = isMonitoringOnline({ cert_type: c.cert_type, cert_level: c.cert_level });
         const timelineMilestones = certMilestones.filter((m: any) => m.milestone_type === "timeline");
         const hasTimeline = timelineMilestones.length > 0;
         const hasScorecard = certMilestones.some((m: any) => m.milestone_type === "scorecard");
@@ -274,7 +280,7 @@ export function useAdminPlannerData() {
         else if (hasTimeline) setup_status = "in_corso";
         else setup_status = "da_configurare";
 
-        const is_deadline_critical = !isCertified && checkDeadlineCritical(certMilestones, today);
+        const is_deadline_critical = !isCertified && !isOnline && checkDeadlineCritical(certMilestones, today);
         const launchDate = c.created_at.slice(0, 10);
         
         // --- ESTRAZIONE DATE SPECIFICHE (MATCH ESATTO CASE-INSENSITIVE) ---
@@ -368,7 +374,7 @@ export function useAdminPlannerData() {
           actualStart: hasTimeline ? planStart : null,
           actualEnd: (isCertified || isCompleted) ? today : null,
           progress,
-          status: hasOnHold ? "on_hold" : (setup_status === "certificato" ? "Certified" : setup_status === "completato" ? "Completed" : macroPhase), 
+          status: hasOnHold ? "on_hold" : (setup_status === "certificato" ? "Certified" : isOnline ? "Online" : setup_status === "completato" ? "Completed" : macroPhase),
           segments,
           onClickUrl: `/projects/${c.id}`,
           plannedHandoverDate: c.planned_handover_date || null,
@@ -379,7 +385,7 @@ export function useAdminPlannerData() {
           id: c.id, name: c.name || c.cert_type || "Unnamed", client: resolveClient(c), region: c.region,
           city: c.sites?.city || null, issued_date: c.issued_date || null,
           status: c.status, handover_date: c.handover_date, site_id: c.site_id, cert_type: c.cert_type,
-          cert_rating: c.cert_rating || c.level, pm_id: c.pm_id, created_at: c.created_at,
+          cert_rating: c.cert_rating || c.level, cert_level: c.cert_level, pm_id: c.pm_id, created_at: c.created_at,
           project_subtype: c.project_subtype, setup_status, missing, pm_name: pmName,
           brand_name: resolveBrandName(c),
           holding_name: resolveHoldingName(c),
