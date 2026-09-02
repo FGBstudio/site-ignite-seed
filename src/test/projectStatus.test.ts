@@ -13,6 +13,13 @@ describe("classifyProjectStatus", () => {
     expect(classifyProjectStatus({ setup_status: "in_corso", issued_date: "2026-03-01" })).toBe("certified");
   });
 
+  it("un monitoraggio online conta fra i lavori arrivati", () => {
+    // Senza questo cadrebbe nel ripiego e comparirebbe fra quelli ancora in
+    // progettazione, che e' l'opposto di cio' che e' successo.
+    expect(classifyProjectStatus({ setup_status: "online" })).toBe("certified");
+    expect(classifyProjectStatus({ setup_status: "online", macro_phase: "Design" })).toBe("certified");
+  });
+
   it("l'on hold sospende la fase", () => {
     expect(classifyProjectStatus({ setup_status: "in_corso", on_hold: true, macro_phase: "Construction" }))
       .toBe("on_hold");

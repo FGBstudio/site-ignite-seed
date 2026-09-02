@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, Pencil, BarChart3, Eye, GanttChartSquare, AlertTriangle, Clock3, CheckCircle2, FileText, CheckSquare, Trash2, Loader2, Download, ArrowUp, ArrowDown, ArrowUpDown, Filter, X, UserPlus } from "lucide-react";
+import { Search, Pencil, BarChart3, Eye, GanttChartSquare, AlertTriangle, Clock3, CheckCircle2, FileText, CheckSquare, Trash2, Loader2, Download, ArrowUp, ArrowDown, ArrowUpDown, Filter, X, UserPlus, Radio } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -31,7 +31,6 @@ import type { Project, ProjectAllocation } from "@/types/custom-tables";
 import { byPersonName } from "@/lib/personName";
 import { formatMoney } from "@/lib/currency";
 import { Money } from "@/components/common/Money";
-import { isMonitoringOnline } from "@/lib/projectStatus";
 
 const SETUP_STATUS_META = {
   potential: { label: "Potential", icon: FileText, className: "border-slate-400/30 bg-slate-50 text-slate-600" },
@@ -41,6 +40,10 @@ const SETUP_STATUS_META = {
   in_corso: { label: "In Progress", icon: Clock3, className: "border-primary/30 bg-primary/10 text-primary" },
   completato: { label: "Completed", icon: CheckSquare, className: "border-violet-400/30 bg-violet-50 text-violet-700" },
   certificato: { label: "Certified", icon: CheckCircle2, className: "border-success/30 bg-success/10 text-success" },
+  // Il capolinea dei progetti di monitoraggio: i sensori trasmettono. Vale
+  // quanto "Certified" e si veste allo stesso modo, nel verde acqua del marchio
+  // invece del verde del certificato.
+  online: { label: "Online", icon: Radio, className: "border-primary/30 bg-primary/10 text-primary" },
 } as const;
 
 const CERT_DISPLAY_LABELS: Record<string, string> = {
@@ -586,9 +589,12 @@ export default function Projects() {
     in_corso: allProjects.filter((p) => p.setup_status === "in_corso").length,
     completato: allProjects.filter((p) => (p.setup_status as string) === "completato").length,
     certificato: allProjects.filter((p) => p.setup_status === "certificato").length,
+    online: allProjects.filter((p) => (p.setup_status as string) === "online").length,
   }), [allProjects]);
 
-  const operationsTotal = counts.quotation_approved + counts.da_configurare + counts.in_corso + counts.completato + counts.certificato;
+  const operationsTotal =
+    counts.quotation_approved + counts.da_configurare + counts.in_corso +
+    counts.completato + counts.certificato + counts.online;
 
   /** Quanti progetti ha la scheda scelta, prima di ricerca, region, PM e filtri di colonna. */
   const tabTotal =
@@ -680,6 +686,13 @@ export default function Projects() {
               <TabsTrigger value="certificato" className="gap-1.5">
                 <CheckCircle2 className="h-3.5 w-3.5" /> Certified ({counts.certificato})
               </TabsTrigger>
+              {/* Compare solo quando c'e' qualcosa dentro: su un portafoglio di
+                  sole certificazioni sarebbe una scheda sempre vuota. */}
+              {counts.online > 0 && (
+                <TabsTrigger value="online" className="gap-1.5">
+                  <Radio className="h-3.5 w-3.5" /> Online ({counts.online})
+                </TabsTrigger>
+              )}
             </TabsList>
           </Tabs>
 
@@ -836,8 +849,10 @@ export default function Projects() {
                     const isCanceled = project.setup_status === "canceled";
                     const isCertified = project.setup_status === "certificato";
                     // Un Energy o un Air che trasmette e' arrivato: vale quanto
-                    // un certificato, e va letto allo stesso modo.
-                    const isOnline = isMonitoringOnline(project);
+                    // un certificato, e va letto allo stesso modo. Lo stato lo
+                    // decide useAdminPlannerData, qui non si ricalcola: due
+                    // opinioni sullo stesso fatto finiscono sempre per divergere.
+                    const isOnline = (project.setup_status as string) === "online";
                     const isDone = isCertified || isOnline;
 
                     return (

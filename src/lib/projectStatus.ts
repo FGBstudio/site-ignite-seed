@@ -89,7 +89,10 @@ export function isMonitoringOnline(p: {
  * solo dopo si guarda a che punto e' il lavoro.
  */
 export function classifyProjectStatus(p: ClassifiableProject): ProjectStatus {
-  if (p.setup_status === "certificato" || p.issued_date) return "certified";
+  // "online" e' il capolinea dei progetti di monitoraggio e conta fra i lavori
+  // arrivati: nei sei stati del report non ha una voce sua, e lasciarlo cadere
+  // nel ripiego lo farebbe comparire fra quelli ancora in progettazione.
+  if (p.setup_status === "certificato" || p.setup_status === "online" || p.issued_date) return "certified";
   if (p.on_hold) return "on_hold";
 
   // Prima che il progetto sia approvato non c'e' ancora una fase di lavoro:

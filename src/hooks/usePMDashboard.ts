@@ -25,7 +25,14 @@ async function fetchCertificationMilestones(certIds: string[]): Promise<any[]> {
   return milestones;
 }
 
-export type SetupStatus = "potential" | "quotation" | "quotation_approved" | "da_configurare" | "in_corso" | "completato" | "certificato" | "canceled";
+/**
+ * `online` non e' uno stato del database: e' lo stato di configurazione che
+ * un progetto Energy o Air raggiunge quando i suoi sensori trasmettono. Vive
+ * qui accanto agli altri perche' e' quello che si legge nella colonna CONFIG
+ * STATUS, e per il monitoraggio e' il capolinea — l'equivalente di
+ * "certificato" per una LEED.
+ */
+export type SetupStatus = "potential" | "quotation" | "quotation_approved" | "da_configurare" | "in_corso" | "completato" | "certificato" | "online" | "canceled";
 
 export interface PMProject {
   id: string;
@@ -194,6 +201,9 @@ export function usePMDashboard() {
         let setup_status: SetupStatus;
         if (isCertified) {
           setup_status = "certificato";
+        } else if (isMonitoringOnline({ cert_type: c.cert_type, cert_level: (c as any).cert_level })) {
+          // Il capolinea di un Energy o di un Air: i sensori trasmettono.
+          setup_status = "online";
         } else if (hasTimeline && isTimelineConfigured) {
           setup_status = "in_corso";
         } else {
@@ -275,7 +285,7 @@ export function usePMDashboard() {
         let plannerStatus = "pending";
         if (setup_status === "certificato") {
           plannerStatus = "Certified"; // Imposto a Certified per attivare la riga verde in FGBPlanner
-        } else if (isMonitoringOnline({ cert_type: c.cert_type, cert_level: (c as any).cert_level })) {
+        } else if (setup_status === "online") {
           // Il traguardo di un Energy o di un Air: riga in verde acqua, come
           // "Certified" ma di un'altra tinta.
           plannerStatus = "Online";

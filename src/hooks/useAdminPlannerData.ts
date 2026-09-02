@@ -276,6 +276,10 @@ export function useAdminPlannerData() {
 
         let setup_status: SetupStatus;
         if (isCertified) setup_status = "certificato";
+        // Prima di "in corso" e di "completato": per un Energy o un Air che
+        // trasmette il lavoro e' finito, e continuare a leggerlo "In Progress"
+        // solo perche' ha una timeline aperta racconterebbe il contrario.
+        else if (isOnline) setup_status = "online";
         else if (isCompleted) setup_status = "completato";
         else if (hasTimeline) setup_status = "in_corso";
         else setup_status = "da_configurare";
