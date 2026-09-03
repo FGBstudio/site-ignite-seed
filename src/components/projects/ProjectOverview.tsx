@@ -37,6 +37,18 @@ const statusLabel = (status: string) => {
 };
 
 export function ProjectOverview({ certificationId, project, timelineMilestones }: ProjectOverviewProps) {
+  /**
+   * L'indirizzo del sito, in una riga: via, citta', paese.
+   *
+   * I tre campi si compongono qui e non nella query perche' su 1.105 siti 29
+   * non hanno la via: senza scarto dei pezzi vuoti uscirebbero virgole
+   * appaiate o un indirizzo che comincia con una virgola.
+   */
+  const siteAddress = [project?.sites?.address, project?.sites?.city, project?.sites?.country]
+    .map((v: unknown) => (typeof v === "string" ? v.trim() : ""))
+    .filter(Boolean)
+    .join(", ");
+
   // Fetch scorecard milestones for credits summary
   const { data: scorecardMilestones = [] } = useQuery({
     queryKey: ["scorecard-milestones", certificationId],
@@ -191,6 +203,17 @@ export function ProjectOverview({ certificationId, project, timelineMilestones }
             <div className="flex justify-between">
               <span className="text-muted-foreground">Region</span>
               <span className="font-medium text-foreground">{project.region}</span>
+            </div>
+            {/*
+              L'indirizzo sta su una riga sua e non a destra come gli altri
+              valori: e' l'unico campo lungo della card, e allineato a destra
+              su una sola riga verrebbe tagliato proprio dove serve leggerlo.
+            */}
+            <div className="flex flex-col gap-0.5 pt-0.5">
+              <span className="text-muted-foreground">Address</span>
+              <span className="font-medium text-foreground leading-snug">
+                {siteAddress || <span className="text-muted-foreground font-normal">Not set</span>}
+              </span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Certification</span>

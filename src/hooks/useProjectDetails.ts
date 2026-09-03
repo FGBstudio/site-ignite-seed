@@ -13,7 +13,9 @@ export function useProjectDetails(certificationId: string | undefined) {
 
       const { data: cert, error } = await (supabase as any)
         .from("certifications")
-        .select("*, sites(name, city, country)")
+        // L'indirizzo serve alla card "Project Info": e' il dato che si cerca
+        // quando bisogna andarci o spedirci qualcosa, e stava solo in anagrafica.
+        .select("*, sites(name, address, city, country)")
         .eq("id", certificationId)
         .single();
 
