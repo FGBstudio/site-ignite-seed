@@ -71,8 +71,10 @@ const COLUMN_VALUE: Record<string, (r: any) => string> = {
   client: r => r.client || '',
   city: r => r.city || '',
   region: r => r.region || '',
+  country: r => r.country || '',
   cert_type: r => (r.cert_type ? (CERT_DISPLAY_LABELS[r.cert_type] ?? r.cert_type) : ''),
   cert_rating: r => r.cert_rating || '',
+  cert_level: r => r.cert_level || '',
   total_fees: r => (r.total_fees !== undefined && r.total_fees !== null ? formatMoney(r.total_fees, r.currency) : ''),
   quotation_sent_date: r => (r.quotation_sent_date ? format(new Date(r.quotation_sent_date), "dd MMM yyyy") : ''),
   project_subtype: r => r.project_subtype || '',
@@ -396,6 +398,7 @@ export default function Projects() {
       { header: "Client", get: (p) => p.client ?? "" },
       { header: "City", get: (p) => p.city ?? "" },
       { header: "Project", get: (p) => p.name ?? "" },
+      { header: "Country", get: (p) => p.country ?? "" },
       { header: "Region", get: (p) => p.region ?? "" },
       { header: "Certification", get: (p) => (p.cert_type ? CERT_DISPLAY_LABELS[p.cert_type] ?? p.cert_type : "") },
       { header: "Rating", get: (p) => p.cert_rating ?? "" },
@@ -411,6 +414,7 @@ export default function Projects() {
       cols.push({ header: "Sent Date", get: (p) => d(p.quotation_sent_date) });
     } else {
       cols.push({ header: "Subtype", get: (p) => p.project_subtype ?? "" });
+      cols.push({ header: "Level", get: (p) => p.cert_level ?? "" });
       cols.push({ header: "PM", get: (p) => p.pm_name ?? "" });
     }
 
@@ -504,6 +508,8 @@ export default function Projects() {
           p.country,
           p.typology,
           p.cert_type,
+          p.country,
+          p.cert_level,
           p.cert_type ? CERT_DISPLAY_LABELS[p.cert_type] : null,
           p.cert_rating,
           p.project_subtype,
@@ -792,6 +798,9 @@ export default function Projects() {
                       <ExcelHeaderCell title="Project" colKey="name" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
                     </th>
                     <th className="p-4">
+                      <ExcelHeaderCell title="Country" colKey="country" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
+                    </th>
+                    <th className="p-4">
                       <ExcelHeaderCell title="Region" colKey="region" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
                     </th>
                     <th className="p-4">
@@ -813,6 +822,9 @@ export default function Projects() {
                       <>
                         <th className="p-4">
                           <ExcelHeaderCell title="Subtype" colKey="project_subtype" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
+                        </th>
+                        <th className="p-4">
+                          <ExcelHeaderCell title="Level" colKey="cert_level" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
                         </th>
                         <th className="p-4">
                           <ExcelHeaderCell title="PM" colKey="pm_name" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
@@ -838,7 +850,7 @@ export default function Projects() {
                 <tbody>
                   {sortedAndFiltered.length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="p-12 text-center text-muted-foreground">No projects found.</td>
+                      <td colSpan={12} className="p-12 text-center text-muted-foreground">No projects found.</td>
                     </tr>
                   ) : null}
                   {sortedAndFiltered.map((project) => {
@@ -893,6 +905,7 @@ export default function Projects() {
                             {project.name}
                           </div>
                         </td>
+                        <td className="p-4 text-muted-foreground uppercase">{project.country || "—"}</td>
                         <td className="p-4"><Badge variant="outline">{project.region}</Badge></td>
                         <td className="p-4">
                           {project.cert_type ? (
@@ -928,6 +941,13 @@ export default function Projects() {
                             <td className="p-4">
                               {project.project_subtype ? (
                                 <Badge variant="outline" className="text-xs bg-accent/50">{project.project_subtype}</Badge>
+                              ) : (
+                                <span className="text-muted-foreground text-xs">—</span>
+                              )}
+                            </td>
+                            <td className="p-4">
+                              {project.cert_level ? (
+                                <Badge variant="outline" className="text-xs font-medium">{project.cert_level}</Badge>
                               ) : (
                                 <span className="text-muted-foreground text-xs">—</span>
                               )}

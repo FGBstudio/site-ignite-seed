@@ -125,6 +125,11 @@ function PMProjectCard({
           {project.cert_type && <Badge variant="secondary">{project.cert_type}</Badge>}
           {project.cert_rating && <Badge variant="outline">{project.cert_rating}</Badge>}
           {project.project_subtype && <Badge variant="outline">{project.project_subtype}</Badge>}
+          {/* La medaglia sta dopo il subtype e il paese prima della regione,
+              nello stesso ordine della tabella admin: chi passa dall'una
+              all'altra ritrova le stesse informazioni nella stessa sequenza. */}
+          {project.cert_level && <Badge variant="outline" className="font-medium">{project.cert_level}</Badge>}
+          {project.sites?.country && <Badge variant="outline">{project.sites.country}</Badge>}
           <Badge variant="outline">{project.region}</Badge>
         </div>
       </CardHeader>
@@ -213,9 +218,11 @@ export function PMProjectsBoard() {
     () => ({
       client: (p: PMProjectView) => p.client || "",
       city: (p: PMProjectView) => p.sites?.city || "",
+      country: (p: PMProjectView) => p.sites?.country || "",
       region: (p: PMProjectView) => p.region || "",
       status: (p: PMProjectView) => p.setup_status || "",
       cert_type: (p: PMProjectView) => p.cert_type || "",
+      cert_level: (p: PMProjectView) => p.cert_level || "",
     }),
     []
   );
@@ -227,7 +234,7 @@ export function PMProjectsBoard() {
     const term = search.trim().toLowerCase();
     const searched = term
       ? baseProjects.filter((p) =>
-          [p.name, p.client, p.sites?.city, p.region, p.cert_type, p.project_subtype]
+          [p.name, p.client, p.sites?.city, p.sites?.country, p.region, p.cert_type, p.cert_rating, p.cert_level, p.project_subtype]
             .some((v) => (v ?? "").toString().toLowerCase().includes(term)))
       : baseProjects;
     return applyColumnFiltersAndSort(searched, colFilters, sortConfig, resolvers);
@@ -312,9 +319,11 @@ export function PMProjectsBoard() {
             <div className="flex flex-wrap items-center gap-4 px-3 py-2 rounded-lg border border-border/60 bg-muted/30">
               <ColumnFilter title="Client" colKey="client" rows={baseProjects} getValue={resolvers.client} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
               <ColumnFilter title="City" colKey="city" rows={baseProjects} getValue={resolvers.city} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
+              <ColumnFilter title="Country" colKey="country" rows={baseProjects} getValue={resolvers.country} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
               <ColumnFilter title="Region" colKey="region" rows={baseProjects} getValue={resolvers.region} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
               <ColumnFilter title="Status" colKey="status" rows={baseProjects} getValue={resolvers.status} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
               <ColumnFilter title="Cert Type" colKey="cert_type" rows={baseProjects} getValue={resolvers.cert_type} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
+              <ColumnFilter title="Level" colKey="cert_level" rows={baseProjects} getValue={resolvers.cert_level} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
             </div>
 
           </div>

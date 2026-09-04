@@ -44,6 +44,8 @@ export interface PMProject {
   site_id: string | null;
   cert_type: string | null;
   cert_rating: string | null;
+  /** La medaglia: Gold, Platinum — e Pending/Online per Energy e Air. */
+  cert_level: string | null;
   pm_id: string | null;
   created_at: string;
   updated_at: string;
