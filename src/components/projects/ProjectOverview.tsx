@@ -219,6 +219,27 @@ export function ProjectOverview({ certificationId, project, timelineMilestones }
               <span className="text-muted-foreground">Certification</span>
               <Badge variant="secondary">{project.cert_type}</Badge>
             </div>
+            {/*
+              La medaglia obiettivo: Gold, Platinum, Excellent — e per Energy e
+              Air, che non si certificano ma si accendono, Pending oppure Online.
+              Si legge solo `cert_level`: la vecchia colonna `level` contiene il
+              rating, non la medaglia, e non c'e' piu' nessuna riga con la
+              medaglia bloccata li' dentro.
+            */}
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Level</span>
+              {project.cert_level ? (
+                <Badge variant="outline" className="font-medium">{project.cert_level}</Badge>
+              ) : (
+                <span className="text-muted-foreground">Not set</span>
+              )}
+            </div>
+            {project.cert_rating && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Rating system</span>
+                <span className="font-medium text-foreground">{project.cert_rating}</span>
+              </div>
+            )}
             <div className="flex justify-between">
               <span className="text-muted-foreground">Handover</span>
               <span className="font-medium text-foreground">{format(new Date(project.handover_date), "dd MMM yyyy")}</span>
