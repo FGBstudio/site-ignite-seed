@@ -334,7 +334,11 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
   const onSubmit = async (data: ProjectFormData) => {
     setSaving(true);
     try {
-      // CONFIRM MODE: just update PM + po_sign_date + status
+      // CONFIRM MODE: si assegna il PM e si attiva il progetto, nient'altro.
+      //
+      // Data di firma e monte ore non si scrivono piu' da qui: arrivano
+      // dall'offerta e in questo riquadro si leggono soltanto. Toccarli in
+      // assegnazione voleva dire poter contraddire il documento firmato.
       if (isConfirmMode && project) {
         if (!data.confirm_pm_id) {
           toast({ title: "PM Required", description: "Please select a Project Manager.", variant: "destructive" });
@@ -346,12 +350,6 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
           pm_id: data.confirm_pm_id,
           status: wasQuotationApproved ? "da_configurare" : "in_progress",
         };
-        if (data.po_sign_date) {
-          updatePayload.po_sign_date = format(data.po_sign_date, "yyyy-MM-dd");
-        }
-        if (data.allocated_hours != null && !Number.isNaN(data.allocated_hours)) {
-          updatePayload.allocated_hours = data.allocated_hours;
-        }
         const { data: updatedCerts, error } = await supabase
           .from("certifications")
           .update(updatePayload)
@@ -555,10 +553,31 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
                   <div className="flex justify-between"><span className="text-muted-foreground">Region</span><span className="font-medium">{project.region}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Certification</span><span className="font-medium">{(project as any).cert_type ? (CERT_DISPLAY_LABELS[(project as any).cert_type] ?? (project as any).cert_type) : "—"}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Rating</span><span className="font-medium">{(project as any).cert_rating || "—"}</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">Handover</span><span className="font-medium">{format(new Date(project.handover_date), "dd MMM yyyy")}</span></div>
-                  {(project as any).total_fees != null && (
-                    <div className="flex justify-between"><span className="text-muted-foreground">Total Fees</span><span className="font-medium">{formatMoney((project as any).total_fees, (project as any).currency)}</span></div>
-                  )}
+                  <div className="flex justify-between"><span className="text-muted-foreground">Level</span><span className="font-medium">{(project as any).cert_level || "—"}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Handover</span><span className="font-medium">{project.handover_date ? format(new Date(project.handover_date), "dd MMM yyyy") : "—"}</span></div>
+                  {/*
+                    Data di firma e monte ore arrivano dall'offerta e si leggono
+                    qui, dove prima erano due campi da compilare: la firma la
+                    timbra l'approvazione, le ore le ha decise il preventivo.
+                    Riscriverle in fase di assegnazione voleva dire poter
+                    contraddire il documento che il cliente ha firmato.
+                  */}
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Quotation sign date</span>
+                    <span className="font-medium">
+                      {(project as any).quotation_approved_at
+                        ? format(new Date((project as any).quotation_approved_at), "dd MMM yyyy")
+                        : "—"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Hourly budget</span>
+                    <span className="font-medium">
+                      {(project as any).allocated_hours != null ? `${Number((project as any).allocated_hours)} h` : "—"}
+                    </span>
+                  </div>
+                  {/* Il valore economico non si mostra: chi assegna un progetto
+                      a un PM non ha bisogno di sapere quanto e' stato venduto. */}
                 </CardContent>
               </Card>
 
@@ -582,59 +601,13 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
                 </FormItem>
               )} />
 
-              {/* PO Sign Date */}
-              <FormField control={form.control} name="po_sign_date" render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel>PO Sign Date</FormLabel>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !field.value && "text-muted-foreground")}>
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {field.value ? format(field.value, "dd MMM yyyy") : "Select date"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <MonthYearCalendar mode="single" selected={field.value || undefined} onSelect={field.onChange} initialFocus className="p-3" />
-                    </PopoverContent>
-                  </Popover>
-                  <FormMessage />
-                </FormItem>
-              )} />
-
-              {/* Hourly Budget */}
-              <FormField control={form.control} name="allocated_hours" render={({ field }) => (
-                <FormItem>
-                  <div className="flex items-center justify-between">
-                    <FormLabel>Hourly Budget (h)</FormLabel>
-                    {suggestedHours != null && (
-                      <button
-                        type="button"
-                        onClick={() => form.setValue("allocated_hours", suggestedHours)}
-                        className="text-xs text-primary hover:underline"
-                      >
-                        Use FTE Builder suggestion: {suggestedHours}h
-                      </button>
-                    )}
-                  </div>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      min={0}
-                      step="0.5"
-                      placeholder="e.g. 240"
-                      value={field.value ?? ""}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        field.onChange(v === "" ? undefined : Number(v));
-                      }}
-                    />
-                  </FormControl>
-                  <FormDescription className="text-xs">
-                    Total hours allocated to this certification. Feeds Project Burn Rate / Hours Analytics.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )} />
+              {/*
+                Data di firma e monte ore erano due campi da compilare e sono
+                diventati due righe di sola lettura nel riquadro qui sopra: la
+                firma la timbra l'approvazione dell'offerta, le ore le ha
+                decise il preventivo. In assegnazione si sceglie il PM, il
+                resto arriva.
+              */}
 
               {/* Site coordinates */}
               <div className="space-y-2">

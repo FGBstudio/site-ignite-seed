@@ -398,7 +398,10 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
     if (site.isNew && !site.newName.trim()) errs.newName = "Enter a site name";
     if (!services.projectName.trim()) errs.projectName = "Project name is required";
     if (!services.client.trim()) errs.client = "Client is required";
-    if (!services.handoverDate) errs.handoverDate = "Handover date is required";
+    // La data di consegna NON e' piu' obbligatoria qui: quando si manda
+    // un'offerta spesso non c'e' ancora, e obbligarla costringeva a
+    // inventarsela. Diventa vincolante all'approvazione, che e' il momento in
+    // cui il progetto entra in Operations e la data serve davvero.
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -843,7 +846,7 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
         </div>
 
         <div className="space-y-1.5">
-          <Label className="text-xs font-medium">Estimated handover *</Label>
+          <Label className="text-xs font-medium">Estimated handover</Label>
           <Popover>
             <PopoverTrigger asChild>
               <Button
@@ -858,7 +861,9 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
               <MonthYearCalendar mode="single" selected={services.handoverDate} onSelect={(d) => setServices((s) => ({ ...s, handoverDate: d }))} initialFocus className="p-3" />
             </PopoverContent>
           </Popover>
-          {errors.handoverDate && <p className="text-xs text-destructive">{errors.handoverDate}</p>}
+          <p className="text-[11px] text-muted-foreground">
+            Si puo' lasciare vuota. Serve pero' per approvare l'offerta.
+          </p>
         </div>
       </div>
     </div>

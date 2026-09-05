@@ -17,7 +17,8 @@ import { useToast } from "@/hooks/use-toast";
 import { NewQuotationWizard } from "@/components/projects/NewQuotationWizard";
 import { ProjectFormModal } from "@/components/projects/ProjectFormModal";
 import { Money } from "@/components/common/Money";
-import { Plus, Search, FileText, CheckCircle2, Loader2, ArrowRight, XCircle, Ban, Sparkles, RotateCcw, ChevronDown, ChevronRight as ChevronRightIcon, Save, Pencil } from "lucide-react";
+import { formatMoney } from "@/lib/currency";
+import { Plus, Search, FileText, CheckCircle2, Loader2, ArrowRight, XCircle, Ban, Sparkles, RotateCcw, ChevronDown, ChevronRight as ChevronRightIcon, Save, Pencil, FilePlus2 } from "lucide-react";
 
 interface QuotationRow {
   id: string;
@@ -109,6 +110,10 @@ export default function Quotations() {
   const [editProject, setEditProject] = useState<any>(null);
   const [editAllocations, setEditAllocations] = useState<any[]>([]);
   const [openingEditId, setOpeningEditId] = useState<string | null>(null);
+  const [completeRow, setCompleteRow] = useState<QuotationRow | null>(null);
+  const [completePoDate, setCompletePoDate] = useState("");
+  const [completeNotes, setCompleteNotes] = useState("");
+  const [savingComplete, setSavingComplete] = useState(false);
 
   const potential = useMemo(() => rows.filter((r) => r.status === "potential"), [rows]);
   const pending = useMemo(() => rows.filter((r) => r.status === "quotation"), [rows]);
@@ -157,6 +162,29 @@ export default function Quotations() {
 
       const approvedAt = new Date().toISOString();
       const ids = groupIds && groupIds.length > 0 ? groupIds : [id];
+
+      /*
+        Qui la data di consegna diventa vincolante.
+
+        Mandare un'offerta senza sapere quando si consegna e' normale, e infatti
+        in fase di registrazione il campo e' libero. Approvarla e' un'altra
+        cosa: da quel momento il progetto entra in Operations, il PM ci
+        costruisce sopra la timeline e ogni scadenza si conta da li'. Senza
+        data non c'e' niente da cui contare.
+
+        Si controllano tutte le righe del gruppo, non solo quella cliccata: su
+        un'offerta unificata basta che una non abbia la data perche' entri in
+        Operations monca.
+        */
+      const senzaData = rows.filter((r) => ids.includes(r.id) && !r.handover_date);
+      if (senzaData.length > 0) {
+        const elenco = senzaData.map((r) => r.name).join(", ");
+        throw new Error(
+          senzaData.length === 1
+            ? `Manca la data di consegna di "${elenco}". Aprila con Edit, inseriscila e riprova.`
+            : `Manca la data di consegna di ${senzaData.length} progetti dell'offerta: ${elenco}. Inseriscile con Edit e riprova.`,
+        );
+      }
       const { data, error } = await supabase
         .from("certifications")
         .update({ status: "quotation_approved", quotation_approved_at: approvedAt, quotation_approved_by: userId })
@@ -252,6 +280,54 @@ export default function Quotations() {
       toast({ title: "Cannot open the quotation", description: readableError(err), variant: "destructive" });
     } finally {
       setOpeningEditId(null);
+    }
+  };
+
+  /**
+   * "Complete": le informazioni che arrivano DOPO l'approvazione.
+   *
+   * Un'offerta approvata e' un documento firmato: importi, valuta, monte ore,
+   * schema e livello non si toccano piu'. Quello che invece si sa solo dopo —
+   * quando il cliente firma l'ordine — si aggiunge qui.
+   *
+   * Si legge la riga intera perche' l'elenco carica solo le colonne che mostra:
+   * il livello e il monte ore, che nel riquadro vanno letti, non ci sono.
+   */
+  const openComplete = async (r: QuotationRow) => {
+    setCompleteRow(r);
+    setCompletePoDate("");
+    setCompleteNotes(r.quotation_notes ?? "");
+    const { data } = await supabase
+      .from("certifications")
+      .select("po_sign_date, quotation_notes, allocated_hours, cert_level, cert_rating")
+      .eq("id", r.id)
+      .maybeSingle();
+    if (data) {
+      setCompletePoDate((data as any).po_sign_date ?? "");
+      setCompleteNotes((data as any).quotation_notes ?? "");
+      setCompleteRow((prev) => (prev ? { ...prev, ...(data as any) } : prev));
+    }
+  };
+
+  const saveComplete = async () => {
+    if (!completeRow) return;
+    setSavingComplete(true);
+    try {
+      const { error } = await supabase
+        .from("certifications")
+        .update({
+          po_sign_date: completePoDate || null,
+          quotation_notes: completeNotes.trim() || null,
+        })
+        .eq("id", completeRow.id);
+      if (error) throw error;
+      toast({ title: "Saved", description: "Additional information updated." });
+      setCompleteRow(null);
+      invalidateAll();
+    } catch (err) {
+      toast({ title: "Save failed", description: readableError(err), variant: "destructive" });
+    } finally {
+      setSavingComplete(false);
     }
   };
 
@@ -488,9 +564,17 @@ export default function Quotations() {
                         </Button>
                       </div>
                     ) : (
-                      <Badge variant="outline" className="gap-1 text-success border-success/30 bg-success/10">
-                        <CheckCircle2 className="h-3 w-3" /> Approved
-                      </Badge>
+                      <div className="flex items-center justify-end gap-2">
+                        <Badge variant="outline" className="gap-1 text-success border-success/30 bg-success/10">
+                          <CheckCircle2 className="h-3 w-3" /> Approved
+                        </Badge>
+                        {/* Un'offerta approvata non si modifica piu': i suoi
+                            valori sono quelli firmati. "Complete" aggiunge
+                            quello che si sa dopo, senza toccarli. */}
+                        <Button size="sm" variant="outline" className="gap-1.5" onClick={() => openComplete(r)}>
+                          <FilePlus2 className="h-3.5 w-3.5" /> Complete
+                        </Button>
+                      </div>
                     )}
                   </td>
                 </tr>
@@ -549,6 +633,75 @@ export default function Quotations() {
           qc.invalidateQueries({ queryKey: ["admin-planner-all-certifications"] });
         }}
       />
+
+      {/* Complete: si aggiunge, non si corregge */}
+      <Dialog open={!!completeRow} onOpenChange={(o) => !o && setCompleteRow(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Complete {completeRow?.name}</DialogTitle>
+            <DialogDescription>
+              Add what is known after the approval. The figures agreed in the quotation are shown for
+              reference and cannot be changed here.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="rounded-lg border bg-muted/30 p-3 space-y-1.5 text-sm">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Total fees</span>
+              <span className="font-medium">
+                {formatMoney(completeRow?.total_fees, completeRow?.currency)}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Hourly budget</span>
+              <span className="font-medium">
+                {(completeRow as any)?.allocated_hours != null ? `${Number((completeRow as any).allocated_hours)} h` : "—"}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Rating · Level</span>
+              <span className="font-medium">
+                {[(completeRow as any)?.cert_rating, (completeRow as any)?.cert_level].filter(Boolean).join(" · ") || "—"}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Quotation sign date</span>
+              <span className="font-medium">
+                {completeRow?.quotation_approved_at ? format(new Date(completeRow.quotation_approved_at), "dd MMM yyyy") : "—"}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Handover</span>
+              <span className="font-medium">
+                {completeRow?.handover_date ? format(new Date(completeRow.handover_date), "dd MMM yyyy") : "—"}
+              </span>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">PO sign date</label>
+              <Input type="date" value={completePoDate} onChange={(e) => setCompletePoDate(e.target.value)} />
+              <p className="text-[11px] text-muted-foreground">
+                Quando il cliente ha firmato l'ordine. Diverso dalla data di approvazione
+                dell'offerta, che la registra il sistema.
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Notes</label>
+              <Textarea rows={3} value={completeNotes} onChange={(e) => setCompleteNotes(e.target.value)} />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCompleteRow(null)}>Cancel</Button>
+            <Button onClick={saveComplete} disabled={savingComplete} className="gap-1.5">
+              {savingComplete ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!resumeDialog} onOpenChange={(o) => !o && setResumeDialog(null)}>
         <DialogContent>
