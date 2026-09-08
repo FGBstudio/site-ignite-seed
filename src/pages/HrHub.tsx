@@ -1,21 +1,16 @@
 import { useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card } from "@/components/ui/card";
-import { Calendar, ClipboardList, ScanLine, QrCode } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-
-const TILES = [
-  { id: "availability", title: "Availability", desc: "Shared team calendar", icon: Calendar, route: "/hr/availability", admin: false },
-  { id: "requests", title: "Leave & Permits", desc: "Holidays, permits, travel", icon: ClipboardList, route: "/hr/requests", admin: false },
-  { id: "attendance", title: "Attendance Log", desc: "Check-in / check-out records", icon: ScanLine, route: "/hr/attendance", admin: false },
-  { id: "scanner", title: "QR Scanner", desc: "Manager only — open the kiosk", icon: QrCode, route: "/hr/scanner", admin: true },
-];
+import { HR_PAGES } from "@/lib/hrPages";
 
 export default function HrHub() {
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
 
-  const visible = TILES.filter((t) => !t.admin || isAdmin);
+  // L'elenco sta in src/lib/hrPages.ts, lo stesso da cui la barra in alto
+  // ricava il nome della pagina aperta: una copia sola, che non puo' divergere.
+  const visible = HR_PAGES.filter((t) => !t.adminOnly || isAdmin);
 
   return (
     <MainLayout title="Human Resources" subtitle="Availability, requests, attendance">

@@ -68,14 +68,25 @@ export interface HrProfile {
   avatar_url: string | null;
 }
 
+/**
+ * Il dominio delle persone interne.
+ *
+ * In `profiles` convivono i nostri e i referenti dei clienti. HR riguarda solo
+ * i nostri: il calendario delle presenze, le ferie e le timbrature non hanno
+ * senso per chi lavora per il cliente, e su 28 profili 8 sono esterni — 8 righe
+ * di clienti in mezzo al calendario del team.
+ */
+const INTERNAL_EMAIL_DOMAIN = "@fgb-studio.com";
+
 // ── Profiles (people displayed in HR module) ──────────────────────────────
 export function useHrProfiles() {
   return useQuery({
-    queryKey: ["hr", "profiles"],
+    queryKey: ["hr", "profiles", "internal"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("profiles")
         .select("id, full_name, email, avatar_url")
+        .ilike("email", `%${INTERNAL_EMAIL_DOMAIN}`)
         .order("full_name", { ascending: true });
       if (error) throw error;
       return (data ?? []) as HrProfile[];

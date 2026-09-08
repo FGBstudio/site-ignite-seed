@@ -3,6 +3,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { isInProjectsSection, getSectionForPath } from "@/lib/hubSections";
+import { getHrPageTitle } from "@/lib/hrPages";
 import {
   Crown,
   FolderKanban,
@@ -112,6 +113,11 @@ export function TopNavbar() {
   // Current page label for breadcrumb (only meaningful inside Projects)
   const currentPage = navItems.find((item) => isActive(item.url));
 
+  // La pagina aperta dentro una sezione che ha un proprio hub. Oggi solo HR,
+  // ed e' l'unica con sotto-pagine: l'elenco vive in src/lib/hrPages.ts, lo
+  // stesso da cui l'hub disegna le sue schede.
+  const subPageTitle = getHrPageTitle(location.pathname);
+
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
@@ -187,13 +193,36 @@ export function TopNavbar() {
             </>
           )}
 
-          {/* Inside a Coming-Soon standalone hub section */}
+          {/*
+            Sezioni fuori da Projects — HR, Quotations, Payments.
+
+            Il nome della sezione era testo morto e la pagina aperta non
+            compariva affatto: dentro /hr/availability l'unica cosa cliccabile
+            era "Home", e infatti si finiva sempre lì. Ora la sezione riporta al
+            proprio hub e la pagina corrente si vede.
+          */}
           {!inProjects && standaloneSection && (
             <>
               <span className="text-muted-foreground/50 mx-0.5">/</span>
-              <span className="text-foreground font-medium" style={{ textTransform: "capitalize" }}>
-                {standaloneSection.name.toLowerCase()}
-              </span>
+              {subPageTitle ? (
+                <NavLink
+                  to={standaloneSection.route}
+                  className="text-foreground font-medium hover:text-[#009193] transition-colors"
+                  style={{ textTransform: "capitalize" }}
+                >
+                  {standaloneSection.name.toLowerCase()}
+                </NavLink>
+              ) : (
+                <span className="text-foreground font-medium" style={{ textTransform: "capitalize" }}>
+                  {standaloneSection.name.toLowerCase()}
+                </span>
+              )}
+              {subPageTitle && (
+                <>
+                  <span className="text-muted-foreground/50 mx-0.5">/</span>
+                  <span className="text-muted-foreground">{subPageTitle}</span>
+                </>
+              )}
             </>
           )}
         </div>
