@@ -130,6 +130,7 @@ export default function SupplierOrders() {
   const [deliveryMode, setDeliveryMode] = useState<"carrier" | "in_person">("carrier");
   const [deliveryDetail, setDeliveryDetail] = useState("");
   const [selectedHwIds, setSelectedHwIds] = useState<string[]>([]);
+  const [initialHwIds, setInitialHwIds] = useState<string[]>([]);
   const [showAllHardware, setShowAllHardware] = useState(false);
   const [outboundOriginFilter, setOutboundOriginFilter] = useState<string>("ALL");
   const [monthFilter, setMonthFilter] = useState<string>("ALL");
@@ -326,7 +327,9 @@ export default function SupplierOrders() {
       .select("hardware_id")
       .eq("shipment_id", ship.id);
     
-    setSelectedHwIds(movements?.map((m: any) => m.hardware_id) || []);
+    const initialIds = movements?.map((m: any) => m.hardware_id) || [];
+    setSelectedHwIds(initialIds);
+    setInitialHwIds(initialIds);
     setShowShipmentModal(true);
   };
 
@@ -377,75 +380,142 @@ export default function SupplierOrders() {
 
       let shipId = editingShipmentId;
       if (editingShipmentId) {
+        console.log("[handleSaveShipment] Updating ops_shipments:", { editingShipmentId, payload });
+        console.time("[handleSaveShipment] ops_shipments.update");
         const { error: updateErr } = await (supabase as any)
           .from("ops_shipments")
           .update(payload)
           .eq("id", editingShipmentId);
-        if (updateErr) throw updateErr;
+        console.timeEnd("[handleSaveShipment] ops_shipments.update");
+        if (updateErr) {
+          console.error("[handleSaveShipment] ops_shipments.update error details:", JSON.stringify(updateErr, null, 2));
+          throw new Error(`[Shipment Update]: ${updateErr.message}${updateErr.details ? ' (' + updateErr.details + ')' : ''}`);
+        }
       } else {
         const { data, error: insertErr } = await (supabase as any)
           .from("ops_shipments")
           .insert([payload])
           .select();
-        if (insertErr) throw insertErr;
+        if (insertErr) throw new Error(`[Shipment Insert]: ${insertErr.message}`);
         shipId = data?.[0].id;
       }
 
-      if (shipId && selectedHwIds.length > 0) {
-        // First, clear existing associations for this shipment to avoid duplicates
-        const { error: delErr } = await (supabase as any)
-          .from("ops_hardware_movements")
-          .delete()
-          .eq("shipment_id", shipId);
-        if (delErr) throw delErr;
-        
-        const movements = selectedHwIds.map(hid => ({
-          hardware_id: hid,
-          shipment_id: shipId,
-          action: payload.status === 'delivered' 
+      if (shipId) {
+        // Diff hardware movements to avoid massive row-level trigger cascade timeouts
+        const toDelete = initialHwIds.filter(id => !selectedHwIds.includes(id));
+        const toAdd = selectedHwIds.filter(id => !initialHwIds.includes(id));
+
+        // Delete only removed associations in small chunks of 5
+        if (toDelete.length > 0) {
+          for (let i = 0; i < toDelete.length; i += 5) {
+            const chunk = toDelete.slice(i, i + 5);
+            const { error: delErr } = await (supabase as any)
+              .from("ops_hardware_movements")
+              .delete()
+              .eq("shipment_id", shipId)
+              .in("hardware_id", chunk);
+            if (delErr) throw new Error(`[Movements Delete]: ${delErr.message}`);
+          }
+        }
+
+        // Insert newly added associations in small chunks of 5
+        if (toAdd.length > 0) {
+          const action = payload.status === 'delivered' 
             ? 'received' 
-            : (payload.status === 'in_transit' ? 'in_transit' : 'dispatched')
-        }));
-        const { error: insErr } = await (supabase as any)
-          .from("ops_hardware_movements")
-          .insert(movements);
-        if (insErr) throw insErr;
+            : (payload.status === 'in_transit' ? 'in_transit' : 'dispatched');
+
+          const movements = toAdd.map(hid => ({
+            hardware_id: hid,
+            shipment_id: shipId,
+            action
+          }));
+
+          for (let i = 0; i < movements.length; i += 5) {
+            const chunk = movements.slice(i, i + 5);
+            const { error: insErr } = await (supabase as any)
+              .from("ops_hardware_movements")
+              .insert(chunk);
+            if (insErr) throw new Error(`[Movements Insert]: ${insErr.message}`);
+          }
+        }
 
         // Auto-update hardware status and project allocations when shipped/delivered
         if (payload.shipment_type === 'outbound') {
           if (payload.status === 'in_transit' || payload.status === 'delivered') {
             const shipDate = payload.shipped_date || new Date().toISOString().split('T')[0];
-            await (supabase as any)
-              .from("hardwares")
-              .update({
-                status: "Shipped",
-                shipment_date: shipDate
-              })
-              .in("id", selectedHwIds);
+            const targetHwStatus = payload.status === 'delivered' ? 'Delivered' : 'Shipped';
+
+            // Only update hardwares that genuinely need transition, never downgrade Delivered items
+            const hwToUpdate = selectedHwIds.filter(id => {
+              const hw = hardwares.find(h => h.id === id);
+              if (!hw) return false;
+              if (hw.status === 'Delivered') return false; // Already delivered, preserve status
+              if (targetHwStatus === 'Shipped' && hw.status === 'Shipped' && hw.shipment_date === shipDate) return false;
+              return hw.status !== targetHwStatus || hw.shipment_date !== shipDate;
+            });
+
+            if (hwToUpdate.length > 0) {
+              for (let i = 0; i < hwToUpdate.length; i += 3) {
+                const chunk = hwToUpdate.slice(i, i + 3);
+                try {
+                  const { error: hwErr } = await (supabase as any)
+                    .from("hardwares")
+                    .update({
+                      status: targetHwStatus,
+                      shipment_date: shipDate
+                    })
+                    .in("id", chunk);
+                  if (hwErr) console.warn("Hardware update error:", hwErr);
+                } catch (e) {
+                  console.warn("Hardware status update chunk failed:", e);
+                }
+              }
+            }
 
             // Update allocations for destination site
             const destLoc = locations.find(l => l.id === payload.destination_location_id);
             const targetSiteId = destLoc?.site_id;
             if (targetSiteId) {
-              const { data: certs } = await supabase
-                .from("certifications")
-                .select("id")
-                .eq("site_id", targetSiteId);
-              
-              const certIds = (certs || []).map(c => c.id);
-              if (certIds.length > 0) {
-                await (supabase as any)
-                  .from("project_allocations")
-                  .update({ status: "Shipped" })
-                  .in("certification_id", certIds)
-                  .in("status", ["Confirmed", "Partially Confirmed", "Requested"]);
+              try {
+                const { data: certs } = await supabase
+                  .from("certifications")
+                  .select("id")
+                  .eq("site_id", targetSiteId);
+                
+                const certIds = (certs || []).map(c => c.id);
+                if (certIds.length > 0) {
+                  await (supabase as any)
+                    .from("project_allocations")
+                    .update({ status: "Shipped" })
+                    .in("certification_id", certIds)
+                    .in("status", ["Confirmed", "Partially Confirmed", "Requested"]);
+                }
+              } catch (e) {
+                console.warn("Allocations update failed:", e);
               }
             }
           } else if (payload.status === 'awaiting dispatch' || payload.status === 'upcoming') {
-            await (supabase as any)
-              .from("hardwares")
-              .update({ status: "Assigned" })
-              .in("id", selectedHwIds);
+            const hwToUpdate = selectedHwIds.filter(id => {
+              const hw = hardwares.find(h => h.id === id);
+              if (!hw) return false;
+              if (hw.status === 'Delivered' || hw.status === 'Shipped') return false;
+              return hw.status !== "Assigned";
+            });
+
+            if (hwToUpdate.length > 0) {
+              for (let i = 0; i < hwToUpdate.length; i += 3) {
+                const chunk = hwToUpdate.slice(i, i + 3);
+                try {
+                  const { error: hwErr } = await (supabase as any)
+                    .from("hardwares")
+                    .update({ status: "Assigned" })
+                    .in("id", chunk);
+                  if (hwErr) console.warn("Hardware assign error:", hwErr);
+                } catch (e) {
+                  console.warn("Hardware assign chunk failed:", e);
+                }
+              }
+            }
           }
         }
       }
@@ -454,6 +524,13 @@ export default function SupplierOrders() {
       setShowShipmentModal(false);
       fetchData();
     } catch (err: any) {
+      console.error("[handleSaveShipment] Fatal error caught:", {
+        message: err.message,
+        details: err.details,
+        hint: err.hint,
+        code: err.code,
+        error: err
+      });
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setIsSaving(false);
@@ -697,7 +774,7 @@ export default function SupplierOrders() {
               </Button>
             )}
             {activeTab === 'internal' && (
-              <Button onClick={() => { setEditingShipmentId(null); setShipmentForm({...initialShipmentForm, shipment_type: 'internal'}); setSelectedHwIds([]); setShowShipmentModal(true); }} className="bg-[#009193] hover:bg-[#009193]/90 text-white text-xs h-9 gap-2 font-bold px-4">
+              <Button onClick={() => { setEditingShipmentId(null); setShipmentForm({...initialShipmentForm, shipment_type: 'internal'}); setSelectedHwIds([]); setInitialHwIds([]); setShowShipmentModal(true); }} className="bg-[#009193] hover:bg-[#009193]/90 text-white text-xs h-9 gap-2 font-bold px-4">
                 <ArrowUpRight className="h-4 w-4" /> CREATE MOVEMENT
               </Button>
             )}
@@ -1053,7 +1130,7 @@ export default function SupplierOrders() {
                     </div>
                     {expandedGroups.includes(po.id) && (
                       <div className="border-t border-slate-50 bg-slate-50/10 p-5 space-y-4">
-                        <div className="flex items-center justify-between"><p className="text-[10px] font-bold uppercase text-slate-400 tracking-widest">Logistics Legs (Shipments)</p> <Button variant="ghost" size="sm" onClick={() => { setEditingShipmentId(null); setShipmentForm({...initialShipmentForm, purchase_order_id: po.id}); setSelectedHwIds([]); setShowShipmentModal(true); }} className="h-6 text-[9px] text-[#009193] hover:bg-[#009193]/10 font-bold uppercase tracking-widest gap-1"><Plus className="h-3 w-3" /> Add Box/Leg</Button></div>
+                        <div className="flex items-center justify-between"><p className="text-[10px] font-bold uppercase text-slate-400 tracking-widest">Logistics Legs (Shipments)</p> <Button variant="ghost" size="sm" onClick={() => { setEditingShipmentId(null); setShipmentForm({...initialShipmentForm, purchase_order_id: po.id}); setSelectedHwIds([]); setInitialHwIds([]); setShowShipmentModal(true); }} className="h-6 text-[9px] text-[#009193] hover:bg-[#009193]/10 font-bold uppercase tracking-widest gap-1"><Plus className="h-3 w-3" /> Add Box/Leg</Button></div>
                         <div className="grid grid-cols-1 gap-2">
                           {poShipments.map(s => (
                             <div key={s.id} className="bg-white border border-slate-100 rounded-lg p-3 flex items-center justify-between shadow-sm">
