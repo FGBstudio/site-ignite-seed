@@ -8,11 +8,11 @@ import { Button } from "@/components/ui/button";
 import { ScorecardEditor } from "@/components/projects/ScorecardEditor";
 import { ProjectWBS } from "@/components/projects/ProjectWBS";
 import { StakeholdersPanel } from "@/components/projects/StakeholdersPanel";
-import { ProjectOverview } from "@/components/projects/ProjectOverview";
+import { ProjectOverview, isGreenBuildingCert, isEnergyOrAir } from "@/components/projects/ProjectOverview";
 import { useAuth } from "@/contexts/AuthContext";
 import { ProjectPayments } from "@/components/projects/ProjectPayments";
 import { ProjectCanvas } from "@/components/projects/ProjectCanvas";
-import { ArrowLeft, MapPin, Calendar, User, Cpu, Plus, Package, Info, History } from "lucide-react";
+import { ArrowLeft, MapPin, Calendar, User, Cpu, Plus, Package, Info, History, Award, Radio, Wind, Zap, Droplets, ArrowRightLeft, ShieldCheck, Layers, Activity } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
@@ -27,6 +27,24 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { HoldToggleButton } from "@/components/projects/HoldToggleButton";
 import { AlertOctagon } from "lucide-react";
+
+const certLevelStyles: Record<string, string> = {
+  Platinum: "bg-purple-100 text-purple-800 border-purple-300 dark:bg-purple-950/50 dark:text-purple-300 dark:border-purple-800",
+  Gold: "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800",
+  Silver: "bg-slate-200 text-slate-800 border-slate-300 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700",
+  Certified: "bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800",
+};
+
+const safeFormatDate = (dateVal?: string | null, formatStr = "dd MMM yyyy") => {
+  if (!dateVal) return null;
+  try {
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return null;
+    return format(d, formatStr);
+  } catch {
+    return null;
+  }
+};
 
 const statusColors: Record<string, string> = {
   Design: "bg-primary/10 text-primary border-primary/20",
@@ -238,56 +256,168 @@ export default function ProjectDetail() {
       </div>
 
       {(project as any).on_hold && (
-        <div className="mb-4 flex items-start gap-3 rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-destructive">
-          <AlertOctagon className="h-5 w-5 mt-0.5 shrink-0" />
-          <div className="text-sm">
-            <p className="font-semibold uppercase tracking-wide">This project is On Hold</p>
+        <div className="mb-6 flex items-start gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-amber-900 dark:text-amber-200">
+          <AlertOctagon className="h-5 w-5 mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
+          <div className="text-sm flex-1 space-y-1">
+            <div className="flex items-center gap-2">
+              <p className="font-semibold uppercase tracking-wide">This project is On Hold</p>
+              {(project as any).on_hold_previous_status && (
+                <Badge variant="outline" className="text-xs border-amber-400/40 bg-amber-100 dark:bg-amber-900/50">
+                  Previous: {(project as any).on_hold_previous_status}
+                </Badge>
+              )}
+            </div>
             {(project as any).on_hold_reason && (
-              <p className="text-destructive/90 mt-1">Reason: {(project as any).on_hold_reason}</p>
+              <p className="italic text-amber-800 dark:text-amber-300">"{(project as any).on_hold_reason}"</p>
             )}
-            <p className="text-destructive/80 mt-1">All edits are disabled until an admin releases the project.</p>
+            <div className="flex flex-wrap items-center gap-x-4 text-xs text-amber-700 dark:text-amber-400 pt-0.5">
+              {(project as any).on_hold_at && (
+                <span>Hold Date: {safeFormatDate((project as any).on_hold_at, "dd MMM yyyy, HH:mm")}</span>
+              )}
+              {(project as any).on_hold_by && (
+                <span>Placed by: {(project as any).on_hold_by}</span>
+              )}
+            </div>
+            <p className="text-xs text-amber-600 dark:text-amber-400/80 pt-0.5">All edits are disabled until an administrator releases the project.</p>
           </div>
         </div>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+        {/* Card 1: Site & Area */}
         <Card>
           <CardContent className="pt-4 pb-4 flex items-center gap-3">
-            <MapPin className="h-5 w-5 text-muted-foreground" />
-            <div>
-              <p className="text-xs text-muted-foreground">Site</p>
-              <p className="font-medium text-sm text-foreground">{siteName || "Not assigned"}</p>
-              {siteCity && <p className="text-xs text-muted-foreground">{siteCity}{siteCountry ? `, ${siteCountry}` : ""}</p>}
+            <MapPin className="h-5 w-5 text-muted-foreground shrink-0" />
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground">Site & Area</p>
+              <p className="font-medium text-sm text-foreground truncate">{siteName || "Not assigned"}</p>
+              <p className="text-xs text-muted-foreground truncate">
+                {[siteCity, siteCountry].filter(Boolean).join(", ") || "No location"}
+                {(project as any).sqm ? ` · ${Number((project as any).sqm).toLocaleString()} m²` : ""}
+              </p>
             </div>
           </CardContent>
         </Card>
+
+        {/* Card 2: Target & Level OR Monitoring / Service Category */}
         <Card>
           <CardContent className="pt-4 pb-4 flex items-center gap-3">
-            <Calendar className="h-5 w-5 text-muted-foreground" />
-            <div>
-              <p className="text-xs text-muted-foreground">Handover</p>
-              <p className="font-medium text-sm text-foreground">{format(new Date(project.handover_date), "dd MMM yyyy")}</p>
-            </div>
+            {isGreenBuildingCert((project as any).cert_type) ? (
+              <>
+                <Award className="h-5 w-5 text-muted-foreground shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground">Certification Level</p>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "text-xs font-semibold px-2 py-0.5",
+                        certLevelStyles[(project as any).cert_level] || "bg-secondary text-secondary-foreground"
+                      )}
+                    >
+                      🏅 {(project as any).cert_level || (project as any).level || "Target Pending"}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground truncate mt-0.5">
+                    {(project as any).target_score ? `Target: ${(project as any).target_score} pts` : "Score TBD"}
+                    {(project as any).score ? ` · Achieved: ${(project as any).score} pts` : ""}
+                  </p>
+                </div>
+              </>
+            ) : isEnergyOrAir((project as any).cert_type) ? (
+              <>
+                <Activity className="h-5 w-5 text-emerald-500 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground">Monitoring Scope</p>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <Badge variant="outline" className="text-xs font-semibold px-2 py-0.5 bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300">
+                      ⚡ {(project as any).cert_type || "Energy & Air"}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground truncate mt-0.5">
+                    {(project as any).fgb_monitor ? "FGB Active Monitoring" : "Continuous Telemetry"}
+                  </p>
+                </div>
+              </>
+            ) : (
+              <>
+                <ShieldCheck className="h-5 w-5 text-muted-foreground shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground">Service Category</p>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <Badge variant="secondary" className="text-xs font-semibold px-2 py-0.5">
+                      {(project as any).cert_type || "Consulting"}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground truncate mt-0.5">
+                    {(project as any).region || "Enterprise"}
+                  </p>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
+
+        {/* Card 3: Rating & Typology OR Hardware / Scope */}
         <Card>
           <CardContent className="pt-4 pb-4 flex items-center gap-3">
-            <User className="h-5 w-5 text-muted-foreground" />
-            <div>
-              <p className="text-xs text-muted-foreground">PM</p>
-              <p className="font-medium text-sm text-foreground">{pmName}</p>
-            </div>
+            {isGreenBuildingCert((project as any).cert_type) ? (
+              <>
+                <Layers className="h-5 w-5 text-muted-foreground shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground">Rating System</p>
+                  <p className="font-medium text-sm text-foreground truncate">
+                    {[(project as any).cert_type, (project as any).cert_rating || (project as any).level].filter(Boolean).join(" ") || (project as any).cert_type || "Green Building"}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {(project as any).project_subtype || (project as any).building_type || "Standard Typology"}
+                  </p>
+                </div>
+              </>
+            ) : isEnergyOrAir((project as any).cert_type) ? (
+              <>
+                <Cpu className="h-5 w-5 text-muted-foreground shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground">Hardware & System</p>
+                  <p className="font-medium text-sm text-foreground truncate">
+                    {(project as any).cert_rating || "Gateway & Meters"}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {(project as any).project_subtype || "IoT Telemetry"}
+                  </p>
+                </div>
+              </>
+            ) : (
+              <>
+                <Layers className="h-5 w-5 text-muted-foreground shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground">Scope & Standard</p>
+                  <p className="font-medium text-sm text-foreground truncate">
+                    {(project as any).cert_rating || (project as any).cert_type || "Standard"}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {(project as any).project_subtype || "Advisory Services"}
+                  </p>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
+
+        {/* Card 4: Status & Handover */}
         <Card>
           <CardContent className="pt-4 pb-4 flex items-center gap-3">
-            <Cpu className="h-5 w-5 text-muted-foreground" />
-            <div>
-              <p className="text-xs text-muted-foreground">Status / Type</p>
-              <div className="flex items-center gap-2 mt-0.5">
-                <Badge variant="outline" className={cn("border text-xs", statusColors[project.status])}>{project.status}</Badge>
-                {(project as any).project_type && <Badge variant="secondary" className="text-xs">{(project as any).project_type}</Badge>}
+            <Calendar className="h-5 w-5 text-muted-foreground shrink-0" />
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground">Status & Handover</p>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <Badge variant="outline" className={cn("border text-xs capitalize", statusColors[project.status])}>
+                  {project.status || "Active"}
+                </Badge>
               </div>
+              <p className="text-xs text-muted-foreground truncate mt-0.5">
+                Handover: {safeFormatDate(project.handover_date || (project as any).planned_handover_date) || "TBD"}
+              </p>
             </div>
           </CardContent>
         </Card>
