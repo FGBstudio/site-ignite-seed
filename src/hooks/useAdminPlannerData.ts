@@ -70,6 +70,9 @@ export interface AdminPlannerProject {
   sqm?: number | null;
   services_fees?: number | null;
   gbci_fees?: number | null;
+  cert_level?: string | null;
+  score?: number | null;
+  target_score?: number | null;
   on_hold?: boolean;
   on_hold_reason?: string | null;
   on_hold_at?: string | null;
@@ -239,6 +242,7 @@ export function useAdminPlannerData() {
             } as unknown as GanttRowData,
             macro_phase: macroPhase, is_deadline_critical: false,
             total_fees: c.total_fees, quotation_sent_date: c.quotation_sent_date, sqm: c.sqm, services_fees: c.services_fees, gbci_fees: c.gbci_fees,
+            cert_level: c.cert_level || null, score: c.score ?? null, target_score: c.target_score ?? null,
             on_hold: !!c.on_hold, on_hold_reason: c.on_hold_reason || null, on_hold_at: c.on_hold_at || null, on_hold_by: c.on_hold_by || null,
           };
         }
@@ -377,6 +381,7 @@ export function useAdminPlannerData() {
           assigned_hardware_count: hardwareBySite.get(c.site_id) ?? 0,
           certification_milestones: certMilestones,
           plannerData, macro_phase: macroPhase, is_deadline_critical,
+          cert_level: c.cert_level || null, score: c.score ?? null, target_score: c.target_score ?? null,
           on_hold: !!c.on_hold, on_hold_reason: c.on_hold_reason || null, on_hold_at: c.on_hold_at || null, on_hold_by: c.on_hold_by || null,
         };
       });
