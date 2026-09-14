@@ -14,6 +14,20 @@ interface ProjectOverviewProps {
   timelineMilestones: any[];
 }
 
+/**
+ * Come si chiama il codice dell'ente, a seconda dello schema.
+ *
+ * Su una LEED quel numero si chiama LEED ID e nessuno lo chiama altrimenti;
+ * su uno schema che non conosciamo, "Certification ID" e' l'unica cosa onesta
+ * da scrivere. `LEED_GC_Support` diventa `LEED`: e' lo stesso ente.
+ */
+function certificationIdLabel(certType: string | null | undefined): string {
+  const schema = (certType ?? "").split("_")[0].trim().toUpperCase();
+  return ["LEED", "WELL", "BREEAM", "WIREDSCORE"].includes(schema)
+    ? `${schema} ID`
+    : "Certification ID";
+}
+
 const statusIcon = (status: string) => {
   switch (status) {
     case "achieved":
@@ -238,6 +252,26 @@ export function ProjectOverview({ certificationId, project, timelineMilestones }
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Rating system</span>
                 <span className="font-medium text-foreground">{project.cert_rating}</span>
+              </div>
+            )}
+            {/*
+              Il numero con cui la certificazione esiste presso l'ente: e' il
+              codice che si incolla su Arc per ritrovare il progetto, e finora
+              viveva solo nel database. Non c'e' una colonna nuova — la riga sta
+              da sempre in `external_reference_id`, popolata su 44 progetti.
+              Si seleziona tutto con un clic, perche' il gesto vero e' copiarlo.
+            */}
+            {project.external_reference_id && (
+              <div className="flex justify-between gap-3">
+                <span className="shrink-0 text-muted-foreground">
+                  {certificationIdLabel(project.cert_type)}
+                </span>
+                <span
+                  className="select-all truncate font-mono text-[13px] font-medium text-foreground"
+                  title={project.external_reference_id}
+                >
+                  {project.external_reference_id}
+                </span>
               </div>
             )}
             <div className="flex justify-between">
