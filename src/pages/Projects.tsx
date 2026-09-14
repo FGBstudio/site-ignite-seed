@@ -787,64 +787,66 @@ export default function Projects() {
             <div className="table-container overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b">
-                    <th className="p-4">
+                  {/* Fondo pieno anche in testata: la colonna ancorata lo eredita. */}
+                  <tr className="border-b bg-card">
+                    <th className="px-3 py-3">
                       <ExcelHeaderCell title="Client" colKey="client" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
                     </th>
-                    <th className="p-4">
+                    <th className="px-3 py-3">
                       <ExcelHeaderCell title="City" colKey="city" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
                     </th>
-                    <th className="p-4">
+                    <th className="px-3 py-3">
                       <ExcelHeaderCell title="Project" colKey="name" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
                     </th>
-                    <th className="p-4">
+                    <th className="px-3 py-3">
                       <ExcelHeaderCell title="Country" colKey="country" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
                     </th>
-                    <th className="p-4">
+                    <th className="px-3 py-3">
                       <ExcelHeaderCell title="Region" colKey="region" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
                     </th>
-                    <th className="p-4">
+                    <th className="px-3 py-3">
                       <ExcelHeaderCell title="Certification" colKey="cert_type" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
                     </th>
-                    <th className="p-4">
+                    <th className="px-3 py-3">
                       <ExcelHeaderCell title="Rating" colKey="cert_rating" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
                     </th>
                     {statusTab === "quotation" ? (
                       <>
-                        <th className="p-4">
+                        <th className="px-3 py-3">
                           <ExcelHeaderCell title="Total Fees" colKey="total_fees" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} className="justify-end" />
                         </th>
-                        <th className="p-4">
+                        <th className="px-3 py-3">
                           <ExcelHeaderCell title="Sent Date" colKey="quotation_sent_date" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
                         </th>
                       </>
                     ) : (
                       <>
-                        <th className="p-4">
+                        <th className="px-3 py-3">
                           <ExcelHeaderCell title="Subtype" colKey="project_subtype" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
                         </th>
-                        <th className="p-4">
+                        <th className="px-3 py-3">
                           <ExcelHeaderCell title="Level" colKey="cert_level" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
                         </th>
-                        <th className="p-4">
+                        <th className="px-3 py-3">
                           <ExcelHeaderCell title="PM" colKey="pm_name" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
                         </th>
                       </>
                     )}
-                    <th className="p-4">
+                    <th className="px-3 py-3">
                       {statusTab === "certificato" ? (
                         <ExcelHeaderCell title="Issue Date" colKey="issued_date" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
                       ) : (
                         <ExcelHeaderCell title="Handover" colKey="handover_date" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
                       )}
                     </th>
-                    <th className="p-4">
+                    <th className="px-3 py-3">
                       <ExcelHeaderCell title="Config Status" colKey="setup_status" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
                     </th>
                     {statusTab !== "quotation" && statusTab !== "canceled" && (
-                      <th className="text-left p-4 font-medium text-muted-foreground uppercase text-[10px] tracking-wider py-1.5 select-none">Hardware</th>
+                      <th className="px-3 py-3 text-left font-medium text-muted-foreground uppercase text-[10px] tracking-wider select-none">Hardware</th>
                     )}
-                    <th className="p-4"></th>
+                    {/* I pulsanti: ancorati a destra, sempre raggiungibili. */}
+                    <th className="px-3 py-3 col-pinned-right"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -879,20 +881,26 @@ export default function Projects() {
                           // Il monitoraggio online usa il verde acqua del
                           // marchio: accanto si distinguono, ma dicono la stessa
                           // cosa — questo lavoro e' arrivato in fondo.
+                          // Le tinte sono piene e non semitrasparenti: la
+                          // colonna dei pulsanti resta ancorata a destra ed
+                          // eredita il colore della riga per coprire cio' che
+                          // le scorre sotto. Con una tinta trasparente il
+                          // contenuto si vedrebbe attraverso. Definite in
+                          // index.css come .row-tint-*.
                           isCertified
-                            ? "bg-success/10 hover:bg-success/20"
+                            ? "row-tint-done"
                             : isOnline
-                            ? "bg-primary/10 hover:bg-primary/20"
+                            ? "row-tint-online"
                             : project.on_hold
-                            ? "bg-destructive/15 hover:bg-destructive/20"
+                            ? "row-tint-hold"
                             : project.is_deadline_critical
-                            ? "bg-destructive/5 hover:bg-destructive/10"
-                            : "hover:bg-muted/50"
+                            ? "row-tint-alarm"
+                            : "row-tint-none"
                         )}
                       >
-                        <td className="p-4 font-semibold text-foreground uppercase">{project.client}</td>
-                        <td className="p-4 text-muted-foreground uppercase">{project.city || "—"}</td>
-                        <td className="p-4 text-foreground">
+                        <td className="px-3 py-3 font-semibold text-foreground uppercase">{project.client}</td>
+                        <td className="px-3 py-3 text-muted-foreground uppercase">{project.city || "—"}</td>
+                        <td className="px-3 py-3 text-foreground">
                           <div className="flex items-center gap-2">
                             {project.on_hold && (
                               <Badge variant="destructive" className="text-[10px] uppercase tracking-wide" title={project.on_hold_reason || undefined}>
@@ -905,16 +913,16 @@ export default function Projects() {
                             {project.name}
                           </div>
                         </td>
-                        <td className="p-4 text-muted-foreground uppercase">{project.country || "—"}</td>
-                        <td className="p-4"><Badge variant="outline">{project.region}</Badge></td>
-                        <td className="p-4">
+                        <td className="px-3 py-3 text-muted-foreground uppercase">{project.country || "—"}</td>
+                        <td className="px-3 py-3"><Badge variant="outline">{project.region}</Badge></td>
+                        <td className="px-3 py-3">
                           {project.cert_type ? (
                             <Badge variant="secondary" className="text-xs">{CERT_DISPLAY_LABELS[project.cert_type] ?? project.cert_type}</Badge>
                           ) : (
                             <span className="text-muted-foreground text-xs">—</span>
                           )}
                         </td>
-                        <td className="p-4">
+                        <td className="px-3 py-3">
                           {project.cert_rating ? (
                             <Badge variant="outline" className="text-xs">{project.cert_rating}</Badge>
                           ) : (
@@ -923,14 +931,14 @@ export default function Projects() {
                         </td>
                         {statusTab === "quotation" ? (
                           <>
-                            <td className="p-4 font-medium">
+                            <td className="px-3 py-3 font-medium">
                               <Money
                                 amount={project.total_fees}
                                 currency={project.currency}
                                 rateToEur={project.fx_rate_to_eur}
                               />
                             </td>
-                            <td className="p-4 text-muted-foreground">
+                            <td className="px-3 py-3 text-muted-foreground">
                               {project.quotation_sent_date
                                 ? format(new Date(project.quotation_sent_date), "dd MMM yyyy")
                                 : "—"}
@@ -938,24 +946,24 @@ export default function Projects() {
                           </>
                         ) : (
                           <>
-                            <td className="p-4">
+                            <td className="px-3 py-3">
                               {project.project_subtype ? (
                                 <Badge variant="outline" className="text-xs bg-accent/50">{project.project_subtype}</Badge>
                               ) : (
                                 <span className="text-muted-foreground text-xs">—</span>
                               )}
                             </td>
-                            <td className="p-4">
+                            <td className="px-3 py-3">
                               {project.cert_level ? (
                                 <Badge variant="outline" className="text-xs font-medium">{project.cert_level}</Badge>
                               ) : (
                                 <span className="text-muted-foreground text-xs">—</span>
                               )}
                             </td>
-                            <td className="p-4 text-foreground">{project.pm_name || "—"}</td>
+                            <td className="px-3 py-3 text-foreground">{project.pm_name || "—"}</td>
                           </>
                         )}
-                        <td className="p-4">
+                        <td className="px-3 py-3">
                           {statusTab === "certificato" ? (
                             <span className="font-medium text-foreground">
                               {project.issued_date ? format(new Date(project.issued_date), "dd MMM yyyy") : "—"}
@@ -990,7 +998,7 @@ export default function Projects() {
                             </>
                           )}
                         </td>
-                        <td className="p-4">
+                        <td className="px-3 py-3">
                           <Badge variant="outline" className={cn("border", statusMeta.className)}>
                             <StatusIcon className="mr-1 h-3 w-3" />
                             {statusMeta.label}
@@ -1012,7 +1020,7 @@ export default function Projects() {
                             </div>
                           )}
                         </td>
-                        <td className="p-4">
+                        <td className="px-3 py-3">
                           {/*
                             Two different facts, never merged into one number:
                             the request Operations wrote (project_allocations)
@@ -1048,7 +1056,14 @@ export default function Projects() {
                             </div>
                           )}
                         </td>
-                        <td className="p-4 flex gap-2">
+                        {/*
+                          Il contenitore flex sta nel div, non nella cella.
+                          Un <td> con display:flex esce dall'algoritmo delle
+                          colonne: non riceve una larghezza e i tre pulsanti
+                          finivano oltre il bordo della tabella.
+                        */}
+                        <td className="px-3 py-3 col-pinned-right">
+                        <div className="flex gap-2">
                           <Button size="sm" variant="outline" onClick={() => navigate(`/projects/${project.id}`)} className="gap-1">
                             <Eye className="h-3 w-3" /> Details
                           </Button>
@@ -1074,7 +1089,17 @@ export default function Projects() {
                               <Pencil className="h-3 w-3" /> Edit
                             </Button>
                           )}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="gap-1"
+                            title="Cronoprogramma e timeline di certificazione"
+                            onClick={() => navigate(`/projects/${project.id}/cronoprogramma`)}
+                          >
+                            <GanttChartSquare className="h-3 w-3" />
+                          </Button>
                           <HoldToggleButton certId={project.id} onHold={!!project.on_hold} reason={project.on_hold_reason} />
+                        </div>
                         </td>
                       </tr>
                     );

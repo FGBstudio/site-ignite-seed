@@ -235,13 +235,60 @@
   .stat-card.kpi-warn  { border-left: 3px solid hsl(var(--warning)); }
   .stat-card.kpi-err   { border-left: 3px solid hsl(var(--destructive)); }
 
-  /* ── Table container ── */
+  /* ── Table container ──
+     `overflow: hidden` serviva a tenere puliti gli angoli arrotondati, ma
+     questa regola sta nello stesso layer delle utility di Tailwind e viene
+     dopo: vinceva anche sull'`overflow-x-auto` scritto sull'elemento. Le
+     tabelle piu' larghe dello schermo non scorrevano — venivano tagliate, e le
+     colonne di destra erano irraggiungibili.
+     Ora l'orizzontale scorre e solo il verticale resta tagliato, che e' quello
+     che serviva agli angoli. */
   .table-container {
     background: hsl(var(--card));
     border: 0.5px solid hsl(var(--border));
     border-radius: var(--radius);
-    overflow: hidden;
+    overflow-x: auto;
+    overflow-y: hidden;
     box-shadow: var(--shadow-sm);
+  }
+
+  /* ── Righe con esito ──
+     Tinte piene, non trasparenti.
+     Una `bg-success/10` sta bene finche' la riga e' intera, ma una colonna
+     ancorata eredita il colore della riga per restare opaca: se quel colore e'
+     semitrasparente, il contenuto che le scorre sotto si vede in trasparenza.
+     Qui il colore e' gia' composto sul fondo della scheda, quindi e' pieno. */
+  .row-tint-none        { background: hsl(var(--card)); }
+  .row-tint-none:hover  { background: color-mix(in srgb, hsl(var(--muted)) 50%, hsl(var(--card))); }
+  .row-tint-done        { background: color-mix(in srgb, hsl(var(--success)) 10%, hsl(var(--card))); }
+  .row-tint-done:hover  { background: color-mix(in srgb, hsl(var(--success)) 20%, hsl(var(--card))); }
+  .row-tint-online      { background: color-mix(in srgb, hsl(var(--primary)) 10%, hsl(var(--card))); }
+  .row-tint-online:hover{ background: color-mix(in srgb, hsl(var(--primary)) 20%, hsl(var(--card))); }
+  .row-tint-hold        { background: color-mix(in srgb, hsl(var(--destructive)) 15%, hsl(var(--card))); }
+  .row-tint-hold:hover  { background: color-mix(in srgb, hsl(var(--destructive)) 22%, hsl(var(--card))); }
+  .row-tint-alarm       { background: color-mix(in srgb, hsl(var(--destructive)) 6%, hsl(var(--card))); }
+  .row-tint-alarm:hover { background: color-mix(in srgb, hsl(var(--destructive)) 12%, hsl(var(--card))); }
+
+  /* ── Colonna ancorata a destra ──
+     I pulsanti di riga devono restare raggiungibili anche quando la tabella e'
+     piu' larga dello schermo. Senza questo, la barra di scorrimento
+     orizzontale di una tabella da novecento righe si trova in fondo alla
+     pagina: per vedere i pulsanti bisognerebbe scorrere fino all'ultima riga,
+     spostare la tabella e risalire. */
+  .col-pinned-right {
+    position: sticky;
+    right: 0;
+    z-index: 1;
+    background-color: inherit;
+  }
+  .col-pinned-right::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 1px;
+    background: hsl(var(--border));
   }
 
   /* ── KPI label (FUTURA uppercase 10px) ── */

@@ -1,5 +1,6 @@
 import { ReactNode } from "react";
 import { TopNavbar } from "./TopNavbar";
+import { SHELL } from "./shell";
 import { PMConfirmationDialog } from "@/components/dashboard/PMConfirmationDialog";
 import { useAdminEscalationNotifications } from "@/hooks/useAdminEscalationNotifications";
 
@@ -22,7 +23,7 @@ export function MainLayout({ children, title, subtitle }: MainLayoutProps) {
         className="bg-card border-b sticky top-[52px] z-30"
         style={{ borderBottomColor: "hsl(var(--border))", borderBottomWidth: "0.5px" }}
       >
-        <div className="max-w-[1680px] mx-auto px-8 py-4">
+        <div className={`${SHELL} py-4`}>
           {/* Title: Futura uppercase (Gestionale fat-sec-title) */}
           <h1
             className="text-[18px] text-foreground leading-none mb-0.5"
@@ -47,7 +48,7 @@ export function MainLayout({ children, title, subtitle }: MainLayoutProps) {
       </div>
 
       {/* ── Main content: avorio background ── */}
-      <div className="max-w-[1680px] mx-auto px-8">
+      <div className={SHELL}>
         <main className="py-6 pb-12">
           {children}
         </main>
