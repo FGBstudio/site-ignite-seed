@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -748,8 +748,8 @@ function TabellaEventi({
             const sporco = Object.keys(b).length > 0;
             const libera = e.ancora === null;
             return (
-              <>
-                <tr key={e.id} className="border-b last:border-0">
+              <Fragment key={e.id}>
+                <tr className="border-b last:border-0">
                   <td className="px-2 py-2">
                     {libera && modificabile ? (
                       <Input
@@ -836,13 +836,13 @@ function TabellaEventi({
                   </td>
                 </tr>
                 {cascataPer === e.id && (
-                  <tr key={`${e.id}-cascata`}>
+                  <tr>
                     <td colSpan={6} className="px-2 pb-3">
                       {renderCascata(e)}
                     </td>
                   </tr>
                 )}
-              </>
+              </Fragment>
             );
           })}
         </tbody>
