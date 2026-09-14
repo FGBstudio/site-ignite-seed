@@ -1,0 +1,22 @@
+# Configurazione Render per il servizio offerte.
+#
+# Si collega dalla dashboard: New → Blueprint, puntando a questo repository.
+# La chiave NON sta qui: si genera su Render e non entra mai in git.
+
+services:
+  - type: web
+    name: fgb-offerte
+    runtime: docker
+    rootDir: servizio-offerte
+    dockerfilePath: ./Dockerfile
+    # LibreOffice ha bisogno di respiro: sul piano gratuito la conversione
+    # riesce ma il servizio si addormenta dopo 15 minuti di inattivita', e il
+    # primo PDF dopo il risveglio arriva in una trentina di secondi.
+    plan: starter
+    region: frankfurt
+    healthCheckPath: /salute
+    envVars:
+      - key: OFFERTE_API_KEY
+        generateValue: true
+      - key: PYTHONUNBUFFERED
+        value: "1"

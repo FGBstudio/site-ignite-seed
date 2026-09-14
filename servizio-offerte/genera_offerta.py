@@ -1,0 +1,108 @@
+#!/usr/bin/env python3
+"""
+Genera un PDF di offerta a partire dal template Word aziendale (template_offerta.docx).
+
+Uso da CLI:
+    python genera_offerta.py dati.json -o offerta.pdf
+    cat dati.json | python genera_offerta.py - -o offerta.pdf
+
+Uso come libreria:
+    from genera_offerta import genera_offerta
+    pdf_path = genera_offerta(dati_dict, output_pdf="offerta.pdf")
+
+Dipendenze: docxtpl (pip install docxtpl) + LibreOffice (soffice) nel PATH.
+"""
+
+import json
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+TEMPLATE = Path(__file__).parent / "template_offerta.docx"
+
+# Campi attesi dal template (tutti stringhe salvo "righe" che è una lista di stringhe)
+CAMPI_OBBLIGATORI = [
+    "data",                      # es. "11 Settembre 2026"
+    "cliente_ragione_sociale",   # es. "ACME Retail S.p.A."
+    "cliente_indirizzo",         # es. "Via Monte Napoleone 8"
+    "cliente_cap_citta",         # es. "20121 Milano"
+    "cliente_piva",              # es. "P.IVA 01234567890" (testo libero: puoi passare anche CF)
+    "titolo_riga1",              # riga 1 del titolo centrale, es. "ACME"
+    "titolo_riga2",              # riga 2 del titolo centrale, es. "Flagship Store Milano"
+    "oggetto",                   # es. "CLAIR – FGB Air Quality Monitoring System"
+    "righe",                     # lista voci offerta, es. ["N. 4 Sensori ...", "Spedizione"]
+    "prezzo_finale",             # es. "2.500"  (senza "Euro": lo aggiunge il template)
+    "cliente_breve",             # nome nella colonna firme, es. "ACME"
+]
+CAMPI_OPZIONALI = {
+    "prezzo_listino": "",        # es. "4.000" -> mostrato barrato; vuoto = non mostrato
+    "termini_giorni": "30",      # giorni di pagamento
+}
+
+
+def _valida(dati: dict) -> dict:
+    mancanti = [c for c in CAMPI_OBBLIGATORI if not dati.get(c)]
+    if mancanti:
+        raise ValueError(f"Campi mancanti: {', '.join(mancanti)}")
+    if not isinstance(dati["righe"], list) or not all(isinstance(r, str) for r in dati["righe"]):
+        raise ValueError('"righe" deve essere una lista di stringhe')
+    ctx = {**{k: str(dati[k]) for k in CAMPI_OBBLIGATORI if k != "righe"},
+           "righe": dati["righe"]}
+    for k, default in CAMPI_OPZIONALI.items():
+        ctx[k] = str(dati.get(k, default) or default if k == "termini_giorni" else dati.get(k, default) or "")
+    # Il listino barrato è opzionale: se vuoto non compare nulla
+    ctx["prezzo_listino_txt"] = f"{ctx.pop('prezzo_listino')} Euro" if ctx.get("prezzo_listino") else ""
+    return ctx
+
+
+def _docx_to_pdf(docx: Path, outdir: Path) -> Path:
+    soffice = shutil.which("soffice") or shutil.which("libreoffice")
+    if not soffice:
+        raise RuntimeError("LibreOffice (soffice) non trovato nel PATH")
+    subprocess.run(
+        [soffice, "--headless", "--convert-to", "pdf", "--outdir", str(outdir), str(docx)],
+        check=True, capture_output=True, timeout=120,
+    )
+    pdf = outdir / (docx.stem + ".pdf")
+    if not pdf.exists():
+        raise RuntimeError("Conversione PDF fallita")
+    return pdf
+
+
+def genera_offerta(dati: dict, output_pdf: str | Path, template: Path = TEMPLATE) -> Path:
+    from docxtpl import DocxTemplate
+
+    ctx = _valida(dati)
+    output_pdf = Path(output_pdf)
+    output_pdf.parent.mkdir(parents=True, exist_ok=True)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        docx_out = tmp / "offerta.docx"
+        tpl = DocxTemplate(str(template))
+        tpl.render(ctx)
+        tpl.save(str(docx_out))
+        pdf = _docx_to_pdf(docx_out, tmp)
+        shutil.move(str(pdf), str(output_pdf))
+    return output_pdf
+
+
+def main() -> int:
+    import argparse
+    ap = argparse.ArgumentParser(description="Genera PDF offerta dal template aziendale")
+    ap.add_argument("input", help="File JSON con i dati, oppure '-' per stdin")
+    ap.add_argument("-o", "--output", default="offerta.pdf", help="Percorso PDF di output")
+    ap.add_argument("-t", "--template", default=str(TEMPLATE), help="Percorso template .docx")
+    args = ap.parse_args()
+
+    raw = sys.stdin.read() if args.input == "-" else Path(args.input).read_text(encoding="utf-8")
+    dati = json.loads(raw)
+    pdf = genera_offerta(dati, args.output, Path(args.template))
+    print(f"Creato: {pdf}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

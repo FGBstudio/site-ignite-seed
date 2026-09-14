@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -38,10 +40,14 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   contact?: Contact | null;
   defaultKind?: ContactKind;
+  /** Brand a cui agganciare la societa'. Serve quando il dialogo si apre dal
+   *  form dell'offerta: li' il brand e' gia' deciso dalla quotazione. */
+  defaultBrandId?: string | null;
 }
 
-const emptyForm = (kind: ContactKind): Record<string, string> => ({
+const emptyForm = (kind: ContactKind, brandId = ""): Record<string, string> => ({
   kind,
+  brand_id: brandId,
   company_name: "", vat_number: "", tax_code: "",
   address: "", city: "", country: "", postal_code: "",
   website: "", email: "", phone: "", pec: "",
@@ -51,18 +57,43 @@ const emptyForm = (kind: ContactKind): Record<string, string> => ({
   notes: "",
 });
 
-export function ContactFormDialog({ open, onOpenChange, contact, defaultKind = "client" }: Props) {
+/** Il valore che Select usa per "nessuno": la stringa vuota non e' ammessa. */
+const SENZA_BRAND = "__nessuno__";
+
+export function ContactFormDialog({
+  open,
+  onOpenChange,
+  contact,
+  defaultKind = "client",
+  defaultBrandId = null,
+}: Props) {
   const { toast } = useToast();
   const create = useCreateContact();
   const update = useUpdateContact();
   const [form, setForm] = useState<Record<string, string>>(emptyForm(defaultKind));
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // L'elenco dei brand serve solo a questo dialogo: si carica quando si apre.
+  const { data: brands = [] } = useQuery({
+    queryKey: ["brands", "elenco"],
+    enabled: open,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("brands")
+        .select("id, name")
+        .order("name");
+      if (error) throw error;
+      return (data ?? []) as { id: string; name: string }[];
+    },
+  });
+
   useEffect(() => {
     if (!open) return;
     if (contact) {
       setForm({
         kind: contact.kind,
+        brand_id: contact.brand_id ?? "",
         company_name: contact.company_name ?? "",
         vat_number: contact.vat_number ?? "",
         tax_code: contact.tax_code ?? "",
@@ -83,10 +114,10 @@ export function ContactFormDialog({ open, onOpenChange, contact, defaultKind = "
         notes: contact.notes ?? "",
       });
     } else {
-      setForm(emptyForm(defaultKind));
+      setForm(emptyForm(defaultKind, defaultBrandId ?? ""));
     }
     setErrors({});
-  }, [open, contact, defaultKind]);
+  }, [open, contact, defaultKind, defaultBrandId]);
 
   const set = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }));
 
@@ -124,7 +155,10 @@ export function ContactFormDialog({ open, onOpenChange, contact, defaultKind = "
       primary_contact_email: toNullable(parsed.data.primary_contact_email || ""),
       primary_contact_phone: toNullable(parsed.data.primary_contact_phone || ""),
       notes: toNullable(parsed.data.notes || ""),
-      brand_id: contact?.brand_id ?? null,
+      // Il brand ora si sceglie: era trasportato e basta, quindi ogni societa'
+      // nuova nasceva senza, e la tendina dell'offerta non aveva niente da
+      // mostrare.
+      brand_id: toNullable(form.brand_id || ""),
     };
 
     try {
@@ -165,6 +199,33 @@ export function ContactFormDialog({ open, onOpenChange, contact, defaultKind = "
                   <SelectItem value="supplier">Supplier</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            {/*
+              Il brand a cui appartiene la societa'.
+              PRADA e' un marchio, "Prada Retail Italia S.p.A." e' chi paga:
+              questo campo tiene insieme i due. Scelto il brand su una
+              quotazione, l'offerta propone le societa' agganciate qui.
+            */}
+            <div className="space-y-1.5">
+              <Label>Brand</Label>
+              <Select
+                value={form.brand_id || SENZA_BRAND}
+                onValueChange={(v) => set("brand_id", v === SENZA_BRAND ? "" : v)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Nessuno" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={SENZA_BRAND}>Nessuno</SelectItem>
+                  {brands.map((b) => (
+                    <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground">
+                Senza brand la società non comparirà fra quelle proponibili in offerta.
+              </p>
             </div>
             <div className="space-y-1.5 sm:col-span-2">
               <Label>Company name *</Label>

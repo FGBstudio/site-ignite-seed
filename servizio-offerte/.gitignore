@@ -1,0 +1,8 @@
+# I font sono licenziati: non si distribuiscono da un repository.
+# Vedi README — vanno messi qui prima di costruire l'immagine.
+fonts/*
+!fonts/.gitkeep
+
+.venv/
+__pycache__/
+*.pdf

@@ -1,0 +1,20 @@
+{
+  "data": "11 Settembre 2026",
+  "cliente_ragione_sociale": "ACME Retail S.p.A.",
+  "cliente_indirizzo": "Via Monte Napoleone 8",
+  "cliente_cap_citta": "20121 Milano",
+  "cliente_piva": "P.IVA 01234567890",
+  "titolo_riga1": "ACME",
+  "titolo_riga2": "Flagship Store Milano",
+  "oggetto": "CLAIR – FGB Air Quality Monitoring System",
+  "righe": [
+    "N. 4 Sensori CLAIR Smart IAQ",
+    "Licenza software CLAIR (3 anni)",
+    "Dashboard cloud dedicata e report scaricabili",
+    "Spedizione e logistica"
+  ],
+  "prezzo_listino": "4.000",
+  "prezzo_finale": "2.500",
+  "cliente_breve": "ACME",
+  "termini_giorni": "30"
+}

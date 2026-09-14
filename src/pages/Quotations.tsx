@@ -18,7 +18,8 @@ import { NewQuotationWizard } from "@/components/projects/NewQuotationWizard";
 import { ProjectFormModal } from "@/components/projects/ProjectFormModal";
 import { Money } from "@/components/common/Money";
 import { formatMoney } from "@/lib/currency";
-import { Plus, Search, FileText, CheckCircle2, Loader2, ArrowRight, XCircle, Ban, Sparkles, RotateCcw, ChevronDown, ChevronRight as ChevronRightIcon, Save, Pencil, FilePlus2 } from "lucide-react";
+import { Plus, Search, FileText, CheckCircle2, Loader2, ArrowRight, XCircle, Ban, Sparkles, RotateCcw, ChevronDown, ChevronRight as ChevronRightIcon, Save, Pencil, FilePlus2, FileDown } from "lucide-react";
+import { OffertaDialog } from "@/components/quotations/OffertaDialog";
 
 interface QuotationRow {
   id: string;
@@ -108,6 +109,8 @@ export default function Quotations() {
   const [resumingId, setResumingId] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [editProject, setEditProject] = useState<any>(null);
+  /** La quotazione per cui si sta emettendo l'offerta. */
+  const [offertaId, setOffertaId] = useState<string | null>(null);
   const [editAllocations, setEditAllocations] = useState<any[]>([]);
   const [openingEditId, setOpeningEditId] = useState<string | null>(null);
   const [completeRow, setCompleteRow] = useState<QuotationRow | null>(null);
@@ -553,6 +556,15 @@ export default function Quotations() {
                   <td className="p-3 text-right">
                     {mode === "pending" ? (
                       <div className="flex items-center justify-end gap-2">
+                        {/* L'offerta si emette da qui: e' il momento in cui si
+                            decide a chi si intesta e cosa si sta vendendo. */}
+                        <Button
+                          size="sm" variant="outline" className="gap-1"
+                          title="Genera il PDF dell'offerta"
+                          onClick={() => setOffertaId(r.id)}
+                        >
+                          <FileDown className="h-3 w-3" /> Offerta
+                        </Button>
                         <EditButton id={r.id} />
                         <Button size="sm" className="gap-1" disabled={approvingId === r.id} onClick={() => handleApprove(r.id, r._groupIds)}>
                           {approvingId === r.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
@@ -611,6 +623,12 @@ export default function Quotations() {
         <TabsContent value="approved" className="mt-4">{renderTable(approved, "approved")}</TabsContent>
         <TabsContent value="canceled" className="mt-4">{renderCanceled()}</TabsContent>
       </Tabs>
+
+      <OffertaDialog
+        open={!!offertaId}
+        onOpenChange={(o) => { if (!o) setOffertaId(null); }}
+        certificationId={offertaId}
+      />
 
       <NewQuotationWizard
         open={wizardOpen}
