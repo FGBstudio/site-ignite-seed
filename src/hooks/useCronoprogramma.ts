@@ -57,14 +57,15 @@ export function useCronoEventi(cronoId: string | undefined) {
 }
 
 /**
- * Crea il cronoprogramma del sito con le otto ancore gia' in riga.
+ * Crea la PROJECT TIMELINE del sito dal template del tipo scelto — v1.1 §3.
  *
- * Nascono tutte, anche vuote: un elenco completo dice al PM quali date il
- * sistema si aspetta, mentre una tabella vuota da riempire con un pulsante
- * "aggiungi evento" lascia indovinare quali siano quelle giuste.
+ * Le righe nascono dal template (il PM le ha gia' riviste nel dialogo di
+ * creazione: aggiunte, tolte, rinominate) oppure, in assenza, dalle otto
+ * ancore canoniche. Un elenco completo dice al PM quali date il sistema si
+ * aspetta; una tabella vuota lo lascerebbe indovinare.
  *
- * L'handover arriva precompilato dalla quotazione, quindi il cronoprogramma
- * nasce sempre con almeno una data vera e il gate non blocca mai nessuno.
+ * L'handover arriva precompilato dalla quotazione, quindi la timeline nasce
+ * sempre con almeno una data vera e il gate non blocca mai nessuno.
  */
 export function useCreateCronoprogramma() {
   const qc = useQueryClient();
@@ -72,29 +73,44 @@ export function useCreateCronoprogramma() {
     mutationFn: async (input: {
       site_id: string;
       nome?: string | null;
+      tipo?: "design_construction" | "construction";
       handoverContrattuale?: string | null;
+      righeTemplate?: Array<{
+        nome: string;
+        fase: boolean;
+        famiglia: string | null;
+        ancora: string | null;
+      }>;
     }) => {
       const user = (await supabase.auth.getUser()).data.user;
       if (!user) throw new Error("Non autenticato");
 
       const { data: crono, error } = await (supabase as any)
         .from("cronoprogrammi")
-        .insert({ site_id: input.site_id, nome: input.nome ?? null, created_by: user.id })
+        .insert({
+          site_id: input.site_id,
+          nome: input.nome ?? null,
+          tipo: input.tipo ?? "design_construction",
+          created_by: user.id,
+        })
         .select("*")
         .single();
       if (error) throw error;
 
-      const righe = ANCORE.map((a, i) => {
-        const isHandover = a.ancora === "handover";
+      const base =
+        input.righeTemplate ??
+        ANCORE.map((a) => ({ nome: a.nome, fase: false, famiglia: null as string | null, ancora: a.ancora as string | null }));
+
+      const righe = base.map((r, i) => {
+        const isHandover = r.ancora === "handover";
         const data = isHandover ? input.handoverContrattuale ?? null : null;
         return {
           cronoprogramma_id: crono.id,
-          ancora: a.ancora,
-          nome: a.nome,
+          ancora: r.ancora,
+          nome: r.nome,
+          famiglia: r.famiglia,
           ordine: i + 1,
           data_pianificata: data,
-          // Il vincolo del database rifiuta una data senza fonte: quando la
-          // data c'e', la fonte deve esserci gia' qui.
           fonte: data ? "Quotazione (contrattuale)" : null,
           stato: data ? "inserita" : "da_confermare",
         };
@@ -109,13 +125,144 @@ export function useCreateCronoprogramma() {
   });
 }
 
+/** L'override del tipo di progetto sulla certificazione — v1.1 §2. */
+export function useSetProjectTipo() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { certification_id: string; project_tipo: string | null }) => {
+      const { error } = await (supabase as any)
+        .from("certifications")
+        .update({ project_tipo: input.project_tipo })
+        .eq("id", input.certification_id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["crono"] }),
+  });
+}
+
+/** Una riga nuova, in coda. Le righe libere non hanno ancora ne' proposta. */
+export function useAggiungiEvento() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      cronoprogramma_id: string;
+      nome: string;
+      ancora?: string | null;
+      famiglia?: string | null;
+      data_pianificata?: string | null;
+      data_fine?: string | null;
+      fonte?: string | null;
+      ordine: number;
+    }) => {
+      const user = (await supabase.auth.getUser()).data.user;
+      const { data, error } = await (supabase as any)
+        .from("cronoprogramma_eventi")
+        .insert({
+          ...input,
+          stato: input.data_pianificata ? "inserita" : "da_confermare",
+          aggiornata_il: new Date().toISOString(),
+          aggiornata_da: user?.id ?? null,
+        })
+        .select("*")
+        .single();
+      if (error) throw error;
+      return data as CronoEvento;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["crono"] }),
+  });
+}
+
+export function useEliminaEvento() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await (supabase as any).from("cronoprogramma_eventi").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["crono"] }),
+  });
+}
+
+/**
+ * L'import conferma dal PM — v1.1 §5.1 punto 5.
+ *
+ * Integrazione per evento, mai per sostituzione: le righe che combaciano con
+ * un evento esistente ne aggiornano le date, le altre si aggiungono in coda.
+ * Nessun azzeramento — un file del GC che non contiene gara e progetto non
+ * deve cancellarli.
+ */
+export function useImportaEventi() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      cronoprogramma_id: string;
+      fonte: string;
+      righe: Array<{
+        /** L'evento esistente da aggiornare; null = riga nuova. */
+        evento_id: string | null;
+        nome: string;
+        ancora: string | null;
+        inizio: string | null;
+        fine: string | null;
+      }>;
+      ordineDa: number;
+    }) => {
+      const user = (await supabase.auth.getUser()).data.user;
+      const adesso = new Date().toISOString();
+      let ordine = input.ordineDa;
+      let aggiornate = 0;
+      let nuove = 0;
+
+      for (const r of input.righe) {
+        if (r.evento_id) {
+          const { error } = await (supabase as any)
+            .from("cronoprogramma_eventi")
+            .update({
+              data_pianificata: r.inizio,
+              data_fine: r.fine,
+              fonte: input.fonte,
+              stato: r.inizio ? "inserita" : "da_confermare",
+              aggiornata_il: adesso,
+              aggiornata_da: user?.id ?? null,
+            })
+            .eq("id", r.evento_id);
+          if (error) throw error;
+          aggiornate += 1;
+        } else {
+          ordine += 1;
+          const { error } = await (supabase as any).from("cronoprogramma_eventi").insert({
+            cronoprogramma_id: input.cronoprogramma_id,
+            nome: r.nome,
+            ancora: r.ancora,
+            data_pianificata: r.inizio,
+            data_fine: r.fine,
+            fonte: input.fonte,
+            stato: r.inizio ? "inserita" : "da_confermare",
+            ordine,
+            aggiornata_il: adesso,
+            aggiornata_da: user?.id ?? null,
+          });
+          if (error) throw error;
+          nuove += 1;
+        }
+      }
+      return { aggiornate, nuove };
+    },
+    onSuccess: () => qc.invalidateQueries(),
+  });
+}
+
 export function useUpsertEvento() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: {
       id: string;
+      nome?: string;
       data_pianificata?: string | null;
+      data_fine?: string | null;
       data_effettiva?: string | null;
+      famiglia?: string | null;
+      ancora?: string | null;
       fonte?: string | null;
       stato?: string;
     }) => {

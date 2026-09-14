@@ -297,3 +297,60 @@ Nessuna decisa. Dove servivano per procedere:
    è ottimizzazione: prima guarda se i numeri sono quelli giusti.
 4. **`planned_handover_date`** resta ferma e inutilizzata: è morta, e non ho
    voluto riesumarla dentro un modello che le assegnerebbe un ruolo diverso.
+
+---
+
+# Aggiornamento v1.1 — cosa è cambiato e cosa provare in più
+
+*(specifica: `docs/specs/specifica-v1.1-rinomine-tipi-ocr.md`; dove diverge
+dalla v1, vince la v1.1)*
+
+## Le rinomine (§1)
+
+CANTIERI → **PROJECTS** (admin, `/portafoglio`) · OPERATIONS → **SERVICES**
+(admin, `/projects`) · Cronoprogramma → **PROJECT TIMELINE** · la sezione col
+nome della certificazione → **HQ FGB TIMELINE**. Gli identificatori interni
+restano quelli della v1: la mappa è in `docs/glossario-v1.1.md`.
+
+## Cosa è cambiato nel flusso
+
+- **Tipo di progetto** alla creazione: DESIGN+CONSTRUCTION, CONSTRUCTION o
+  EXISTING, proposto dal catalogo e modificabile. EXISTING salta la PROJECT
+  TIMELINE e il gate.
+- **Template standard**: la PROJECT TIMELINE nasce dal template del tipo
+  (IDC / BDC / CONSTRUCTION), righe rivedibili prima della creazione.
+- **Fasi con durata**: inizio e fine; le milestone restano istanti.
+- **Fonte facoltativa** ovunque: consigliata, mai bloccante.
+- **Niente sezione «nuove date»**: si modifica la riga in linea → anteprima
+  della cascata → conferma → registro. Vale per qualunque riga.
+- **Registro corretto**: la voce nomina la riga davvero spostata; i derivati
+  economici compaiono solo sull'handover.
+- **Grafico verticale**: colonna compatta e sticky accanto al form; un click
+  la espande a schermo intero con lo zoom. Grammatica dal riferimento visivo
+  approvato (`docs/specs/riferimento-visivo-timeline.html`).
+- **Import da file** nella PROJECT TIMELINE: xlsx (diretto), PDF con testo
+  (parsing), immagini e scansioni (OCR ita+eng, scaricato al primo uso).
+  Revisione del PM obbligatoria; integrazione per evento, mai sostituzione.
+
+## Scenari nuovi da provare
+
+- **(i) Template** — crea la PROJECT TIMELINE da template IDC su un sito e da
+  template BDC su un altro; togli e rinomina righe prima di creare.
+- **(j) Import** — sulle quattro fixture in `docs/specs/fixtures/`:
+  - `20260209_GW_XD_Ergou_R2.xlsx` → durate in mesi: il sistema chiede la
+    data di ancoraggio e calcola le date;
+  - `20260623_Grand_Vespucci_..._REV02.pdf` e `GANTT_LCP_METRO_Pontedera...pdf`
+    → parsing del testo, con proposta delle ancore (consegna aree, consegna
+    lavori = handover);
+  - `bou_almathy.png` → OCR (serve rete: i modelli si scaricano al primo uso).
+  In revisione: elimina le righe superflue con le checkbox, correggi il
+  mapping, conferma. Un re-import non deve azzerare le date pre-cantiere.
+- **(k) Registro** — sposta una riga qualunque (non l'handover): la voce del
+  registro nomina quella riga, senza derivati economici. Sposta l'handover:
+  la voce esce monetizzata.
+- **(l) Vista admin PROJECTS** — tabella con Certifications, Typology,
+  Handover (con lo scostamento «+Ngg»), Status derivato (Design grigio /
+  Construction ambra / Certification viola). Click sulla riga → drill-down
+  orizzontale: barra PROJECT nelle tre fasi, una barra per certificazione con
+  le tacche, la serie come tacche ravvicinate con etichetta cumulativa, la
+  linea dell'oggi che attraversa tutto.

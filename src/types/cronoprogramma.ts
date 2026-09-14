@@ -50,10 +50,10 @@ export const ANCORA_NOME: Record<CronoAncora, string> = Object.fromEntries(
 /**
  * Le fonti ricorrenti, offerte come suggerimento e non come vincolo.
  *
- * La fonte e' obbligatoria — il database rifiuta una data senza — ma non e'
- * un elenco chiuso: "gantt rev. 8 del 12 marzo" dice piu' di qualunque voce
- * predefinita, ed e' esattamente il tipo di precisione che serve quando due PM
- * hanno parlato con interlocutori diversi.
+ * La fonte e' facoltativa (v1.1 §3): l'interfaccia la chiede ma non blocca il
+ * salvataggio. E non e' un elenco chiuso: "gantt rev. 8 del 12 marzo" dice
+ * piu' di qualunque voce predefinita, ed e' esattamente la precisione che
+ * serve quando due PM hanno parlato con interlocutori diversi.
  */
 export const FONTI_SUGGERITE = [
   "Gantt GC",
@@ -68,6 +68,8 @@ export interface Cronoprogramma {
   site_id: string;
   nome: string | null;
   stato: "attivo" | "chiuso";
+  /** Cosa copre: progettazione+realizzazione o sola costruzione (v1.1 §2). */
+  tipo: "design_construction" | "construction";
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -80,10 +82,14 @@ export interface CronoEvento {
   ancora: CronoAncora | null;
   nome: string;
   ordine: number;
-  /** La previsione: e' questa a guidare il ricalcolo. */
+  /** La previsione: e' questa a guidare il ricalcolo. Per le fasi, l'inizio. */
   data_pianificata: string | null;
+  /** Fine della fase. Vuota sulle milestone: un istante, non un intervallo. */
+  data_fine: string | null;
   /** Il fatto: si scrive una volta sola, a cose avvenute. */
   data_effettiva: string | null;
+  /** La famiglia di fase (v1.1 §4.2): colora il grafico e deriva lo Status. */
+  famiglia: "design" | "permitting" | "construction" | "terze_parti" | null;
   fonte: string | null;
   stato: CronoStato;
   aggiornata_il: string | null;
@@ -94,11 +100,13 @@ export interface CronoRegistroVoce {
   id: string;
   cronoprogramma_id: string;
   evento_id: string | null;
+  /** Il nome della riga spostata, congelato: la voce e' storia (v1.1 §8). */
+  evento_nome: string | null;
   chi: string;
   quando: string;
   data_precedente: string | null;
   data_nuova: string | null;
-  fonte: string;
+  fonte: string | null;
   scostamento_giorni: number | null;
   scostamento_baseline_giorni: number | null;
   fine_stimata: string | null;

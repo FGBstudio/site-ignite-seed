@@ -31,7 +31,7 @@ export const PAYMENTS_ROLES: AppRole[] = ["ADMIN"];
 export const HUB_SECTIONS: HubSection[] = [
   {
     id: "projects",
-    // Display name is overridden per-role in the UI (Admin → "Operations", PM → "Projects").
+    // Display name is overridden per-role in the UI (Admin → "Services", PM → "Projects") — v1.1 §1.
     name: "PROJECTS",
     desc: "Pipeline, progress and documentation",
     color: "#006367",
@@ -99,8 +99,8 @@ export function getSectionDisplayName(
   role: AppRole | null
 ): string {
   if (section.id === "projects") {
-    // Admin (and future Operations sub-role) sees "Operations"; everyone else "Projects".
-    return role === "ADMIN" ? "OPERATIONS" : "PROJECTS";
+    // Admin sees "Services" (ex Operations, v1.1 §1); everyone else "Projects".
+    return role === "ADMIN" ? "SERVICES" : "PROJECTS";
   }
   return section.name;
 }

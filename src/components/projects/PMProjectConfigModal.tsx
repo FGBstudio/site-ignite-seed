@@ -141,7 +141,7 @@ function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChan
         // sbagliato.
         toast({
           variant: "destructive",
-          title: "Prima il cronoprogramma del sito",
+          title: "Prima la PROJECT TIMELINE del sito",
           description: gate.motivo ?? undefined,
         });
       } else {
@@ -454,7 +454,7 @@ function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChan
         </p>
         <Button onClick={vaiAlCronoprogramma}>
           <GanttChartSquare className="mr-2 h-4 w-4" />
-          Vai al cronoprogramma del sito
+          Vai alla PROJECT TIMELINE del sito
         </Button>
       </div>
     );
@@ -478,7 +478,7 @@ function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChan
           </Button>
           <Button variant="outline" onClick={vaiAlCronoprogramma}>
             <GanttChartSquare className="mr-2 h-4 w-4" />
-            Cronoprogramma
+            PROJECT TIMELINE
           </Button>
         </div>
       </div>
@@ -590,7 +590,7 @@ function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChan
       <div className="flex justify-end">
         <Button variant="ghost" size="sm" onClick={vaiAlCronoprogramma} className="gap-1.5 text-xs">
           <GanttChartSquare className="h-3.5 w-3.5" />
-          Cronoprogramma del sito
+          PROJECT TIMELINE del sito
         </Button>
       </div>
 

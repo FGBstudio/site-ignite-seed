@@ -48,7 +48,7 @@ export function AppSidebar() {
   if (isAdmin) {
     mainNavItems = [
       { title: "CEO Dashboard", url: "/ceo-dashboard", icon: Crown },
-      { title: "Operations", url: "/projects", icon: FolderKanban },
+      { title: "Services", url: "/projects", icon: FolderKanban },
       { title: "Quotations", url: "/quotations", icon: FileText },
       { title: "Payments", url: "/invoice", icon: Receipt },
       { title: "Tasks", url: "/admin-tasks", icon: Inbox },

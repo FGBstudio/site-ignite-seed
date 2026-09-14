@@ -82,8 +82,8 @@ export function TopNavbar() {
     } else {
       navItems = [
         { title: "Admin Dashboard", url: "/ceo-dashboard", icon: Crown },
-        { title: "Operations", url: "/projects", icon: FolderKanban },
-        { title: "Cantieri", url: "/portafoglio", icon: GanttChartSquare },
+        { title: "Services", url: "/projects", icon: FolderKanban },
+        { title: "Projects", url: "/portafoglio", icon: GanttChartSquare },
         { title: "Contacts", url: "/contacts", icon: ContactIcon },
         { title: "Tasks & Alerts", url: "/admin-tasks", icon: Inbox },
         { title: "Team Board", url: "/team-board", icon: Users },
@@ -96,7 +96,7 @@ export function TopNavbar() {
     navItems = [
       { title: "Dashboard", url: "/pm-portal", icon: LayoutDashboard },
       { title: "My Projects", url: "/projects", icon: FolderKanban },
-      { title: "Cantieri", url: "/portafoglio", icon: GanttChartSquare },
+      { title: "Projects", url: "/portafoglio", icon: GanttChartSquare },
       { title: "Contacts", url: "/contacts", icon: ContactIcon },
       { title: "My Tasks", url: "/my-tasks", icon: Inbox },
       { title: "Team Board", url: "/team-board", icon: Users },
@@ -187,7 +187,7 @@ export function TopNavbar() {
           {inProjects && (
             <>
               <span className="text-muted-foreground/50 mx-0.5">/</span>
-              <span className="text-foreground font-medium">{isAdmin ? "Operations" : "Projects"}</span>
+              <span className="text-foreground font-medium">{isAdmin ? "Services" : "Projects"}</span>
               {currentPage && (
                 <>
                   <span className="text-muted-foreground/50 mx-0.5">/</span>

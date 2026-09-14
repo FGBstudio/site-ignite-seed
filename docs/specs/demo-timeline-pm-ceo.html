@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FGB Engine Room — demo timeline cantiere e certificazioni</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F4F3EE; --card:#FFFFFF; --ink:#23271F; --mut:#6E6C63; --faint:#98968B;
+  --line:#E3E1D8; --line2:#D2D0C5;
+  --leed:#5348B8; --leed-bg:#ECEAF9; --leed-line:#C9C4EE;
+  --well:#0D7A61; --well-bg:#E0F3EC; --well-line:#AFDECD;
+  --cant:#716E64; --cant-bg:#ECEAE3;
+  --amb:#A66A0F; --amb-bg:#FBF0DA;
+  --red:#B03A31; --red-bg:#FBE9E7;
+  --grn:#3F7A1F; --grn-bg:#EAF3DF;
+  --r:8px;
+}
+*{box-sizing:border-box;}
+body{margin:0; background:var(--bg); color:var(--ink);
+  font-family:"Instrument Sans",system-ui,sans-serif; font-size:14px; line-height:1.55;
+  font-feature-settings:"tnum";}
+.wrap{max-width:900px; margin:0 auto; padding:24px 20px 80px;}
+header.top{display:flex; flex-wrap:wrap; gap:14px; align-items:center; justify-content:space-between; margin-bottom:22px;}
+.brand h1{font-size:19px; font-weight:600; margin:0; letter-spacing:-0.01em;}
+.brand p{margin:2px 0 0; color:var(--mut); font-size:13px;}
+.today{font-size:12px; color:var(--mut); border:1px solid var(--line2); border-radius:999px; padding:4px 12px; background:var(--card);}
+.roles{display:flex; background:#E9E7DE; border-radius:999px; padding:3px;}
+.roles button{border:0; background:transparent; font:inherit; font-weight:500; font-size:13px;
+  padding:7px 16px; border-radius:999px; cursor:pointer; color:var(--mut);}
+.roles button.on{background:var(--ink); color:#fff;}
+.roles button:focus-visible{outline:2px solid var(--leed); outline-offset:2px;}
+
+.card{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px 20px; margin-bottom:16px; position:relative;}
+.card h2{font-size:15px; font-weight:600; margin:0 0 2px; display:flex; align-items:center; gap:10px;}
+.card h2 .step{width:22px; height:22px; border-radius:50%; background:var(--ink); color:#fff;
+  font-size:12px; display:inline-flex; align-items:center; justify-content:center; flex:0 0 auto;}
+.card .sub{color:var(--mut); font-size:13px; margin:0 0 14px;}
+.locked{pointer-events:none;}
+.locked > *:not(.lockmsg){opacity:.35; filter:saturate(.5);}
+.lockmsg{position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  font-size:13px; color:var(--mut); background:rgba(244,243,238,.55); border-radius:14px; z-index:2; text-align:center; padding:0 30px;}
+
+table{width:100%; border-collapse:collapse; font-size:13px;}
+th{font-weight:500; color:var(--faint); text-align:left; font-size:12px; padding:0 8px 6px 0;}
+td{padding:7px 8px 7px 0; border-top:1px solid var(--line); vertical-align:middle;}
+input[type=date], input[type=text], select{
+  font:inherit; font-size:13px; color:var(--ink); background:#FBFAF7; border:1px solid var(--line2);
+  border-radius:var(--r); padding:6px 8px; width:100%; max-width:150px;}
+input:focus-visible, select:focus-visible, button:focus-visible{outline:2px solid var(--leed); outline-offset:1px;}
+input[type=checkbox]{width:15px; height:15px; accent-color:var(--ink);}
+button.act{font:inherit; font-weight:500; font-size:13px; border:1px solid var(--ink); background:var(--ink); color:#fff;
+  border-radius:var(--r); padding:8px 16px; cursor:pointer;}
+button.act:hover{background:#3a3e35;}
+button.ghost{background:transparent; color:var(--ink); border:1px solid var(--line2);}
+button.ghost:hover{background:#F0EFE8;}
+button:disabled{opacity:.45; cursor:not-allowed;}
+
+.badge{display:inline-block; font-size:11px; font-weight:500; padding:2px 8px; border-radius:999px; white-space:nowrap;}
+.b-pm{background:#EFEEE7; color:var(--mut);}
+.b-eredita{background:var(--cant-bg); color:var(--cant);}
+.b-calc{background:var(--leed-bg); color:var(--leed);}
+.b-auto{background:#F1F0EA; color:var(--faint);}
+.b-conf{background:var(--grn-bg); color:var(--grn);}
+.b-dubbio{background:var(--amb-bg); color:var(--amb);}
+.b-warn{background:var(--red-bg); color:var(--red);}
+.b-leed{background:var(--leed-bg); color:var(--leed);}
+.b-well{background:var(--well-bg); color:var(--well);}
+.b-teal{background:var(--well-bg); color:var(--well);}
+
+.warnline{font-size:12px; color:var(--amb); margin-top:2px;}
+.note{font-size:12px; color:var(--mut);}
+
+.preview{border:1px solid var(--leed-line); background:var(--leed-bg); border-radius:12px; padding:14px 16px; margin-top:14px;}
+.preview h3{margin:0 0 8px; font-size:13px; font-weight:600; color:var(--leed);}
+.preview table td{border-top:1px solid var(--leed-line); padding:6px 8px 6px 0;}
+.arrow{color:var(--leed); font-weight:600; padding:0 4px;}
+.old{color:var(--faint); text-decoration:line-through;}
+
+.reg{border-left:3px solid var(--line2); padding:2px 0 2px 12px; margin-bottom:10px;}
+.reg p{margin:0; font-size:13px;}
+.reg .meta{color:var(--mut); font-size:12px;}
+
+.kpis{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:16px;}
+.kpi{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 14px;}
+.kpi .l{font-size:12px; color:var(--mut);}
+.kpi .v{font-size:22px; font-weight:600; margin-top:2px;}
+.kpi .d{font-size:12px; margin-top:1px;}
+
+.exc{display:flex; flex-direction:column; gap:8px;}
+.exc .item{display:flex; gap:10px; align-items:baseline; font-size:13px; background:var(--card);
+  border:1px solid var(--line); border-radius:10px; padding:9px 13px;}
+.dot{width:8px; height:8px; border-radius:50%; flex:0 0 auto; transform:translateY(1px);}
+
+.ptable td{cursor:default;}
+.ptable tr.click{cursor:pointer;}
+.ptable tr.click:hover td{background:#FAF9F4;}
+.pos{color:var(--grn);} .neg{color:var(--red);} .amb{color:var(--amb);}
+
+.lanes{margin-top:10px;}
+.lane{margin-bottom:12px;}
+.lane .head{display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px; color:var(--mut);}
+.lane .grid{display:grid; grid-template-columns:repeat(16,1fr); gap:2px; height:20px;}
+.lane .bar{border-radius:4px;}
+.months{display:grid; grid-template-columns:repeat(16,1fr); gap:2px; font-size:10px; color:var(--faint); margin-bottom:4px;}
+.detail{background:#FAF9F4; border-radius:0 0 12px 12px; padding:14px 16px; border-top:1px dashed var(--line2);}
+@media (max-width:640px){ .hidem{display:none;} input[type=date]{max-width:125px;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div class="brand">
+    <h1>Palazzo Aurora — Milano</h1>
+    <p>Fondo Ambra SGR · nuova costruzione · LEED BD+C + WELL NC</p>
+  </div>
+  <span class="today">Oggi: mer 10 set 2026</span>
+  <nav class="roles" aria-label="Ruolo">
+    <button id="tabPM" class="on" onclick="setRole('pm')">Marco R. — PM</button>
+    <button id="tabCEO" onclick="setRole('ceo')">CEO / Admin</button>
+  </nav>
+</header>
+
+<!-- ═══════════════ VISTA PM ═══════════════ -->
+<main id="pmView">
+
+  <section class="card" id="cronoCard">
+    <h2><span class="step">1</span>Cronoprogramma <span class="badge b-eredita">condiviso · un solo esemplare per sito</span></h2>
+    <p class="sub">Si compila prima delle certificazioni. L'handover contrattuale arriva dalla quotazione; le date di gara e progetto le metti tu, quelle di cantiere le integrerai dal gantt del GC.</p>
+    <table>
+      <thead><tr><th style="width:32%">Evento</th><th style="width:22%">Data</th><th style="width:26%">Fonte</th><th>Stato</th></tr></thead>
+      <tbody>
+        <tr><td>Lancio gara d'appalto</td><td><input type="date" id="d_gara" value="2025-11-10"></td>
+            <td><select id="s_gara"><option>Manuale · DL</option><option>Manuale · committente</option></select></td>
+            <td><span class="badge b-conf">inserita</span></td></tr>
+        <tr><td>Aggiudicazione GC</td><td><input type="date" id="d_agg" value="2026-01-19"></td>
+            <td><select id="s_agg"><option>Manuale · DL</option><option>Manuale · committente</option></select></td>
+            <td><span class="badge b-conf">inserita</span></td></tr>
+        <tr><td>Construction start</td><td><input type="date" id="d_start" value="2026-02-02"></td>
+            <td><select id="s_start"><option>Gantt GC</option><option>Manuale · DL</option></select></td>
+            <td><label style="font-size:12px; color:var(--mut); white-space:nowrap;"><input type="checkbox" id="c_start" checked> confermata</label></td></tr>
+        <tr><td>Impianti pronti per test</td><td><input type="date" id="d_imp" value="2026-11-20"></td>
+            <td><select id="s_imp"><option>Gantt GC</option><option>Manuale · DL</option></select></td>
+            <td><label style="font-size:12px; color:var(--mut); white-space:nowrap;"><input type="checkbox" id="c_imp"> confermata</label></td></tr>
+        <tr><td><strong>Handover (fine cantiere)</strong></td><td><input type="date" id="d_hand" value="2027-03-15"></td>
+            <td><select id="s_hand"><option>Quotazione (contrattuale)</option><option>Gantt GC</option></select></td>
+            <td><span class="badge b-dubbio" id="handState">baseline contrattuale</span></td></tr>
+      </tbody>
+    </table>
+    <p class="note" style="margin:10px 0 12px;">Baseline contrattuale: handover 15 mar 2027 · scadenza contratto 30 set 2027 · monte ore 340.</p>
+    <button class="act" id="btnSaveCrono" onclick="saveCrono()">Salva cronoprogramma</button>
+    <span class="note" id="cronoMsg" style="margin-left:10px;"></span>
+  </section>
+
+  <section class="card locked" id="certCard">
+    <div class="lockmsg" id="certLock">Compila e salva il cronoprogramma per sbloccare le timeline di certificazione.</div>
+    <h2><span class="step">2</span>Le certificazioni sul sito</h2>
+    <p class="sub">Construction start e handover non si compilano qui: sono ereditati dal cronoprogramma, in sola lettura.</p>
+
+    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:6px;">
+      <p style="margin:0; font-weight:600; font-size:14px;"><span class="badge b-leed">LEED BD+C</span> &nbsp;la tua certificazione</p>
+      <button class="act" id="btnMat" onclick="materialize()">Genera timeline dalla scaletta · 13 passi</button>
+    </div>
+    <div id="leedTable"></div>
+
+    <div style="margin-top:22px;">
+      <p style="margin:0 0 6px; font-weight:600; font-size:14px;"><span class="badge b-well">WELL NC</span> &nbsp;Sara B. · sola lettura</p>
+      <div id="wellTable" class="note">La timeline di Sara comparirà qui appena generata: la vedi, non la modifichi.</div>
+    </div>
+  </section>
+
+  <section class="card locked" id="simCard">
+    <div class="lockmsg">Genera prima la timeline LEED.</div>
+    <h2><span class="step">3</span>Il GC comunica nuove date</h2>
+    <p class="sub">Sposti l'handover sul cronoprogramma: vedi l'anteprima di cosa si muove, poi confermi. Cambiano solo le attività ancorate all'handover.</p>
+    <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+      <label class="note">Nuovo handover</label>
+      <input type="date" id="d_newHand" value="2027-04-30">
+      <input type="text" id="t_fonte" placeholder="Fonte: es. gantt rev. 8 del GC" style="max-width:230px;">
+      <button class="act ghost" onclick="previewShift()">Anteprima</button>
+    </div>
+    <div id="previewBox"></div>
+  </section>
+
+  <section class="card" id="regCard" style="display:none;">
+    <h2><span class="step">4</span>Registro del cronoprogramma</h2>
+    <p class="sub">Ogni modifica: chi, quando, da dove, e cosa comporta. È il documento su cui Payments negozia.</p>
+    <div id="regList"></div>
+  </section>
+</main>
+
+<!-- ═══════════════ VISTA CEO ═══════════════ -->
+<main id="ceoView" hidden>
+  <div class="kpis" id="kpiRow"></div>
+
+  <section class="card">
+    <h2>Da attenzionare</h2>
+    <p class="sub">Le eccezioni, non tutto il portafoglio.</p>
+    <div class="exc" id="excList"></div>
+  </section>
+
+  <section class="card">
+    <h2>Portafoglio per sito</h2>
+    <p class="sub">Ritardo nostro misurato sulle date correnti; slittamento misurato sulla baseline contrattuale.</p>
+    <div style="overflow-x:auto;">
+    <table class="ptable">
+      <thead><tr>
+        <th>Sito</th><th>Servizi</th><th>Fase</th>
+        <th>Slittamento</th><th class="hidem">Ritardo nostro</th>
+        <th class="hidem">Prossima milestone</th><th>Fine vs contratto</th>
+      </tr></thead>
+      <tbody id="pbody"></tbody>
+    </table>
+    </div>
+    <div id="siteDetail"></div>
+  </section>
+</main>
+
+</div>
+
+<script>
+const TODAY = new Date('2026-09-10T12:00:00');
+const CONTRACT_HANDOVER = '2027-03-15';
+const CONTRACT_END = '2027-09-30';
+
+const P = d => new Date(d + 'T12:00:00');
+const addD = (d, n) => { const x = new Date(P(d)); x.setDate(x.getDate() + n); return x.toISOString().slice(0,10); };
+const diffD = (a, b) => Math.round((P(b) - P(a)) / 86400000);
+const F = d => d ? P(d).toLocaleDateString('it-IT', {day:'2-digit', month:'short', year:'2-digit'}) : '—';
+
+const state = {
+  cronoSaved:false, leedMat:false, pendingSara:false,
+  crono:{}, registro:[],
+  leedDone:{}, leedPM:{ pre:'2025-09-08', dg:'2025-10-20', tender:'2025-11-03', training:'2026-02-16', comm:'2027-02-10' }
+};
+
+const LEED_STEPS = [
+  {n:1, name:'Pre-assessment', kind:'pm', key:'pre'},
+  {n:2, name:'FGB Design Guidelines', kind:'pm', key:'dg', prec:'gara', precLbl:'prima del lancio gara'},
+  {n:3, name:'FGB Tendering Requirements', kind:'pm', key:'tender', prec:'gara', precLbl:'prima del lancio gara'},
+  {n:4, name:'Construction start', kind:'eredita', src:'start'},
+  {n:5, name:'LEED GC Training', kind:'pm', key:'training', after:'start', precLbl:'dopo il construction start'},
+  {n:6, name:'QlAir shipment', kind:'auto', lbl:'da spedizione · opz'},
+  {n:7, name:'Greeny shipment', kind:'auto', lbl:'da spedizione · opz'},
+  {n:8, name:'Commissioning tests and reports', kind:'pm', key:'comm', before:'hand', precLbl:'prima dell\u2019handover'},
+  {n:9, name:'Construction end (handover)', kind:'eredita', src:'hand'},
+  {n:10, name:'GC closed-out documentation', kind:'calc', off:30},
+  {n:11, name:'CxA site inspection and tests', kind:'calc', off:60},
+  {n:12, name:'LEED project submission', kind:'calc', off:90},
+  {n:13, name:'LEED certification attainment', kind:'calc', off:180}
+];
+const WELL_OFF = [ {name:'Construction phase start', kind:'eredita', src:'start'},
+  {name:'WELL performance verification', kind:'pmS', fix:'2027-04-06'},
+  {name:'Construction end (handover)', kind:'eredita', src:'hand'},
+  {name:'GC closed-out documentation', kind:'calc', off:30},
+  {name:'WELL project submission', kind:'pv', off:90, lbl:'+60 da PV results'},
+  {name:'WELL certification attainment', kind:'pv', off:210, lbl:'+180 da PV results'} ];
+
+function setRole(r){
+  document.getElementById('pmView').hidden = r !== 'pm';
+  document.getElementById('ceoView').hidden = r !== 'ceo';
+  document.getElementById('tabPM').classList.toggle('on', r === 'pm');
+  document.getElementById('tabCEO').classList.toggle('on', r === 'ceo');
+  if (r === 'ceo') renderCEO();
+}
+
+function readCrono(){
+  return { gara:val('d_gara'), agg:val('d_agg'), start:val('d_start'), imp:val('d_imp'), hand:val('d_hand'),
+    impConf:document.getElementById('c_imp').checked };
+}
+const val = id => document.getElementById(id).value;
+
+function saveCrono(){
+  const c = readCrono();
+  const msg = document.getElementById('cronoMsg');
+  if (!c.start || !c.hand){ msg.textContent = 'Servono almeno construction start e handover.'; msg.style.color = 'var(--red)'; return; }
+  state.crono = c; state.cronoSaved = true;
+  msg.textContent = 'Cronoprogramma salvato. Le certificazioni ora possono agganciarsi.'; msg.style.color = 'var(--grn)';
+  const cc = document.getElementById('certCard');
+  cc.classList.remove('locked'); document.getElementById('certLock').style.display = 'none';
+  if (state.leedMat) renderLeed();
+  renderWell();
+}
+
+function materialize(){
+  if (!state.cronoSaved) return;
+  state.leedMat = true;
+  document.getElementById('btnMat').style.display = 'none';
+  const sc = document.getElementById('simCard');
+  sc.classList.remove('locked'); sc.querySelector('.lockmsg').style.display = 'none';
+  renderLeed(); renderWell();
+}
+
+function stepDate(s){
+  if (s.kind === 'eredita') return state.crono[s.src];
+  if (s.kind === 'calc') return addD(state.crono.hand, s.off);
+  if (s.kind === 'pm') return state.leedPM[s.key];
+  return null;
+}
+
+function precWarn(s){
+  const c = state.crono; const d = state.leedPM[s.key];
+  if (!d) return '';
+  if (s.prec === 'gara' && c.gara && P(d) > P(c.gara)) return 'Vincolo violato: va emessa ' + s.precLbl + ' (' + F(c.gara) + ').';
+  if (s.after === 'start' && P(d) < P(c.start)) return 'Vincolo violato: va fatta ' + s.precLbl + ' (' + F(c.start) + ').';
+  if (s.before === 'hand' && P(d) > P(c.hand)) return 'Vincolo violato: va chiusa ' + s.precLbl + ' (' + F(c.hand) + ').';
+  return '';
+}
+
+function renderLeed(){
+  if (!state.leedMat){ return; }
+  let h = '<table><thead><tr><th style="width:4%">#</th><th style="width:38%">Passo</th><th style="width:16%">Natura</th><th style="width:22%">Data</th><th>Fatto</th></tr></thead><tbody>';
+  LEED_STEPS.forEach(s => {
+    let nat, dateCell, done = '';
+    if (s.kind === 'pm'){
+      nat = '<span class="badge b-pm">PM</span>';
+      const w = precWarn(s);
+      dateCell = '<input type="date" value="' + (state.leedPM[s.key]||'') + '" onchange="pmDate(\'' + s.key + '\', this.value)">' + (w ? '<div class="warnline">' + w + '</div>' : '');
+      done = '<input type="checkbox" ' + (state.leedDone[s.key] ? 'checked' : '') + ' onchange="pmDone(\'' + s.key + '\', this.checked)" aria-label="Fatto: ' + s.name + '">';
+    } else if (s.kind === 'eredita'){
+      nat = '<span class="badge b-eredita">ereditata</span>';
+      dateCell = '<strong>' + F(state.crono[s.src]) + '</strong> <span class="note">dal cronoprogramma</span>';
+    } else if (s.kind === 'calc'){
+      nat = '<span class="badge b-calc">+' + s.off + 'gg da handover</span>';
+      dateCell = F(addD(state.crono.hand, s.off));
+    } else {
+      nat = '<span class="badge b-auto">auto</span>';
+      dateCell = '<span class="note">' + s.lbl + '</span>';
+    }
+    h += '<tr><td class="note">' + s.n + '</td><td>' + s.name + '</td><td>' + nat + '</td><td>' + dateCell + '</td><td>' + done + '</td></tr>';
+  });
+  h += '</tbody></table><p class="note" style="margin-top:8px;">Spuntare un passo è un fatto di SAL: alimenta la fatturazione, non solo lo stato.</p>';
+  document.getElementById('leedTable').innerHTML = h;
+}
+function pmDate(k, v){ state.leedPM[k] = v; renderLeed(); }
+function pmDone(k, v){ state.leedDone[k] = v; }
+
+function renderWell(){
+  if (!state.cronoSaved) return;
+  let h = '<table><thead><tr><th style="width:42%">Passo</th><th style="width:22%">Natura</th><th>Data</th></tr></thead><tbody>';
+  WELL_OFF.forEach(s => {
+    let nat, d;
+    if (s.kind === 'eredita'){ nat = '<span class="badge b-eredita">ereditata</span>'; d = F(state.crono[s.src]); }
+    else if (s.kind === 'pmS'){ nat = '<span class="badge b-pm">PM · Sara</span>'; d = F(s.fix); }
+    else if (s.kind === 'calc'){ nat = '<span class="badge b-calc">+' + s.off + 'gg da handover</span>'; d = F(addD(state.crono.hand, s.off)); }
+    else { nat = '<span class="badge b-well">' + s.lbl + '</span>'; d = F(addD(state.crono.hand, s.off)); }
+    const pend = state.pendingSara && (s.kind === 'calc' || s.kind === 'pv') ? ' <span class="badge b-dubbio">in attesa di conferma di Sara</span>' : '';
+    h += '<tr style="color:var(--mut);"><td>' + s.name + '</td><td>' + nat + '</td><td>' + d + pend + '</td></tr>';
+  });
+  h += '</tbody></table>';
+  document.getElementById('wellTable').innerHTML = h;
+}
+
+let pendingShift = null;
+function previewShift(){
+  const nh = val('d_newHand');
+  if (!nh || !state.leedMat) return;
+  const delta = diffD(state.crono.hand, nh);
+  if (delta === 0){ document.getElementById('previewBox').innerHTML = '<p class="note" style="margin-top:10px;">Stessa data: niente da spostare.</p>'; return; }
+  pendingShift = { nh, delta, fonte: val('t_fonte') || 'fonte non indicata' };
+  let rows = '';
+  LEED_STEPS.filter(s => s.kind === 'calc' || (s.kind === 'eredita' && s.src === 'hand')).forEach(s => {
+    const oldD = s.kind === 'calc' ? addD(state.crono.hand, s.off) : state.crono.hand;
+    const newD = s.kind === 'calc' ? addD(nh, s.off) : nh;
+    rows += '<tr><td>' + s.name + '</td><td><span class="old">' + F(oldD) + '</span><span class="arrow">→</span><strong>' + F(newD) + '</strong></td></tr>';
+  });
+  const att = addD(nh, 180);
+  const over = P(att) > P(CONTRACT_END);
+  const still = LEED_STEPS.filter(s => s.kind === 'pm').length;
+  document.getElementById('previewBox').innerHTML =
+    '<div class="preview"><h3>Anteprima · handover ' + (delta > 0 ? '+' : '') + delta + ' giorni</h3>' +
+    '<table><tbody>' + rows + '</tbody></table>' +
+    '<p class="note" style="margin:10px 0 4px;">' + still + ' passi PM (guidelines, training, commissioning…) non si muovono: sono date decise, non subite.</p>' +
+    (over ? '<p style="font-size:13px; color:var(--red); margin:4px 0;">Attainment stimato ' + F(att) + ': oltre la scadenza contrattuale del ' + F(CONTRACT_END) + '. Proroga da negoziare.</p>' : '<p class="note" style="margin:4px 0;">Attainment stimato ' + F(att) + ': dentro la scadenza contrattuale.</p>') +
+    '<p class="note" style="margin:4px 0 10px;">Sara B. riceverà la proposta per le date WELL dipendenti: conferma lei le sue.</p>' +
+    '<button class="act" onclick="confirmShift()">Conferma spostamento</button> ' +
+    '<button class="act ghost" onclick="document.getElementById(\'previewBox\').innerHTML=\'\'">Annulla</button></div>';
+}
+
+function confirmShift(){
+  if (!pendingShift) return;
+  const {nh, delta, fonte} = pendingShift;
+  const oldH = state.crono.hand;
+  state.crono.hand = nh;
+  document.getElementById('d_hand').value = nh;
+  document.getElementById('s_hand').selectedIndex = 1;
+  document.getElementById('handState').textContent = 'aggiornata · 10 set 26';
+  document.getElementById('handState').className = 'badge b-conf';
+  state.pendingSara = true;
+  const att = addD(nh, 180);
+  const over = P(att) > P(CONTRACT_END);
+  state.registro.unshift({
+    who:'Marco R.', when:'10 set 26',
+    text:'ha spostato l\u2019handover dal ' + F(oldH) + ' al ' + F(nh),
+    meta: fonte + ' · ' + (delta > 0 ? '+' : '') + delta + ' gg vs data precedente · ' + (delta >= 0 ? '+' : '') + diffD(CONTRACT_HANDOVER, nh) + ' gg vs baseline contrattuale · ' + (over ? 'fine stimata oltre contratto' : 'fine stimata entro contratto') + ' · notifica a Sara B. e all\u2019admin'
+  });
+  pendingShift = null;
+  document.getElementById('previewBox').innerHTML = '';
+  document.getElementById('regCard').style.display = 'block';
+  renderLeed(); renderWell(); renderReg();
+}
+
+function renderReg(){
+  document.getElementById('regList').innerHTML = state.registro.map(r =>
+    '<div class="reg"><p><strong>' + r.who + '</strong> ' + r.text + '</p><p class="meta">' + r.when + ' · ' + r.meta + '</p></div>'
+  ).join('') || '<p class="note">Ancora nessuna modifica registrata.</p>';
+}
+
+/* ── CEO ── */
+const STATIC_SITES = [
+  {name:'Store Duomo — Firenze', srv:'<span class="badge b-leed">LEED ID+C</span>', fase:'Finiture', slip:'+12 gg', slipC:'amb', rit:'0 gg', ritC:'pos', next:'Handover · 30 ott 26', fine:'entro contratto', fineC:'pos'},
+  {name:'Torre Levante — Milano', srv:'<span class="badge b-well">WELL EB</span>', fase:'Performance period', slip:'—', slipC:'', rit:'+6 gg', ritC:'neg', next:'PV results · 25 set 26', fine:'entro contratto', fineC:'pos'},
+  {name:'Uffici Corso Re — Torino', srv:'<span class="badge b-teal">Greeny</span>', fase:'Esercizio', slip:'—', slipC:'', rit:'0 gg', ritC:'pos', next:'Report trimestrale · 01 ott 26', fine:'rinnovo tacito', fineC:''}
+];
+
+function auroraRow(){
+  if (!state.cronoSaved || !state.leedMat){
+    return {name:'Palazzo Aurora — Milano', srv:'<span class="badge b-leed">LEED BD+C</span> <span class="badge b-well">WELL NC</span>',
+      fase:'—', slip:'—', slipC:'', rit:'—', ritC:'', next:'<span class="amb">timeline da compilare</span>', fine:'—', fineC:'', live:true};
+  }
+  const slip = diffD(CONTRACT_HANDOVER, state.crono.hand);
+  const att = addD(state.crono.hand, 180);
+  const over = P(att) > P(CONTRACT_END);
+  return {name:'Palazzo Aurora — Milano', srv:'<span class="badge b-leed">LEED BD+C</span> <span class="badge b-well">WELL NC</span>',
+    fase:'Impianti', slip:(slip >= 0 ? '+' : '') + slip + ' gg', slipC: slip > 20 ? 'neg' : slip > 0 ? 'amb' : 'pos',
+    rit:'0 gg', ritC:'pos',
+    next:'Impianti pronti · ' + F(state.crono.imp),
+    fine: over ? 'oltre di ' + diffD(CONTRACT_END, att) + ' gg' : 'entro contratto', fineC: over ? 'neg' : 'pos', live:true};
+}
+
+function renderCEO(){
+  const a = auroraRow();
+  const slip = state.cronoSaved ? diffD(CONTRACT_HANDOVER, state.crono.hand) : 0;
+  const att = state.cronoSaved ? addD(state.crono.hand, 180) : null;
+  const over = att && P(att) > P(CONTRACT_END);
+  const risk = (over ? 1 : 0);
+  document.getElementById('kpiRow').innerHTML =
+    kpi('Certificazioni attive', '6', '4 siti') +
+    kpi('Contratti a rischio', String(risk), over ? 'Palazzo Aurora' : 'nessuno', over ? 'neg' : 'pos') +
+    kpi('Conferme in sospeso', state.pendingSara ? '1' : '0', state.pendingSara ? 'Sara B. · WELL NC' : 'nessuna', state.pendingSara ? 'amb' : 'pos') +
+    kpi('Dati stantii', '1', 'Store Duomo · gantt di 7 settimane fa', 'amb');
+
+  let exc = [];
+  if (!state.leedMat) exc.push(['amb', 'Palazzo Aurora: cronoprogramma o timeline non ancora compilati dal PM.']);
+  if (over) exc.push(['red', 'Palazzo Aurora: attainment stimato ' + F(att) + ', oltre la scadenza del ' + F(CONTRACT_END) + '. ' + (slip >= 0 ? '+' : '') + slip + ' gg vs baseline — dossier per la proroga nel registro.']);
+  if (state.pendingSara) exc.push(['amb', 'WELL NC — Palazzo Aurora: 3 date proposte dallo slittamento, in attesa di conferma di Sara B.']);
+  exc.push(['amb', 'Store Duomo: date di cantiere aggiornate 7 settimane fa. Chiedere il gantt corrente al GC.']);
+  document.getElementById('excList').innerHTML = exc.map(e =>
+    '<div class="item"><span class="dot" style="background:var(--' + (e[0] === 'red' ? 'red' : 'amb') + ');"></span><span>' + e[1] + '</span></div>').join('');
+
+  const rows = [a, ...STATIC_SITES];
+  document.getElementById('pbody').innerHTML = rows.map((r, i) =>
+    '<tr class="' + (r.live ? 'click' : '') + '" ' + (r.live ? 'onclick="toggleDetail()"' : '') + '>' +
+    '<td>' + r.name + (r.live ? ' <span class="note">▾</span>' : '') + '</td><td>' + r.srv + '</td><td>' + r.fase + '</td>' +
+    '<td class="' + r.slipC + '">' + r.slip + '</td><td class="hidem ' + r.ritC + '">' + r.rit + '</td>' +
+    '<td class="hidem">' + r.next + '</td><td class="' + r.fineC + '">' + r.fine + '</td></tr>').join('');
+  document.getElementById('siteDetail').innerHTML = '';
+}
+function kpi(l, v, d, c){ return '<div class="kpi"><div class="l">' + l + '</div><div class="v">' + v + '</div><div class="d ' + (c||'') + '">' + d + '</div></div>'; }
+
+function toggleDetail(){
+  const el = document.getElementById('siteDetail');
+  if (el.innerHTML){ el.innerHTML = ''; return; }
+  if (!state.cronoSaved){ el.innerHTML = '<div class="detail note">Il PM non ha ancora compilato il cronoprogramma: qui comparirà l\u2019innesto delle certificazioni.</div>'; return; }
+  const start = state.crono.start, hand = state.crono.hand;
+  const m0 = new Date(P(start)); m0.setDate(1);
+  const col = d => Math.max(1, Math.min(16, Math.round(diffD(m0.toISOString().slice(0,10), d) / 30.4) + 1));
+  const months = []; const mm = new Date(m0);
+  for (let i = 0; i < 16; i++){ months.push(mm.toLocaleDateString('it-IT', {month:'short'})); mm.setMonth(mm.getMonth() + 1); }
+  const cEnd = col(hand), att = addD(hand, 180), cAtt = col(att), sub = col(addD(hand, 90)), pv = col('2027-04-06');
+  el.innerHTML = '<div class="detail"><div class="lanes">' +
+    '<div class="months">' + months.map(m => '<span>' + m + '</span>').join('') + '</div>' +
+    lane('Cantiere · GC Meridiana', 'var(--cant-bg)',
+      bar(1, cEnd, '#CFCDC2') + bar(cEnd, Math.min(16, cEnd + 1), '#FAC775')) +
+    lane('LEED BD+C · Marco R.', '',
+      bar(1, 2, '#C9C4EE') + bar(Math.max(1, cEnd - 1), cEnd, '#AFA9EC') + bar(Math.min(16, sub), Math.min(16, sub + 1), '#AFA9EC') + bar(Math.min(16, cAtt), Math.min(16, cAtt + 1), '#CEC9F2')) +
+    lane('WELL NC · Sara B.' + (state.pendingSara ? ' · conferme in sospeso' : ''), '',
+      bar(Math.min(16, pv), Math.min(16, pv + 1), '#9FE1CB') + bar(Math.min(16, col(addD(hand, 210))), Math.min(16, col(addD(hand, 210)) + 1), '#C6EDDD')) +
+    '</div>' +
+    '<p class="note" style="margin:8px 0 0;">Slittamento ' + (diffD(CONTRACT_HANDOVER, hand) >= 0 ? '+' : '') + diffD(CONTRACT_HANDOVER, hand) + ' gg vs baseline · attainment stimato ' + F(att) + ' · contratto al ' + F(CONTRACT_END) + '.</p>' +
+    (state.registro.length ? '<p class="note" style="margin:4px 0 0;">Ultima voce di registro: ' + state.registro[0].who + ' ' + state.registro[0].text + ' (' + state.registro[0].meta.split(' · ').slice(1, 3).join(' · ') + ').</p>' : '') +
+    '</div>';
+}
+const lane = (t, _bg, bars) => '<div class="lane"><div class="head"><span>' + t + '</span></div><div class="grid">' + bars + '</div></div>';
+const bar = (a, b, c) => b > a ? '<div class="bar" style="grid-column:' + a + '/' + b + '; background:' + c + ';"></div>' : '';
+
+renderReg();
+</script>
+</body>
+</html>

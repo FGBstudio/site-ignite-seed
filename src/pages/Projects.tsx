@@ -669,7 +669,7 @@ export default function Projects() {
   }
 
   return (
-    <MainLayout title="All Projects" subtitle="Project management and hardware allocations">
+    <MainLayout title="Services" subtitle="Project management and hardware allocations">
       <Tabs defaultValue="projects" className="space-y-6">
         <TabsList>
           <TabsTrigger value="projects">Projects</TabsTrigger>
