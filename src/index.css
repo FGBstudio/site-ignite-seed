@@ -241,14 +241,14 @@
      dopo: vinceva anche sull'`overflow-x-auto` scritto sull'elemento. Le
      tabelle piu' larghe dello schermo non scorrevano — venivano tagliate, e le
      colonne di destra erano irraggiungibili.
-     Ora l'orizzontale scorre e solo il verticale resta tagliato, che e' quello
-     che serviva agli angoli. */
+     Ora scorrono entrambi gli assi: `auto` clippa comunque gli angoli, e chi
+     non deborda non mostra nessuna barra. Serve anche al verticale, perche' la
+     tabella dei progetti ha un'altezza massima e la testata fissa. */
   .table-container {
     background: hsl(var(--card));
     border: 0.5px solid hsl(var(--border));
     border-radius: var(--radius);
-    overflow-x: auto;
-    overflow-y: hidden;
+    overflow: auto;
     box-shadow: var(--shadow-sm);
   }
 
@@ -289,6 +289,35 @@
     left: 0;
     width: 1px;
     background: hsl(var(--border));
+  }
+
+  /* Custom visible scrollbars for table & overflow containers */
+  .table-container::-webkit-scrollbar,
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  .table-container::-webkit-scrollbar-track,
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: hsl(var(--muted) / 0.5);
+    border-radius: 6px;
+    margin: 4px;
+  }
+  .table-container::-webkit-scrollbar-thumb,
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.35);
+    border-radius: 6px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  .table-container::-webkit-scrollbar-thumb:hover,
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.6);
+  }
+  .table-container,
+  .custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.35) hsl(var(--muted) / 0.5);
   }
 
   /* ── KPI label (FUTURA uppercase 10px) ── */

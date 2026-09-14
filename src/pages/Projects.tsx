@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, Pencil, BarChart3, Eye, GanttChartSquare, AlertTriangle, Clock3, CheckCircle2, FileText, CheckSquare, Trash2, Loader2, Download, ArrowUp, ArrowDown, ArrowUpDown, Filter, X, UserPlus, Radio } from "lucide-react";
+import { Search, Pencil, BarChart3, Eye, GanttChartSquare, AlertTriangle, Clock3, CheckCircle2, FileText, CheckSquare, Trash2, Loader2, Download, ArrowUp, ArrowDown, ArrowUpDown, Filter, X, UserPlus, Radio, ChevronLeft, ChevronRight } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -24,6 +24,7 @@ import { AdminTimeline } from "@/components/admin/AdminTimeline";
 import { ProjectsReports } from "@/components/projects/ProjectsReports";
 import { CapacityDashboard } from "@/components/dashboard/capacity/CapacityDashboard";
 import { HoldToggleButton } from "@/components/projects/HoldToggleButton";
+import { isGreenBuildingCert } from "@/components/projects/ProjectOverview";
 import { useAdminPlannerData, type AdminPlannerProject } from "@/hooks/useAdminPlannerData";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -351,10 +352,29 @@ export default function Projects() {
   const [selectedCleanupIds, setSelectedCleanupIds] = useState<string[]>([]);
   const [deletingCleanup, setDeletingCleanup] = useState(false);
 
-  // Hard delete confirmation state
-  const [hardDeleteProject, setHardDeleteProject] = useState<AdminPlannerProject | null>(null);
+  // Top & Table horizontal scroll synchronizer
+  const topScrollRef = useRef<HTMLDivElement>(null);
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+  const isSyncingScroll = useRef(false);
+  const [tableScrollWidth, setTableScrollWidth] = useState(1320);
 
+  const handleTopScroll = () => {
+    if (isSyncingScroll.current) return;
+    isSyncingScroll.current = true;
+    if (topScrollRef.current && tableContainerRef.current) {
+      tableContainerRef.current.scrollLeft = topScrollRef.current.scrollLeft;
+    }
+    requestAnimationFrame(() => { isSyncingScroll.current = false; });
+  };
 
+  const handleTableScroll = () => {
+    if (isSyncingScroll.current) return;
+    isSyncingScroll.current = true;
+    if (topScrollRef.current && tableContainerRef.current) {
+      topScrollRef.current.scrollLeft = tableContainerRef.current.scrollLeft;
+    }
+    requestAnimationFrame(() => { isSyncingScroll.current = false; });
+  };
 
   // Edit / confirm modal state
   const [modalOpen, setModalOpen] = useState(false);
@@ -512,6 +532,9 @@ export default function Projects() {
           p.cert_level,
           p.cert_type ? CERT_DISPLAY_LABELS[p.cert_type] : null,
           p.cert_rating,
+          p.cert_level,
+          p.score ? `${p.score} pts` : null,
+          p.target_score ? `${p.target_score} pts` : null,
           p.project_subtype,
           p.pm_name,
           SETUP_STATUS_META[p.setup_status as keyof typeof SETUP_STATUS_META]?.label ?? p.setup_status,
@@ -588,6 +611,21 @@ export default function Projects() {
       return 0;
     });
   }, [filtered, sortConfig]);
+
+  useEffect(() => {
+    const updateWidth = () => {
+      if (tableContainerRef.current) {
+        setTableScrollWidth(Math.max(1260, tableContainerRef.current.scrollWidth));
+      }
+    };
+    updateWidth();
+    const timer = setTimeout(updateWidth, 100);
+    window.addEventListener("resize", updateWidth);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("resize", updateWidth);
+    };
+  }, [sortedAndFiltered, statusTab]);
 
   const counts = useMemo(() => ({
     quotation_approved: allProjects.filter((p) => p.setup_status === "quotation_approved").length,
@@ -784,75 +822,101 @@ export default function Projects() {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
             </div>
           ) : (
-            <div className="table-container overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
+            <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+              {/* Barra di scorrimento in alto, sincronizzata con la tabella.
+                  Una tabella da novecento righe ha la sua barra in fondo alla
+                  pagina: senza questa, per scoprire che c'e' altro a destra
+                  bisogna prima arrivare in fondo. */}
+              <div
+                ref={topScrollRef}
+                onScroll={handleTopScroll}
+                className="overflow-x-auto custom-scrollbar border-b border-border bg-muted/20"
+              >
+                <div style={{ width: tableScrollWidth, height: 1 }} />
+              </div>
+
+              <div
+                ref={tableContainerRef}
+                onScroll={handleTableScroll}
+                className="table-container overflow-x-auto overflow-y-auto max-h-[calc(100vh-280px)] min-h-[480px] custom-scrollbar"
+              >
+                <table className="w-full text-sm border-separate border-spacing-0" style={{ minWidth: 1340 }}>
                   {/* Fondo pieno anche in testata: la colonna ancorata lo eredita. */}
+                  <thead className="sticky top-0 z-20 bg-card shadow-[0_1px_0_0_hsl(var(--border))]">
                   <tr className="border-b bg-card">
-                    <th className="px-3 py-3">
+                    <th className="py-3 px-3 border-b border-border text-left min-w-[110px] max-w-[130px]">
                       <ExcelHeaderCell title="Client" colKey="client" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
                     </th>
-                    <th className="px-3 py-3">
+                    <th className="py-3 px-3 border-b border-border text-left min-w-[85px]">
                       <ExcelHeaderCell title="City" colKey="city" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
                     </th>
-                    <th className="px-3 py-3">
+                    <th className="py-3 px-3 border-b border-border text-left min-w-[130px] max-w-[180px]">
                       <ExcelHeaderCell title="Project" colKey="name" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
                     </th>
-                    <th className="px-3 py-3">
+                    <th className="py-3 px-3 border-b border-border text-left min-w-[80px]">
                       <ExcelHeaderCell title="Country" colKey="country" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
                     </th>
-                    <th className="px-3 py-3">
+                    <th className="py-3 px-3 border-b border-border text-left min-w-[70px]">
                       <ExcelHeaderCell title="Region" colKey="region" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
                     </th>
-                    <th className="px-3 py-3">
+                    <th className="py-3 px-3 border-b border-border text-left min-w-[75px]">
                       <ExcelHeaderCell title="Certification" colKey="cert_type" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
                     </th>
-                    <th className="px-3 py-3">
+                    <th className="py-3 px-3 border-b border-border text-left min-w-[70px]">
                       <ExcelHeaderCell title="Rating" colKey="cert_rating" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
+                    </th>
+                    <th className="py-3 px-3 border-b border-border text-left min-w-[90px]">
+                      <ExcelHeaderCell title="Level" colKey="cert_level" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
                     </th>
                     {statusTab === "quotation" ? (
                       <>
-                        <th className="px-3 py-3">
+                        <th className="py-3 px-3 border-b border-border text-left min-w-[100px]">
                           <ExcelHeaderCell title="Total Fees" colKey="total_fees" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} className="justify-end" />
                         </th>
-                        <th className="px-3 py-3">
+                        <th className="py-3 px-3 border-b border-border text-left min-w-[100px]">
                           <ExcelHeaderCell title="Sent Date" colKey="quotation_sent_date" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
                         </th>
                       </>
                     ) : (
                       <>
-                        <th className="px-3 py-3">
+                        <th className="py-3 px-3 border-b border-border text-left min-w-[75px]">
                           <ExcelHeaderCell title="Subtype" colKey="project_subtype" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
                         </th>
-                        <th className="px-3 py-3">
-                          <ExcelHeaderCell title="Level" colKey="cert_level" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
-                        </th>
-                        <th className="px-3 py-3">
+                        <th className="py-3 px-3 border-b border-border text-left min-w-[90px]">
                           <ExcelHeaderCell title="PM" colKey="pm_name" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
                         </th>
                       </>
                     )}
-                    <th className="px-3 py-3">
+                    <th className="py-3 px-3 border-b border-border text-left min-w-[95px]">
                       {statusTab === "certificato" ? (
                         <ExcelHeaderCell title="Issue Date" colKey="issued_date" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
                       ) : (
                         <ExcelHeaderCell title="Handover" colKey="handover_date" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
                       )}
                     </th>
-                    <th className="px-3 py-3">
+                    <th className="py-3 px-3 border-b border-border text-left min-w-[125px]">
                       <ExcelHeaderCell title="Config Status" colKey="setup_status" rows={baseFiltered} colFilters={colFilters} setColFilters={setColFilters} sortConfig={sortConfig} setSortConfig={setSortConfig} />
                     </th>
                     {statusTab !== "quotation" && statusTab !== "canceled" && (
-                      <th className="px-3 py-3 text-left font-medium text-muted-foreground uppercase text-[10px] tracking-wider select-none">Hardware</th>
+                      <th className="text-left py-3 px-3 font-medium text-muted-foreground uppercase text-[10px] tracking-wider select-none border-b border-border min-w-[95px]">
+                        Hardware
+                      </th>
                     )}
-                    {/* I pulsanti: ancorati a destra, sempre raggiungibili. */}
-                    <th className="px-3 py-3 col-pinned-right"></th>
+                    {/* I pulsanti: ancorati a destra, sempre raggiungibili
+                        anche quando la tabella e' piu' larga dello schermo. */}
+                    <th className="py-3 px-3 text-right border-b border-border min-w-[170px] col-pinned-right">
+                      <span className="font-medium text-muted-foreground uppercase text-[10px] tracking-wider select-none">
+                        Actions
+                      </span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {sortedAndFiltered.length === 0 ? (
                     <tr>
-                      <td colSpan={12} className="p-12 text-center text-muted-foreground">No projects found.</td>
+                      <td colSpan={14} className="p-12 text-center text-muted-foreground border-b border-border">
+                        No projects found.
+                      </td>
                     </tr>
                   ) : null}
                   {sortedAndFiltered.map((project) => {
@@ -873,7 +937,7 @@ export default function Projects() {
                       <tr
                         key={project.id}
                         className={cn(
-                          "border-b last:border-b-0 transition-colors",
+                          "group border-b last:border-b-0 transition-colors",
                           // Un progetto certificato e' finito: nessuna scadenza
                           // lo riguarda piu'. La riga verde lo dice a colpo
                           // d'occhio, e prevale sull'allarme scadenza che
@@ -898,33 +962,73 @@ export default function Projects() {
                             : "row-tint-none"
                         )}
                       >
-                        <td className="px-3 py-3 font-semibold text-foreground uppercase">{project.client}</td>
-                        <td className="px-3 py-3 text-muted-foreground uppercase">{project.city || "—"}</td>
-                        <td className="px-3 py-3 text-foreground">
-                          <div className="flex items-center gap-2">
+                        <td className="py-4 px-3 font-semibold text-xs text-foreground uppercase border-b border-border max-w-[130px] leading-tight">
+                          {project.client}
+                        </td>
+                        <td className="py-4 px-3 text-xs font-semibold text-muted-foreground uppercase border-b border-border whitespace-nowrap">
+                          {project.city || "—"}
+                        </td>
+                        <td className="py-4 px-3 font-medium text-sm text-foreground border-b border-border min-w-[130px] max-w-[180px] leading-snug">
+                          <div className="flex items-start gap-1.5">
                             {project.on_hold && (
-                              <Badge variant="destructive" className="text-[10px] uppercase tracking-wide" title={project.on_hold_reason || undefined}>
+                              <Badge variant="destructive" className="text-[10px] uppercase tracking-wide shrink-0 mt-0.5" title={project.on_hold_reason || undefined}>
                                 On Hold
                               </Badge>
                             )}
                             {project.is_deadline_critical && !project.on_hold && (
-                              <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
+                              <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
                             )}
-                            {project.name}
+                            <span className="break-words" title={project.name}>{project.name}</span>
                           </div>
                         </td>
-                        <td className="px-3 py-3 text-muted-foreground uppercase">{project.country || "—"}</td>
-                        <td className="px-3 py-3"><Badge variant="outline">{project.region}</Badge></td>
-                        <td className="px-3 py-3">
+                        <td className="py-4 px-3 text-xs text-muted-foreground uppercase border-b border-border whitespace-nowrap">
+                          {project.country || "—"}
+                        </td>
+                        <td className="py-4 px-3 border-b border-border whitespace-nowrap">
+                          <Badge variant="outline" className="rounded-full px-2.5 py-0.5 text-xs font-normal bg-muted/40 border-border/80">
+                            {project.region}
+                          </Badge>
+                        </td>
+                        <td className="py-4 px-3 border-b border-border whitespace-nowrap">
                           {project.cert_type ? (
-                            <Badge variant="secondary" className="text-xs">{CERT_DISPLAY_LABELS[project.cert_type] ?? project.cert_type}</Badge>
+                            <Badge variant="secondary" className="rounded-full px-2.5 py-0.5 text-xs font-medium bg-muted text-foreground border border-border/60">
+                              {CERT_DISPLAY_LABELS[project.cert_type] ?? project.cert_type}
+                            </Badge>
                           ) : (
                             <span className="text-muted-foreground text-xs">—</span>
                           )}
                         </td>
-                        <td className="px-3 py-3">
+                        <td className="py-4 px-3 border-b border-border whitespace-nowrap">
                           {project.cert_rating ? (
-                            <Badge variant="outline" className="text-xs">{project.cert_rating}</Badge>
+                            <Badge variant="outline" className="rounded-full px-2.5 py-0.5 text-xs font-normal border-border/80">
+                              {project.cert_rating}
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">—</span>
+                          )}
+                        </td>
+                        <td className="py-4 px-3 border-b border-border whitespace-nowrap">
+                          {isGreenBuildingCert(project.cert_type) && project.cert_level ? (
+                            <div className="flex flex-col">
+                              <Badge
+                                variant="outline"
+                                className={cn(
+                                  "rounded-full px-2.5 py-0.5 text-xs w-fit font-medium",
+                                  project.setup_status === "certificato" || project.status === "certificato"
+                                    ? "bg-amber-500/10 text-amber-700 border-amber-500/30 dark:text-amber-300"
+                                    : "bg-muted/50 text-foreground border-border/80"
+                                )}
+                              >
+                                {project.setup_status === "certificato" || project.status === "certificato"
+                                  ? `🏅 ${project.cert_level}`
+                                  : project.cert_level}
+                              </Badge>
+                              <span className="text-[10px] text-muted-foreground mt-0.5 whitespace-nowrap">
+                                {project.setup_status === "certificato" || project.status === "certificato"
+                                  ? `Achieved${project.score != null ? `: ${project.score} pts` : ""}`
+                                  : `Target${project.target_score != null ? `: ${project.target_score} pts` : ""}`}
+                              </span>
+                            </div>
                           ) : (
                             <span className="text-muted-foreground text-xs">—</span>
                           )}
@@ -946,29 +1050,26 @@ export default function Projects() {
                           </>
                         ) : (
                           <>
-                            <td className="px-3 py-3">
+                            <td className="py-4 px-3 border-b border-border whitespace-nowrap">
                               {project.project_subtype ? (
-                                <Badge variant="outline" className="text-xs bg-accent/50">{project.project_subtype}</Badge>
+                                <Badge variant="outline" className="rounded-full px-2.5 py-0.5 text-xs font-normal bg-muted/30 border-border/80">
+                                  {project.project_subtype}
+                                </Badge>
                               ) : (
                                 <span className="text-muted-foreground text-xs">—</span>
                               )}
                             </td>
-                            <td className="px-3 py-3">
-                              {project.cert_level ? (
-                                <Badge variant="outline" className="text-xs font-medium">{project.cert_level}</Badge>
-                              ) : (
-                                <span className="text-muted-foreground text-xs">—</span>
-                              )}
+                            <td className="py-4 px-3 text-xs font-medium text-foreground border-b border-border whitespace-nowrap">
+                              {project.pm_name || "—"}
                             </td>
-                            <td className="px-3 py-3 text-foreground">{project.pm_name || "—"}</td>
                           </>
                         )}
-                        <td className="px-3 py-3">
+                        <td className="py-4 px-3 border-b border-border whitespace-nowrap">
                           {statusTab === "certificato" ? (
-                            <span className="font-medium text-foreground">
+                            <span className="font-medium text-xs text-foreground">
                               {project.issued_date ? format(new Date(project.issued_date), "dd MMM yyyy") : "—"}
                             </span>
-                          ) : isDone ? (
+                          ) : isDone && project.handover_date ? (
                             /*
                               Nella scheda "All" i progetti certificati
                               comparivano con l'handover in arancione e un conto
@@ -977,30 +1078,44 @@ export default function Projects() {
                               colore del traguardo — verde per il certificato,
                               verde acqua per il monitoraggio acceso.
                             */
-                            <span className={cn("font-medium", isOnline ? "text-primary" : "text-success")}>
+                            <span className={cn("font-medium text-xs", isOnline ? "text-primary" : "text-success")}>
                               {format(new Date(project.handover_date), "dd MMM yyyy")}
                             </span>
-                          ) : (
-                            <>
+                          ) : project.handover_date ? (
+                            <div className="flex flex-col text-xs leading-tight">
                               <span
                                 className={cn(
-                                  "font-medium",
+                                  "font-semibold",
                                   project.is_deadline_critical
                                     ? "text-destructive"
                                     : daysLeft <= 30
-                                    ? "text-warning"
+                                    ? "text-amber-600 dark:text-amber-500"
                                     : "text-foreground"
                                 )}
                               >
-                                {format(new Date(project.handover_date), "dd MMM yyyy")}
+                                {format(new Date(project.handover_date), "dd MMM")}
                               </span>
-                              <span className="text-xs text-muted-foreground ml-1">({daysLeft}d)</span>
-                            </>
+                              <span
+                                className={cn(
+                                  "text-[11px] font-medium mt-0.5",
+                                  project.is_deadline_critical
+                                    ? "text-destructive"
+                                    : daysLeft <= 30
+                                    ? "text-amber-600/90 dark:text-amber-500/90"
+                                    : "text-muted-foreground"
+                                )}
+                              >
+                                {format(new Date(project.handover_date), "yyyy")}{" "}
+                                <span className="text-[10px]">({daysLeft >= 0 ? `+${daysLeft}d` : `${daysLeft}d`})</span>
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">—</span>
                           )}
                         </td>
-                        <td className="px-3 py-3">
-                          <Badge variant="outline" className={cn("border", statusMeta.className)}>
-                            <StatusIcon className="mr-1 h-3 w-3" />
+                        <td className="py-4 px-3 border-b border-border whitespace-nowrap">
+                          <Badge variant="outline" className={cn("rounded-full px-2.5 py-1 text-xs font-medium border inline-flex items-center gap-1.5", statusMeta.className)}>
+                            <StatusIcon className="h-3.5 w-3.5" />
                             {statusMeta.label}
                           </Badge>
                           {project.is_deadline_critical && (
@@ -1020,17 +1135,7 @@ export default function Projects() {
                             </div>
                           )}
                         </td>
-                        <td className="px-3 py-3">
-                          {/*
-                            Two different facts, never merged into one number:
-                            the request Operations wrote (project_allocations)
-                            and the devices that physically exist on the site
-                            (hardwares). A device can arrive without a request —
-                            Monitoring assigns it directly — so counting only
-                            the requests showed "None" on projects that have a
-                            sensor installed and reported as such everywhere
-                            else in the app.
-                          */}
+                        <td className="py-4 px-3 border-b border-border whitespace-nowrap">
                           {project.project_allocations.length === 0 && project.assigned_hardware_count === 0 ? (
                             <span className="text-muted-foreground text-xs">None</span>
                           ) : (
@@ -1038,7 +1143,7 @@ export default function Projects() {
                               {project.assigned_hardware_count > 0 && (
                                 <Badge
                                   variant="outline"
-                                  className="text-xs bg-emerald-50 text-emerald-700 border-emerald-200"
+                                  className="rounded-full px-2 py-0.5 text-xs bg-emerald-50 text-emerald-700 border-emerald-200"
                                   title="Devices physically assigned to this site"
                                 >
                                   {project.assigned_hardware_count} assigned
@@ -1047,7 +1152,7 @@ export default function Projects() {
                               {project.project_allocations.length > 0 && (
                                 <Badge
                                   variant="outline"
-                                  className="text-xs"
+                                  className="rounded-full px-2 py-0.5 text-xs"
                                   title="Hardware requests logged for this project"
                                 >
                                   {project.project_allocations.length} items
@@ -1059,47 +1164,47 @@ export default function Projects() {
                         {/*
                           Il contenitore flex sta nel div, non nella cella.
                           Un <td> con display:flex esce dall'algoritmo delle
-                          colonne: non riceve una larghezza e i tre pulsanti
+                          colonne: non riceve una larghezza e i pulsanti
                           finivano oltre il bordo della tabella.
                         */}
-                        <td className="px-3 py-3 col-pinned-right">
-                        <div className="flex gap-2">
-                          <Button size="sm" variant="outline" onClick={() => navigate(`/projects/${project.id}`)} className="gap-1">
-                            <Eye className="h-3 w-3" /> Details
-                          </Button>
-                          {project.setup_status === "quotation_approved" ? (
-                            <Button size="sm" className="gap-1" onClick={async () => {
-                              const { data } = await supabase
-                                .from("project_allocations" as any)
-                                .select("*")
-                                .eq("certification_id", project.id);
-                              setEditProject(project as any);
-                              setEditAllocations((data || []) as any);
-                              setModalMode("confirm_project");
-                              setModalOpen(true);
-                            }}>
-                              <UserPlus className="h-3 w-3" /> Assign to PM
+                        <td className="py-4 px-3 border-b border-border whitespace-nowrap col-pinned-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <Button size="sm" variant="outline" onClick={() => navigate(`/projects/${project.id}`)} className="h-8 gap-1 text-xs">
+                              <Eye className="h-3 w-3" /> Details
                             </Button>
-                          ) : project.setup_status === "da_configurare" && !project.pm_id ? (
-                            <Button size="sm" className="gap-1" onClick={() => openEdit(project)}>
-                              <UserPlus className="h-3 w-3" /> Assign PM
+                            {project.setup_status === "quotation_approved" ? (
+                              <Button size="sm" className="gap-1" onClick={async () => {
+                                const { data } = await supabase
+                                  .from("project_allocations" as any)
+                                  .select("*")
+                                  .eq("certification_id", project.id);
+                                setEditProject(project as any);
+                                setEditAllocations((data || []) as any);
+                                setModalMode("confirm_project");
+                                setModalOpen(true);
+                              }}>
+                                <UserPlus className="h-3 w-3" /> Assign to PM
+                              </Button>
+                            ) : project.setup_status === "da_configurare" && !project.pm_id ? (
+                              <Button size="sm" className="gap-1" onClick={() => openEdit(project)}>
+                                <UserPlus className="h-3 w-3" /> Assign PM
+                              </Button>
+                            ) : (
+                              <Button size="sm" variant="ghost" onClick={() => openEdit(project)} className="gap-1">
+                                <Pencil className="h-3 w-3" /> Edit
+                              </Button>
+                            )}
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 gap-1"
+                              title="Cronoprogramma e timeline di certificazione"
+                              onClick={() => navigate(`/projects/${project.id}/cronoprogramma`)}
+                            >
+                              <GanttChartSquare className="h-3 w-3" />
                             </Button>
-                          ) : (
-                            <Button size="sm" variant="ghost" onClick={() => openEdit(project)} className="gap-1">
-                              <Pencil className="h-3 w-3" /> Edit
-                            </Button>
-                          )}
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="gap-1"
-                            title="Cronoprogramma e timeline di certificazione"
-                            onClick={() => navigate(`/projects/${project.id}/cronoprogramma`)}
-                          >
-                            <GanttChartSquare className="h-3 w-3" />
-                          </Button>
-                          <HoldToggleButton certId={project.id} onHold={!!project.on_hold} reason={project.on_hold_reason} />
-                        </div>
+                            <HoldToggleButton certId={project.id} onHold={!!project.on_hold} reason={project.on_hold_reason} />
+                          </div>
                         </td>
                       </tr>
                     );
@@ -1107,6 +1212,7 @@ export default function Projects() {
                 </tbody>
               </table>
             </div>
+          </div>
           )}
         </TabsContent>
 

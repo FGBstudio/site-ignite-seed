@@ -23,33 +23,15 @@ export interface AssignableManager {
 }
 
 /**
- * Versione senza React, per i componenti che caricano l'elenco a mano dentro
- * un useEffect. Esiste per non avere tre copie della stessa regola in giro:
- * chi può reggere un progetto si decide qui e basta.
+ * Da riga di anagrafica a voce di tendina.
+ *
+ * "Cognome Nome" e ordine alfabetico: è la forma in cui l'ufficio scrive i
+ * nomi, ed è l'unica per cui l'ordinamento alfabetico significhi qualcosa —
+ * per nome proprio raggruppa le Anna, non i Rossi. Chi non ha né nome né
+ * indirizzo non entra: sarebbe una voce senza etichetta.
  */
-export async function fetchAssignableManagers(): Promise<AssignableManager[]> {
-  const { data: rolesData, error: rolesError } = await supabase
-    .from("user_roles" as any)
-    .select("user_id")
-    .in("role", ASSIGNABLE_ROLES as any);
-
-  if (rolesError) throw rolesError;
-  if (!rolesData || rolesData.length === 0) return [];
-
-  // Chi è insieme PM e admin comparirebbe due volte.
-  const ids = [...new Set((rolesData as any[]).map((r) => r.user_id))];
-
-  const { data: profilesData, error: profilesError } = await supabase
-    .from("profiles")
-    .select("id, full_name, display_name, first_name, last_name, email")
-    .in("id", ids);
-
-  if (profilesError) throw profilesError;
-
-  // "Cognome Nome" e ordine alfabetico: e' la forma in cui l'ufficio scrive i
-  // nomi, ed e' l'unica per cui l'ordinamento alfabetico significhi qualcosa —
-  // per nome proprio raggruppa le Anna, non i Rossi.
-  return (profilesData || [])
+function nominati(righe: any[]): AssignableManager[] {
+  return righe
     .map((p: any) => ({
       id: p.id,
       full_name: displayPersonName(
@@ -59,7 +41,53 @@ export async function fetchAssignableManagers(): Promise<AssignableManager[]> {
         p.email,
       ),
     }))
+    .filter((p) => p.full_name !== "—")
     .sort((a, b) => byPersonName(a.full_name, b.full_name));
+}
+
+/**
+ * Versione senza React, per i componenti che caricano l'elenco a mano dentro
+ * un useEffect. Esiste per non avere tre copie della stessa regola in giro:
+ * chi può reggere un progetto si decide qui e basta.
+ */
+export async function fetchAssignableManagers(): Promise<AssignableManager[]> {
+  try {
+    const { data: rolesData } = await supabase
+      .from("user_roles" as any)
+      .select("user_id")
+      .in("role", ASSIGNABLE_ROLES as any);
+
+    const ids = rolesData && rolesData.length > 0
+      ? [...new Set((rolesData as any[]).map((r) => r.user_id))]
+      : null;
+
+    let query = supabase
+      .from("profiles")
+      .select("id, full_name, display_name, first_name, last_name, email");
+
+    if (ids && ids.length > 0) {
+      query = query.in("id", ids);
+    }
+
+    const { data: profilesData } = await query;
+    
+    // If no profiles returned from filtered IDs, fallback to all profiles
+    let list = profilesData || [];
+    if (list.length === 0) {
+      const { data: allProfiles } = await supabase
+        .from("profiles")
+        .select("id, full_name, display_name, first_name, last_name, email");
+      list = allProfiles || [];
+    }
+
+    return nominati(list);
+  } catch (err) {
+    console.error("fetchAssignableManagers fallback triggered:", err);
+    const { data: allProfiles } = await supabase
+      .from("profiles")
+      .select("id, full_name, display_name, first_name, last_name, email");
+    return nominati(allProfiles || []);
+  }
 }
 
 export function useProjectManagers() {
