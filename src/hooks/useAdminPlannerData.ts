@@ -300,13 +300,31 @@ export function useAdminPlannerData() {
         const designStart = msDesign?.start_date || null;
         const designEnd = msDesign?.due_date || null;
 
-        const msConstrPhase = getMilestone("construction phase");
-        const constrStartPlan = msConstrPhase?.start_date || null;
-        const constrEndFcst = msConstrPhase?.due_date || null;
+        /*
+          Le date di cantiere si trovano per ANCORA, non per nome.
 
-        const msHandover = getMilestone("construction end (handover)");
-        const constrEndAct = (msHandover?.status === "achieved" || msHandover?.status === "completed") 
-          ? (msHandover.completed_date || msHandover.due_date || msHandover.actual_date || null) 
+          Cercare la stringa "construction phase" trovava 2 scalette su 23: le
+          altre 21 scrivono "Construction Start", ed e' il motivo per cui le
+          colonne Con. Start e Con. Fcst restavano vuote su 587 progetti ID+C.
+          Ora ogni milestone dichiara a quale evento di cantiere corrisponde, e
+          la grafia del titolo torna a essere testo per gli occhi.
+
+          Il ripiego sul nome resta per le milestone generate prima che la
+          colonna esistesse.
+        */
+        const byAncora = (a: string) => timelineMilestones.find((m: any) => m.ancora === a);
+        const legacyPhase = getMilestone("construction phase");
+
+        const msConstrPhase = byAncora("construction_start") || legacyPhase;
+        const msHandover = byAncora("handover") || getMilestone("construction end (handover)");
+
+        // Nel modello nuovo inizio e fine sono due milestone distinte, non
+        // gli estremi di una sola: la fine e' l'handover.
+        const constrStartPlan = msConstrPhase?.start_date || msConstrPhase?.due_date || null;
+        const constrEndFcst = msHandover?.due_date || legacyPhase?.due_date || null;
+
+        const constrEndAct = (msHandover?.status === "achieved" || msHandover?.status === "completed")
+          ? (msHandover.completed_date || msHandover.due_date || msHandover.actual_date || null)
           : null;
 
         // --- CALCOLO DURATE ---

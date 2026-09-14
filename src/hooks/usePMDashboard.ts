@@ -227,13 +227,21 @@ export function usePMDashboard() {
         const designStart = msDesign?.start_date || null;
         const designEnd = msDesign?.due_date || null;
 
-        const msConstrPhase = getMilestone("construction phase");
-        const constrStartPlan = msConstrPhase?.start_date || null;
-        const constrEndFcst = msConstrPhase?.due_date || null;
+        // Per ancora, non per nome — stessa correzione di useAdminPlannerData,
+        // e va tenuta identica: due letture diverse della stessa data sono il
+        // modo in cui la vista PM e quella admin cominciano a raccontare cose
+        // diverse dello stesso progetto.
+        const byAncora = (a: string) => timelineMilestones.find((m: any) => m.ancora === a);
+        const legacyPhase = getMilestone("construction phase");
 
-        const msHandover = getMilestone("construction end (handover)");
-        const constrEndAct = (msHandover?.status === "achieved" || msHandover?.status === "completed") 
-          ? (msHandover.completed_date || msHandover.due_date || msHandover.actual_date || null) 
+        const msConstrPhase = byAncora("construction_start") || legacyPhase;
+        const msHandover = byAncora("handover") || getMilestone("construction end (handover)");
+
+        const constrStartPlan = msConstrPhase?.start_date || msConstrPhase?.due_date || null;
+        const constrEndFcst = msHandover?.due_date || legacyPhase?.due_date || null;
+
+        const constrEndAct = (msHandover?.status === "achieved" || msHandover?.status === "completed")
+          ? (msHandover.completed_date || msHandover.due_date || msHandover.actual_date || null)
           : null;
 
         // --- CALCOLO DURATE ---

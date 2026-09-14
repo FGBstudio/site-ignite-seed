@@ -37,6 +37,8 @@ import HrRequests from "./pages/hr/HrRequests";
 import HrAttendance from "./pages/hr/HrAttendance";
 import HrScanner from "./pages/hr/HrScanner";
 import Quotations from "./pages/Quotations";
+import CronoprogrammaPage from "./pages/Cronoprogramma";
+import PortafoglioCantieri from "./pages/PortafoglioCantieri";
 
 
 // MODIFICA QUI: Configurazione del QueryClient per evitare refresh molesti
@@ -105,6 +107,10 @@ function AppRoutes() {
       <Route path="/projects" element={<ProtectedRoute allowedRoles={R("ADMIN", "PM")}><Projects /></ProtectedRoute>} />
       <Route path="/projects/new" element={<ProtectedRoute allowedRoles={R("ADMIN")}><ProjectCreateWizard /></ProtectedRoute>} />
       <Route path="/projects/:projectId" element={<ProtectedRoute allowedRoles={R("ADMIN", "PM")}><ProjectDetail /></ProtectedRoute>} />
+      <Route path="/projects/:projectId/cronoprogramma" element={<ProtectedRoute allowedRoles={R("ADMIN", "PM")}><CronoprogrammaPage /></ProtectedRoute>} />
+      {/* Stessa schermata per Operations e direzione: il perimetro cambia col
+          filtro, non con la pagina. Due schermate distinte divergono. */}
+      <Route path="/portafoglio" element={<ProtectedRoute allowedRoles={R("ADMIN", "PM")}><PortafoglioCantieri /></ProtectedRoute>} />
 
       {/* ── PM Dashboard ── */}
       <Route path="/pm-portal" element={<ProtectedRoute allowedRoles={R("PM")}><PMPortal /></ProtectedRoute>} />

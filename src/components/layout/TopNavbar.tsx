@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { isInProjectsSection, getSectionForPath } from "@/lib/hubSections";
 import { getHrPageTitle } from "@/lib/hrPages";
+import { SHELL } from "./shell";
 import {
   Crown,
   FolderKanban,
@@ -16,6 +17,7 @@ import {
   Contact as ContactIcon,
   Clock,
   Users,
+  GanttChartSquare,
 } from "lucide-react";
 
 interface NavItem {
@@ -81,6 +83,7 @@ export function TopNavbar() {
       navItems = [
         { title: "Admin Dashboard", url: "/ceo-dashboard", icon: Crown },
         { title: "Operations", url: "/projects", icon: FolderKanban },
+        { title: "Cantieri", url: "/portafoglio", icon: GanttChartSquare },
         { title: "Contacts", url: "/contacts", icon: ContactIcon },
         { title: "Tasks & Alerts", url: "/admin-tasks", icon: Inbox },
         { title: "Team Board", url: "/team-board", icon: Users },
@@ -93,6 +96,7 @@ export function TopNavbar() {
     navItems = [
       { title: "Dashboard", url: "/pm-portal", icon: LayoutDashboard },
       { title: "My Projects", url: "/projects", icon: FolderKanban },
+      { title: "Cantieri", url: "/portafoglio", icon: GanttChartSquare },
       { title: "Contacts", url: "/contacts", icon: ContactIcon },
       { title: "My Tasks", url: "/my-tasks", icon: Inbox },
       { title: "Team Board", url: "/team-board", icon: Users },
@@ -140,7 +144,7 @@ export function TopNavbar() {
       }}
     >
       <div
-        className="max-w-[1680px] mx-auto px-8 flex items-center h-full gap-0"
+        className={`${SHELL} flex items-center h-full gap-0`}
         style={{ height: 52 }}
       >
         {/* ── Logo + brand → always back to Home Hub ── */}

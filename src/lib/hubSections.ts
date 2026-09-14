@@ -108,6 +108,9 @@ export function getSectionDisplayName(
 export const PROJECTS_SECTION_PATHS = [
   "/projects-hub",
   "/projects",
+  // Il portafoglio cantieri sta dentro Operations: e' la stessa sezione vista
+  // per sito invece che per certificazione, non una sezione a se'.
+  "/portafoglio",
   "/ceo-dashboard",
   "/admin-tasks",
   "/contacts",

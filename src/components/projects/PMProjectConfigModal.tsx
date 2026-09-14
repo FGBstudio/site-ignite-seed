@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -12,7 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Plus, Trash2, Calendar, Monitor, Award, Lock, User, Save, Wand2, AlertTriangle, UsersRound } from "lucide-react";
+import { Loader2, Plus, Trash2, Calendar, Monitor, Award, Lock, User, Save, Wand2, AlertTriangle, UsersRound, GanttChartSquare } from "lucide-react";
+import { useCertGate } from "@/hooks/useCronoprogramma";
 import { CollaboratorsPanel } from "./CollaboratorsPanel";
 import { cn } from "@/lib/utils";
 import { addDays, format, parseISO } from "date-fns";
@@ -70,8 +72,13 @@ function computeCalculatedDate(
 function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChange: (open: boolean) => void }) {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const { user, role, isAdmin } = useAuth();
   const certId = project.certifications?.[0]?.id;
+  // Il gate: per le dodici scalette che toccano il cantiere, la timeline non
+  // si genera finche' il cronoprogramma del sito non esiste. Va chiesto al
+  // database, non dedotto qui: e' lo stesso motore che poi rifiuta.
+  const { data: gate } = useCertGate(certId);
   const { template, isGeneric } = useProjectTemplate(project);
   const [wizardMode, setWizardMode] = useState<boolean | null>(null);
 
@@ -124,16 +131,27 @@ function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChan
 
       refetch();
       qc.invalidateQueries({ queryKey: ["pm-dashboard"] });
-      toast(
-        Number(created) > 0
-          ? { title: `Timeline creata — ${created} milestone` }
-          : {
-              variant: "destructive",
-              title: "Nessuna scaletta per questa combinazione",
-              description:
-                "Il progetto ha già una timeline, oppure il suo schema non ne ha ancora una a catalogo.",
-            },
-      );
+
+      if (Number(created) > 0) {
+        toast({ title: `Timeline creata — ${created} milestone` });
+      } else if (gate?.bloccata) {
+        // Zero non vuol dire sempre la stessa cosa. Da quando esiste il gate,
+        // il motivo più frequente è che manca il cronoprogramma — e dirlo
+        // "nessuna scaletta a catalogo" manda il PM a cercare nel posto
+        // sbagliato.
+        toast({
+          variant: "destructive",
+          title: "Prima il cronoprogramma del sito",
+          description: gate.motivo ?? undefined,
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Nessuna scaletta per questa combinazione",
+          description:
+            "Il progetto ha già una timeline, oppure il suo schema non ne ha ancora una a catalogo.",
+        });
+      }
     } catch (e: any) {
       toast({ variant: "destructive", title: "Error", description: e.message });
     } finally {
@@ -414,6 +432,34 @@ function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChan
     );
   }
 
+  /*
+    Il cronoprogramma non aveva un ingresso da qui.
+
+    L'avevo messo solo nella tabella Operations, ma il PM lavora da My
+    Projects: arrivava a questa scheda, premeva Initialize, e riceveva un
+    errore che parlava di catalogo mentre il problema era un altro. Il gate
+    senza la porta accanto è solo un muro.
+  */
+  const vaiAlCronoprogramma = () => {
+    onOpenChange(false);
+    navigate(`/projects/${certId}/cronoprogramma`);
+  };
+
+  if (milestones.length === 0 && gate?.bloccata) {
+    return (
+      <div className="space-y-4 rounded-lg border border-amber-300 bg-amber-50/60 p-6 text-center dark:border-amber-800 dark:bg-amber-950/25">
+        <Lock className="mx-auto h-5 w-5 text-amber-700 dark:text-amber-400" />
+        <p className="mx-auto max-w-[60ch] text-sm text-amber-900 dark:text-amber-200">
+          {gate.motivo}
+        </p>
+        <Button onClick={vaiAlCronoprogramma}>
+          <GanttChartSquare className="mr-2 h-4 w-4" />
+          Vai al cronoprogramma del sito
+        </Button>
+      </div>
+    );
+  }
+
   if (milestones.length === 0) {
     return (
       <div className="text-center py-8 space-y-4 border rounded-lg bg-muted/30">
@@ -425,10 +471,14 @@ function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChan
             Template generico — nessun rating specifico trovato
           </Badge>
         )}
-        <div>
+        <div className="flex flex-wrap items-center justify-center gap-2">
           <Button onClick={handleInitialize} disabled={saving}>
             {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
             Initialize Timeline ({template.label})
+          </Button>
+          <Button variant="outline" onClick={vaiAlCronoprogramma}>
+            <GanttChartSquare className="mr-2 h-4 w-4" />
+            Cronoprogramma
           </Button>
         </div>
       </div>
@@ -534,6 +584,15 @@ function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChan
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Il cronoprogramma resta raggiungibile anche a timeline fatta: e' da li'
+          che si sposta l'handover quando il GC comunica date nuove. */}
+      <div className="flex justify-end">
+        <Button variant="ghost" size="sm" onClick={vaiAlCronoprogramma} className="gap-1.5 text-xs">
+          <GanttChartSquare className="h-3.5 w-3.5" />
+          Cronoprogramma del sito
+        </Button>
+      </div>
 
       {/* On Hold banner */}
       {hasOnHold && (
