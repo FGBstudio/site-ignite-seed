@@ -46,10 +46,10 @@ function normalizeCert(row: any): SaturationCert {
   };
 }
 
+/** Persona e giorno. La causale non arriva fin qui, ed e' voluto. */
 export interface SaturationHrOff {
   user_id: string;
   date: string;
-  status: string;
 }
 
 export function getMondayISO(d: Date = new Date()): string {
@@ -153,19 +153,26 @@ export function usePmProfiles() {
   });
 }
 
-/** HR off-days (vacation/sick/unavailable/permit) in a range. */
+/**
+ * I giorni in cui una persona non e' pianificabile.
+ *
+ * Il fatto, non il motivo. Prima questa query leggeva le causali dell'intero
+ * team — ferie, malattie, permessi — per poi usarne solo la data: la matrice
+ * non ha mai mostrato il perche'. Ora passa da una funzione che restituisce
+ * soltanto (persona, giorno), e il calendario resta chiuso.
+ *
+ * Un permesso di due ore non conta piu' come giorno non pianificabile: la
+ * persona c'e', per quasi tutta la giornata. Prima lo faceva sparire.
+ */
 export function useHrOffDays(fromDate: string, toDate: string, userIds?: string[]) {
   return useQuery({
     queryKey: ["saturation-hr-off", fromDate, toDate, userIds?.join(",") ?? "all"],
     queryFn: async () => {
-      let q = supabase
-        .from("hr_availability")
-        .select("user_id, date, status")
-        .in("status", ["vacation", "sick", "unavailable", "permit"])
-        .gte("date", fromDate)
-        .lte("date", toDate);
-      if (userIds && userIds.length > 0) q = q.in("user_id", userIds);
-      const { data, error } = await q;
+      const { data, error } = await (supabase as any).rpc("fn_hr_off_days", {
+        p_from: fromDate,
+        p_to: toDate,
+        p_user_ids: userIds && userIds.length > 0 ? userIds : null,
+      });
       if (error) throw error;
       return (data ?? []) as unknown as SaturationHrOff[];
     },

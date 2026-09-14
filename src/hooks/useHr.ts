@@ -14,13 +14,31 @@ export type RequestType = "holiday" | "permit" | "travel";
 export type RequestStatus = "pending" | "approved" | "rejected";
 export type AttendanceStatus = "auto_qr" | "manual_override";
 
+/**
+ * Una riga di calendario come la puo' vedere chi la sta guardando.
+ *
+ * Su se' stessi e per un amministratore e' la riga intera. Su un collega e'
+ * ridotta: niente id, niente causale, niente nota, e solo il mese corrente.
+ * Cosa si vede lo decide il database, non l'interfaccia — vedi
+ * `fn_hr_availability_window`.
+ */
 export interface HrAvailability {
-  id: string;
+  id: string | null;
   user_id: string;
   date: string;
-  status: AvailabilityStatus;
+  /** La causale vera, oppure "available"/"unavailable" se `masked`. */
+  status: AvailabilityStatus | MaskedStatus;
   note: string | null;
   hours_planned: number | null;
+  is_self: boolean;
+  masked: boolean;
+}
+
+export type MaskedStatus = "available" | "unavailable";
+
+/** Vero quando la riga arriva ridotta e la causale non e' leggibile. */
+export function isMasked(row: HrAvailability): row is HrAvailability & { status: MaskedStatus } {
+  return row.masked;
 }
 
 export interface HrRequest {
@@ -95,15 +113,22 @@ export function useHrProfiles() {
 }
 
 // ── Availability ──────────────────────────────────────────────────────────
+/**
+ * Il calendario, filtrato da chi lo sta leggendo.
+ *
+ * Passa da una funzione e non dalla tabella perche' il confine qui e' una
+ * colonna, non una riga: di un collega si puo' sapere se e' disponibile, non
+ * perche'. RLS lavora sulle righe, quindi la tabella e' chiusa a "il proprio o
+ * l'amministratore" e la vista ridotta la costruisce il database.
+ */
 export function useHrAvailability(fromISO: string, toISO: string) {
   return useQuery({
     queryKey: ["hr", "availability", fromISO, toISO],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from("hr_availability")
-        .select("*")
-        .gte("date", fromISO)
-        .lte("date", toISO);
+      const { data, error } = await (supabase as any).rpc("fn_hr_availability_window", {
+        p_from: fromISO,
+        p_to: toISO,
+      });
       if (error) throw error;
       return (data ?? []) as HrAvailability[];
     },
