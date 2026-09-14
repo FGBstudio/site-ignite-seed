@@ -6,9 +6,11 @@ import {
   Building2,
   CalendarDays,
   CheckCircle2,
+  CheckSquare,
   Clock3,
   DollarSign,
   Layers3,
+  Radio,
   Settings2,
   LayoutGrid,
   GanttChartSquare,
@@ -51,13 +53,39 @@ const STATUS_META = {
     className: "border-primary/30 bg-primary/10 text-primary",
     emptyMessage: "No projects in progress.",
   },
+  completato: {
+    label: "Completed",
+    icon: CheckSquare,
+    className: "border-violet-400/30 bg-violet-50 text-violet-700",
+    emptyMessage: "No completed projects.",
+  },
   certificato: {
     label: "Certified",
     icon: CheckCircle2,
     className: "border-success/30 bg-success/10 text-success",
     emptyMessage: "No certified projects.",
   },
+  online: {
+    label: "Online",
+    icon: Radio,
+    className: "border-primary/30 bg-primary/10 text-primary",
+    emptyMessage: "No monitoring online.",
+  },
 } as const;
+
+type StatusKey = keyof typeof STATUS_META;
+
+/**
+ * Le schede di un PM sono quelle di Operations meno le quotazioni.
+ *
+ * Un PM non vede "Quotations Approved": quel passaggio e' commerciale e non
+ * gli appartiene. Per il resto l'elenco e' lo stesso, perche' lo stesso
+ * progetto letto in due portali non puo' stare in due caselle diverse.
+ *
+ * "Online" compare solo se ha dentro qualcosa: su un portafoglio di sole
+ * certificazioni sarebbe una scheda sempre vuota.
+ */
+const STATUS_ORDER: StatusKey[] = ["da_configurare", "in_corso", "completato", "certificato", "online"];
 
 const MISSING_META: Record<string, string> = {
   Hardware: "Hardware",
@@ -186,7 +214,9 @@ function PMProjectCard({
           </div>
         )}
 
-        {project.setup_status !== "certificato" && (
+        {/* Su un lavoro arrivato in fondo non c'e' niente da configurare:
+            certificato, consegnato o con i sensori accesi che trasmettono. */}
+        {!["certificato", "completato", "online"].includes(project.setup_status as string) && (
           <Button className="w-full gap-2" onClick={() => onConfigure(project)}>
             <Settings2 className="h-4 w-4" />
             Configure Project
@@ -241,13 +271,24 @@ export function PMProjectsBoard() {
   }, [baseProjects, search, colFilters, sortConfig, resolvers]);
 
 
-  const groupedProjects = useMemo(
-    () => ({
-      da_configurare: visibleProjects.filter((project) => project.setup_status === "da_configurare"),
-      in_corso: visibleProjects.filter((project) => project.setup_status === "in_corso"),
-      certificato: visibleProjects.filter((project) => project.setup_status === "certificato"),
-    }),
-    [visibleProjects],
+  const groupedProjects = useMemo(() => {
+    const byStatus = Object.fromEntries(
+      STATUS_ORDER.map((key) => [key, visibleProjects.filter((p) => (p.setup_status as string) === key)]),
+    ) as Record<StatusKey, PMProjectView[]>;
+    return {
+      ...byStatus,
+      // "All" e' la somma delle schede operative, non tutto cio' che il PM ha
+      // assegnato: le quotazioni e gli annullati restano fuori, come in
+      // Operations. Sommare invece di rifiltrare tiene i conti d'accordo —
+      // se un giorno una scheda cambia regola, il totale la segue da solo.
+      all: STATUS_ORDER.flatMap((key) => byStatus[key]),
+    };
+  }, [visibleProjects]);
+
+  /** Le schede da mostrare: "Online" solo quando ha dentro qualcosa. */
+  const visibleTabs = useMemo(
+    () => STATUS_ORDER.filter((key) => key !== "online" || groupedProjects.online.length > 0),
+    [groupedProjects],
   );
 
   if (isLoading) {
@@ -327,25 +368,29 @@ export function PMProjectsBoard() {
             </div>
 
           </div>
-          <Tabs defaultValue="da_configurare" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-3">
-              {Object.entries(STATUS_META).map(([key, meta]) => {
-                const Icon = meta.icon;
+          <Tabs defaultValue="all" className="space-y-6">
+            <TabsList
+              className="grid w-full"
+              style={{ gridTemplateColumns: `repeat(${visibleTabs.length + 1}, minmax(0, 1fr))` }}
+            >
+              <TabsTrigger value="all">All ({groupedProjects.all.length})</TabsTrigger>
+              {visibleTabs.map((key) => {
+                const Icon = STATUS_META[key].icon;
                 return (
                   <TabsTrigger key={key} value={key} className="gap-2">
                     <Icon className="h-4 w-4" />
-                    {meta.label} ({groupedProjects[key as keyof typeof groupedProjects].length})
+                    {STATUS_META[key].label} ({groupedProjects[key].length})
                   </TabsTrigger>
                 );
               })}
             </TabsList>
 
-            {(Object.keys(STATUS_META) as Array<keyof typeof STATUS_META>).map((key) => (
+            {(["all", ...visibleTabs] as const).map((key) => (
               <TabsContent key={key} value={key} className="space-y-4">
                 {groupedProjects[key].length === 0 ? (
                   <Card>
                     <CardContent className="py-12 text-center text-muted-foreground">
-                      {STATUS_META[key].emptyMessage}
+                      {key === "all" ? "No projects assigned." : STATUS_META[key].emptyMessage}
                     </CardContent>
                   </Card>
                 ) : (

@@ -201,12 +201,35 @@ export function usePMDashboard() {
         }
 
         let setup_status: SetupStatus;
-        if (isCertified) {
+        // Prima di tutto il resto: potenziali, quotazioni e annullati non sono
+        // lavoro operativo e non si configurano. Restano col proprio stato,
+        // come gia' fa il portale Operations, cosi' le schede possono lasciarli
+        // fuori invece di farli comparire fra i progetti da configurare — dove
+        // finivano tutti, non avendo una timeline.
+        if (
+          c.status === "potential" ||
+          c.status === "quotation" ||
+          c.status === "quotation_approved" ||
+          c.status === "canceled"
+        ) {
+          setup_status = c.status as SetupStatus;
+        } else if (isCertified) {
           setup_status = "certificato";
         } else if (isMonitoringOnline({ cert_type: c.cert_type, cert_level: (c as any).cert_level })) {
           // Il capolinea di un Energy o di un Air: i sensori trasmettono.
           setup_status = "online";
-        } else if (hasTimeline && isTimelineConfigured) {
+        } else if (c.status === "completato") {
+          // Lavoro consegnato ma non ancora certificato dall'ente: e' finito per
+          // il PM, e leggerlo "In Progress" gli farebbe cercare qualcosa da
+          // fare che non c'e'. Stesso ordine del portale Operations.
+          setup_status = "completato";
+        } else if (hasTimeline) {
+          // Basta che la scaletta esista, come in Operations. Prima qui si
+          // pretendeva anche che avesse le date, e quattro progetti con la
+          // timeline generata ma non ancora pianificata risultavano "In
+          // Progress" all'admin e "To Configure" al PM che li segue: lo stesso
+          // progetto in due caselle diverse a seconda di chi guarda.
+          // Che le date manchino lo dice gia' `missing`, con "Pianifica Date".
           setup_status = "in_corso";
         } else {
           setup_status = "da_configurare";
