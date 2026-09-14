@@ -67,7 +67,11 @@ Deno functions in `supabase/functions/`. `supabase/config.toml` sets `verify_jwt
 
 The transactional email pipeline is `process-email-queue` → `send-transactional-email` (React Email templates registered in `supabase/functions/_shared/transactional-email-templates/registry.ts`, sent via Resend) with `handle-email-unsubscribe` / `handle-email-suppression` for bounce and opt-out handling, backed by `email_send_log`, `email_send_state`, `suppressed_emails`, `email_unsubscribe_tokens`.
 
-Migrations in `supabase/migrations/` are timestamped and Lovable-generated; there are ~84 of them and they are the real schema reference.
+Migrations in `supabase/migrations/` are timestamped and Lovable-generated; there are ~150 of them and they are the real schema reference.
+
+**Do not run `supabase db push` against this project.** The migration files are a *written record*, not a sequence the CLI has ever applied: of 150 local files only 14 carry a version that appears in the remote `supabase_migrations.schema_migrations`, and 63 applied versions have no local file at all. The two sets diverge in both directions because migrations reach the database through Lovable or the Supabase MCP, which stamp their own version. A `db push` would therefore try to replay ~136 files against a schema that already has them.
+
+When you apply a migration through the MCP, write the same SQL into a file **named with the version the registry actually recorded** (read it back from `supabase_migrations.schema_migrations`), so at least the recent record is truthful. Files dated before 2026-09-08 predate this practice.
 
 ### UI conventions
 `src/index.css` defines the "FGB Design System" as HSL CSS variables (teal `#009193` primary, ivory `#f5f4f0` background) consumed by `tailwind.config.ts`. Use semantic tokens (`bg-background`, `text-muted-foreground`, `bg-inbound`/`bg-outbound`) rather than raw colors.
