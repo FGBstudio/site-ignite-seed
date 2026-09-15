@@ -99,8 +99,11 @@ export function getSectionDisplayName(
   role: AppRole | null
 ): string {
   if (section.id === "projects") {
-    // Admin sees "Services" (ex Operations, v1.1 §1); everyone else "Projects".
-    return role === "ADMIN" ? "SERVICES" : "PROJECTS";
+    // Nel menu principale l'admin continua a vedere OPERATIONS: e' il nome
+    // della sezione-contenitore. "Services" (v1.1 §1) compare solo dentro —
+    // nelle tab e nel breadcrumb — dove convive con Projects e distingue le
+    // due viste. Deciso da Matteo il 15/09.
+    return role === "ADMIN" ? "OPERATIONS" : "PROJECTS";
   }
   return section.name;
 }

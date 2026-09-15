@@ -10,7 +10,7 @@ identificatori vecchi**, e questo file è la mappa.
 | Cosa vede l'utente | Dove | Identificatore interno |
 |---|---|---|
 | **PROJECTS** | Admin · sezione (ex CANTIERI) | route `/portafoglio`, file `PortafoglioCantieri.tsx`, componente `ProjectsAdmin` |
-| **SERVICES** | Admin · sezione (ex OPERATIONS) | route `/projects`, `hubSections.getSectionDisplayName`, `Projects.tsx` |
+| **SERVICES** | Admin · dentro la sezione (tab e breadcrumb); nel menu principale resta OPERATIONS | route `/projects`, `Projects.tsx`, `TopNavbar` |
 | **PROJECT TIMELINE** | PM · configurazione progetto (ex Cronoprogramma) | tabelle `cronoprogrammi` / `cronoprogramma_eventi`, route `/projects/:id/cronoprogramma` |
 | **HQ FGB TIMELINE** | PM · sezione che portava il nome della certificazione | `certification_milestones` (`milestone_type = 'timeline'`) |
 
