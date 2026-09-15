@@ -8,20 +8,19 @@ import type { Famiglia } from "@/lib/projectTimelineTemplates";
 import { PIETRA, tintaServizio, type TintaServizio } from "@/lib/serviceColors";
 
 /**
- * La timeline verticale — v1.1 §9, grammatica dal riferimento visivo approvato.
+ * La timeline verticale — grammatica dal riferimento visivo approvato,
+ * colori dal sistema unico per servizio (v1.2 §1), leggibilita' v1.2 §2.
  *
  * Scala temporale reale sull'asse verticale, fasi come barre e milestone come
- * nodi sulla stessa spina, corsie Project e HQ FGB affiancate con i connettori
- * di ereditarieta' (tratteggio grigio) e di calcolo (tinta del servizio, +Ngg),
- * dell'oggi e linea della scadenza contrattuale con il margine indicato.
+ * nodi sulla stessa spina, corsie affiancate con i connettori di ereditarieta'
+ * (tratteggio grigio) e di calcolo (tinta del servizio, +Ngg), linea dell'oggi
+ * e scadenza contrattuale col margine.
  *
- * Due stati: compatta — colonna stretta e sticky accanto al form, nodi e date
- * abbreviate — ed espansa, overlay a schermo intero con zoom e date complete.
- *
- * I colori vengono dal sistema unico per servizio (v1.2 §1): la corsia della
- * certificazione porta la tinta del suo servizio, la project timeline resta
- * nella scala di pietra, l'ambra e' solo avviso. Il teal FGB marca i passi
- * decisi dal PM — il marchio che dice "questo lo scrivi tu".
+ * Tre formati, una componente (v1.3 §4: mai due implementazioni):
+ *  - compatta: pannello sticky accanto al form, il click apre l'overlay;
+ *  - pannello: la stessa scena inline, per il wizard di import;
+ *  - overlay: tutta la viewport, zoom +/−/Adatta, con le corsie di TUTTE le
+ *    certificazioni del sito affiancate quando gliele si passa.
  */
 
 export interface VoceTimeline {
@@ -41,8 +40,17 @@ export interface VoceTimeline {
   offsetGiorni?: number | null;
   violazione?: { messaggio: string } | null;
   cliccabile?: boolean;
-  /** Fonte o nota breve, mostrata sotto la data nell'espansa. */
+  /** Fonte o nota breve, sotto la data. */
   nota?: string | null;
+  /** Esclusa ma non sparita: si disegna smorzata, in traccia (wizard, passo 2). */
+  traccia?: boolean;
+}
+
+export interface CorsiaCert {
+  id: string;
+  titolo: string;
+  servizio: string | null;
+  voci: VoceTimeline[];
 }
 
 interface Props {
@@ -50,18 +58,19 @@ interface Props {
   oggi?: string;
   scadenzaContratto?: string | null;
   focus?: string | null;
+  /** Chiavi da accendere oltre al focus: l'evidenziazione bidirezionale (v1.3 §5). */
+  evidenziate?: string[];
   onVoceClick?: (key: string) => void;
   titoloProject?: string;
   titoloCert?: string;
-  /** Il servizio della corsia destra: da qui la sua tinta (v1.2 §1). */
   servizio?: string | null;
-  /** Colonna stretta accanto al form. Il click apre l'overlay espanso. */
+  /** Le corsie delle altre certificazioni del sito, mostrate nell'overlay. */
+  altreCorsie?: CorsiaCert[];
   compatta?: boolean;
 }
 
-// v1.2 §1: la project timeline e' neutra — scala di pietra, mai tinte di
-// servizio. L'informazione della famiglia la porta l'etichetta, non il colore
-// (regola 5); l'ambra resta solo per gli avvisi.
+// v1.2 §1: la project timeline e' neutra — scala di pietra; l'informazione
+// della famiglia la porta l'etichetta (regola 5); l'ambra e' solo avviso.
 const FAM: Record<Famiglia, string> = {
   design: PIETRA.design,
   permitting: "#DBD7C8",
@@ -72,6 +81,8 @@ const TEAL = "#009193";
 const GRIGIO = "#9C998E";
 const AMBRA = "#D97706";
 const ROSSO = "#C2453A";
+
+const LARGH_CORSIA = 250;
 
 function g(a: string, b: string) {
   return Math.round((parseISO(b).getTime() - parseISO(a).getTime()) / 86400000);
@@ -86,10 +97,10 @@ export function TimelineVerticale(props: Props) {
           type="button"
           onClick={() => setEspansa(true)}
           className="block w-full cursor-zoom-in rounded-xl text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
-          aria-label="Espandi la timeline"
-          title="Espandi: zoom e date complete"
+          aria-label="Espandi la timeline a tutta la finestra"
+          title="Espandi: zoom, date complete, tutte le corsie del sito"
         >
-          <Disegno {...props} pxGiorno={0.55} compatta />
+          <Disegno {...props} pxGiorno={1.0} pannello />
         </button>
         {espansa && <Overlay {...props} onClose={() => setEspansa(false)} />}
       </>
@@ -98,12 +109,28 @@ export function TimelineVerticale(props: Props) {
   return <Disegno {...props} pxGiorno={1.1} />;
 }
 
-/** L'overlay espanso: zoom con bottoni e rotellina, chiusura esplicita. */
+/** L'overlay: tutta la viewport, zoom +/−/Adatta, chiusura esplicita (v1.3 §4). */
 function Overlay(props: Props & { onClose: () => void }) {
   const [zoom, setZoom] = useState(1);
+  const areaRef = useRef<HTMLDivElement>(null);
+
+  const spanGiorni = useMemo(() => {
+    const date = [...props.voci, ...(props.altreCorsie ?? []).flatMap((c) => c.voci)]
+      .flatMap((v) => [v.inizio, v.fine])
+      .filter(Boolean) as string[];
+    if (date.length < 2) return 365;
+    date.sort();
+    return Math.max(60, g(date[0], date[date.length - 1]));
+  }, [props.voci, props.altreCorsie]);
+
+  const adatta = () => {
+    const h = (areaRef.current?.clientHeight ?? 700) - 90;
+    setZoom(Math.min(3, Math.max(0.25, h / (spanGiorni * 1.4))));
+  };
+
   return (
     <div
-      className="fixed inset-0 z-50 flex flex-col bg-background/95 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex flex-col bg-background"
       role="dialog"
       aria-modal="true"
       aria-label="Timeline espansa"
@@ -112,47 +139,35 @@ function Overlay(props: Props & { onClose: () => void }) {
       <div className="flex items-center justify-between border-b bg-card px-4 py-2.5">
         <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
           {props.titoloProject ?? "Project timeline"} × {props.titoloCert ?? "HQ FGB timeline"}
+          {(props.altreCorsie?.length ?? 0) > 0 && ` + ${props.altreCorsie!.length} corsie del sito`}
         </p>
         <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => setZoom((z) => Math.max(0.4, z - 0.25))}
-            className="rounded-md border p-1.5 hover:bg-muted"
-            aria-label="Riduci"
-          >
+          <button type="button" onClick={() => setZoom((z) => Math.max(0.25, z - 0.25))} className="rounded-md border p-1.5 hover:bg-muted" aria-label="Riduci">
             <Minus className="h-3.5 w-3.5" />
           </button>
-          <span className="w-12 text-center text-xs tabular-nums text-muted-foreground">
-            {Math.round(zoom * 100)}%
-          </span>
-          <button
-            type="button"
-            onClick={() => setZoom((z) => Math.min(3, z + 0.25))}
-            className="rounded-md border p-1.5 hover:bg-muted"
-            aria-label="Ingrandisci"
-          >
+          <span className="w-12 text-center text-xs tabular-nums text-muted-foreground">{Math.round(zoom * 100)}%</span>
+          <button type="button" onClick={() => setZoom((z) => Math.min(3, z + 0.25))} className="rounded-md border p-1.5 hover:bg-muted" aria-label="Ingrandisci">
             <Plus className="h-3.5 w-3.5" />
           </button>
-          <button
-            type="button"
-            onClick={props.onClose}
-            className="ml-2 rounded-md border p-1.5 hover:bg-muted"
-            aria-label="Chiudi"
-          >
+          <button type="button" onClick={adatta} className="rounded-md border px-2 py-1.5 text-xs hover:bg-muted">
+            Adatta
+          </button>
+          <button type="button" onClick={props.onClose} className="ml-2 rounded-md border p-1.5 hover:bg-muted" aria-label="Chiudi">
             <X className="h-3.5 w-3.5" />
           </button>
         </div>
       </div>
       <div
+        ref={areaRef}
         className="flex-1 overflow-auto p-4"
         onWheel={(e) => {
           if (!e.ctrlKey) return;
           e.preventDefault();
-          setZoom((z) => Math.min(3, Math.max(0.4, z - Math.sign(e.deltaY) * 0.15)));
+          setZoom((z) => Math.min(3, Math.max(0.25, z - Math.sign(e.deltaY) * 0.15)));
         }}
       >
-        <div className="mx-auto max-w-4xl">
-          <Disegno {...props} pxGiorno={1.4 * zoom} />
+        <div className="mx-auto" style={{ maxWidth: 940 + (props.altreCorsie?.length ?? 0) * LARGH_CORSIA }}>
+          <Disegno {...props} pxGiorno={1.4 * zoom} multiCorsie />
           <Legenda servizio={props.servizio ?? props.titoloCert} />
         </div>
       </div>
@@ -166,30 +181,42 @@ function Disegno({
   oggi,
   scadenzaContratto,
   focus,
+  evidenziate,
   onVoceClick,
   titoloProject = "Project timeline",
   titoloCert = "HQ FGB timeline",
+  altreCorsie,
   pxGiorno,
-  compatta = false,
-}: Props & { pxGiorno: number; compatta?: boolean }) {
-  const conData = voci.filter((v) => v.inizio);
-  const senzaData = voci.filter((v) => !v.inizio);
+  pannello = false,
+  multiCorsie = false,
+}: Props & { pxGiorno: number; pannello?: boolean; multiCorsie?: boolean }) {
   const oggiISO = oggi ?? format(new Date(), "yyyy-MM-dd");
 
-  // La tinta della corsia servizio, dal sistema colore unico (v1.2 §1).
-  const tinta: TintaServizio = tintaServizio(servizio ?? titoloCert);
-  const ACCENTO = tinta.strong;
-  const ACCENTO_CHIARO = tinta.mid;
+  // Le corsie: la propria sempre; le altre del sito solo nell'overlay.
+  const corsie: CorsiaCert[] = useMemo(() => {
+    const mia: CorsiaCert = {
+      id: "mia",
+      titolo: titoloCert,
+      servizio: servizio ?? titoloCert,
+      voci: voci.filter((v) => v.corsia === "cert"),
+    };
+    return multiCorsie && altreCorsie?.length ? [mia, ...altreCorsie] : [mia];
+  }, [voci, altreCorsie, multiCorsie, servizio, titoloCert]);
+
+  const vociProject = voci.filter((v) => v.corsia === "project");
+  const tutte = [...vociProject, ...corsie.flatMap((c) => c.voci)];
+  const conData = tutte.filter((v) => v.inizio);
+  const senzaData = voci.filter((v) => !v.inizio && !v.traccia);
 
   const dominio = useMemo(() => {
     if (conData.length === 0) return null;
-    const tutte = conData
+    const date = conData
       .flatMap((v) => [v.inizio!, v.fine ?? v.inizio!])
       .concat(scadenzaContratto ? [scadenzaContratto] : [])
       .concat([oggiISO])
       .sort();
-    const min = tutte[0];
-    const max = tutte[tutte.length - 1];
+    const min = date[0];
+    const max = date[date.length - 1];
     const span = Math.max(30, g(min, max));
     return { min, max, span, pad: Math.round(span * 0.05) };
   }, [conData, scadenzaContratto, oggiISO]);
@@ -197,297 +224,209 @@ function Disegno({
   if (!dominio) {
     return (
       <div className="rounded-xl border border-dashed bg-muted/20 p-6 text-center">
-        <p className="text-xs text-muted-foreground">
-          La timeline compare qui man mano che inserisci le date.
-        </p>
+        <p className="text-xs text-muted-foreground">La timeline compare qui man mano che inserisci le date.</p>
       </div>
     );
   }
 
   const H = Math.round((dominio.span + dominio.pad * 2) * pxGiorno);
-  const W = compatta ? 190 : 900;
-  const xProject = compatta ? 60 : 330;
-  const xCert = compatta ? 130 : 570;
+  const xProject = 330;
+  const xCorsia = (i: number) => 570 + i * LARGH_CORSIA;
+  const W = xCorsia(corsie.length - 1) + 330;
   const y = (d: string) => Math.round((g(dominio.min, d) + dominio.pad) * pxGiorno) + 26;
-
-  const mesi = mesiTra(dominio.min, dominio.max, compatta ? 6 : 14);
-  const handover = conData.find((v) => v.isHandover && v.corsia === "project");
   const yOggi = y(oggiISO);
+  const mesi = mesiTra(dominio.min, dominio.max, 14);
+  const handover = conData.find((v) => v.isHandover && v.corsia === "project");
+  const acceso = (k: string) => focus === k || (evidenziate?.includes(k) ?? false);
 
   return (
-    <div className={cn("rounded-xl border bg-card", compatta ? "p-2" : "p-4")}>
-      {!compatta && (
-        <div className="mb-1 flex justify-between px-2 text-xs font-semibold">
-          <span className="text-muted-foreground" style={{ marginLeft: xProject - 120 }}>
-            {titoloProject}
-          </span>
-          <span style={{ color: ACCENTO, marginRight: W - xCert - 220 }}>{titoloCert}</span>
-        </div>
-      )}
+    <div className={cn("rounded-xl border bg-card", pannello ? "p-2.5" : "p-4")}>
       <svg
         viewBox={`0 0 ${W} ${H + 52}`}
         className="block h-auto w-full"
         role="img"
-        aria-label={`Timeline: ${titoloProject} e ${titoloCert}`}
+        aria-label={`Timeline: ${titoloProject} e ${corsie.map((c) => c.titolo).join(", ")}`}
       >
-        {/* La scala dei mesi: righe orizzontali, come nel riferimento. */}
+        {/* Titoli delle corsie. */}
+        <text x={xProject} y={14} textAnchor="middle" fontSize={12} fontWeight={600} fill={PIETRA.inchiostro}>
+          {titoloProject}
+        </text>
+        {corsie.map((c, i) => (
+          <text key={c.id} x={xCorsia(i)} y={14} textAnchor="middle" fontSize={12} fontWeight={600} fill={tintaServizio(c.servizio).strong}>
+            {c.titolo.length > 30 ? `${c.titolo.slice(0, 29)}…` : c.titolo}
+          </text>
+        ))}
+
+        {/* La scala dei mesi. */}
         {mesi.map((m) => (
           <g key={m}>
-            <line
-              x1={compatta ? 26 : 78}
-              y1={y(m)}
-              x2={W - 8}
-              y2={y(m)}
-              stroke="hsl(var(--border))"
-              strokeWidth={0.6}
-            />
-            <text
-              x={compatta ? 24 : 70}
-              y={y(m) + 3.5}
-              textAnchor="end"
-              fontSize={compatta ? 8 : 11}
-              fill="hsl(var(--muted-foreground))"
-            >
-              {format(parseISO(m), compatta ? "LLL" : "LLL yy", { locale: it })}
+            <line x1={78} y1={y(m)} x2={W - 8} y2={y(m)} stroke="hsl(var(--border))" strokeWidth={0.6} />
+            <text x={70} y={y(m) + 3.5} textAnchor="end" fontSize={10.5} fill="hsl(var(--muted-foreground))">
+              {format(parseISO(m), "LLL yy", { locale: it })}
             </text>
           </g>
         ))}
 
-        {/* Le due spine. */}
-        <line x1={xProject} y1={16} x2={xProject} y2={H + 30} stroke="hsl(var(--border))" strokeWidth={1.5} />
-        <line x1={xCert} y1={16} x2={xCert} y2={H + 30} stroke={ACCENTO_CHIARO} strokeWidth={1.5} opacity={0.7} />
+        {/* Le spine. */}
+        <line x1={xProject} y1={20} x2={xProject} y2={H + 30} stroke="hsl(var(--border))" strokeWidth={1.5} />
+        {corsie.map((c, i) => (
+          <line key={c.id} x1={xCorsia(i)} y1={20} x2={xCorsia(i)} y2={H + 30} stroke={tintaServizio(c.servizio).mid} strokeWidth={1.5} opacity={0.55} />
+        ))}
 
-        {/* Connettori: prima dei nodi, cosi' restano sotto. */}
-        {!compatta &&
-          conData
-            .filter((v) => v.corsia === "cert" && v.natura === "ereditato")
-            .map((v) => (
-              <path
-                key={`c-${v.key}`}
-                d={`M ${xProject + 8} ${y(v.inizio!)} C ${xProject + 90} ${y(v.inizio!)}, ${xCert - 90} ${y(v.inizio!)}, ${xCert - 8} ${y(v.inizio!)}`}
-                stroke={GRIGIO}
-                strokeWidth={1.1}
-                strokeDasharray="4 3"
-                fill="none"
-              />
-            ))}
-        {!compatta &&
-          handover &&
-          conData
-            .filter((v) => v.corsia === "cert" && v.natura === "calcolato" && v.offsetGiorni != null)
-            .map((v) => (
-              <g key={`k-${v.key}`}>
-                <path
-                  d={`M ${xProject + 9} ${y(handover.inizio!) + 3} C ${xProject + 120} ${(y(handover.inizio!) + y(v.inizio!)) / 2}, ${xCert - 120} ${y(v.inizio!)}, ${xCert - 8} ${y(v.inizio!)}`}
-                  stroke={ACCENTO}
-                  strokeWidth={1.2}
-                  fill="none"
-                  opacity={0.75}
-                />
-              </g>
-            ))}
+        {/* Connettori, sotto i nodi. */}
+        {corsie.map((c, i) => {
+          const xc = xCorsia(i);
+          const tinta = tintaServizio(c.servizio);
+          return (
+            <g key={`conn-${c.id}`}>
+              {c.voci
+                .filter((v) => v.inizio && v.natura === "ereditato")
+                .map((v) => (
+                  <path
+                    key={`e-${v.key}`}
+                    d={`M ${xProject + 8} ${y(v.inizio!)} C ${xProject + 90} ${y(v.inizio!)}, ${xc - 90} ${y(v.inizio!)}, ${xc - 8} ${y(v.inizio!)}`}
+                    stroke={GRIGIO}
+                    strokeWidth={acceso(v.key) ? 2 : 1.1}
+                    strokeDasharray="4 3"
+                    fill="none"
+                    opacity={acceso(v.key) ? 1 : 0.8}
+                  />
+                ))}
+              {handover &&
+                c.voci
+                  .filter((v) => v.inizio && v.natura === "calcolato" && v.offsetGiorni != null)
+                  .map((v) => (
+                    <path
+                      key={`k-${v.key}`}
+                      d={`M ${xProject + 9} ${y(handover.inizio!) + 3} C ${xProject + 120} ${(y(handover.inizio!) + y(v.inizio!)) / 2}, ${xc - 120} ${y(v.inizio!)}, ${xc - 8} ${y(v.inizio!)}`}
+                      stroke={tinta.strong}
+                      strokeWidth={acceso(v.key) ? 2.2 : 1.2}
+                      fill="none"
+                      opacity={acceso(v.key) ? 1 : 0.6}
+                    />
+                  ))}
+            </g>
+          );
+        })}
 
-        {/* Corsia project: fasi come barre, milestone come nodi. */}
-        {conData
-          .filter((v) => v.corsia === "project")
+        {/* Corsia project: fasi come barre, ancore come nodi. */}
+        {vociProject
+          .filter((v) => v.inizio)
           .map((v) => {
             const y1 = y(v.inizio!);
-            const attivo = focus === v.key;
+            const attivo = acceso(v.key);
             if (v.tipo === "fase" && v.fine) {
               const y2 = Math.max(y1 + 8, y(v.fine));
-              const colore = v.famiglia ? FAM[v.famiglia] : FAM.construction;
               return (
-                <g key={v.key} className="motion-safe:transition-all motion-safe:duration-200">
+                <g key={v.key} opacity={v.traccia ? 0.35 : 1} className="motion-safe:transition-opacity motion-safe:duration-200">
                   <rect
                     x={xProject - 8}
                     y={y1}
                     width={16}
                     height={y2 - y1}
                     rx={8}
-                    fill={colore}
-                    opacity={v.famiglia === "permitting" ? 0.85 : 1}
+                    fill={v.famiglia ? FAM[v.famiglia] : FAM.construction}
                     stroke={attivo ? TEAL : "none"}
                     strokeWidth={attivo ? 2 : 0}
+                    strokeDasharray={v.traccia ? "4 3" : undefined}
                   />
-                  <Etichetta
-                    x={xProject - (compatta ? 12 : 22)}
-                    y={(y1 + y2) / 2}
-                    lato="sx"
-                    testo={v.label}
-                    data={compatta ? null : `${fmt(v.inizio!)} → ${fmt(v.fine)}`}
-                    compatta={compatta}
-                    attivo={attivo}
-                  />
+                  <Etichetta x={xProject - 22} y={(y1 + y2) / 2} lato="sx" testo={v.label} data={`${fmt(v.inizio!)} → ${fmt(v.fine)}`} attivo={attivo} traccia={v.traccia} />
                 </g>
               );
             }
-            // Milestone di project: ancora.
-            const daConf = v.daConfermare;
             return (
-              <g
-                key={v.key}
-                className={cn(onVoceClick && v.cliccabile && "cursor-pointer")}
-                onClick={() => v.cliccabile && onVoceClick?.(v.key)}
-              >
+              <g key={v.key} opacity={v.traccia ? 0.35 : 1} className={cn(onVoceClick && v.cliccabile && "cursor-pointer")} onClick={() => v.cliccabile && onVoceClick?.(v.key)}>
                 {v.isHandover ? (
                   <>
-                    <circle cx={xProject} cy={y1} r={compatta ? 6 : 9} fill="#5F5E5A" />
-                    <circle cx={xProject} cy={y1} r={compatta ? 9.5 : 13.5} fill="none" stroke="#5F5E5A" strokeWidth={1.2} opacity={0.4} />
+                    <circle cx={xProject} cy={y1} r={9} fill={PIETRA.inchiostro} />
+                    <circle cx={xProject} cy={y1} r={13.5} fill="none" stroke={PIETRA.inchiostro} strokeWidth={1.2} opacity={0.4} />
                   </>
                 ) : (
                   <circle
                     cx={xProject}
                     cy={y1}
-                    r={compatta ? 4.5 : 7}
-                    fill={v.fatta ? "#5F5E5A" : "hsl(var(--card))"}
-                    stroke={daConf ? AMBRA : "#5F5E5A"}
+                    r={7}
+                    fill={v.fatta ? PIETRA.inchiostro : "hsl(var(--card))"}
+                    stroke={v.daConfermare ? AMBRA : PIETRA.inchiostro}
                     strokeWidth={2}
-                    strokeDasharray={daConf ? "3 2" : undefined}
+                    strokeDasharray={v.daConfermare || v.traccia ? "3 2" : undefined}
                   />
                 )}
+                {attivo && <circle cx={xProject} cy={y1} r={12} fill="none" stroke={TEAL} strokeWidth={1.5} opacity={0.6} />}
                 <Etichetta
-                  x={xProject - (compatta ? 10 : 22)}
+                  x={xProject - 22}
                   y={y1}
                   lato="sx"
                   testo={v.label}
-                  data={compatta ? fmtBreve(v.inizio!) : `${fmt(v.inizio!)}${v.nota ? ` · ${v.nota}` : ""}`}
-                  compatta={compatta}
-                  attivo={focus === v.key}
+                  data={`${fmt(v.inizio!)}${v.nota ? ` · ${v.nota}` : ""}`}
+                  attivo={attivo}
                   forte={v.isHandover}
-                  ambra={daConf}
+                  ambra={v.daConfermare}
+                  traccia={v.traccia}
                 />
               </g>
             );
           })}
 
-        {/* Corsia certificazione: la semantica dei nodi dalla legenda. */}
-        {conData
-          .filter((v) => v.corsia === "cert")
-          .map((v) => {
-            const y1 = y(v.inizio!);
-            const attivo = focus === v.key;
-            const viol = !!v.violazione;
-            let nodo: React.ReactNode;
-            if (v.fatta) {
-              nodo = (
-                <>
-                  <circle cx={xCert} cy={y1} r={compatta ? 5 : 7} fill={viol ? AMBRA : ACCENTO} />
-                  <path
-                    d={`M ${xCert - 3.2} ${y1} l 2.2 2.4 l 4 -4.6`}
-                    stroke="#FFF"
-                    strokeWidth={1.6}
-                    fill="none"
-                    strokeLinecap="round"
-                  />
-                </>
-              );
-            } else if (v.natura === "ereditato") {
-              nodo = (
-                <circle cx={xCert} cy={y1} r={compatta ? 4 : 5.5} fill="hsl(var(--muted))" stroke={GRIGIO} strokeWidth={1.6} />
-              );
-            } else if (v.natura === "calcolato" || v.natura === "serie") {
-              nodo = (
-                <circle
-                  cx={xCert}
-                  cy={y1}
-                  r={compatta ? 4.5 : 6.5}
-                  fill={ACCENTO_CHIARO}
-                  fillOpacity={0.35}
-                  stroke={viol ? AMBRA : ACCENTO}
-                  strokeWidth={1.6}
-                  strokeDasharray="3 2"
-                />
-              );
-            } else if (v.isHandover) {
-              nodo = (
-                <>
-                  <circle cx={xCert} cy={y1} r={compatta ? 6 : 9} fill={ACCENTO} />
-                  <circle cx={xCert} cy={y1} r={compatta ? 9.5 : 13.5} fill="none" stroke={ACCENTO} strokeWidth={1.2} opacity={0.4} />
-                </>
-              );
-            } else {
-              // Del PM: bianco con anello teal — questo lo scrivi tu.
-              nodo = (
-                <circle
-                  cx={xCert}
-                  cy={y1}
-                  r={compatta ? 4.5 : 7}
-                  fill="hsl(var(--card))"
-                  stroke={viol ? AMBRA : TEAL}
-                  strokeWidth={2}
-                />
-              );
-            }
-            return (
-              <g
-                key={v.key}
-                className={cn(onVoceClick && v.cliccabile && "cursor-pointer")}
-                onClick={() => v.cliccabile && onVoceClick?.(v.key)}
-              >
-                {nodo}
-                {attivo && (
-                  <circle cx={xCert} cy={y1} r={compatta ? 8 : 11} fill="none" stroke={TEAL} strokeWidth={1.5} opacity={0.6} />
-                )}
-                <Etichetta
-                  x={xCert + (compatta ? 9 : 18)}
-                  y={y1}
-                  lato="dx"
-                  testo={v.label}
-                  data={
-                    compatta
-                      ? v.natura === "pm" || v.isHandover
-                        ? fmtBreve(v.inizio!)
-                        : null
-                      : `${fmt(v.inizio!)}${
-                          v.offsetGiorni != null ? ` · +${v.offsetGiorni}gg da handover` : v.nota ? ` · ${v.nota}` : ""
-                        }`
-                  }
-                  compatta={compatta}
-                  attivo={attivo}
-                  forte={v.isHandover || v.natura === "pm"}
-                  accentoData={v.natura === "calcolato" || v.isHandover ? ACCENTO : undefined}
-                  ambra={viol}
-                />
-              </g>
-            );
-          })}
+        {/* Le corsie delle certificazioni: la semantica dei nodi dalla legenda. */}
+        {corsie.map((c, i) => {
+          const xc = xCorsia(i);
+          const tinta = tintaServizio(c.servizio);
+          const maxLabel = corsie.length > 1 && i < corsie.length - 1 ? 20 : 30;
+          return (
+            <g key={c.id}>
+              {c.voci
+                .filter((v) => v.inizio)
+                .map((v) => {
+                  const y1 = y(v.inizio!);
+                  const attivo = acceso(v.key);
+                  const viol = !!v.violazione;
+                  return (
+                    <g key={v.key} opacity={v.traccia ? 0.3 : 1} className={cn(onVoceClick && v.cliccabile && "cursor-pointer")} onClick={() => v.cliccabile && onVoceClick?.(v.key)}>
+                      <NodoCert v={v} x={xc} y={y1} tinta={tinta} viol={viol} />
+                      {attivo && <circle cx={xc} cy={y1} r={11} fill="none" stroke={TEAL} strokeWidth={1.5} opacity={0.6} />}
+                      <Etichetta
+                        x={xc + 18}
+                        y={y1}
+                        lato="dx"
+                        testo={v.label}
+                        maxChars={maxLabel}
+                        data={`${fmt(v.inizio!)}${v.offsetGiorni != null ? ` · +${v.offsetGiorni}gg da handover` : v.nota ? ` · ${v.nota}` : ""}`}
+                        attivo={attivo}
+                        forte={v.isHandover || v.natura === "pm"}
+                        colore={v.natura === "calcolato" || v.isHandover ? tinta.strong : undefined}
+                        ambra={viol}
+                        traccia={v.traccia}
+                      />
+                    </g>
+                  );
+                })}
+            </g>
+          );
+        })}
 
         {/* La linea dell'oggi. */}
-        <line x1={compatta ? 26 : 78} y1={yOggi} x2={W - 8} y2={yOggi} stroke={ROSSO} strokeWidth={1} strokeDasharray="5 4" />
-        {!compatta && (
-          <>
-            <rect x={W - 118} y={yOggi - 9} width={110} height={18} rx={9} fill={ROSSO} fillOpacity={0.1} />
-            <text x={W - 63} y={yOggi + 3.5} textAnchor="middle" fontSize={11} fontWeight={500} fill={ROSSO}>
-              oggi · {fmtBreve(oggiISO)}
-            </text>
-          </>
-        )}
+        <line x1={78} y1={yOggi} x2={W - 8} y2={yOggi} stroke={ROSSO} strokeWidth={1} strokeDasharray="5 4" />
+        <rect x={W - 118} y={yOggi - 9} width={110} height={18} rx={9} fill={ROSSO} fillOpacity={0.1} />
+        <text x={W - 63} y={yOggi + 3.5} textAnchor="middle" fontSize={10.5} fontWeight={500} fill={ROSSO}>
+          oggi · {fmtBreve(oggiISO)}
+        </text>
 
         {/* La scadenza contrattuale, con il margine. */}
         {scadenzaContratto && (
           <>
-            <line
-              x1={compatta ? 26 : 78}
-              y1={y(scadenzaContratto)}
-              x2={W - 8}
-              y2={y(scadenzaContratto)}
-              stroke={ROSSO}
-              strokeWidth={1.2}
-              strokeDasharray="2 3"
-            />
-            {!compatta && (
-              <text x={W - 8} y={y(scadenzaContratto) + 14} textAnchor="end" fontSize={11} fontWeight={500} fill={ROSSO}>
-                scadenza contratto · {fmt(scadenzaContratto)}
-                {margine(conData, scadenzaContratto)}
-              </text>
-            )}
+            <line x1={78} y1={y(scadenzaContratto)} x2={W - 8} y2={y(scadenzaContratto)} stroke={ROSSO} strokeWidth={1.2} strokeDasharray="2 3" />
+            <text x={W - 8} y={y(scadenzaContratto) + 14} textAnchor="end" fontSize={10.5} fontWeight={500} fill={ROSSO}>
+              scadenza contratto · {fmt(scadenzaContratto)}
+              {margine(tutte, scadenzaContratto)}
+            </text>
           </>
         )}
       </svg>
 
-      {senzaData.length > 0 && !compatta && (
+      {senzaData.length > 0 && !pannello && (
         <div className="mt-3 border-t pt-3">
-          <p className="mb-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+          <p className="mb-1.5 text-[10.5px] uppercase tracking-wider text-muted-foreground">
             Ancora senza data · {senzaData.length}
           </p>
           <div className="flex flex-wrap gap-1.5">
@@ -512,52 +451,75 @@ function Disegno({
   );
 }
 
+function NodoCert({ v, x, y, tinta, viol }: { v: VoceTimeline; x: number; y: number; tinta: TintaServizio; viol: boolean }) {
+  if (v.fatta) {
+    return (
+      <>
+        <circle cx={x} cy={y} r={7} fill={viol ? AMBRA : tinta.strong} />
+        <path d={`M ${x - 3.2} ${y} l 2.2 2.4 l 4 -4.6`} stroke="#FFF" strokeWidth={1.6} fill="none" strokeLinecap="round" />
+      </>
+    );
+  }
+  if (v.natura === "ereditato")
+    return <circle cx={x} cy={y} r={5.5} fill="hsl(var(--muted))" stroke={GRIGIO} strokeWidth={1.6} />;
+  if (v.natura === "calcolato" || v.natura === "serie")
+    return <circle cx={x} cy={y} r={6.5} fill={tinta.bg} stroke={viol ? AMBRA : tinta.strong} strokeWidth={1.6} strokeDasharray="3 2" />;
+  if (v.isHandover)
+    return (
+      <>
+        <circle cx={x} cy={y} r={9} fill={tinta.strong} />
+        <circle cx={x} cy={y} r={13.5} fill="none" stroke={tinta.strong} strokeWidth={1.2} opacity={0.4} />
+      </>
+    );
+  // Del PM: bianco con anello teal — questo lo scrivi tu.
+  return <circle cx={x} cy={y} r={7} fill="hsl(var(--card))" stroke={viol ? AMBRA : TEAL} strokeWidth={2} />;
+}
+
 function Etichetta({
   x,
   y,
   lato,
   testo,
   data,
-  compatta,
   attivo,
   forte,
-  accentoData,
+  colore,
   ambra,
+  traccia,
+  maxChars = 30,
 }: {
   x: number;
   y: number;
   lato: "sx" | "dx";
   testo: string;
   data: string | null;
-  compatta: boolean;
   attivo?: boolean;
   forte?: boolean;
+  colore?: string;
   ambra?: boolean;
-  accentoData?: string;
+  traccia?: boolean;
+  maxChars?: number;
 }) {
   const anchor = lato === "sx" ? "end" : "start";
-  const max = compatta ? 14 : 30;
-  const t = testo.length > max ? `${testo.slice(0, max - 1)}…` : testo;
+  const t = testo.length > maxChars ? `${testo.slice(0, maxChars - 1)}…` : testo;
   return (
     <>
+      {/* v1.2 §2: mai sotto le soglie; l'ellissi solo col testo completo nel tooltip. */}
+      <title>{`${testo}${data ? ` · ${data}` : ""}`}</title>
       <text
         x={x}
         y={data ? y - 1.5 : y + 3.5}
         textAnchor={anchor}
-        fontSize={compatta ? 8.5 : 12.5}
+        fontSize={12}
         fontWeight={forte || attivo ? 600 : 500}
         fill={attivo ? TEAL : "hsl(var(--foreground))"}
+        textDecoration={traccia ? "line-through" : undefined}
+        opacity={traccia ? 0.7 : 1}
       >
         {t}
       </text>
       {data && (
-        <text
-          x={x}
-          y={y + (compatta ? 8.5 : 11)}
-          textAnchor={anchor}
-          fontSize={compatta ? 7.5 : 10.5}
-          fill={ambra ? AMBRA : accentoData ?? "hsl(var(--muted-foreground))"}
-        >
+        <text x={x} y={y + 11} textAnchor={anchor} fontSize={10.5} fill={ambra ? AMBRA : colore ?? "hsl(var(--muted-foreground))"}>
           {data}
         </text>
       )}
@@ -567,7 +529,6 @@ function Etichetta({
 
 export function Legenda({ servizio }: { servizio?: string | null }) {
   const tinta = tintaServizio(servizio);
-  const ACCENTO = tinta.strong;
   const voce = (colore: React.CSSProperties, label: string) => (
     <span className="inline-flex items-center gap-1.5">
       <i className="inline-block h-2.5 w-2.5 rounded-full border" style={colore} /> {label}
@@ -578,9 +539,9 @@ export function Legenda({ servizio }: { servizio?: string | null }) {
       {voce({ background: FAM.design, borderColor: FAM.design }, "fase design")}
       {voce({ background: FAM.permitting, borderColor: FAM.permitting }, "fase permitting")}
       {voce({ background: FAM.construction, borderColor: FAM.construction }, "fase construction")}
-      {voce({ background: ACCENTO, borderColor: ACCENTO }, "milestone fatta")}
+      {voce({ background: tinta.strong, borderColor: tinta.strong }, "milestone fatta")}
       {voce({ background: "transparent", borderColor: TEAL, borderWidth: 2 }, "del PM")}
-      {voce({ background: tinta.mid, borderColor: ACCENTO, borderStyle: "dashed" }, "calcolata da handover")}
+      {voce({ background: tinta.bg, borderColor: tinta.strong, borderStyle: "dashed" }, "calcolata da handover")}
       {voce({ background: "transparent", borderColor: GRIGIO }, "ereditata")}
       {voce({ background: "transparent", borderColor: AMBRA, borderStyle: "dashed" }, "da confermare")}
     </div>
@@ -596,7 +557,7 @@ function fmtBreve(d: string) {
 
 function margine(voci: VoceTimeline[], scadenza: string): string {
   const ultime = voci
-    .filter((v) => v.corsia === "cert" && v.inizio)
+    .filter((v) => v.corsia === "cert" && v.inizio && !v.traccia)
     .map((v) => v.inizio!)
     .sort();
   if (ultime.length === 0) return "";

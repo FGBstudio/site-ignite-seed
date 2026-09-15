@@ -369,6 +369,101 @@ export function useSerieAnteprima(certId: string | undefined, nuovoHandover?: st
   });
 }
 
+/**
+ * I vincoli di precedenza dichiarati sulla scaletta (v1.3 §5): servono alla
+ * colonna «Ancorato a» per dire al PM «prima di: Lancio gara» anche quando il
+ * vincolo non e' (ancora) violato.
+ */
+export interface VincoloDichiarato {
+  order_index: number;
+  operatore: "prima_di" | "dopo_di";
+  ancora: string;
+  messaggio: string | null;
+}
+
+export function useVincoliDichiarati(certId: string | undefined) {
+  return useQuery({
+    queryKey: ["crono", "vincoli-dichiarati", certId],
+    enabled: !!certId,
+    queryFn: async () => {
+      const { data: key, error: e1 } = await (supabase as any).rpc("fn_timeline_key_for_cert", {
+        p_certification_id: certId,
+      });
+      if (e1) throw e1;
+      if (!key) return [] as VincoloDichiarato[];
+      const { data, error } = await (supabase as any)
+        .from("cert_step_constraints")
+        .select("order_index, operatore, ancora, messaggio")
+        .eq("timeline_key", key);
+      if (error) throw error;
+      return (data ?? []) as VincoloDichiarato[];
+    },
+  });
+}
+
+/**
+ * Cambia l'ancora o l'offset di un passo calcolato — v1.3 §5.
+ *
+ * Il motore legge anchor_order e offset_days dalla milestone stessa, quindi
+ * basta scriverli li' e fargli ricalcolare: nessun secondo motore. La modifica
+ * finisce nel registro col nome del passo — e' la stessa regola delle righe di
+ * progetto: cio' che sposta una data lascia traccia.
+ */
+export function useCambiaAncoraggio() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      milestone_id: string;
+      certification_id: string;
+      requirement: string;
+      anchor_order: number | null;
+      offset_days: number | null;
+      data_precedente: string | null;
+      cronoprogramma_id: string | null;
+      nota: string;
+    }) => {
+      const user = (await supabase.auth.getUser()).data.user;
+      const { error } = await (supabase as any)
+        .from("certification_milestones")
+        .update({ anchor_order: input.anchor_order, offset_days: input.offset_days })
+        .eq("id", input.milestone_id);
+      if (error) throw error;
+
+      const { error: e2 } = await (supabase as any).rpc("fn_refresh_timeline_dates", {
+        p_certification_id: input.certification_id,
+      });
+      if (e2) throw e2;
+
+      const { data: dopo } = await (supabase as any)
+        .from("certification_milestones")
+        .select("due_date")
+        .eq("id", input.milestone_id)
+        .single();
+
+      if (input.cronoprogramma_id && user) {
+        await (supabase as any).from("cronoprogramma_registro").insert({
+          cronoprogramma_id: input.cronoprogramma_id,
+          evento_id: null,
+          evento_nome: input.requirement,
+          chi: user.id,
+          data_precedente: input.data_precedente,
+          data_nuova: dopo?.due_date ?? null,
+          fonte: null,
+          scostamento_giorni:
+            input.data_precedente && dopo?.due_date
+              ? Math.round(
+                  (new Date(dopo.due_date).getTime() - new Date(input.data_precedente).getTime()) / 86400000
+                )
+              : null,
+          note: input.nota,
+        });
+      }
+      return dopo?.due_date ?? null;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["crono"] }),
+  });
+}
+
 // ── Le milestone ──────────────────────────────────────────────────────────
 export function useTimelineMilestones(certId: string | undefined) {
   return useQuery({

@@ -396,3 +396,50 @@ sinistra visibili scrollando con riga espansa (v5); trascinamento fluido e
 «Oggi» che centra la linea rossa (v6); nessuna occorrenza di «storico» o
 «stantio» (v7); chip Status coerenti coi segmenti, certificato ⇒ Certified
 (v8); click su ogni KPI card filtra e il chip compare nella barra (v9).
+
+---
+
+# Aggiornamento v1.3 — correttiva del flusso PM
+
+*(specifica: `docs/specs/specifica-v1.3-correttiva-flusso-pm.md`; vince su v1, v1.1 e v1.2)*
+
+- **Persistenza (§1)**: la PROJECT TIMELINE è un record unico per sito. La
+  sezione 1 ha quattro stati — caricamento (mai più il blocco di creazione
+  mostrato mentre la query è in volo, che era il difetto), *non creata* con
+  due sole azioni («Crea dal template {tipo}» / «Importa da file»), *creata*
+  come **riepilogo compatto** (tipo, n. eventi, periodo, handover, ultimo
+  aggiornamento) con «Apri / Modifica», *aperta* in modifica.
+- **Solo template per tipo (§2)**: l'elenco generico delle otto ancore non
+  esiste più come default; le righe arrivano dal template IDC/BDC/CONSTRUCTION
+  senza date (salvo handover dalla Quotation), ancore ● già marcate.
+- **Wizard di import (§3)**: tre passi a schermo intero (Carica → Rivedi ed
+  escludi → Conferma). Passo 2 a due colonne: tabella ~45% e timeline viva
+  ~55%; click sulla riga = toggle, escluse barrate e in traccia sulla
+  timeline, contatore vivo. Footer fisso: il pulsante dice quante righe
+  inserirà e, quando è spento, **il motivo sta lì accanto**; l'handover va
+  mappato o mantenuto esplicitamente dalla Quotation. Errori di salvataggio
+  nel footer con «Riprova»: nessun fallimento silenzioso. Il wizard **crea**
+  la timeline se il sito non la ha.
+- **Layout (§4)**: tabelle dense (~40px, fonte come icona-tooltip editabile al
+  click, stato a pallino), pannello timeline **400px** sticky alto quanto la
+  viewport, overlay a tutta viewport con zoom +/−/**Adatta** e le corsie di
+  **tutte** le certificazioni del sito affiancate.
+- **«Ancorato a» (§5)**: ereditati in sola lettura («← Handover · project
+  timeline»), calcolati con ancora+offset modificabili (anteprima → applica →
+  ricalcolo del motore → voce di registro), passi PM col vincolo dichiarato
+  («prima di: Lancio gara»), liberi agganciabili. **Evidenziazione
+  bidirezionale**: hover su un passo accende la riga di progetto e il
+  connettore; selezionare una riga di progetto accende tutti i passi che vi
+  pendono.
+
+## Checklist di accettazione (p1)–(p8)
+
+(p1) compila da A, apri B stesso sito → identica; modifica da B → si vede da
+A; riapri → mai azzerata. (p2) template giusto per tipo, niente righe
+generiche, EXISTING senza sezione. (p3) le quattro fixture attraversano i tre
+passi, pulsante sempre visibile e parlante. (p4) escludere una riga la manda
+in traccia sulla timeline e il contatore si aggiorna. (p5) pannello ≥360px
+sticky, overlay a tutta viewport, niente etichette sovrapposte o troncate
+senza tooltip. (p6) colori solo dalla mappa v1.2 §1. (p7) hover evidenzia
+riga e connettore; «Ancorato a» presente ed editabile. (p8) riaprendo la
+pagina, mai un form vuoto.
