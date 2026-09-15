@@ -1,3 +1,7 @@
+> **Superato dal flusso v2.** Il collaudo corrente sta in
+> `docs/collaudo-flusso-v2.md`. Questo file resta come storia delle revisioni
+> v1, v1.1, v1.2 e v1.3.
+
 # Cronoprogramma e timeline di certificazione — versione di prova
 
 Ramo `feat/cronoprogramma-v1`. Realizza il perimetro del §10 della

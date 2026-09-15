@@ -56,7 +56,12 @@ insert into public.sites (id, brand_id, name, city, country, region, currency, s
   ('aaaa0000-0000-4000-8000-000000000011', 'aaaa0000-0000-4000-8000-000000000002',
    'ZZ TEST — Torre Levante',   'Milano', 'Italy', 'Europe', 'EUR', 'active', 'Office'),
   ('aaaa0000-0000-4000-8000-000000000012', 'aaaa0000-0000-4000-8000-000000000002',
-   'ZZ TEST — Uffici Corso Re', 'Torino', 'Italy', 'Europe', 'EUR', 'active', 'Office');
+   'ZZ TEST — Uffici Corso Re', 'Torino', 'Italy', 'Europe', 'EUR', 'active', 'Office'),
+  -- Sito B dello script §6: consulenza al cantiere di un altro. Qui il
+  -- template proposto e' CONSTRUCTION, e la fixture da importare e' il suo
+  -- gantt vero (docs/specs/fixtures/GANTT_LCP_METRO_Pontedera_PI_R01.pdf).
+  ('aaaa0000-0000-4000-8000-000000000013', 'aaaa0000-0000-4000-8000-000000000002',
+   'ZZ TEST — Metro Pontedera', 'Pontedera (PI)', 'Italy', 'Europe', 'EUR', 'active', 'Warehouse');
 
 -- ── Palazzo Aurora: tre certificazioni, due PM ────────────────────────────
 --
@@ -77,10 +82,16 @@ values
    'Europe', '4aace920-76bb-4ea4-a8b0-1ba11e092799', 'in_corso',
    '2027-03-15', '2027-09-30', 220, 'EUR'),
 
-  ('aaaa0000-0000-4000-8000-000000000022', 'aaaa0000-0000-4000-8000-000000000010',
-   'LEED_GC_Support', null, null, null, 'Palazzo Aurora — LEED GC Support', 'ZZ TEST',
+  ('aaaa0000-0000-4000-8000-000000000022', 'aaaa0000-0000-4000-8000-000000000013',
+   'LEED_GC_Support', null, null, null, 'Metro Pontedera — LEED GC Support', 'ZZ TEST',
    'Europe', '737a3f23-a954-455f-a4ef-b0b301ee79a1', 'in_corso',
-   '2027-03-15', '2027-09-30', 180, 'EUR');
+   '2025-03-15', '2025-12-31', 180, 'EUR');
+
+-- Il tipo di progetto: sul Metro FGB assiste il GC su un cantiere altrui,
+-- quindi CONSTRUCTION anche se la scaletta GC Support direbbe altro. E'
+-- l'override previsto dalla v1.1 §2: il catalogo propone, il PM corregge.
+update public.certifications set project_tipo = 'construction'
+ where id = 'aaaa0000-0000-4000-8000-000000000022';
 
 -- ── Torre Levante: l'edificio esistente ───────────────────────────────────
 --
