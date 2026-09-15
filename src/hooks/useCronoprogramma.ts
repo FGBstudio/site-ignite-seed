@@ -80,6 +80,10 @@ export function useCreateCronoprogramma() {
         fase: boolean;
         famiglia: string | null;
         ancora: string | null;
+        /** L'ossatura puo' arrivare gia' con qualche data: e' il primo salvataggio. */
+        data_pianificata?: string | null;
+        data_fine?: string | null;
+        fonte?: string | null;
       }>;
     }) => {
       const user = (await supabase.auth.getUser()).data.user;
@@ -103,7 +107,12 @@ export function useCreateCronoprogramma() {
 
       const righe = base.map((r, i) => {
         const isHandover = r.ancora === "handover";
-        const data = isHandover ? input.handoverContrattuale ?? null : null;
+        // Vince cio' che il PM ha gia' scritto sull'ossatura; l'handover, se
+        // non l'ha toccato, arriva dalla Quotation come baseline.
+        const data =
+          (r as any).data_pianificata ?? (isHandover ? input.handoverContrattuale ?? null : null);
+        const fonte =
+          (r as any).fonte ?? (isHandover && data ? "Quotation" : null);
         return {
           cronoprogramma_id: crono.id,
           ancora: r.ancora,
@@ -111,7 +120,8 @@ export function useCreateCronoprogramma() {
           famiglia: r.famiglia,
           ordine: i + 1,
           data_pianificata: data,
-          fonte: data ? "Quotazione (contrattuale)" : null,
+          data_fine: (r as any).data_fine ?? null,
+          fonte,
           stato: data ? "inserita" : "da_confermare",
         };
       });
@@ -402,12 +412,15 @@ export function useVincoliDichiarati(certId: string | undefined) {
 }
 
 /**
- * Cambia l'ancora o l'offset di un passo calcolato — v1.3 §5.
+ * Aggancia un passo a una riga della project timeline — flusso v2 §3.2.
  *
- * Il motore legge anchor_order e offset_days dalla milestone stessa, quindi
- * basta scriverli li' e fargli ricalcolare: nessun secondo motore. La modifica
- * finisce nel registro col nome del passo — e' la stessa regola delle righe di
- * progetto: cio' che sposta una data lascia traccia.
+ * Il motore legge `crono_evento_id` e `offset_days` dalla milestone stessa,
+ * quindi basta scriverli li' e fargli ricalcolare: nessun secondo motore.
+ * `evento_id = null` significa sganciare — la data resta dov'e' e diventa
+ * manuale, come un'attivita' a pianificazione manuale in MS Project.
+ *
+ * La modifica finisce nel registro col nome del passo: cio' che sposta una
+ * data lascia traccia, sempre.
  */
 export function useCambiaAncoraggio() {
   const qc = useQueryClient();
@@ -416,16 +429,31 @@ export function useCambiaAncoraggio() {
       milestone_id: string;
       certification_id: string;
       requirement: string;
-      anchor_order: number | null;
+      /** La riga di progetto a cui agganciare. NULL = sgancia. */
+      evento_id: string | null;
       offset_days: number | null;
+      /** Alla sgancio: la data da congelare come manuale. */
+      data_da_congelare?: string | null;
       data_precedente: string | null;
       cronoprogramma_id: string | null;
       nota: string;
     }) => {
       const user = (await supabase.auth.getUser()).data.user;
+      const campi: Record<string, unknown> = {
+        crono_evento_id: input.evento_id,
+        offset_days: input.evento_id ? input.offset_days ?? 0 : null,
+      };
+      if (!input.evento_id) {
+        // Sganciato: niente piu' ancore di nessun tipo, e la data resta la
+        // sua. Senza azzerare anchor_order il motore la riprenderebbe.
+        campi.anchor_order = null;
+        campi.derived_from = null;
+        campi.edit_locked_for_pm = false;
+        if (input.data_da_congelare) campi.due_date = input.data_da_congelare;
+      }
       const { error } = await (supabase as any)
         .from("certification_milestones")
-        .update({ anchor_order: input.anchor_order, offset_days: input.offset_days })
+        .update(campi)
         .eq("id", input.milestone_id);
       if (error) throw error;
 

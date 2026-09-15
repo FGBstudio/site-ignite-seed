@@ -171,6 +171,8 @@ export interface TimelineMilestone {
   not_applicable: boolean;
   series_step_order: number | null;
   series_index: number | null;
+  /** La riga di project timeline da cui il passo si calcola (flusso v2 §3.2). */
+  crono_evento_id: string | null;
 }
 
 /**
@@ -185,6 +187,8 @@ export function naturaPasso(m: TimelineMilestone): NaturaPasso {
   if (m.series_step_order !== null) return "serie";
   if (m.derived_from === "handover" || m.derived_from === "crono_construction_start") return "ereditato";
   if (m.derived_from) return "auto";
+  // Agganciato a una riga di progetto: e' calcolato anche con offset 0.
+  if (m.crono_evento_id) return "calcolato";
   if (m.anchor_order !== null && m.offset_days !== null) return "calcolato";
   return "pm";
 }

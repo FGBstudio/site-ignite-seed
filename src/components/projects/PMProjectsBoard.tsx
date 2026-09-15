@@ -19,6 +19,7 @@ import { usePMDashboard, type PMProject } from "@/hooks/usePMDashboard";
 import { useFinancialAlerts } from "@/hooks/useFinancialAlerts";
 import { cn } from "@/lib/utils";
 import { PMProjectConfigModal } from "@/components/projects/PMProjectConfigModal";
+import { MyProjectsCards } from "@/components/projects/MyProjectsCards";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -315,7 +316,7 @@ export function PMProjectsBoard() {
 
   return (
     <>
-      <Tabs defaultValue="kanban" className="w-full space-y-6">
+      <Tabs defaultValue="cards" className="w-full space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
           <div className="flex items-center gap-3">
             <h2 className="text-xl font-bold tracking-tight">Projects Overview</h2>
@@ -334,8 +335,11 @@ export function PMProjectsBoard() {
             )}
           </div>
           <TabsList className="bg-muted">
+            <TabsTrigger value="cards" className="gap-2">
+              <LayoutGrid className="w-4 h-4" /> My projects
+            </TabsTrigger>
             <TabsTrigger value="kanban" className="gap-2">
-              <LayoutGrid className="w-4 h-4" /> Kanban Board
+              <Layers3 className="w-4 h-4" /> Kanban Board
             </TabsTrigger>
             <TabsTrigger value="planner" className="gap-2">
               <GanttChartSquare className="w-4 h-4" /> Global Planner
@@ -345,6 +349,10 @@ export function PMProjectsBoard() {
             </TabsTrigger>
           </TabsList>
         </div>
+
+        <TabsContent value="cards" className="m-0 focus-visible:outline-none">
+          <MyProjectsCards />
+        </TabsContent>
 
         <TabsContent value="kanban" className="m-0 focus-visible:outline-none">
           <div className="flex flex-col sm:flex-row gap-3 mb-4">
