@@ -46,6 +46,8 @@ interface Props {
   handoverBaseline: string | null;
   /** Tutte le certificazioni del sito, da agganciare quando la timeline nasce qui. */
   certIds: string[];
+  /** Riapre il wizard quando il PM riprende la bozza. */
+  onRiprendi?: () => void;
 }
 
 type RigaRev = AttivitaCandidata & {
@@ -65,6 +67,7 @@ export function ImportTimeline({
   tipoProposto,
   handoverBaseline,
   certIds,
+  onRiprendi,
 }: Props) {
   const { toast } = useToast();
   const importa = useImportaEventi();
@@ -81,6 +84,53 @@ export function ImportTimeline({
   const [mantieniHandover, setMantieniHandover] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [errore, setErrore] = useState<string | null>(null);
+
+  // ── La bozza: la X chiude senza perdere niente (§0.2, V6) ──────────────
+  //
+  // Vive nella sessione del browser e non nel database: e' lavoro non ancora
+  // deciso, e scriverlo sul record condiviso lo farebbe vedere ai colleghi
+  // come se fosse confermato.
+  const chiaveBozza = `fgb.import.${siteId}`;
+  const bozzaEsistente = useMemo(() => {
+    if (aperto) return null;
+    try {
+      const raw = sessionStorage.getItem(chiaveBozza);
+      return raw ? (JSON.parse(raw) as { passo: number; nomeFile: string; righe: RigaRev[] }) : null;
+    } catch {
+      return null;
+    }
+  }, [aperto, chiaveBozza]);
+
+  const salvaBozza = () => {
+    if (passo === 1 || righe.length === 0) {
+      sessionStorage.removeItem(chiaveBozza);
+      return;
+    }
+    try {
+      sessionStorage.setItem(
+        chiaveBozza,
+        JSON.stringify({ passo, nomeFile, righe, mantieniHandover, diario: esito?.diario ?? "" })
+      );
+      toast({ title: "Bozza salvata", description: `Riprendi l'import dal passo ${passo} quando vuoi.` });
+    } catch {
+      /* quota piena: la bozza si perde, ma l'import si rifà — non si blocca nulla */
+    }
+  };
+
+  const riprendiBozza = () => {
+    try {
+      const raw = sessionStorage.getItem(chiaveBozza);
+      if (!raw) return;
+      const b = JSON.parse(raw);
+      setRighe(b.righe ?? []);
+      setNomeFile(b.nomeFile ?? "");
+      setMantieniHandover(!!b.mantieniHandover);
+      setEsito({ attivita: [], richiedeAncoraggio: false, ancoraggioSuggerito: null, diario: b.diario ?? "" });
+      setPasso((b.passo === 3 ? 3 : 2) as 2 | 3);
+    } catch {
+      /* bozza illeggibile: si riparte dal passo 1 */
+    }
+  };
 
   const perAncora = useMemo(() => {
     const m = new Map<string, CronoEvento>();
@@ -244,6 +294,7 @@ export function ImportTimeline({
         title: `${aggiornate + nuove} righe inserite`,
         description: `${nuove} nuove, ${aggiornate} aggiornate. Le date gia' presenti non sono state toccate.`,
       });
+      sessionStorage.removeItem(chiaveBozza);
       azzera();
       onChiudi();
     } catch (err: any) {
@@ -253,7 +304,41 @@ export function ImportTimeline({
     }
   };
 
-  if (!aperto) return null;
+  // Chiuso, ma con una bozza in attesa: il v2 §0.2 vuole che si possa
+  // riprendere da dove si era lasciato, e che lo si veda.
+  if (!aperto) {
+    if (!bozzaEsistente) return null;
+    return (
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs dark:border-amber-800 dark:bg-amber-950/30">
+        <span className="text-amber-900 dark:text-amber-200">
+          Hai un import in sospeso su questo sito · {bozzaEsistente.nomeFile}
+        </span>
+        <span className="flex gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs"
+            onClick={() => {
+              riprendiBozza();
+              onRiprendi?.();
+            }}
+          >
+            Riprendi import (passo {bozzaEsistente.passo})
+          </Button>
+          <button
+            type="button"
+            onClick={() => {
+              sessionStorage.removeItem(chiaveBozza);
+              onRiprendi?.();
+            }}
+            className="text-amber-800/70 underline hover:text-amber-900 dark:text-amber-300/70"
+          >
+            scarta
+          </button>
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-background" role="dialog" aria-modal="true" aria-label="Importa la timeline">
@@ -267,7 +352,7 @@ export function ImportTimeline({
             </span>
           ))}
         </div>
-        <button type="button" onClick={() => { azzera(); onChiudi(); }} className="rounded-md border p-1.5 hover:bg-muted" aria-label="Chiudi senza importare">
+        <button type="button" onClick={() => { salvaBozza(); azzera(); onChiudi(); }} className="rounded-md border p-1.5 hover:bg-muted" aria-label="Chiudi salvando la bozza">
           <X className="h-3.5 w-3.5" />
         </button>
       </div>

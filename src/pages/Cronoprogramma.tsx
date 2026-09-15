@@ -362,6 +362,7 @@ export default function CronoprogrammaPage() {
               tipoProposto={tipoEffettivo === "construction" ? "construction" : "design_construction"}
               handoverBaseline={cert.baseline_handover_date ?? cert.handover_date}
               certIds={altreCert.length ? altreCert.map((c) => c.id) : [cert.id]}
+              onRiprendi={() => setImportAperto(true)}
             />
           </Card>
 

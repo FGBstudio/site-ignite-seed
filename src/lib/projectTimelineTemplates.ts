@@ -136,7 +136,11 @@ export function proponiTipo(certType: string | null, certRating: string | null):
 // stesso evento scritto da tre imprese diverse.
 const LESSICO: Array<{ ancora: CronoAncora; pattern: RegExp }> = [
   { ancora: "handover",            pattern: /handover|consegna (dei )?lavori|fine (dei )?lavori|construction end|delivery|end of works|completion/i },
-  { ancora: "construction_start",  pattern: /construction start|inizio (dei )?lavori|consegna (delle )?aree|site handover to gc|mobilisation|mobilitazione|start of works|apertura cantiere/i },
+  // «Consegna aree» resta fuori apposta: in un cantiere e' il giorno in cui il
+  // committente consegna il terreno, non l'inizio dei lavori — e nel Metro
+  // sono due righe diverse a tre giorni di distanza. Confonderle darebbe al
+  // construction start la data sbagliata.
+  { ancora: "construction_start",  pattern: /construction start|cantierizzazione|inizio (dei )?lavori|site handover to gc|mobilisation|mobilitazione|start of works|apertura cantiere/i },
   { ancora: "aggiudicazione_gc",   pattern: /aggiudicazion|tender award|award|contract sign|appalto assegnato|d&b tender/i },
   { ancora: "lancio_gara",         pattern: /lancio gara|tender(ing)? (launch|start)|gara d.appalto|invito a offrire|permess|permit|scia\b|building permit/i },
   { ancora: "progetto_definitivo", pattern: /progetto definitivo|developed design|design freeze|construction documents|detailed design|riba st(age)? ?[34]/i },
