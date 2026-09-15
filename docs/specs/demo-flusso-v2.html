@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FGB — Demo flusso v2 · PM → Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#F4F3EE;--card:#FFF;--ink:#23271F;--mut:#6E6C63;--faint:#A3A199;--line:#E3E1D8;--line2:#D2D0C5;
+--st1:#E7E5DC;--st2:#CFCBBD;--st3:#A8A47F;
+--leed:#2F7A4E;--leedbg:#E3F0E8;--well:#1673B1;--wellbg:#E2EFF8;
+--amb:#A66A0F;--ambbg:#FBF0DA;--red:#B03A31;--redbg:#FBE9E7;--grn:#3F7A1F;--grnbg:#EAF3DF;--r:8px}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Instrument Sans",system-ui,sans-serif;font-size:14px;line-height:1.5;font-feature-settings:"tnum"}
+.top{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 20px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:40}
+.brand{font-weight:600;letter-spacing:-0.01em}
+.crumb{font-size:12px;color:var(--mut)}
+.crumb a{color:var(--mut);text-decoration:none;border-bottom:1px dotted var(--line2);cursor:pointer}
+.roles{display:flex;background:#E9E7DE;border-radius:999px;padding:3px}
+.roles button{border:0;background:transparent;font:inherit;font-size:12.5px;font-weight:500;padding:6px 14px;border-radius:999px;cursor:pointer;color:var(--mut)}
+.roles button.on{background:var(--ink);color:#fff}
+.wrap{max-width:1180px;margin:0 auto;padding:20px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:14px}
+h1{font-size:18px;margin:0 0 2px;letter-spacing:-0.01em}
+h2{font-size:14.5px;margin:0 0 4px;display:flex;align-items:center;gap:8px}
+h2 .n{width:20px;height:20px;border-radius:50%;background:var(--ink);color:#fff;font-size:11px;display:inline-flex;align-items:center;justify-content:center}
+.sub{color:var(--mut);font-size:12.5px;margin:0 0 10px}
+button{font:inherit;font-size:12.5px;border:1px solid var(--line2);background:var(--card);color:var(--ink);border-radius:var(--r);padding:7px 13px;cursor:pointer}
+button.pri{background:var(--ink);border-color:var(--ink);color:#fff;font-weight:500}
+button.pri:disabled{opacity:.45;cursor:not-allowed}
+button:hover:not(:disabled){filter:brightness(.97)}
+input[type=date],input[type=text],input[type=number],select{font:inherit;font-size:12.5px;background:#FBFAF7;border:1px solid var(--line2);border-radius:var(--r);padding:5px 7px}
+input[type=checkbox]{width:14px;height:14px;accent-color:var(--ink)}
+table{border-collapse:collapse;width:100%;font-size:12.5px}
+th{font-size:11px;font-weight:500;color:var(--faint);text-align:left;padding:4px 8px 6px 0}
+td{padding:6px 8px 6px 0;border-top:1px solid var(--line);vertical-align:middle}
+.badge{display:inline-block;font-size:10.5px;font-weight:500;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.b-amb{background:var(--ambbg);color:var(--amb)} .b-grn{background:var(--grnbg);color:var(--grn)}
+.b-mut{background:#EFEEE7;color:var(--mut)} .b-red{background:var(--redbg);color:var(--red)}
+.b-ink{background:var(--ink);color:#fff}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:5px;vertical-align:0}
+.grid2{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:16px;align-items:start}
+@media(max-width:1100px){.grid2{grid-template-columns:1fr}.side{position:static!important;max-height:340px}}
+.side{position:sticky;top:64px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;max-height:calc(100vh - 84px);overflow:auto}
+.warn{color:var(--amb);font-size:11.5px;margin-top:2px}
+.cardrow{display:flex;gap:12px;flex-wrap:wrap}
+.pcard{flex:1 1 260px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;cursor:pointer}
+.pcard:hover{border-color:var(--line2);box-shadow:0 1px 4px rgba(0,0,0,.05)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:12px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 13px;cursor:pointer}
+.kpi.on{outline:2px solid var(--ink)}
+.kpi .v{font-size:21px;font-weight:600}
+.kpi .l{font-size:11.5px;color:var(--mut)}
+.kpi .d{font-size:11px;margin-top:1px}
+.modal{position:fixed;inset:0;background:rgba(20,20,16,.5);display:flex;align-items:center;justify-content:center;z-index:60;padding:16px}
+.mbox{background:var(--card);border-radius:14px;max-width:1040px;width:100%;max-height:94vh;display:flex;flex-direction:column}
+.mhead{display:flex;justify-content:space-between;align-items:center;padding:12px 18px;border-bottom:1px solid var(--line)}
+.mbody{padding:14px 18px;overflow:auto}
+.mfoot{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 18px;border-top:1px solid var(--line);background:#FBFAF7;border-radius:0 0 14px 14px}
+.stepz{display:flex;gap:14px;font-size:11.5px;align-items:center}
+.stepz .s{color:var(--mut)} .stepz .s.on{font-weight:600;color:var(--ink)}
+.stepz .c{display:inline-flex;width:16px;height:16px;border-radius:50%;border:1px solid var(--line2);align-items:center;justify-content:center;font-size:10px;margin-right:4px;background:var(--card)}
+.stepz .on .c{background:var(--ink);color:#fff;border-color:var(--ink)}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;font-size:12.5px;padding:9px 16px;border-radius:999px;z-index:80;display:flex;gap:12px;align-items:center}
+.toast button{background:transparent;border:0;color:#FAC775;font-weight:600;padding:0;cursor:pointer}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;background:#EFEEE7;border-radius:999px;padding:3px 9px;margin:2px 4px 2px 0}
+.chip b{cursor:pointer;font-weight:600}
+.ptable thead th{position:sticky;top:0;background:var(--card);z-index:5}
+.scrollT{max-height:430px;overflow:auto;border:1px solid var(--line);border-radius:10px}
+.drill{background:#FAF9F4;border-top:1px dashed var(--line2);padding:10px 12px}
+.lanewrap{display:grid;grid-template-columns:160px minmax(0,1fr)}
+.lanescroll{overflow-x:auto}
+.pop{position:absolute;background:var(--card);border:1px solid var(--line2);border-radius:12px;box-shadow:0 6px 24px rgba(0,0,0,.12);padding:12px 14px;z-index:50;width:330px}
+.chain{color:inherit;font-weight:600;cursor:pointer}
+.rowdel{color:var(--faint);cursor:pointer;font-size:14px}
+.rowdel:hover{color:var(--red)}
+.banner{background:#F6F5EF;border:1px dashed var(--line2);border-radius:10px;padding:9px 12px;font-size:12px;color:var(--mut);display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}
+.script{position:fixed;right:16px;bottom:16px;z-index:55}
+.spanel{position:fixed;right:16px;bottom:60px;width:360px;max-height:70vh;overflow:auto;background:var(--card);border:1px solid var(--line2);border-radius:14px;padding:12px 14px;z-index:55;box-shadow:0 8px 30px rgba(0,0,0,.15)}
+.spanel label{display:flex;gap:8px;font-size:11.5px;padding:5px 0;border-top:1px solid var(--line);align-items:flex-start}
+.ov{position:fixed;inset:0;background:rgba(20,20,16,.6);z-index:70;display:flex;flex-direction:column}
+.ovbar{display:flex;justify-content:space-between;align-items:center;padding:10px 18px;background:var(--card)}
+.ovbody{flex:1;overflow:auto;background:var(--bg);padding:18px;display:flex;justify-content:center}
+.hint{background:var(--ink);color:#fff;font-size:11.5px;border-radius:10px;padding:8px 12px;position:absolute;z-index:45;width:250px}
+.sum{display:flex;justify-content:space-between;align-items:center;gap:10px;background:#F6F5EF;border:1px solid var(--line);border-radius:10px;padding:10px 14px}
+.reg{border-left:3px solid var(--line2);padding:2px 0 2px 10px;margin-bottom:8px;font-size:12px}
+.reg .m{color:var(--mut);font-size:11px}
+</style>
+</head>
+<body>
+<div class="top">
+  <div style="display:flex;align-items:center;gap:14px"><span class="brand">FGB · demo flusso v2</span><span class="crumb" id="crumb"></span></div>
+  <div style="display:flex;gap:10px;align-items:center">
+    <span style="font-size:11px;color:var(--mut)">Oggi: 10 set 2024</span>
+    <nav class="roles">
+      <button id="r_marco" onclick="setRole('marco')">Marco · PM</button>
+      <button id="r_sara" onclick="setRole('sara')">Sara · PM</button>
+      <button id="r_admin" onclick="setRole('admin')">Admin</button>
+    </nav>
+  </div>
+</div>
+<div class="wrap" id="app"></div>
+<div class="script"><button class="pri" onclick="S.script=!S.script;render()">Script §6</button></div>
+<div id="layer"></div>
+
+<script>
+/* ───────── helpers ───────── */
+const TODAY='2024-09-10';
+const P=d=>new Date(d+'T12:00:00');
+const addD=(d,n)=>{const x=new Date(P(d));x.setDate(x.getDate()+n);return x.toISOString().slice(0,10)};
+const addM=(d,m)=>{const x=new Date(P(d));x.setDate(x.getDate()+Math.round(m*30.44));return x.toISOString().slice(0,10)};
+const diffD=(a,b)=>Math.round((P(b)-P(a))/864e5);
+const F=d=>d?P(d).toLocaleDateString('it-IT',{day:'2-digit',month:'short',year:'2-digit'}):'—';
+const esc=s=>String(s).replace(/</g,'&lt;');
+const busDaysLate=d=>Math.floor(diffD(d,TODAY)*5/7);
+
+/* ───────── palette per servizio (v1.2 §1) ───────── */
+const TINT={leedbdc:{s:'#2F7A4E',b:'#E3F0E8',n:'LEED BD+C'},wellnc:{s:'#1673B1',b:'#E2EFF8',n:'WELL NC'},
+gcsup:{s:'#2F7A4E',b:'#E3F0E8',n:'LEED GC Support',dash:true},welleb:{s:'#1673B1',b:'#E2EFF8',n:'WELL EB'}};
+
+/* ───────── template ossature (v1.1 §4, dai file reali) ───────── */
+function skel(type,quot){
+  const R=(k,name,fam,anchor)=>({id:k||('r'+Math.random().toString(36).slice(2,7)),key:k||null,name,fam,anchor:!!anchor,start:null,end:null,fonte:'',stato:'da confermare'});
+  if(type==='DESIGN+CONSTRUCTION')return [
+    R(null,'Concept design + review','Design'),R(null,'Developed design (RIBA st.3)','Design',1),
+    R(null,'Detailed design (RIBA st.4)','Design'),R(null,'Permessi: submission → approvazione (SCIA)','Permitting',1),
+    R(null,'Iter terze parti (soprintendenza, enti)','Terze parti'),R('tender','Tender / D&B tendering','Design',1),
+    R(null,'Long-lead procurement','Construction'),R('consegnaAree','Consegna aree / mobilisation','Construction',1),
+    R('constrStart','Construction start','Construction',1),R(null,'Strutture / involucro','Construction'),
+    R('impianti','Impianti (fine = impianti pronti per test)','Construction',1),
+    R('sitoPronto','Finiture (fine = sito pronto per test)','Construction',1),
+    R(null,'Commissioning','Construction'),
+    Object.assign(R('handover','Handover (fine cantiere)','Construction',1),{start:quot,fonte:'Quotation',stato:'inserita'})];
+  if(type==='CONSTRUCTION')return [
+    R('consegnaAree','Consegna aree di cantiere','Construction',1),
+    R('constrStart','Cantierizzazione e inizio lavori','Construction',1),
+    R(null,'Strutture','Construction'),R('impianti','Impianti','Construction',1),
+    R('sitoPronto','Finiture','Construction',1),R(null,'Commissioning','Construction'),
+    Object.assign(R('handover','Consegna lavori / Handover','Construction',1),{start:quot,fonte:'Quotation',stato:'inserita'})];
+  return [];
+}
+
+/* ───────── scalette (dal PDF FGB) ───────── */
+function scaLEED(){return [
+ {n:1,name:'Pre-assessment',kind:'pm'},
+ {n:2,name:'FGB Design Guidelines',kind:'pm',prec:{before:'tender',lbl:'prima del Tender'}},
+ {n:3,name:'FGB Tendering Requirements',kind:'pm',prec:{before:'tender',lbl:'prima del Tender'}},
+ {n:4,name:'Construction Start',kind:'ered',src:'constrStart'},
+ {n:5,name:'LEED GC Training',kind:'pm',prec:{after:'constrStart',lbl:'dopo il Construction start'}},
+ {n:6,name:'QlAir Shipment',kind:'auto',lbl:'da spedizione',opz:1},
+ {n:7,name:'Greeny Shipment',kind:'auto',lbl:'da spedizione',opz:1},
+ {n:8,name:'Commissioning tests and reports',kind:'pm',prec:{before:'handover',lbl:'prima dell\u2019Handover'}},
+ {n:9,name:'Construction End (Handover)',kind:'ered',src:'handover'},
+ {n:10,name:'GC Provides Closed-out Documentation',kind:'calc',anchor:'handover',off:30},
+ {n:11,name:'CxA site inspection and tests',kind:'calc',anchor:'handover',off:60},
+ {n:12,name:'LEED Project Submission',kind:'calc',anchor:'handover',off:90},
+ {n:13,name:'LEED Certification Attainment',kind:'calc',anchor:'handover',off:180}].map(s=>({...s,date:null,done:false,unlinked:false}));}
+function scaWELL(){return [
+ {n:1,name:'Pre-assessment',kind:'pm'},{n:2,name:'FGB Sustainability Guidelines',kind:'pm'},
+ {n:3,name:'Construction Phase Start',kind:'ered',src:'constrStart'},
+ {n:4,name:'WELL GC Training',kind:'pm',prec:{after:'constrStart',lbl:'dopo il Construction start'}},
+ {n:5,name:'Construction End (Handover)',kind:'ered',src:'handover'},
+ {n:6,name:'GC Closed-out Documentation',kind:'calc',anchor:'handover',off:30},
+ {n:7,name:'WELL Performance Verification',kind:'calc',anchor:'handover',off:75},
+ {n:8,name:'WELL Project Submission',kind:'calc',anchor:'handover',off:135},
+ {n:9,name:'WELL Certification Attainment',kind:'calc',anchor:'handover',off:255}].map(s=>({...s,date:null,done:false,unlinked:false}));}
+function scaGC(){return [
+ {n:1,name:'LEED GC Support Kick-off',kind:'pm',opz:1},
+ {n:2,name:'Construction Start',kind:'ered',src:'constrStart'},
+ {n:3,name:'LEED GC Training',kind:'pm',prec:{after:'constrStart',lbl:'dopo il Construction start'}},
+ {n:4,name:'FGB Construction Reports',kind:'serie',from:'constrStart',to:'handover'},
+ {n:5,name:'Construction End (Handover)',kind:'ered',src:'handover'},
+ {n:6,name:'GC Provides Closed-out Documentation',kind:'calc',anchor:'handover',off:30},
+ {n:7,name:'Preliminary Construction Credits',kind:'calc',anchor:'handover',off:14},
+ {n:8,name:'Final Construction Credits Completed',kind:'pm',opz:1}].map(s=>({...s,date:null,done:false,unlinked:false}));}
+function scaEB(){return [
+ {n:1,name:'Pre-assessment',kind:'pm'},{n:2,name:'FGB Sustainability Guidelines',kind:'pm'},
+ {n:3,name:'Client Provides Policies and Documentation',kind:'pm'},
+ {n:4,name:'WELL Performance Verification',kind:'pm'},
+ {n:5,name:'WELL Project Submission',kind:'pm'},
+ {n:6,name:'WELL Certification Attainment',kind:'pm'}].map(s=>({...s,date:null,done:false,unlinked:false}));}
+
+/* ───────── fixture di import ───────── */
+const FIX={
+ metro:{file:'GANTT — LCP Metro Pontedera R01.pdf',kind:'pdf',rows:[
+  ['Consegna aree di cantiere','2024-04-22','2024-04-22','consegnaAree'],
+  ['Cantierizzazione e inizio lavori','2024-04-23','2024-04-28','constrStart'],
+  ['Sottoservizi esterni','2024-05-16','2024-06-28',''],['Palificazioni','2024-05-27','2024-06-14',''],
+  ['Scavo plinti','2024-06-03','2024-06-21',''],['Carpenterie plinti e travi','2024-06-24','2024-08-05',''],
+  ['Tinteggiature','2024-07-01','2024-07-18',''],['Prefabbricato','2024-07-01','2024-09-13',''],
+  ['Copertura','2024-07-15','2024-08-02',''],['Impianto antincendio','2024-07-15','2024-10-04',''],
+  ['Pavimenti interni','2024-08-15','2024-08-30',''],['Impianti elettrici, meccanici','2024-08-29','2025-01-01','impianti'],
+  ['Portoni e baie di carico','2024-09-02','2024-10-11',''],['Celle frigo','2024-09-05','2024-11-01',''],
+  ['Preparazione sottofondi','2024-09-16','2024-10-07',''],['Impianti celle','2024-09-19','2024-12-11',''],
+  ['Uffici interni','2024-09-23','2024-12-13',''],['Vespaio','2024-10-07','2024-11-05',''],
+  ['Asfalti','2024-10-08','2024-10-21',''],['Guardiania e recinzioni','2025-01-06','2025-01-17',''],
+  ['Aree verdi','2025-02-20','2025-03-12',''],['Consegna lavori','2025-03-15','2025-03-15','handover']]},
+ vespucci:{file:'Grand Vespucci Cronoprogramma R02.pdf',kind:'pdf',rows:[
+  ['Building regularization (SCIA)','2026-05-05','2026-08-28',''],['Developed design phase','2026-06-16','2026-09-02',''],
+  ['Slab structural design + works','2026-06-03','2026-10-01',''],['Detailed design phase','2026-09-03','2027-07-22',''],
+  ['Tender procedures','2027-05-07','2027-07-22','tender'],['Latest start date for the works','2027-07-28','2027-07-28','constrStart']]},
+ greek:{file:'GW ΧΔ Έργου R2.xlsx',kind:'xlsx-mesi',stages:[['Concept design',2],['Design reviews',1],['Tendering of D&B',2],
+  ['Permit submission (RIBA st.3)',1],['Permit approval',3],['Detailed design (RIBA st.4)',3],['Long-lead procurement',2],
+  ['Mobilisation',0.5],['Earthworks',1.5],['Construction',8],['Racking',1],['Commissioning',1]]},
+ bou:{file:'bou almathy.png',kind:'png',rows:[
+  ['Criteria package','2025-06-29','2025-07-25',''],['Schematic design','2025-07-29','2025-09-23',''],
+  ['Construction preparation','2026-02-12','2026-03-05',''],['Production (MW, FC)','2026-06-01','2026-06-15',''],
+  ['Construction start','2026-06-20','2026-07-17','constrStart'],['Construction end','2026-08-14','2026-09-18',''],
+  ['Handover','2026-09-18','2026-09-25','handover'],['Opening','2026-09-27','2026-09-27','']]}};
+
+/* ───────── stato ───────── */
+const S={role:'marco',view:{page:'list'},script:false,checks:{},toast:null,undo:null,hintDone:false,
+ sites:{
+  A:{id:'A',name:'Palazzo Aurora',city:'Milano',client:'Fondo Ambra',type:'DESIGN+CONSTRUCTION',quot:'2027-03-15',contract:'2027-09-30',typology:'Office',pt:null,ptPristine:true,importDraft:null,
+     certs:{leedbdc:{pm:'marco',steps:null,pending:false},wellnc:{pm:'sara',steps:null,pending:false}}},
+  B:{id:'B',name:'Metro Pontedera',city:'Pontedera (PI)',client:'Metro AG',type:'CONSTRUCTION',quot:'2025-04-30',contract:'2025-12-31',typology:'Warehouse',pt:null,ptPristine:true,importDraft:null,
+     certs:{gcsup:{pm:'marco',steps:null,pending:false}}},
+  C:{id:'C',name:'Torre Levante',city:'Milano',client:'Fondo Ambra',type:'EXISTING',quot:null,contract:'2026-06-30',typology:'Office',pt:null,ptPristine:true,importDraft:null,
+     certs:{welleb:{pm:'sara',steps:null,pending:false}}}},
+ registro:[],filters:{q:'',cert:'',status:'',kpi:''},drill:null,fit:true,zoom:1,overlay:false,anchorPop:null,cascade:null,importW:null};
+const USERS={marco:'Marco R.',sara:'Sara B.',admin:'Admin'};
+
+/* ───────── logica timeline ───────── */
+function ensurePT(site){ if(!site.pt && site.type!=='EXISTING'){ site.pt={rows:skel(site.type,site.quot),saved:false}; site.ptPristine=true; } }
+function ptRow(site,key){ return site.pt? site.pt.rows.find(r=>r.key===key):null; }
+function rowDate(r){ return r? (r.end||r.start): null; }
+function stepDate(site,st){
+  if(st.kind==='ered'){const r=ptRow(site,st.src);return rowDate(r);}
+  if(st.kind==='calc'){ if(st.unlinked)return st.date;
+    const r=site.pt&&site.pt.rows.find(x=>x.key===st.anchor||x.id===st.anchor); return rowDate(r)?addD(rowDate(r),st.off):null;}
+  return st.date;}
+function anchorRowOf(site,st){return site.pt&&site.pt.rows.find(x=>x.key===st.anchor||x.id===st.anchor);}
+function precWarn(site,st){
+  if(!st.prec||!st.date)return '';
+  const r=ptRow(site,st.prec.before||st.prec.after); if(!r||!rowDate(r))return '';
+  if(st.prec.before&&P(st.date)>P(rowDate(r)))return 'Vincolo violato: va fatta '+st.prec.lbl+' ('+F(rowDate(r))+').';
+  if(st.prec.after&&P(st.date)<P(r.start||rowDate(r)))return 'Vincolo violato: va fatta '+st.prec.lbl+' ('+F(r.start||rowDate(r))+').';
+  return '';}
+function serieOcc(site,st){const a=ptRow(site,st.from),b=ptRow(site,st.to);
+  if(!a||!b||!rowDate(a)||!rowDate(b))return [];
+  const out=[];let d=addM(a.start||rowDate(a),1);while(P(d)<P(rowDate(b))){out.push(d);d=addM(d,1);}return out;}
+
+/* ───────── viste ───────── */
+function setRole(r){S.role=r;S.view=r==='admin'?{page:'admin'}:{page:'list'};S.anchorPop=null;render();}
+function go(v){S.view=v;S.anchorPop=null;render();}
+
+function render(){
+  ['marco','sara','admin'].forEach(r=>document.getElementById('r_'+r).classList.toggle('on',S.role===r));
+  const app=document.getElementById('app');const v=S.view;
+  document.getElementById('crumb').innerHTML = v.page==='project'
+    ? `<a onclick="go({page:'list'})">Services</a> / <a onclick="go({page:'list'})">${esc(S.sites[v.site].name)}</a> / ${TINT[v.cert].n}`
+    : (v.page==='admin'?'Admin / Projects':'My Projects');
+  if(v.page==='list')app.innerHTML=viewList();
+  else if(v.page==='project')app.innerHTML=viewProject(v.site,v.cert);
+  else app.innerHTML=viewAdmin();
+  document.getElementById('layer').innerHTML=layers();
+}
+
+function certStateLabel(site,cid){
+  const c=site.certs[cid];
+  if(site.type!=='EXISTING'&&(!site.pt||!site.pt.saved))return ['Da iniziare','b-mut'];
+  if(!c.steps)return ['Project timeline pronta','b-amb'];
+  return ['Timeline completa','b-grn'];}
+
+function viewList(){
+  const me=S.role;let h=`<h1>My projects</h1><p class="sub">I progetti assegnati a ${USERS[me]}. Click per aprire e compilare le timeline.</p><div class="cardrow">`;
+  for(const s of Object.values(S.sites))for(const [cid,c] of Object.entries(s.certs)){
+    if(c.pm!==me)continue;const [lbl,cls]=certStateLabel(s,cid);const t=TINT[cid];
+    h+=`<div class="pcard" onclick="go({page:'project',site:'${s.id}',cert:'${cid}'})">
+      <div style="display:flex;justify-content:space-between;gap:8px"><b>${esc(s.name)}</b><span class="badge ${cls}">${lbl}</span></div>
+      <div style="font-size:12px;color:var(--mut)">${esc(s.city)} · ${esc(s.client)}</div>
+      <div style="margin-top:8px"><span class="badge" style="background:${t.b};color:${t.s};${t.dash?'border:1px dashed '+t.s:''}">${t.n}</span>
+      <span class="badge b-mut">${s.type}</span></div></div>`;}
+  return h+'</div>';}
+
+/* ── pagina progetto ── */
+function viewProject(sid,cid){
+  const site=S.sites[sid],cert=site.certs[cid],t=TINT[cid];
+  ensurePT(site);
+  let left='';
+  /* sezione 1 */
+  if(site.type==='EXISTING'){
+    left+=`<div class="card"><h2><span class="n">1</span>Project timeline</h2><p class="sub">Progetto EXISTING: non esiste una project timeline. Si parte direttamente dalla timeline del servizio.</p></div>`;
+  } else if(site.pt.saved && !S.ptOpen){
+    const rows=site.pt.rows,dated=rows.filter(r=>r.start||r.end);
+    left+=`<div class="card"><h2><span class="n">1</span>Project timeline <span class="badge b-mut">condivisa · record unico del sito</span></h2>
+    <div class="sum"><div style="font-size:12.5px">${site.type} · ${rows.length} eventi · ${dated.length} datati · Handover <b>${F(rowDate(ptRow(site,'handover')))}</b><br>
+    <span style="color:var(--mut);font-size:11.5px">ultimo aggiornamento: ${esc(site.pt.lastBy||'—')}</span></div>
+    <button onclick="S.ptOpen=true;render()">Apri / Modifica</button></div></div>`;
+  } else {
+    left+=`<div class="card"><h2><span class="n">1</span>Project timeline <span class="badge b-mut">condivisa</span></h2>`;
+    if(site.importDraft)left+=`<div class="banner"><span>Hai un import in sospeso su questo sito.</span><button onclick="resumeImport('${sid}','${cid}')">Riprendi import (passo ${site.importDraft.step})</button></div>`;
+    if(!site.pt.saved)left+=`<div class="banner"><span>Ossatura <b>${site.type}</b> precaricata dai template reali — compila le date, aggiungi o elimina righe, oppure importa il cronoprogramma da file per ${site.ptPristine?'sostituirla':'integrarla'}.</span>
+      <button onclick="openImport('${sid}','${cid}')">Importa da file</button></div>`;
+    else left+=`<div style="text-align:right;margin-bottom:8px"><button onclick="openImport('${sid}','${cid}')">Importa da file</button></div>`;
+    left+=ptTable(site,cid);
+    left+=`<div style="margin-top:10px;display:flex;gap:8px"><button onclick="addRow('${sid}')">+ Aggiungi riga</button>`;
+    if(!site.pt.saved)left+=`<button class="pri" onclick="savePT('${sid}')">Salva project timeline</button>`;
+    else left+=`<button onclick="S.ptOpen=false;render()">Chiudi</button>`;
+    left+=`</div></div>`;
+  }
+  /* sezione 2 */
+  const locked = site.type!=='EXISTING' && (!site.pt||!site.pt.saved);
+  left+=`<div class="card" style="${locked?'opacity:.55':''}">
+    <h2><span class="n">2</span>HQ FGB timeline <span class="badge" style="background:${t.b};color:${t.s}">${t.n} · ${USERS[cert.pm]}</span></h2>`;
+  if(locked)left+=`<p class="sub" style="color:var(--amb)">Si sblocca compilando e salvando la project timeline.</p>`;
+  else if(!cert.steps)left+=`<p class="sub">La FGB timeline integra il cronoprogramma di progetto con le milestone della certificazione che compili tu.</p>
+    <button class="pri" onclick="genCert('${sid}','${cid}')">Genera dalla scaletta ${t.n}</button>`;
+  else left+=certTable(site,cid);
+  left+=`</div>`;
+  /* altre certificazioni */
+  const others=Object.entries(site.certs).filter(([k])=>k!==cid);
+  if(others.length&&!locked){
+    left+=`<div class="card"><h2>Le altre certificazioni sul sito <span class="badge b-mut">sola lettura</span></h2>`;
+    for(const [k,c] of others){const tt=TINT[k];
+      left+=`<p style="font-size:12.5px;margin:8px 0 4px"><span class="dot" style="background:${tt.s}"></span><b>${tt.n}</b> · ${USERS[c.pm]} 🔒 ${c.pending?'<span class="badge b-amb">date proposte in attesa di conferma di '+USERS[c.pm]+'</span>':''}</p>`;
+      left+= c.steps? `<div style="font-size:11.5px;color:var(--mut)">${c.steps.filter(s=>stepDate(site,s)).map(s=>esc(s.name)+' · '+F(stepDate(site,s))).slice(0,5).join(' &nbsp;·&nbsp; ')}${c.steps.length>5?' …':''}</div>`
+        : `<div style="font-size:11.5px;color:var(--faint)">timeline non ancora generata</div>`;}
+    left+=`</div>`;}
+  /* registro */
+  const reg=S.registro.filter(r=>r.site===sid);
+  if(reg.length)left+=`<div class="card"><h2>Registro della project timeline</h2>`+reg.map(r=>`<div class="reg"><b>${r.who}</b> ${r.text}<div class="m">${r.meta}</div></div>`).join('')+`</div>`;
+
+  const side=`<div class="side"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+    <span style="font-size:11.5px;color:var(--mut)">Timeline live</span><button style="font-size:11px;padding:3px 9px" onclick="S.overlay=true;render()">⤢ Espandi</button></div>
+    ${vertSVG(site,cid,340)}</div>`;
+  return `<h1>${esc(site.name)} — ${esc(site.city)}</h1><p class="sub">${esc(site.client)} · ${site.type} · ${t.n}</p>
+    <div class="grid2"><div>${left}</div>${side}</div>`;
+}
+
+function ptTable(site,cid){
+  let h=`<table><thead><tr><th style="width:34%">Fase / milestone</th><th>Inizio</th><th>Fine</th><th style="width:16%">Fonte</th><th>Stato</th><th></th></tr></thead><tbody>`;
+  site.pt.rows.forEach((r,i)=>{
+    h+=`<tr id="ptr_${r.id}"><td>${esc(r.name)} ${r.anchor?'<span style="color:'+((TINT[cid]||{}).s||'#555')+';font-size:10px">●</span>':''}<div style="font-size:10.5px;color:var(--faint)">${r.fam||''}</div></td>
+    <td><input type="date" value="${r.start||''}" onchange="setPT('${site.id}','${r.id}','start',this.value)"></td>
+    <td><input type="date" value="${r.end||''}" onchange="setPT('${site.id}','${r.id}','end',this.value)"></td>
+    <td><input type="text" placeholder="facoltativa" value="${esc(r.fonte)}" style="width:100%" onchange="setPT('${site.id}','${r.id}','fonte',this.value)"></td>
+    <td><span class="badge ${r.stato==='inserita'?'b-grn':(r.stato==='confermata'?'b-grn':'b-amb')}">${r.stato}</span></td>
+    <td><span class="rowdel" title="Elimina riga" onclick="delRow('${site.id}','${r.id}')">🗑</span></td></tr>`;});
+  return h+'</tbody></table>';}
+
+function setPT(sid,rid,field,val){const site=S.sites[sid];const r=site.pt.rows.find(x=>x.id===rid);
+  const before={...r};
+  const apply=()=>{r[field]=val;if(field==='start'||field==='end'){r.stato='inserita';site.ptPristine=false;}};
+  /* cascata se la riga è ancorata da passi e la pt è salvata */
+  if(site.pt.saved&&(field==='start'||field==='end')&&hasDependents(site,r)&&val&&rowDate(r)&&val!==rowDate(r)){
+    S.cascade={sid,rid,field,val,fonte:''};render();return;}
+  apply(); if(site.pt.saved){S.undo={desc:'Modifica '+r.name,undo:()=>{Object.assign(r,before);render();}};toast('Salvato');}
+  render();}
+function hasDependents(site,row){
+  for(const c of Object.values(site.certs)){if(!c.steps)continue;
+    for(const st of c.steps){if(st.kind==='ered'&&st.src===row.key)return true;
+      if(st.kind==='calc'&&!st.unlinked&&(st.anchor===row.key||st.anchor===row.id))return true;}}
+  return false;}
+function addRow(sid){const site=S.sites[sid];site.pt.rows.push({id:'r'+Date.now(),key:null,name:'Nuova attività',fam:'',anchor:false,start:null,end:null,fonte:'',stato:'da confermare'});site.ptPristine=false;render();}
+function delRow(sid,rid){const site=S.sites[sid];const i=site.pt.rows.findIndex(r=>r.id===rid);const [r]=site.pt.rows.splice(i,1);site.ptPristine=false;
+  S.undo={desc:'Riga eliminata',undo:()=>{site.pt.rows.splice(i,0,r);render();}};toast('Riga eliminata');render();}
+function savePT(sid){const site=S.sites[sid];const h=ptRow(site,'handover');
+  if(!h||!rowDate(h)){toast('Serve almeno l\u2019handover');return;}
+  site.pt.saved=true;site.pt.lastBy=USERS[S.role]+' · oggi';S.ptOpen=false;toast('Project timeline salvata — condivisa con tutto il sito');render();}
+function genCert(sid,cid){const site=S.sites[sid];
+  site.certs[cid].steps = cid==='leedbdc'?scaLEED():cid==='wellnc'?scaWELL():cid==='gcsup'?scaGC():scaEB();render();}
+
+function certTable(site,cid){
+  const cert=site.certs[cid],t=TINT[cid];const mine=cert.pm===S.role;
+  let h=`<table><thead><tr><th style="width:4%">#</th><th style="width:30%">Passo</th><th>Natura</th><th style="width:15%">Data</th><th style="width:27%">Si calcola da</th><th>Fatto</th></tr></thead><tbody>`;
+  cert.steps.forEach((st,idx)=>{
+    let nat='',data='',anc='',done='';
+    const d=stepDate(site,st);
+    if(st.kind==='pm'){nat=`<span class="badge b-mut">PM${st.opz?' · opz':''}</span>`;
+      data=mine?`<input type="date" value="${st.date||''}" onchange="setStep('${site.id}','${cid}',${idx},this.value)">`:F(st.date);
+      const w=precWarn(site,st);
+      anc= st.prec?`<span style="font-size:11px;color:var(--mut)">vincolo: ${st.prec.lbl}</span>${w?'<div class="warn">'+w+'</div>':''}`:'<span style="color:var(--faint)">—</span>';
+      done=`<input type="checkbox" ${st.done?'checked':''} ${mine?'':'disabled'} onchange="S.sites['${site.id}'].certs['${cid}'].steps[${idx}].done=this.checked;toast('Stato SAL registrato');render()">`;}
+    else if(st.kind==='ered'){nat='<span class="badge" style="background:var(--st1);color:#5F5E5A">ereditata</span>';
+      data=`<b>${F(d)}</b>`;const r=ptRow(site,st.src);
+      anc=`<span style="font-size:11.5px;color:var(--mut)">← ${r?esc(r.name):st.src} · project timeline</span>`;}
+    else if(st.kind==='calc'){nat=`<span class="badge" style="background:${t.b};color:${t.s}">calcolata</span>`;
+      if(st.unlinked){data=mine?`<input type="date" value="${st.date||''}" onchange="S.sites['${site.id}'].certs['${cid}'].steps[${idx}].date=this.value;render()">`:F(st.date);
+        anc=`<span style="font-size:11.5px;color:var(--mut)">manuale (sganciata)</span> ${mine?`<button style="font-size:11px;padding:2px 8px" onclick="relink('${site.id}','${cid}',${idx},event)">Riaggancia</button>`:''}`;}
+      else{const r=anchorRowOf(site,st);
+        data=`<span style="color:${t.s};font-weight:600">${F(d)}</span> <span class="chain" title="Data collegata" style="color:${t.s}">⛓</span>`;
+        const pend=cert.pending&&`<span class="badge b-amb">in attesa di conferma</span>`||'';
+        anc=mine?`<button style="font-size:11px;padding:3px 9px" onclick="openAnchor('${site.id}','${cid}',${idx},event)">${r?esc(r.name):'?'} + ${st.off}gg ▾</button>
+          <button style="font-size:11px;padding:3px 9px" onclick="unlink('${site.id}','${cid}',${idx})">Sgancia</button> ${pend}`
+          :`<span style="font-size:11.5px;color:var(--mut)">${r?esc(r.name):''} + ${st.off}gg</span> ${pend}`;}}
+    else if(st.kind==='auto'){nat='<span class="badge b-mut">auto</span>';data='<span style="color:var(--faint)">—</span>';
+      anc=`<span style="font-size:11px;color:var(--faint)">${st.lbl}</span>`;}
+    else if(st.kind==='serie'){const occ=serieOcc(site,st);nat=`<span class="badge" style="background:${t.b};color:${t.s};border:1px dashed ${t.s}">serie</span>`;
+      data=`<b>${occ.length}</b> occorrenze`;
+      anc=`<span style="font-size:11px;color:var(--mut)">mensile · da Construction start a Handover (${occ.length?F(occ[0])+' → '+F(occ[occ.length-1]):'—'})</span>`;}
+    h+=`<tr id="cst_${cid}_${idx}"><td style="color:var(--faint)">${st.n}</td><td>${esc(st.name)}</td><td>${nat}</td><td>${data}</td><td style="position:relative">${anc}</td><td>${done}</td></tr>`;});
+  h+='</tbody></table>';
+  if(!S.hintDone&&cid==='leedbdc'&&cert.steps.some(s=>s.kind==='calc')){
+    h+=`<div style="position:relative"><div class="hint" style="right:10px;top:-6px">Le date con la catena ⛓ sono collegate alla project timeline: se l\u2019Handover si sposta, si ricalcolano da sole. Tocca il pulsante dell\u2019ancora per vedere o cambiare il collegamento. <b style="cursor:pointer" onclick="S.hintDone=true;render()">Ok</b></div></div>`;}
+  return h;}
+function setStep(sid,cid,idx,val){S.sites[sid].certs[cid].steps[idx].date=val;toast('Salvato');render();}
+function unlink(sid,cid,idx){const st=S.sites[sid].certs[cid].steps[idx];
+  if(!confirm('Sganciare questa data?\n\nManterr\u00e0 il valore attuale ('+F(stepDate(S.sites[sid],st))+') ma NON si aggiorner\u00e0 pi\u00f9 quando il progetto si sposta. Potrai riagganciarla in ogni momento.'))return;
+  st.date=stepDate(S.sites[sid],st);st.unlinked=true;toast('Sganciata: ora \u00e8 una data manuale');render();}
+function relink(sid,cid,idx,ev){S.sites[sid].certs[cid].steps[idx].unlinked=false;openAnchor(sid,cid,idx,ev);}
+function openAnchor(sid,cid,idx,ev){ev&&ev.stopPropagation();const st=S.sites[sid].certs[cid].steps[idx];
+  S.anchorPop={sid,cid,idx,anchor:st.anchor,off:st.off};render();}
+
+/* ── ancoraggio: popover ── */
+function anchorPopHTML(){
+  const {sid,cid,idx,anchor,off}=S.anchorPop;const site=S.sites[sid];const t=TINT[cid];
+  const st=site.certs[cid].steps[idx];
+  const r=site.pt.rows.find(x=>x.key===anchor||x.id===anchor);
+  const res=r&&rowDate(r)?addD(rowDate(r),off):null;
+  const opts=site.pt.rows.filter(x=>rowDate(x)).map(x=>`<option value="${x.key||x.id}" ${ (x.key||x.id)===anchor?'selected':''}>${esc(x.name)} · ${F(rowDate(x))}</option>`).join('');
+  return `<div class="modal" onclick="S.anchorPop=null;render()"><div class="pop" style="position:relative" onclick="event.stopPropagation()">
+   <p style="margin:0 0 8px;font-size:12.5px"><b>${esc(st.name)}</b></p>
+   <p style="margin:0 0 6px;font-size:12px;color:var(--mut)">Si calcola da:</p>
+   <select style="width:100%" onchange="S.anchorPop.anchor=this.value;render()">${opts}</select>
+   <div style="display:flex;gap:8px;align-items:center;margin:10px 0">
+     <button onclick="S.anchorPop.off=Math.max(0,S.anchorPop.off-5);render()">−</button>
+     <input type="number" value="${off}" style="width:64px;text-align:center" onchange="S.anchorPop.off=parseInt(this.value)||0;render()">
+     <span style="font-size:12px;color:var(--mut)">giorni dopo</span>
+     <button onclick="S.anchorPop.off+=5;render()">+</button></div>
+   <p style="font-size:12.5px;margin:0 0 10px">→ risulta: <b style="color:${t.s}">${res?F(res):'—'}</b></p>
+   <p style="font-size:11px;color:var(--mut);margin:0 0 10px">D\u2019ora in poi, se «${r?esc(r.name):''}» si sposta, questa data si ricalcoler\u00e0 da sola.</p>
+   <div style="display:flex;gap:8px;justify-content:flex-end"><button onclick="S.anchorPop=null;render()">Annulla</button>
+   <button class="pri" onclick="applyAnchor()">Applica collegamento</button></div></div></div>`;}
+function applyAnchor(){const {sid,cid,idx,anchor,off}=S.anchorPop;const st=S.sites[sid].certs[cid].steps[idx];
+  st.anchor=anchor;st.off=off;st.unlinked=false;S.anchorPop=null;toast('Collegata: si aggiorner\u00e0 con la project timeline ⛓');render();}
+
+/* ── cascata ── */
+function cascadeHTML(){
+  const {sid,rid,field,val}=S.cascade;const site=S.sites[sid];const row=site.pt.rows.find(r=>r.id===rid);
+  const isHand=row.key==='handover';
+  const moves=[];
+  for(const [ck,c] of Object.entries(site.certs)){if(!c.steps)continue;
+    for(const st of c.steps){
+      if(st.kind==='ered'&&st.src===row.key)moves.push({cert:ck,name:st.name,old:rowDate(row),neu:val});
+      if(st.kind==='calc'&&!st.unlinked&&(st.anchor===row.key||st.anchor===row.id))moves.push({cert:ck,name:st.name,old:addD(rowDate(row),st.off),neu:addD(val,st.off)});}}
+  const still=Object.values(site.certs).flatMap(c=>c.steps||[]).filter(s=>s.kind==='pm').length;
+  let verdict='';
+  if(isHand){const att=addD(val,180);const over=P(att)>P(site.contract);
+    verdict=`<p style="font-size:12.5px;color:${over?'var(--red)':'var(--grn)'};margin:8px 0 0">Fine stimata ${F(att)} — ${over?'oltre la scadenza contrattuale del '+F(site.contract)+': proroga da negoziare':'entro la scadenza contrattuale ('+F(site.contract)+')'}.</p>`;}
+  const otherPMs=[...new Set(Object.values(site.certs).filter(c=>c.steps&&c.pm!==S.role).map(c=>USERS[c.pm]))];
+  return `<div class="modal"><div class="mbox" style="max-width:640px">
+   <div class="mhead"><b>Anteprima: «${esc(row.name)}» ${F(rowDate(row))} → ${F(val)}</b><button onclick="S.cascade=null;render()">✕</button></div>
+   <div class="mbody">
+   <p class="sub">Si spostano solo i passi collegati a questa riga; i ${still} passi decisi dai PM restano dove sono.</p>
+   <table><thead><tr><th>Passo</th><th>Da → a</th></tr></thead><tbody>
+   ${moves.map(m=>`<tr><td><span class="dot" style="background:${TINT[m.cert].s}"></span>${esc(m.name)}</td><td><s style="color:var(--faint)">${F(m.old)}</s> → <b>${F(m.neu)}</b></td></tr>`).join('')||'<tr><td colspan=2>Nessun passo collegato.</td></tr>'}
+   </tbody></table>${verdict}
+   ${otherPMs.length?`<p style="font-size:11.5px;color:var(--mut);margin-top:8px">${otherPMs.join(', ')} ricever\u00e0 la proposta e confermer\u00e0 i propri passi.</p>`:''}
+   <div style="margin-top:10px"><input type="text" placeholder="Fonte (facoltativa): es. gantt rev.8 del GC" style="width:100%" onchange="S.cascade.fonte=this.value"></div>
+   </div>
+   <div class="mfoot"><button onclick="S.cascade=null;render()">Annulla — nessuna modifica</button>
+   <button class="pri" onclick="confirmCascade()">Conferma spostamento</button></div></div></div>`;}
+function confirmCascade(){
+  const {sid,rid,field,val,fonte}=S.cascade;const site=S.sites[sid];const row=site.pt.rows.find(r=>r.id===rid);
+  const old=rowDate(row);row[field]=val;row.stato='inserita';
+  const isHand=row.key==='handover';let meta=(fonte||'fonte non indicata')+' · '+(diffD(old,val)>0?'+':'')+diffD(old,val)+' gg vs data precedente';
+  if(isHand){const att=addD(val,180);const over=P(att)>P(site.contract);
+    meta+=' · '+(diffD(site.quot,val)>0?'+':'')+diffD(site.quot,val)+' gg vs baseline Quotation · fine stimata '+F(att)+(over?' oltre contratto':' entro contratto');}
+  const others=Object.values(site.certs).filter(c=>c.steps&&c.pm!==S.role);
+  if(others.length){others.forEach(c=>c.pending=true);meta+=' · notifica a '+[...new Set(others.map(c=>USERS[c.pm]))].join(', ')+' e all\u2019admin';}
+  S.registro.unshift({site:sid,who:USERS[S.role],text:`ha spostato «${esc(row.name)}» dal ${F(old)} al ${F(val)}`,meta});
+  S.cascade=null;toast('Registrato nel registro della project timeline');render();}
+
+/* ── import wizard ── */
+function openImport(sid,cid){S.importW={sid,cid,step:1,fix:null,rows:null,anchorDate:null,keepQuot:false};render();}
+function resumeImport(sid,cid){S.importW=S.sites[sid].importDraft;S.sites[sid].importDraft=null;render();}
+function pickFix(k){const W=S.importW;W.fix=k;
+  if(FIX[k].kind==='xlsx-mesi'){W.needsAnchor=true;W.rows=null;}
+  else{W.rows=FIX[k].rows.map((r,i)=>({i,name:r[0],start:r[1],end:r[2],map:r[3],inc:true}));W.step=2;}
+  render();}
+function greekGo(){const W=S.importW;if(!W.anchorDate){toast('Serve la data di ancoraggio');return;}
+  let d=W.anchorDate;W.rows=FIX.greek.stages.map(([n,m],i)=>{const s=d,e=addM(d,m);d=e;
+    return {i,name:n,start:s,end:e,map:n==='Mobilisation'?'consegnaAree':(n==='Earthworks'?'constrStart':(n==='Commissioning'?'':'')),inc:true};});
+  const last=W.rows[W.rows.length-1];W.rows.push({i:99,name:'Handover (fine construction)',start:last.end,end:last.end,map:'handover',inc:true});
+  W.step=2;render();}
+function importHTML(){
+  const W=S.importW;const site=S.sites[W.sid];
+  const head=`<div class="mhead"><b>Importa project timeline${W.fix?' · '+esc(FIX[W.fix].file):''}</b>
+   <div style="display:flex;gap:10px;align-items:center"><div class="stepz">
+   <span class="s ${W.step===1?'on':''}"><span class="c">${W.step>1?'✓':'1'}</span>Carica</span>
+   <span class="s ${W.step===2?'on':''}"><span class="c">2</span>Rivedi ed escludi</span>
+   <span class="s ${W.step===3?'on':''}"><span class="c">3</span>Conferma</span></div>
+   <button onclick="closeImport()">✕</button></div></div>`;
+  let body='',foot='';
+  if(W.step===1){
+    body=`<p class="sub">Trascina qui il cronoprogramma (PDF, immagine o xlsx) — nella demo, scegli una fixture reale. Estraggo attivit\u00e0 e date; tu scegli cosa tenere.</p>
+    <div class="cardrow">${Object.entries(FIX).map(([k,f])=>`<div class="pcard" onclick="pickFix('${k}')"><b>${esc(f.file)}</b><div style="font-size:11.5px;color:var(--mut)">${f.kind==='xlsx-mesi'?'xlsx · durate in mesi (chieder\u00f2 la data di ancoraggio)':f.kind==='png'?'immagine → OCR':'PDF testuale → parsing'}</div></div>`).join('')}</div>`;
+    if(W.needsAnchor&&W.fix==='greek')body+=`<div class="banner" style="margin-top:12px"><span>Questo file esprime le fasi come <b>durate in mesi</b>. Da quale data parte la prima fase?</span>
+      <span><input type="date" onchange="S.importW.anchorDate=this.value"> <button class="pri" onclick="greekGo()">Converti in date</button></span></div>`;
+    foot=`<span></span><span></span>`;}
+  if(W.step===2){
+    const inc=W.rows.filter(r=>r.inc);
+    body=`<div style="display:grid;grid-template-columns:46% 54%;gap:14px">
+    <div><p style="font-size:11.5px;color:var(--mut);margin:0 0 6px">Togli la spunta alle attivit\u00e0 che non servono alla certificazione: spariscono dalla timeline a destra.</p>
+    <div style="max-height:390px;overflow:auto"><table><tbody>
+    ${W.rows.map((r,i)=>`<tr style="${r.inc?'':'color:var(--faint)'}" onclick="S.importW.rows[${i}].inc=!S.importW.rows[${i}].inc;render()">
+      <td style="width:24px"><input type="checkbox" ${r.inc?'checked':''} onclick="event.stopPropagation()" onchange="S.importW.rows[${i}].inc=this.checked;render()"></td>
+      <td style="${r.inc?'':'text-decoration:line-through'}">${esc(r.name)}<div style="font-size:10.5px;color:${r.start?'var(--mut)':'var(--amb)'}">${r.start?F(r.start)+(r.end&&r.end!==r.start?' → '+F(r.end):''):'data mancante — inseriscila'}</div></td>
+      <td style="text-align:right" onclick="event.stopPropagation()">
+      <select style="font-size:10.5px" onchange="S.importW.rows[${i}].map=this.value;render()">
+        <option value="">—</option>${['consegnaAree','constrStart','impianti','sitoPronto','tender','handover'].map(k=>`<option value="${k}" ${r.map===k?'selected':''}>${k==='handover'?'Handover ●':k}</option>`).join('')}</select>
+      ${r.map==='handover'&&site.quot&&r.end!==site.quot&&r.start!==site.quot?'<div class="badge b-amb">≠ Quotation '+F(site.quot)+'</div>':''}</td></tr>`).join('')}
+    </tbody></table></div>
+    <p style="font-size:11.5px;color:var(--mut);margin-top:6px">${inc.length} incluse · ${W.rows.length-inc.length} escluse</p></div>
+    <div style="background:var(--bg);border-radius:12px;padding:10px">${importSVG(W)}</div></div>`;
+    foot=`<span style="font-size:11.5px;color:var(--amb)">${W.rows.some(r=>r.map==='handover'&&r.inc)?(site.quot&&W.rows.find(r=>r.map==='handover').start!==site.quot?'Handover diverso dalla baseline: la Quotation resta baseline, questa diventa la data corrente.':''):'Nessuna riga mappata su Handover.'}</span>
+      <span><button onclick="S.importW.step=1;render()">Indietro</button> <button class="pri" onclick="S.importW.step=3;render()">Avanti</button></span>`;}
+  if(W.step===3){
+    const inc=W.rows.filter(r=>r.inc);const hand=inc.find(r=>r.map==='handover');
+    const ok=inc.length>0&&(hand||W.keepQuot);
+    body=`<p class="sub">Riepilogo prima dell\u2019inserimento.</p>
+    <p style="font-size:13px">• <b>${inc.length}</b> righe verranno inserite nella project timeline (${W.rows.length-inc.length} escluse)<br>
+    • Ancore riconosciute: ${inc.filter(r=>r.map).map(r=>'<span class="badge b-mut">'+r.map+'</span>').join(' ')||'nessuna'}<br>
+    • Handover: ${hand?F(hand.end||hand.start)+(site.quot&&(hand.end||hand.start)!==site.quot?' <span class="badge b-amb">≠ baseline Quotation '+F(site.quot)+'</span>':''):'<label style="font-size:12px"><input type="checkbox" onchange="S.importW.keepQuot=this.checked;render()"> mantieni handover da Quotation ('+F(site.quot)+')</label>'}</p>
+    ${site.ptPristine?'<p style="font-size:12px;color:var(--mut)">L\u2019ossatura del template non \u00e8 stata toccata: l\u2019import la <b>sostituir\u00e0</b>.</p>':'<p style="font-size:12px;color:var(--mut)">La timeline \u00e8 gi\u00e0 stata lavorata: l\u2019import <b>integrer\u00e0</b> per evento.</p>'}`;
+    foot=`<span style="font-size:11.5px;color:${ok?'var(--mut)':'var(--red)'}">${ok?'':'Il pulsante \u00e8 disattivo: manca il mapping dell\u2019Handover (o la scelta di mantenerlo da Quotation).'}</span>
+      <span><button onclick="S.importW.step=2;render()">Indietro</button>
+      <button class="pri" ${ok?'':'disabled'} onclick="confirmImport()">Conferma e inserisci ${inc.length} righe</button></span>`;}
+  return `<div class="modal"><div class="mbox">${head}<div class="mbody">${body}</div><div class="mfoot">${foot}</div></div></div>`;}
+function importSVG(W){
+  const rows=W.rows.filter(r=>r.start);if(!rows.length)return '<p class="sub">Nessuna riga datata.</p>';
+  const ds=rows.map(r=>r.start).concat(rows.map(r=>r.end||r.start));
+  const min=ds.reduce((a,b)=>a<b?a:b),max=ds.reduce((a,b)=>a>b?a:b);
+  const span=Math.max(1,diffD(min,max));const H=380;const y=d=>16+(diffD(min,d)/span)*(H-40);
+  let g='';W.rows.forEach(r=>{if(!r.start)return;const inc=r.inc;const y1=y(r.start),y2=y(r.end||r.start);
+    if(y2-y1>4)g+=`<rect x="60" y="${y1}" width="10" height="${Math.max(4,y2-y1)}" rx="5" fill="${inc?'#CFCBBD':'none'}" stroke="${inc?'none':'#C9C6BA'}" stroke-dasharray="3 2" opacity="${inc?1:.45}"/>`;
+    else g+=`<circle cx="65" cy="${y1}" r="${r.map==='handover'?7:5}" fill="${inc?(r.map?'#4A483F':'#FFF'):'#F1EFE8'}" stroke="#4A483F" stroke-width="${inc?1.6:0.8}" opacity="${inc?1:.4}"/>`;
+    g+=`<text x="80" y="${(y1+y2)/2+3}" font-size="10.5" fill="${inc?'#23271F':'#B4B2A9'}" ${inc?'':'text-decoration="line-through"'}>${esc(r.name).slice(0,34)}</text>
+        <text x="80" y="${(y1+y2)/2+14}" font-size="9.5" fill="#98968B">${F(r.start)}${r.end&&r.end!==r.start?' → '+F(r.end):''}</text>`;});
+  return `<svg viewBox="0 0 340 ${H}" style="width:100%"><line x1="65" y1="10" x2="65" y2="${H-14}" stroke="#A8A47F" stroke-width="2"/>${g}</svg>`;}
+function closeImport(){const W=S.importW;if(W&&W.step>1){S.sites[W.sid].importDraft=W;toast('Bozza salvata — riprendi quando vuoi');}S.importW=null;render();}
+function confirmImport(){const W=S.importW;const site=S.sites[W.sid];const inc=W.rows.filter(r=>r.inc);
+  const newRows=inc.map(r=>({id:'i'+r.i,key:r.map||null,name:r.name,fam:'',anchor:!!r.map,start:r.start,end:r.end&&r.end!==r.start?r.end:null,fonte:esc(FIX[W.fix].file),stato:'inserita'}));
+  if(W.keepQuot&&!inc.some(r=>r.map==='handover'))newRows.push({id:'iq',key:'handover',name:'Handover',fam:'',anchor:true,start:site.quot,end:null,fonte:'Quotation',stato:'inserita'});
+  if(site.ptPristine){site.pt.rows=newRows;}
+  else{site.pt.rows=site.pt.rows.concat(newRows.filter(n=>!site.pt.rows.some(o=>o.key&&o.key===n.key)));}
+  site.ptPristine=false;site.pt.saved=true;site.pt.lastBy=USERS[S.role]+' · import '+esc(FIX[W.fix].file);
+  S.importW=null;S.ptOpen=false;toast(inc.length+' righe inserite nella project timeline');render();}
+
+/* ── SVG verticale (pannello + overlay) ── */
+function vertSVG(site,cid,W){
+  const items=[];
+  if(site.pt)site.pt.rows.forEach(r=>{if(r.start)items.push({d:r.start,d2:r.end,name:r.name,lane:0,anchor:r.anchor,key:r.key});});
+  const collect=(c,k)=>{if(!c.steps)return;c.steps.forEach(st=>{const d=stepDate(site,st);
+    if(st.kind==='serie'){serieOcc(site,st).forEach((o,i)=>items.push({d:o,name:i===0?'Report mensili 1…':'',lane:k,tick:1}));return;}
+    if(d)items.push({d,name:st.name,lane:k,calc:st.kind==='calc'&&!st.unlinked,done:st.done,warn:precWarn(site,st)});
+    else if(st.kind!=='auto')items.push({undated:1,name:st.name,lane:k});});};
+  collect(site.certs[cid],1);
+  const dated=items.filter(i=>i.d);
+  if(!dated.length)return '<p class="sub">Compila le prime date: la timeline prende vita qui.</p>';
+  const ds=dated.map(i=>i.d).concat(dated.filter(i=>i.d2).map(i=>i.d2));
+  const min=ds.reduce((a,b)=>a<b?a:b),max=ds.reduce((a,b)=>a>b?a:b);
+  const span=Math.max(30,diffD(min,max));const H=Math.max(300,Math.min(720,span*0.9));
+  const y=d=>18+(diffD(min,d)/span)*(H-46);
+  const t=TINT[cid];const X0=64,X1=W-136;
+  let g=`<line x1="${X0}" y1="12" x2="${X0}" y2="${H-16}" stroke="#A8A47F" stroke-width="2"/>
+         <line x1="${X1}" y1="12" x2="${X1}" y2="${H-16}" stroke="${t.s}" stroke-width="2" ${t.dash?'stroke-dasharray="4 3"':''}/>
+         <text x="${X0}" y="9" font-size="9.5" fill="#6E6C63" text-anchor="middle">Project</text>
+         <text x="${X1}" y="9" font-size="9.5" fill="${t.s}" text-anchor="middle">${t.n}</text>`;
+  let lastY=[-99,-99];
+  dated.sort((a,b)=>a.d<b.d?-1:1).forEach(it=>{
+    const x=it.lane?X1:X0;let yy=y(it.d);if(yy-lastY[it.lane]<15)yy=lastY[it.lane]+15;lastY[it.lane]=yy;
+    if(it.tick){g+=`<rect x="${x-4}" y="${yy-1}" width="8" height="2.4" fill="${t.s}"/>`;if(it.name)g+=`<text x="${x+10}" y="${yy+3}" font-size="9.5" fill="${t.s}">${esc(it.name)}</text>`;return;}
+    if(it.d2&&diffD(it.d,it.d2)>10){const y2=Math.max(yy+6,y(it.d2));g+=`<rect x="${x-5}" y="${yy}" width="10" height="${y2-yy}" rx="5" fill="#CFCBBD"/>`;}
+    const fill=it.lane?(it.done?t.s:'#FFF'):(it.anchor?'#4A483F':'#FFF');
+    g+=`<circle cx="${x}" cy="${yy}" r="${it.key==='handover'?7:5}" fill="${fill}" stroke="${it.warn?'#A66A0F':(it.lane?t.s:'#4A483F')}" stroke-width="1.8" ${it.calc?'stroke-dasharray="3 2"':''}/>`;
+    const tx=it.lane?x+12:x-12,anch=it.lane?'start':'end';
+    g+=`<text x="${tx}" y="${yy-1}" font-size="10.5" fill="${it.warn?'#A66A0F':'#23271F'}" text-anchor="${anch}">${esc(it.name).slice(0,26)}</text>
+        <text x="${tx}" y="${yy+10}" font-size="9.5" fill="#98968B" text-anchor="${anch}">${F(it.d)}</text>`;});
+  /* connettori ereditati/calcolati principali */
+  const hand=ptRow(site,'handover');
+  if(hand&&rowDate(hand)&&site.certs[cid].steps){site.certs[cid].steps.filter(s=>s.kind==='calc'&&!s.unlinked&&stepDate(site,s)).slice(0,4).forEach(s=>{
+    g+=`<path d="M${X0+6} ${y(rowDate(hand))} C ${(X0+X1)/2} ${y(rowDate(hand))}, ${(X0+X1)/2} ${y(stepDate(site,s))}, ${X1-6} ${y(stepDate(site,s))}" stroke="${t.s}" stroke-width="1" fill="none" opacity=".5"/>`;});}
+  const und=items.filter(i=>i.undated).length;
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%">${g}</svg>${und?'<p style="font-size:11px;color:var(--faint);margin:6px 0 0">'+und+' passi ancora da datare</p>':''}`;}
+
+/* ── admin ── */
+function siteStatus(site){
+  const done=Object.values(site.certs).every(c=>c.certified);
+  if(done)return 'Certified';
+  if(site.type==='EXISTING')return 'Certification';
+  if(!site.pt||!site.pt.saved)return 'Design';
+  const cs=ptRow(site,'constrStart'),h=ptRow(site,'handover');
+  if(cs&&rowDate(cs)&&P(TODAY)<P(cs.start||rowDate(cs)))return 'Design';
+  if(h&&rowDate(h)&&P(TODAY)>P(rowDate(h)))return 'Certification';
+  return cs&&rowDate(cs)?'Construction':'Design';}
+function lateInfo(site){
+  for(const c of Object.values(site.certs)){if(!c.steps)continue;
+    for(const st of c.steps){const d=st.kind==='pm'?st.date:null;
+      if(d&&!st.done&&!st.opz&&busDaysLate(d)>5)return st.name+' · '+busDaysLate(d)+' gg lav.';}}
+  return null;}
+function extNeeded(site){const h=ptRow(site,'handover');if(!h||!rowDate(h))return false;
+  return P(addD(rowDate(h),180))>P(site.contract);}
+function viewAdmin(){
+  const sites=Object.values(S.sites);
+  const inCorso=sites.flatMap(s=>Object.values(s.certs)).filter(c=>!c.certified).length;
+  const att=sites.filter(s=>lateInfo(s)||extNeeded(s));
+  const hold=sites.filter(s=>s.onHold);
+  const certified=1; /* riga statica */
+  const K=(id,l,v,d,cls)=>`<div class="kpi ${S.filters.kpi===id?'on':''}" onclick="S.filters.kpi=S.filters.kpi==='${id}'?'':'${id}';render()"><div class="v">${v}</div><div class="l">${l}</div><div class="d ${cls||''}">${d}</div></div>`;
+  let h=`<h1>Projects</h1><p class="sub">Una riga per sito · lo Status è derivato dalla project timeline, mai compilato a mano.</p>
+  <div class="kpis">
+   ${K('corso','Certificazioni in corso',inCorso,'su '+sites.length+' progetti · '+sites.length+' siti')}
+   ${K('att','Da attenzionare',att.length,att.map(s=>lateInfo(s)?'ritardo timeline':'estensione necessaria').join(' · ')||'—',att.length?'':'')}
+   ${K('hold','On hold',hold.length,hold.length?hold.map(s=>s.name).join(', '):'nessuno')}
+   ${K('cert','Certified',certified,'1 progetto interamente certificato')}
+  </div>
+  <div class="card"><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+   <input type="text" placeholder="Cerca client, project, city…" value="${esc(S.filters.q)}" style="min-width:200px" onchange="S.filters.q=this.value;render()">
+   <select onchange="S.filters.cert=this.value;render()"><option value="">Certification</option>${Object.entries(TINT).map(([k,t])=>`<option value="${k}" ${S.filters.cert===k?'selected':''}>${t.n}</option>`).join('')}</select>
+   <select onchange="S.filters.status=this.value;render()"><option value="">Status</option>${['Design','Construction','Certification','Certified'].map(x=>`<option ${S.filters.status===x?'selected':''}>${x}</option>`).join('')}</select>
+   <button onclick="S.filters={q:'',cert:'',status:'',kpi:''};render()">Azzera</button></div>
+   <div>${Object.entries(S.filters).filter(([k,v])=>v&&k!=='kpi').map(([k,v])=>`<span class="chip">${k}: ${esc(TINT[v]?TINT[v].n:v)} <b onclick="S.filters['${k}']='';render()">✕</b></span>`).join('')}
+   ${S.filters.kpi?`<span class="chip">KPI: ${S.filters.kpi} <b onclick="S.filters.kpi='';render()">✕</b></span>`:''}</div>
+   <div class="scrollT" style="margin-top:8px"><table class="ptable"><thead><tr>
+   <th>Client</th><th>City</th><th>Project</th><th>Certifications</th><th>Typology</th><th>Handover</th><th>PM</th><th>Status</th></tr></thead><tbody>`;
+  const rows=[];
+  sites.forEach(s=>{const st=siteStatus(s);rows.push({s,st});});
+  rows.push({static:true,client:'Balenciaga',city:'Roma',name:'Piazza di Spagna',certs:'LEED',typ:'Retail',hand:'—',pm:'M. Ricci',st:'Certified'});
+  rows.filter(r=>{
+    if(r.static)return (!S.filters.status||S.filters.status==='Certified')&&(!S.filters.kpi||S.filters.kpi==='cert')&&(!S.filters.cert||S.filters.cert==='leedbdc')&&(!S.filters.q||('balenciaga piazza di spagna roma').includes(S.filters.q.toLowerCase()));
+    const s=r.s;if(S.filters.q&&!((s.client+' '+s.name+' '+s.city).toLowerCase().includes(S.filters.q.toLowerCase())))return false;
+    if(S.filters.cert&&!s.certs[S.filters.cert])return false;
+    if(S.filters.status&&r.st!==S.filters.status)return false;
+    if(S.filters.kpi==='att'&&!(lateInfo(s)||extNeeded(s)))return false;
+    if(S.filters.kpi==='hold'&&!s.onHold)return false;
+    if(S.filters.kpi==='cert')return false;
+    return true;})
+  .forEach(r=>{
+    if(r.static){h+=`<tr><td>${r.client}</td><td>${r.city}</td><td>${r.name}</td><td><span class="badge" style="background:${TINT.leedbdc.b};color:${TINT.leedbdc.s}">LEED</span></td><td>${r.typ}</td><td>—</td><td>${r.pm}</td><td><span class="badge b-ink">Certified</span></td></tr>`;return;}
+    const s=r.s;const h0=ptRow(s,'handover');const cur=h0?rowDate(h0):null;
+    const slip=cur&&s.quot?diffD(s.quot,cur):0;
+    const stCls={Design:'background:var(--st1);color:#5F5E5A',Construction:'background:var(--st2);color:#4A483F',Certification:'background:var(--st3);color:#FFF',Certified:''}[r.st];
+    h+=`<tr class="click" style="cursor:pointer" onclick="S.drill=S.drill==='${s.id}'?null:'${s.id}';render()">
+    <td><b>${esc(s.client)}</b></td><td>${esc(s.city)}</td><td>${esc(s.name)} <span style="color:var(--faint)">${S.drill===s.id?'▾':'▸'}</span></td>
+    <td>${Object.keys(s.certs).map(k=>`<span class="badge" style="background:${TINT[k].b};color:${TINT[k].s};${TINT[k].dash?'border:1px dashed '+TINT[k].s:''}">${TINT[k].n.split(' ')[0]}</span>`).join(' ')}</td>
+    <td>${s.typology}</td><td>${cur?F(cur):'—'} ${slip?'<span class="badge b-amb">'+(slip>0?'+':'')+slip+'g</span>':''}</td>
+    <td>${[...new Set(Object.values(s.certs).map(c=>USERS[c.pm]))].join(', ')}</td>
+    <td><span class="badge" style="${stCls}">${r.st}</span> ${lateInfo(s)?'<span class="badge b-red">ritardo</span>':''} ${extNeeded(s)?'<span class="badge b-red">proroga</span>':''}</td></tr>`;
+    if(S.drill===s.id)h+=`<tr><td colspan="8" style="padding:0">${drillHTML(s)}</td></tr>`;});
+  h+=`</tbody></table></div></div>`;return h;}
+function drillHTML(s){
+  const hasPT=s.pt&&s.pt.saved;
+  const rowsAll=hasPT?s.pt.rows.filter(r=>r.start):[];
+  let min=null,max=null;const push=d=>{if(!d)return;if(!min||d<min)min=d;if(!max||d>max)max=d;};
+  rowsAll.forEach(r=>{push(r.start);push(r.end);});
+  Object.values(s.certs).forEach(c=>(c.steps||[]).forEach(st=>push(stepDate(s,st))));
+  if(!min)return `<div class="drill">Timeline non ancora compilata dal PM.</div>`;
+  min=addD(min,-15);max=addD(max,25);
+  const pxm=S.fit?Math.max(8,Math.min(46, 860/Math.max(1,diffD(min,max)/30.44))):46;
+  const Wd=Math.max(600,diffD(min,max)/30.44*pxm);
+  const x=d=>diffD(min,d)/30.44*pxm;
+  const cs=ptRow(s,'constrStart'),hv=ptRow(s,'handover');
+  const lanes=Object.entries(s.certs);
+  const Ht=54+lanes.length*46+16;
+  let g=`<line x1="${x(TODAY)}" y1="4" x2="${x(TODAY)}" y2="${Ht-8}" stroke="#B03A31" stroke-dasharray="4 3"/><text x="${x(TODAY)}" y="${Ht-0}" font-size="9.5" fill="#B03A31" text-anchor="middle">oggi</text>`;
+  /* barra project */
+  if(hasPT&&cs&&hv&&rowDate(hv)){
+    const x1=0,x2=x(cs.start||rowDate(cs)),x3=x(rowDate(hv)),x4=x(addD(rowDate(hv),180));
+    g+=`<rect x="${x1}" y="18" width="${Math.max(0,x2-x1)}" height="14" fill="var(--st1)"/>
+        <rect x="${x2}" y="18" width="${Math.max(0,x3-x2)}" height="14" fill="var(--st2)"/>
+        <rect x="${x3}" y="18" width="${Math.max(0,Math.min(x4,Wd)-x3)}" height="14" fill="var(--st3)"/>
+        <text x="${(x1+x2)/2}" y="28" font-size="9.5" text-anchor="middle" fill="#5F5E5A">Design</text>
+        <text x="${(x2+x3)/2}" y="28" font-size="9.5" text-anchor="middle" fill="#4A483F">Construction</text>
+        <text x="${(x3+Math.min(x4,Wd))/2}" y="28" font-size="9.5" text-anchor="middle" fill="#FFF">Certification</text>
+        <text x="${x2}" y="44" font-size="9" text-anchor="middle" fill="#6E6C63">${F(cs.start||rowDate(cs))}</text>
+        <text x="${x3}" y="44" font-size="9" text-anchor="middle" fill="#6E6C63">${F(rowDate(hv))}</text>
+        <line x1="${x2}" y1="16" x2="${x2}" y2="${Ht-10}" stroke="#8B887C" stroke-dasharray="2 3"/>
+        <line x1="${x3}" y1="16" x2="${x3}" y2="${Ht-10}" stroke="#8B887C" stroke-dasharray="2 3"/>`;}
+  lanes.forEach(([k,c],li)=>{const t=TINT[k];const Y=58+li*46;
+    if(!c.steps){g+=`<rect x="0" y="${Y}" width="${Wd*0.5}" height="8" rx="4" fill="#EFEEE7"/><text x="6" y="${Y-4}" font-size="9.5" fill="#98968B">timeline non compilata</text>`;return;}
+    const dts=c.steps.map(st=>stepDate(s,st)).filter(Boolean);
+    if(dts.length){const a=dts.reduce((p,q)=>p<q?p:q),b=dts.reduce((p,q)=>p>q?p:q);
+      g+=`<rect x="${x(a)}" y="${Y}" width="${Math.max(8,x(b)-x(a))}" height="10" rx="5" fill="${t.b}" stroke="${t.s}" stroke-width="${t.dash?1:0.5}" ${t.dash?'stroke-dasharray="4 2"':''}/>`;}
+    let lx=-99,up=true;
+    c.steps.forEach(st=>{
+      if(st.kind==='serie'){serieOcc(s,st).forEach((o,i)=>{g+=`<rect x="${x(o)}" y="${Y-2}" width="2" height="14" fill="${t.s}"/>`;if(i===0)g+=`<text x="${x(o)}" y="${Y-8}" font-size="9" fill="${t.s}">report mensili 1…${serieOcc(s,st).length}</text>`;});return;}
+      const d=stepDate(s,st);if(!d)return;const X=x(d);
+      g+=`<rect x="${X}" y="${Y-2}" width="2.4" height="14" fill="${t.s}"/>`;
+      if(X-lx>60){g+=`<text x="${X}" y="${up?Y-8:Y+24}" font-size="9" fill="${t.s}">${esc(st.name).split(' ').slice(0,2).join(' ')}</text>`;lx=X;up=!up;}});});
+  const left=`<div style="padding-top:50px">${lanes.map(([k,c])=>{const t=TINT[k];
+    return `<div style="height:46px;font-size:11.5px"><span class="dot" style="background:${t.dash?'transparent':t.s};border:${t.dash?'1.6px dashed '+t.s:'none'}"></span><b>${t.n}</b><div style="font-size:10px;color:var(--mut);margin-left:13px">${USERS[c.pm]}</div></div>`;}).join('')}</div>`;
+  return `<div class="drill"><div style="display:flex;justify-content:flex-end;gap:6px;margin-bottom:6px">
+    <button style="font-size:11px;padding:3px 10px;${S.fit?'background:#EFEEE7':''}" onclick="S.fit=true;render()">Adatta</button>
+    <button style="font-size:11px;padding:3px 10px;${!S.fit?'background:#EFEEE7':''}" onclick="S.fit=false;render()">Scorri</button>
+    <button style="font-size:11px;padding:3px 10px" onclick="var c=document.getElementById('lsc_${s.id}');if(c)c.scrollTo({left:Math.max(0,${Math.round(x(TODAY))-260}),behavior:'smooth'})">Oggi</button></div>
+    <div class="lanewrap"><div style="border-right:1px solid var(--line2);padding-right:8px;font-size:11px;color:var(--mut)"><div style="height:50px;padding-top:20px"><b style="color:var(--ink)">Project</b></div>${left.replace('<div style="padding-top:50px">','').slice(0,-6)}</div>
+    <div class="lanescroll" id="lsc_${s.id}"><svg viewBox="0 0 ${Wd} ${Ht}" style="width:${S.fit?'100%':Wd+'px'};display:block">${g}</svg></div></div></div>`;}
+
+/* ── layers ── */
+function layers(){
+  let h='';
+  if(S.anchorPop)h+=anchorPopHTML();
+  if(S.cascade)h+=cascadeHTML();
+  if(S.importW)h+=importHTML();
+  if(S.overlay&&S.view.page==='project'){const site=S.sites[S.view.site];
+    h+=`<div class="ov"><div class="ovbar"><b>${esc(site.name)} — timeline</b><span><button onclick="S.zoom=Math.max(.6,S.zoom-0.2);render()">−</button> <span style="font-size:12px">${Math.round(S.zoom*100)}%</span> <button onclick="S.zoom=Math.min(2,S.zoom+0.2);render()">+</button> <button onclick="S.zoom=1;render()">Adatta</button> <button onclick="S.overlay=false;render()">✕ Chiudi</button></span></div>
+    <div class="ovbody"><div style="width:${Math.round(760*S.zoom)}px;max-width:100%">${vertSVG(site,S.view.cert,760)}</div></div></div>`;}
+  if(S.toast)h+=`<div class="toast">${S.toast.msg}${S.undo?` <button onclick="const u=S.undo;S.undo=null;S.toast=null;u.undo()">Annulla</button>`:''}</div>`;
+  if(S.script)h+=scriptPanel();
+  return h;}
+let toastT=null;
+function toast(msg){S.toast={msg};document.getElementById('layer').innerHTML=layers();clearTimeout(toastT);toastT=setTimeout(()=>{S.toast=null;S.undo=null;document.getElementById('layer').innerHTML=layers();},4200);}
+const SCRIPT=['1 · Marco apre il sito A: ossatura BDC precaricata, solo Handover datato, ② bloccata con motivo','2 · Le righe sono del template BDC (famiglie), non l\u2019elenco generico; ancore ● marcate','3 · Elimina/aggiungi/data righe: pannello live si popola, undo funziona','4 · Salva ①: diventa riepilogo compatto, ② si sblocca','5 · Genera scaletta LEED BD+C: 13 passi reali, ereditati in sola lettura','6 · «Si calcola da ▾»: righe della ① con date, anteprima risultato, catena ⛓, frase di conseguenza, Sgancia/Riaggancia','7 · Guidelines dopo il Tender → avviso ambra; corretta → sparisce','8 · Sito B: ossatura Construction; Importa Metro → sostituisce; righe CON date (Consegna aree 22/04/24…)','9 · Indietro dal passo 3 conserva; X → bozza; «Riprendi import» ricompare','10 · Conferma attivo con etichetta parlante; se manca l\u2019handover spiega perch\u00e9','11 · Sara apre il sito A: ① gi\u00e0 compilata in riepilogo; genera WELL; vede LEED in sola lettura','12 · Marco sposta l\u2019Handover di A: anteprima cascata, verdetto contratto, registro monetizzato, WELL «in attesa di Sara»','13 · Import xlsx greco: chiede la data di ancoraggio e converte i mesi','14 · Admin: KPI cliccabili filtrano; chip; header tabella sticky','15 · Drill-down A: colonna sinistra ferma, barra a 3 fasi con date, separatori, corsie verdi/blu; C mostra «timeline non compilata»','16 · Adatta/Scorri: nessuna etichetta sovrapposta'];
+function scriptPanel(){return `<div class="spanel"><b style="font-size:13px">Script di collaudo §6</b><p class="sub" style="margin:2px 0 6px">Spunta man mano che verifichi.</p>
+ ${SCRIPT.map((s,i)=>`<label><input type="checkbox" ${S.checks[i]?'checked':''} onchange="S.checks[${i}]=this.checked;render()"><span>${s}</span></label>`).join('')}</div>`;}
+
+render();
+</script>
+</body>
+</html>
