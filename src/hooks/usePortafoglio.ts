@@ -60,12 +60,23 @@ export function usePortafoglio(sogliaStantio = 21) {
  * sarebbero ottocento query per mostrarne una.
  */
 export interface CorsieSito {
-  eventi: { nome: string; data: string | null }[];
+  eventi: { nome: string; data: string | null; fine: string | null; ancora: string | null }[];
   certificazioni: {
     id: string;
     nome: string;
+    cert_type: string | null;
+    cert_rating: string | null;
+    on_hold: boolean;
     pm: string | null;
-    milestone: { requirement: string; due_date: string | null; derived_from: string | null; anchor_order: number | null; series_step_order: number | null }[];
+    milestone: {
+      requirement: string;
+      due_date: string | null;
+      status: string | null;
+      optional: boolean;
+      derived_from: string | null;
+      anchor_order: number | null;
+      series_step_order: number | null;
+    }[];
   }[];
 }
 
@@ -78,7 +89,7 @@ export function useCorsieSito(siteId: string | undefined, cronoId: string | null
         ? (
             await (supabase as any)
               .from("cronoprogramma_eventi")
-              .select("nome, data_pianificata, data_effettiva, ordine")
+              .select("nome, data_pianificata, data_fine, data_effettiva, ancora, ordine")
               .eq("cronoprogramma_id", cronoId)
               .order("ordine")
           ).data ?? []
@@ -86,7 +97,7 @@ export function useCorsieSito(siteId: string | undefined, cronoId: string | null
 
       const { data: certs } = await (supabase as any)
         .from("certifications")
-        .select("id, name, pm_id")
+        .select("id, name, cert_type, cert_rating, on_hold, pm_id")
         .eq("site_id", siteId)
         .not("status", "in", '("canceled","cancelled","potential","quotation")');
 
@@ -94,7 +105,7 @@ export function useCorsieSito(siteId: string | undefined, cronoId: string | null
       const { data: ms } = ids.length
         ? await (supabase as any)
             .from("certification_milestones")
-            .select("certification_id, requirement, due_date, derived_from, anchor_order, series_step_order, order_index")
+            .select("certification_id, requirement, due_date, status, optional, derived_from, anchor_order, series_step_order, order_index")
             .in("certification_id", ids)
             .eq("milestone_type", "timeline")
             .order("order_index")
@@ -112,10 +123,15 @@ export function useCorsieSito(siteId: string | undefined, cronoId: string | null
         eventi: (eventi as any[]).map((e) => ({
           nome: e.nome,
           data: e.data_effettiva ?? e.data_pianificata ?? null,
+          fine: e.data_fine ?? null,
+          ancora: e.ancora ?? null,
         })),
         certificazioni: (certs ?? []).map((c: any) => ({
           id: c.id,
           nome: c.name,
+          cert_type: c.cert_type ?? null,
+          cert_rating: c.cert_rating ?? null,
+          on_hold: !!c.on_hold,
           pm: c.pm_id ? nome.get(c.pm_id) ?? null : null,
           milestone: ((ms ?? []) as any[]).filter((m) => m.certification_id === c.id),
         })),

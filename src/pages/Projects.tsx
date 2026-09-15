@@ -32,6 +32,7 @@ import type { Project, ProjectAllocation } from "@/types/custom-tables";
 import { byPersonName } from "@/lib/personName";
 import { formatMoney } from "@/lib/currency";
 import { Money } from "@/components/common/Money";
+import { stilePill } from "@/lib/serviceColors";
 
 const SETUP_STATUS_META = {
   potential: { label: "Potential", icon: FileText, className: "border-slate-400/30 bg-slate-50 text-slate-600" },
@@ -991,7 +992,13 @@ export default function Projects() {
                         </td>
                         <td className="py-4 px-3 border-b border-border whitespace-nowrap">
                           {project.cert_type ? (
-                            <Badge variant="secondary" className="rounded-full px-2.5 py-0.5 text-xs font-medium bg-muted text-foreground border border-border/60">
+                            /* La tinta viene dal sistema colore unico (v1.2 §1):
+                               la stessa coppia strong/bg di corsie e chip. */
+                            <Badge
+                              variant="outline"
+                              className="rounded-full border px-2.5 py-0.5 text-xs font-medium"
+                              style={stilePill(`${project.cert_type} ${project.cert_rating ?? ""}`)}
+                            >
                               {CERT_DISPLAY_LABELS[project.cert_type] ?? project.cert_type}
                             </Badge>
                           ) : (

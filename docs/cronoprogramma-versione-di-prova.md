@@ -354,3 +354,45 @@ restano quelli della v1: la mappa è in `docs/glossario-v1.1.md`.
   orizzontale: barra PROJECT nelle tre fasi, una barra per certificazione con
   le tacche, la serie come tacche ravvicinate con etichetta cumulativa, la
   linea dell'oggi che attraversa tutto.
+
+---
+
+# Aggiornamento v1.2 — correttiva della vista PROJECTS
+
+*(specifica: `docs/specs/specifica-v1.2-correttiva-projects.md`; vince su v1 e v1.1)*
+
+- **Sistema colore unico per servizio** (`src/lib/serviceColors.ts`): LEED
+  verde, WELL blu, BREEAM oliva, WiredScore rosso, Tassonomia viola, Greeny
+  arancio, ClAir petrolio; i supporti (GC Support, Cx) nella tinta della madre
+  in variante tratteggiata. La project timeline è neutra, scala di pietra.
+  L'ambra è solo avviso. Stessi token in tabelle, corsie, timeline verticale.
+- **Status a quattro stati derivati** (Design / Construction / Certification /
+  Certified, scala pietra + inchiostro) più **On Hold** manuale (chip
+  tratteggiato, motivo all'hover). Niente più «storico» né «dato stantio».
+- **KPI di testata**: Certificazioni in corso · Da attenzionare (timeline in
+  ritardo oltre ~5 giorni lavorativi sulle date correnti, o fine stimata oltre
+  contratto; la condizione Payments non si mostra finché l'integrazione non
+  esiste) · On Hold · Certified. **Il click filtra la tabella.**
+- **Barra filtri unica** con multi-select (Certification, Typology, Region,
+  Status, PM) con conteggi, chip rimovibili, «Azzera», stato nell'URL.
+  Colonna **PM** dopo Handover. **Header sticky.**
+- **Drill-down ristrutturato**: colonna sinistra congelata (quadratino colore
+  + nome + PM), asse anni/trimestri/mesi sticky, barra Project a tre segmenti
+  con date di confine, separatori di fase prolungati su tutte le corsie,
+  linea dell'oggi col pulsante «Oggi», corsie vuote dichiarate («timeline non
+  compilata»), etichette ≥11px su righe alternate con lineette di richiamo,
+  collasso in tacche+tooltip quando si toccano, toggle «mostra tutte le
+  etichette» che alza la corsia. **Due modalità: Adatta / Scorri** (≈90px/mese,
+  trascinamento, zoom −/+); si apre in Adatta, o direttamente in Scorri
+  centrato sull'oggi se la durata comprimerebbe troppo.
+
+## Checklist di accettazione visiva (v1)–(v9)
+
+Da verificare a occhio su viewport ≥1280px coi dati di test: niente etichette
+troncate senza tooltip né testi sotto soglia (v1); nessuna sovrapposizione in
+Adatta e Scorri (v2); confini di fase individuabili in <2s (v3); tinte tutte
+diverse, Project neutra, support tratteggiati (v4); header+asse+colonna
+sinistra visibili scrollando con riga espansa (v5); trascinamento fluido e
+«Oggi» che centra la linea rossa (v6); nessuna occorrenza di «storico» o
+«stantio» (v7); chip Status coerenti coi segmenti, certificato ⇒ Certified
+(v8); click su ogni KPI card filtra e il chip compare nella barra (v9).

@@ -87,7 +87,7 @@ Lo spostamento dell'handover **propone** lo spostamento delle sole attività anc
 
 ### 3.7 Nessuna migrazione, nessuna materializzazione in blocco
 
-- **Nessun backfill** dei progetti esistenti. I progetti certificati sono chiusi, le loro date sono storia; nel cruscotto vanno marcati **storici**, non incompleti.
+- **Nessun backfill** dei progetti esistenti. I progetti certificati sono chiusi, le loro date sono storia; nel cruscotto compaiono con Status **Certified** (v1.2 §5), senza etichette aggiuntive.
 - **Nessuna materializzazione in blocco.** La timeline si materializza quando il PM compila: cronoprogramma prima, certificazione poi. L'adozione è in avanti.
 - I 12 casi oggi materializzati si sistemano a mano quando qualcuno li tocca.
 
@@ -178,7 +178,7 @@ Tre viste che mostrano lo stesso innesto (riferimento visivo: `demo-timeline-pm-
 
 ### 8.4 Vista CEO
 
-Su **base sito** (mai su base cronoprogramma: escluderebbe il 38% del portafoglio). Componenti: KPI (certificazioni attive, contratti a rischio, conferme in sospeso, dati stantii), **liste di eccezione** sopra la tabella (contratti a rischio con mesi di proroga stimati; vincoli in conflitto; dati non aggiornati da >N settimane; conferme cascata in sospeso), tabella portafoglio con riga espandibile → corsie. Colonne: fase corrente, slittamento vs baseline, ritardo nostro (ricalcolato), prossima milestone e chi la blocca, freschezza del dato, fine stimata vs scadenza contratto, report proiettati/contrattuali dove applicabile. Progetti chiusi marcati storici, non incompleti.
+Su **base sito** (mai su base cronoprogramma: escluderebbe il 38% del portafoglio). KPI di testata e regola «Da attenzionare»: come definiti in **v1.2 §7** (che sostituisce l'elenco precedente di questa sezione). Tabella portafoglio con riga espandibile → corsie. Colonne: fase corrente, slittamento vs baseline, ritardo nostro (ricalcolato), prossima milestone e chi la blocca, fine stimata vs scadenza contratto, report proiettati/contrattuali dove applicabile. La provenienza e la data di aggiornamento delle date del cronoprogramma restano dati consultabili sul singolo evento (§2.1), ma **non** generano indicatori, soglie o eccezioni di «dato stantio».
 
 ---
 
@@ -186,7 +186,7 @@ Su **base sito** (mai su base cronoprogramma: escluderebbe il 38% del portafogli
 
 - Non replicare il gantt del GC: si mappano le ancore, non le 400 righe di WBS.
 - Nessun semaforo unico che fonda ritardo nostro e slittamento.
-- Nessuna data mostrata con la stessa confidenza a prescindere da fonte e freschezza.
+- La provenienza delle date (fonte, aggiornata il) resta consultabile sul singolo evento, senza però generare indicatori o allarmi automatici.
 - Nessuna timeline farlocca per i progetti senza cantiere: hanno il loro asse (performance period, contratto).
 - Nessuna modifica al frontend cliente.
 - Nessuno spostamento silenzioso di date altrui; nessuna cancellazione di occorrenze emesse.
@@ -214,6 +214,5 @@ Costruire in locale, senza toccare produzione, un verticale completo su cui vali
 2. **Perimetro di lettura del PM:** tutti i siti dell'azienda o solo i propri? Implementarlo come parametro. → Direzione.
 3. **Quali scalette sono vendute anche da sole** e quali solo appese a una madre (Tassonomia, IAQ, GC Support, Cx, PTA). → Operations.
 4. **Chi può marcare una milestone come completata** (fatto di SAL) e la policy di reversibilità. → Direzione/Payments.
-5. **Soglia di freschezza** oltre cui un dato è "stantio" nelle eccezioni CEO.
 6. Dipendenze fra cronoprogrammi di siti diversi (store nel mall): fuori perimetro v1, non predisporre nulla oltre a non impedirlo.
 7. **Collaborazione fra PM sulla stessa certificazione** (invito a posteriori da parte del PM o dell'admin): richiede una tabella di associazione certificazione↔utente con ruolo (responsabile/collaboratore), mentre oggi `PM` è un campo singolo propagato via trigger. Fuori perimetro v1 come funzione, ma la verifica preliminare su `trg_cert_quotation_approved` (§6) va fatta ora e lo schema non deve impedirla. → Direzione per il modello dei ruoli.

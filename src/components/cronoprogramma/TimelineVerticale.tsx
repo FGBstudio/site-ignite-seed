@@ -5,22 +5,23 @@ import { it } from "date-fns/locale";
 import { Minus, Plus, X } from "lucide-react";
 import type { NaturaPasso } from "@/types/cronoprogramma";
 import type { Famiglia } from "@/lib/projectTimelineTemplates";
+import { PIETRA, tintaServizio, type TintaServizio } from "@/lib/serviceColors";
 
 /**
  * La timeline verticale — v1.1 §9, grammatica dal riferimento visivo approvato.
  *
  * Scala temporale reale sull'asse verticale, fasi come barre e milestone come
  * nodi sulla stessa spina, corsie Project e HQ FGB affiancate con i connettori
- * di ereditarieta' (tratteggio grigio) e di calcolo (viola, con +Ngg), linea
+ * di ereditarieta' (tratteggio grigio) e di calcolo (tinta del servizio, +Ngg),
  * dell'oggi e linea della scadenza contrattuale con il margine indicato.
  *
  * Due stati: compatta — colonna stretta e sticky accanto al form, nodi e date
  * abbreviate — ed espansa, overlay a schermo intero con zoom e date complete.
  *
- * I colori: le famiglie tengono le tinte del riferimento (design grigio,
- * permitting ambra, certificazione viola), che la v1.1 §12 fissa come
- * semantica; il teal FGB resta il colore delle azioni e dei passi decisi dal
- * PM — e' il marchio che dice "questo lo scrivi tu".
+ * I colori vengono dal sistema unico per servizio (v1.2 §1): la corsia della
+ * certificazione porta la tinta del suo servizio, la project timeline resta
+ * nella scala di pietra, l'ambra e' solo avviso. Il teal FGB marca i passi
+ * decisi dal PM — il marchio che dice "questo lo scrivi tu".
  */
 
 export interface VoceTimeline {
@@ -52,21 +53,21 @@ interface Props {
   onVoceClick?: (key: string) => void;
   titoloProject?: string;
   titoloCert?: string;
+  /** Il servizio della corsia destra: da qui la sua tinta (v1.2 §1). */
+  servizio?: string | null;
   /** Colonna stretta accanto al form. Il click apre l'overlay espanso. */
   compatta?: boolean;
 }
 
-// Le tinte delle famiglie: quelle del riferimento visivo, leggibili su chiaro
-// e scuro. Il viola e' la corsia della certificazione, l'ambra il permitting
-// e il "da confermare", il grigio il design e l'ereditato.
+// v1.2 §1: la project timeline e' neutra — scala di pietra, mai tinte di
+// servizio. L'informazione della famiglia la porta l'etichetta, non il colore
+// (regola 5); l'ambra resta solo per gli avvisi.
 const FAM: Record<Famiglia, string> = {
-  design: "#B4B2A9",
-  permitting: "#EAB308",
-  construction: "#8A8577",
-  terze_parti: "#CBC9BE",
+  design: PIETRA.design,
+  permitting: "#DBD7C8",
+  construction: PIETRA.construction,
+  terze_parti: "#EDEBE2",
 };
-const VIOLA = "#6D5AE6";
-const VIOLA_CHIARO = "#B7ACF4";
 const TEAL = "#009193";
 const GRIGIO = "#9C998E";
 const AMBRA = "#D97706";
@@ -152,7 +153,7 @@ function Overlay(props: Props & { onClose: () => void }) {
       >
         <div className="mx-auto max-w-4xl">
           <Disegno {...props} pxGiorno={1.4 * zoom} />
-          <Legenda />
+          <Legenda servizio={props.servizio ?? props.titoloCert} />
         </div>
       </div>
     </div>
@@ -160,6 +161,7 @@ function Overlay(props: Props & { onClose: () => void }) {
 }
 
 function Disegno({
+  servizio,
   voci,
   oggi,
   scadenzaContratto,
@@ -173,6 +175,11 @@ function Disegno({
   const conData = voci.filter((v) => v.inizio);
   const senzaData = voci.filter((v) => !v.inizio);
   const oggiISO = oggi ?? format(new Date(), "yyyy-MM-dd");
+
+  // La tinta della corsia servizio, dal sistema colore unico (v1.2 §1).
+  const tinta: TintaServizio = tintaServizio(servizio ?? titoloCert);
+  const ACCENTO = tinta.strong;
+  const ACCENTO_CHIARO = tinta.mid;
 
   const dominio = useMemo(() => {
     if (conData.length === 0) return null;
@@ -214,7 +221,7 @@ function Disegno({
           <span className="text-muted-foreground" style={{ marginLeft: xProject - 120 }}>
             {titoloProject}
           </span>
-          <span style={{ color: VIOLA, marginRight: W - xCert - 220 }}>{titoloCert}</span>
+          <span style={{ color: ACCENTO, marginRight: W - xCert - 220 }}>{titoloCert}</span>
         </div>
       )}
       <svg
@@ -248,7 +255,7 @@ function Disegno({
 
         {/* Le due spine. */}
         <line x1={xProject} y1={16} x2={xProject} y2={H + 30} stroke="hsl(var(--border))" strokeWidth={1.5} />
-        <line x1={xCert} y1={16} x2={xCert} y2={H + 30} stroke={VIOLA_CHIARO} strokeWidth={1.5} opacity={0.7} />
+        <line x1={xCert} y1={16} x2={xCert} y2={H + 30} stroke={ACCENTO_CHIARO} strokeWidth={1.5} opacity={0.7} />
 
         {/* Connettori: prima dei nodi, cosi' restano sotto. */}
         {!compatta &&
@@ -272,7 +279,7 @@ function Disegno({
               <g key={`k-${v.key}`}>
                 <path
                   d={`M ${xProject + 9} ${y(handover.inizio!) + 3} C ${xProject + 120} ${(y(handover.inizio!) + y(v.inizio!)) / 2}, ${xCert - 120} ${y(v.inizio!)}, ${xCert - 8} ${y(v.inizio!)}`}
-                  stroke={VIOLA}
+                  stroke={ACCENTO}
                   strokeWidth={1.2}
                   fill="none"
                   opacity={0.75}
@@ -364,7 +371,7 @@ function Disegno({
             if (v.fatta) {
               nodo = (
                 <>
-                  <circle cx={xCert} cy={y1} r={compatta ? 5 : 7} fill={viol ? AMBRA : VIOLA} />
+                  <circle cx={xCert} cy={y1} r={compatta ? 5 : 7} fill={viol ? AMBRA : ACCENTO} />
                   <path
                     d={`M ${xCert - 3.2} ${y1} l 2.2 2.4 l 4 -4.6`}
                     stroke="#FFF"
@@ -384,9 +391,9 @@ function Disegno({
                   cx={xCert}
                   cy={y1}
                   r={compatta ? 4.5 : 6.5}
-                  fill={VIOLA_CHIARO}
+                  fill={ACCENTO_CHIARO}
                   fillOpacity={0.35}
-                  stroke={viol ? AMBRA : VIOLA}
+                  stroke={viol ? AMBRA : ACCENTO}
                   strokeWidth={1.6}
                   strokeDasharray="3 2"
                 />
@@ -394,8 +401,8 @@ function Disegno({
             } else if (v.isHandover) {
               nodo = (
                 <>
-                  <circle cx={xCert} cy={y1} r={compatta ? 6 : 9} fill={VIOLA} />
-                  <circle cx={xCert} cy={y1} r={compatta ? 9.5 : 13.5} fill="none" stroke={VIOLA} strokeWidth={1.2} opacity={0.4} />
+                  <circle cx={xCert} cy={y1} r={compatta ? 6 : 9} fill={ACCENTO} />
+                  <circle cx={xCert} cy={y1} r={compatta ? 9.5 : 13.5} fill="none" stroke={ACCENTO} strokeWidth={1.2} opacity={0.4} />
                 </>
               );
             } else {
@@ -438,7 +445,7 @@ function Disegno({
                   compatta={compatta}
                   attivo={attivo}
                   forte={v.isHandover || v.natura === "pm"}
-                  viola={v.natura === "calcolato" || v.isHandover}
+                  accentoData={v.natura === "calcolato" || v.isHandover ? ACCENTO : undefined}
                   ambra={viol}
                 />
               </g>
@@ -514,7 +521,7 @@ function Etichetta({
   compatta,
   attivo,
   forte,
-  viola,
+  accentoData,
   ambra,
 }: {
   x: number;
@@ -526,7 +533,7 @@ function Etichetta({
   attivo?: boolean;
   forte?: boolean;
   ambra?: boolean;
-  viola?: boolean;
+  accentoData?: string;
 }) {
   const anchor = lato === "sx" ? "end" : "start";
   const max = compatta ? 14 : 30;
@@ -549,7 +556,7 @@ function Etichetta({
           y={y + (compatta ? 8.5 : 11)}
           textAnchor={anchor}
           fontSize={compatta ? 7.5 : 10.5}
-          fill={ambra ? AMBRA : viola ? VIOLA : "hsl(var(--muted-foreground))"}
+          fill={ambra ? AMBRA : accentoData ?? "hsl(var(--muted-foreground))"}
         >
           {data}
         </text>
@@ -558,7 +565,9 @@ function Etichetta({
   );
 }
 
-export function Legenda() {
+export function Legenda({ servizio }: { servizio?: string | null }) {
+  const tinta = tintaServizio(servizio);
+  const ACCENTO = tinta.strong;
   const voce = (colore: React.CSSProperties, label: string) => (
     <span className="inline-flex items-center gap-1.5">
       <i className="inline-block h-2.5 w-2.5 rounded-full border" style={colore} /> {label}
@@ -569,9 +578,9 @@ export function Legenda() {
       {voce({ background: FAM.design, borderColor: FAM.design }, "fase design")}
       {voce({ background: FAM.permitting, borderColor: FAM.permitting }, "fase permitting")}
       {voce({ background: FAM.construction, borderColor: FAM.construction }, "fase construction")}
-      {voce({ background: VIOLA, borderColor: VIOLA }, "milestone fatta")}
+      {voce({ background: ACCENTO, borderColor: ACCENTO }, "milestone fatta")}
       {voce({ background: "transparent", borderColor: TEAL, borderWidth: 2 }, "del PM")}
-      {voce({ background: "#B7ACF4", borderColor: VIOLA, borderStyle: "dashed" }, "calcolata da handover")}
+      {voce({ background: tinta.mid, borderColor: ACCENTO, borderStyle: "dashed" }, "calcolata da handover")}
       {voce({ background: "transparent", borderColor: GRIGIO }, "ereditata")}
       {voce({ background: "transparent", borderColor: AMBRA, borderStyle: "dashed" }, "da confermare")}
     </div>

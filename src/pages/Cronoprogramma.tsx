@@ -455,6 +455,7 @@ export default function CronoprogrammaPage() {
             onVoceClick={portaAlCampo}
             titoloProject="Project timeline"
             titoloCert={cert.name ?? "HQ FGB timeline"}
+            servizio={`${cert.cert_type ?? ""} ${cert.cert_rating ?? ""} ${cert.name ?? ""}`}
             compatta
           />
           {violazioni.length > 0 && (
