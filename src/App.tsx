@@ -37,6 +37,7 @@ import HrRequests from "./pages/hr/HrRequests";
 import HrAttendance from "./pages/hr/HrAttendance";
 import HrScanner from "./pages/hr/HrScanner";
 import Quotations from "./pages/Quotations";
+import TimelineVista from "./pages/TimelineVista";
 import CronoprogrammaPage from "./pages/Cronoprogramma";
 import PortafoglioCantieri from "./pages/PortafoglioCantieri";
 
@@ -107,7 +108,12 @@ function AppRoutes() {
       <Route path="/projects" element={<ProtectedRoute allowedRoles={R("ADMIN", "PM")}><Projects /></ProtectedRoute>} />
       <Route path="/projects/new" element={<ProtectedRoute allowedRoles={R("ADMIN")}><ProjectCreateWizard /></ProtectedRoute>} />
       <Route path="/projects/:projectId" element={<ProtectedRoute allowedRoles={R("ADMIN", "PM")}><ProjectDetail /></ProtectedRoute>} />
-      <Route path="/projects/:projectId/cronoprogramma" element={<ProtectedRoute allowedRoles={R("ADMIN", "PM")}><CronoprogrammaPage /></ProtectedRoute>} />
+      {/* La vista Timeline ridisegnata (SPECIFICA_TIMELINE v1). La rotta
+          storica resta raggiungibile come /cronoprogramma-legacy finche' i
+          criteri 11 non sono tutti verdi: e' la rete di sicurezza, non un
+          secondo prodotto. */}
+      <Route path="/projects/:projectId/cronoprogramma" element={<ProtectedRoute allowedRoles={R("ADMIN", "PM")}><TimelineVista /></ProtectedRoute>} />
+      <Route path="/projects/:projectId/cronoprogramma-legacy" element={<ProtectedRoute allowedRoles={R("ADMIN", "PM")}><CronoprogrammaPage /></ProtectedRoute>} />
       {/* Stessa schermata per Operations e direzione: il perimetro cambia col
           filtro, non con la pagina. Due schermate distinte divergono. */}
       <Route path="/portafoglio" element={<ProtectedRoute allowedRoles={R("ADMIN", "PM")}><PortafoglioCantieri /></ProtectedRoute>} />
