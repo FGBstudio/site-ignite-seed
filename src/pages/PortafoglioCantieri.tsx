@@ -27,6 +27,7 @@ import { usePortafoglio, useCorsieSito, type RigaPortafoglio } from "@/hooks/use
 import { PIETRA, stilePill, tintaServizio } from "@/lib/serviceColors";
 import { proponiTipo } from "@/lib/projectTimelineTemplates";
 import { AnelloAvanzamento } from "@/components/cronoprogramma/AnelloAvanzamento";
+import { RigaTotali } from "@/components/common/RigaTotali";
 
 const d = (s: string | null | undefined) =>
   s ? format(parseISO(s), "d LLL yy", { locale: it }) : "—";
@@ -545,11 +546,26 @@ export default function ProjectsAdmin() {
             </tbody>
           </table>
         </div>
-        {visibili.length > 200 && (
-          <p className="mt-2 text-[11px] text-muted-foreground">
-            Mostrati i primi 200 di {visibili.length}. Restringi coi filtri.
-          </p>
-        )}
+        {/* La riga dei totali assorbe anche l'avviso del troncamento, che
+            prima stava per conto suo: sono la stessa informazione — quante ne
+            stai guardando — e tenerla in due posti la rende ignorabile. */}
+        <RigaTotali
+          totale={visibili.length}
+          suTotale={tutte.length}
+          mostrate={Math.min(visibili.length, 200)}
+          nome="siti"
+          voci={(["design", "construction", "certification", "certified", "onhold"] as const).map(
+            (s) => ({
+              label: STATUS_META[s].label,
+              valore: visibili.filter((v) => v.status === s).length,
+              colore:
+                s === "certified"
+                  ? "hsl(var(--primary))"
+                  : (STATUS_META[s].stile.background as string) ?? undefined,
+              titolo: `${STATUS_META[s].label} fra i siti filtrati`,
+            })
+          )}
+        />
       </Card>
     </MainLayout>
   );

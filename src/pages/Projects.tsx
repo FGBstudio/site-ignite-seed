@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { RigaTotali } from "@/components/common/RigaTotali";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { ProjectFormModal } from "@/components/projects/ProjectFormModal";
@@ -1219,6 +1220,37 @@ export default function Projects() {
                 </tbody>
               </table>
             </div>
+            {/* Il conteggio di quello che si sta guardando. `tabTotal` è il
+                totale della scheda PRIMA di ricerca, region, PM e filtri di
+                colonna: è il confronto che serve per capire quanto ha
+                selezionato un filtro. */}
+            <RigaTotali
+              totale={sortedAndFiltered.length}
+              suTotale={tabTotal}
+              nome="progetti"
+              voci={
+                statusTab === "all"
+                  ? [
+                      { label: "To Configure", valore: sortedAndFiltered.filter((p) => p.setup_status === "da_configurare").length },
+                      { label: "In Progress", valore: sortedAndFiltered.filter((p) => p.setup_status === "in_corso").length },
+                      { label: "Completed", valore: sortedAndFiltered.filter((p) => (p.setup_status as string) === "completato").length },
+                      { label: "Certified", valore: sortedAndFiltered.filter((p) => p.setup_status === "certificato").length, colore: "hsl(var(--primary))" },
+                      { label: "Online", valore: sortedAndFiltered.filter((p) => (p.setup_status as string) === "online").length },
+                    ]
+                  : [
+                      {
+                        label: "PM distinti",
+                        valore: new Set(sortedAndFiltered.map((p) => p.pm_id).filter(Boolean)).size,
+                        titolo: "Quanti PM diversi hanno in carico i progetti filtrati",
+                      },
+                      {
+                        label: "senza PM",
+                        valore: sortedAndFiltered.filter((p) => !p.pm_id).length,
+                        colore: "hsl(var(--warning))",
+                      },
+                    ]
+              }
+            />
           </div>
           )}
         </TabsContent>
