@@ -50,7 +50,10 @@ const STATUS_META: Record<Status, { label: string; stile: React.CSSProperties; c
   design:        { label: "Design",        stile: { background: PIETRA.design, color: PIETRA.inchiostro, borderColor: PIETRA.construction } },
   construction:  { label: "Construction",  stile: { background: PIETRA.construction, color: "#3A3E35", borderColor: PIETRA.certification } },
   certification: { label: "Certification", stile: { background: PIETRA.certification, color: "#FFFFFF", borderColor: PIETRA.certification } },
-  certified:     { label: "Certified",     stile: { background: PIETRA.certified, color: "#F4F3EE", borderColor: PIETRA.certified } },
+  // Certified è l'unico stato che chiude un percorso, ed è l'unico che porta
+  // il teal del marchio: nella scala di pietra gli altri tre sono gradazioni
+  // della stessa terra, e il salto di colore dice «qui si è arrivati».
+  certified:     { label: "Certified",     stile: { background: "hsl(var(--primary))", color: "#FFFFFF", borderColor: "hsl(var(--primary))" } },
   // L'unico stato manuale: outline tratteggiato, prevale sul derivato.
   onhold:        { label: "On Hold",       stile: { background: "transparent", color: "#8A5A00", borderColor: "#D97706", borderStyle: "dashed" } },
 };
@@ -682,8 +685,29 @@ function RigaSito({
 
   return (
     <>
-      <tr className="cursor-pointer transition-colors hover:bg-muted/40" onClick={onToggle}>
-        <td className="border-b px-3 py-2.5 text-xs font-semibold uppercase">{r.cliente ?? "—"}</td>
+      {/* Un sito certificato è finito, e in una lista di ottocento righe deve
+          distinguersi prima che l'occhio arrivi alla colonna Status — che sta
+          in fondo a destra. Fascia tenue nel teal del marchio e un filetto
+          pieno a sinistra: si legge di traverso, senza rubare contrasto al
+          testo né aggiungere un colore nuovo al sistema. */}
+      <tr
+        className={cn(
+          "cursor-pointer transition-colors",
+          v.status === "certified"
+            ? "bg-primary/[0.055] hover:bg-primary/[0.09]"
+            : "hover:bg-muted/40"
+        )}
+        onClick={onToggle}
+      >
+        <td
+          className={cn(
+            "relative border-b px-3 py-2.5 text-xs font-semibold uppercase",
+            v.status === "certified" &&
+              "before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:bg-primary"
+          )}
+        >
+          {r.cliente ?? "—"}
+        </td>
         <td className="border-b px-3 py-2.5 text-xs uppercase text-muted-foreground">{r.citta ?? "—"}</td>
         <td className="border-b px-3 py-2.5">
           <span className="flex items-center gap-1.5">

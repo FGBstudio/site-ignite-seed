@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { tintaServizio } from "@/lib/serviceColors";
+import { distribuisci, quotaPerData } from "@/lib/distribuzioneVerticale";
 import {
   etichettaDurata,
   type AttivitaDerivata,
@@ -108,11 +109,27 @@ export function TimelineLive({ attivita, passi, servizio, oggiISO, evidenzia, on
 
   if (P.length === 0 && C.length === 0) return <StatoVuoto />;
 
+  // La colonna PROGETTO detta l'asse: passo fisso, niente scala temporale.
   const yP = (i: number) => TOP + R + i * ROW_PROGETTO;
-  const yC = (i: number) => TOP + R + i * ROW_CERT;
+  const dateP = P.map((p) => p.inizio!);
+  const quoteP = P.map((_, i) => yP(i));
 
-  const HP = P.length ? TOP + R + (P.length - 1) * ROW_PROGETTO + 92 : 0;
-  const HC = C.length ? TOP + R + (C.length - 1) * ROW_CERT + 66 : 0;
+  // La colonna CERTIFICAZIONE si allinea NEL TEMPO a quella del progetto: ogni
+  // passo si posiziona dove cade la sua data fra le tappe del cantiere. Non e'
+  // un ritorno alla scala temporale — dentro ciascuna colonna la spaziatura
+  // resta fissa, ed e' cio' che impedisce agli ammassamenti di riformarsi. E'
+  // la relazione FRA le colonne a diventare temporale, che e' l'unica cosa che
+  // serve per rispondere a «mentre succede questo, a che punto e' il cantiere?».
+  const quoteC = (() => {
+    if (C.length === 0) return [];
+    if (dateP.length === 0) return C.map((_, i) => TOP + R + i * ROW_CERT);
+    const ideali = C.map((c) => quotaPerData(c.dataEffettiva!, dateP, quoteP) ?? TOP + R);
+    return distribuisci(ideali, ROW_CERT, TOP + R, TOP + R + (C.length - 1) * ROW_CERT + 400);
+  })();
+  const yC = (i: number) => quoteC[i] ?? TOP + R;
+
+  const HP = P.length ? yP(P.length - 1) + 92 : 0;
+  const HC = C.length ? Math.max(...quoteC) + 66 : 0;
   const H = Math.max(HP, HC, 380) + BOT;
 
   // Il colore della colonna progetto viene dal tema, non da un esadecimale
@@ -193,13 +210,17 @@ export function TimelineLive({ attivita, passi, servizio, oggiISO, evidenzia, on
       )}
 
       {/* ── Le spine ───────────────────────────────────────────────────── */}
+      {/* Il tratto fra due anelli porta l'avanzamento dell'attivita' da cui
+          parte: e' la stessa informazione della barra che stava sotto il nome,
+          messa dove ha un significato geometrico invece che decorativo. */}
       <Spina
-        date={P.map((p) => p.inizio!)}
+        date={dateP}
         cx={CX_PROGETTO}
         y={yP}
         oggi={oggi}
         colore={ANELLO}
         ambra={AMBRA}
+        riempimenti={P.map((a) => ({ pct: a.avanzamento ?? 0, colore: coloreAttivita(a) }))}
       />
       <Spina
         date={C.map((c) => c.dataEffettiva!)}
@@ -209,6 +230,7 @@ export function TimelineLive({ attivita, passi, servizio, oggiISO, evidenzia, on
         colore={ANELLO}
         ambra={AMBRA}
         durate
+        riempimenti={C.map((c) => ({ pct: c.avanzamento, colore: tinta.strong }))}
       />
 
       {P.length === 0 && <InAttesa cx={CX_PROGETTO} />}
@@ -221,7 +243,7 @@ export function TimelineLive({ attivita, passi, servizio, oggiISO, evidenzia, on
         const pct = a.avanzamento ?? 0;
         const righe = aCapo(a.nome, 24);
         const yNome = y + R + 15;
-        const yBarra = yNome + righe.length * 13.5 + 3;
+        const yTesto = yNome + righe.length * 13.5 + 9;
 
         return (
           <g
@@ -230,6 +252,7 @@ export function TimelineLive({ attivita, passi, servizio, oggiISO, evidenzia, on
             onClick={() => onVoceClick?.("attivita", a.id)}
           >
             <title>{`${a.nome} · ${dataBreve(a.inizio)}${a.fine ? ` → ${dataBreve(a.fine)}` : ""}`}</title>
+
             <Badge cx={CX_PROGETTO} cy={y} colore={colore} pct={pct} iso={a.inizio!} anello={ANELLO} />
 
             {righe.map((r, k) => (
@@ -246,26 +269,7 @@ export function TimelineLive({ attivita, passi, servizio, oggiISO, evidenzia, on
               </text>
             ))}
 
-            <rect
-              x={CX_PROGETTO - LARGH_BARRA / 2}
-              y={yBarra}
-              width={LARGH_BARRA}
-              height={ALT_BARRA}
-              rx={ALT_BARRA / 2}
-              fill={ANELLO}
-            />
-            {a.fine && pct > 0 && (
-              <rect
-                x={CX_PROGETTO - LARGH_BARRA / 2}
-                y={yBarra}
-                width={(LARGH_BARRA * pct) / 100}
-                height={ALT_BARRA}
-                rx={ALT_BARRA / 2}
-                fill={colore}
-              />
-            )}
-
-            <text x={CX_PROGETTO} y={yBarra + ALT_BARRA + 12} textAnchor="middle" fontSize={11}>
+            <text x={CX_PROGETTO} y={yTesto} textAnchor="middle" fontSize={11}>
               <tspan fontWeight={600} fill={a.avanzamento === null ? AMBRA : colore}>
                 {a.avanzamento === null ? "manca la fine" : `${pct}%`}
               </tspan>
@@ -366,6 +370,7 @@ function Spina({
   colore,
   ambra,
   durate,
+  riempimenti,
 }: {
   date: string[];
   cx: number;
@@ -374,6 +379,8 @@ function Spina({
   colore: string;
   ambra: string;
   durate?: boolean;
+  /** Per ogni tappa: quanto del tratto che la segue e' gia' fatto. */
+  riempimenti?: Array<{ pct: number; colore: string }>;
 }) {
   if (date.length < 2) return null;
 
@@ -388,9 +395,23 @@ function Spina({
         const frazione = contieneOggi && gg > 0 ? giorniTra(d, oggi) / gg : 0;
         const yOggi = y1 + (y2 - y1) * frazione;
 
+        const pieno = riempimenti?.[i];
+        const quota = Math.max(0, Math.min(100, pieno?.pct ?? 0));
+
         return (
           <g key={`${cx}-${i}`}>
             <line x1={cx} x2={cx} y1={y1} y2={y2} stroke={colore} strokeWidth={7} strokeLinecap="round" />
+            {quota > 0 && (
+              <line
+                x1={cx}
+                x2={cx}
+                y1={y1}
+                y2={y1 + (y2 - y1) * (quota / 100)}
+                stroke={pieno!.colore}
+                strokeWidth={7}
+                strokeLinecap="round"
+              />
+            )}
             {durate && gg > 0 && (
               <text x={cx + 12} y={(y1 + y2) / 2 + 3.5} fontSize={10} fill="hsl(var(--muted-foreground))">
                 {etichettaDurata(gg)}

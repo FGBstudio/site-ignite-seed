@@ -5,6 +5,7 @@ import { it } from "date-fns/locale";
 import { Minus, Plus, X } from "lucide-react";
 import type { NaturaPasso } from "@/types/cronoprogramma";
 import type { Famiglia } from "@/lib/projectTimelineTemplates";
+import { distribuisci } from "@/lib/distribuzioneVerticale";
 import { PIETRA, tintaServizio, type TintaServizio } from "@/lib/serviceColors";
 
 /**
@@ -102,77 +103,11 @@ function g(a: string, b: string) {
 const ALTEZZA_ETICHETTA = 25;
 
 /**
- * Distribuisce le etichette lungo l'asse senza farle accavallare.
- *
- * Il problema, concreto: in un cronoprogramma vero decine di attivita' partono
- * lo stesso giorno — «1 mar 26» su otto righe di permessi — e mettere ogni
- * etichetta alla quota della sua data le impila tutte sullo stesso pixel. Il
- * risultato e' il groviglio: il disegno c'e', ma non si legge piu' niente, che
- * per un pannello che serve a leggere equivale a non esserci.
- *
- * La cura non e' nascondere etichette (si perde informazione) ne' rimpicciolire
- * il testo (sotto una certa soglia e' comunque illeggibile): e' spostarle il
- * minimo indispensabile perche' stiano distanziate, e tirare una linea sottile
- * da ognuna al suo nodo, cosi' si vede a quale data appartiene.
- *
- * «Il minimo indispensabile» non e' un modo di dire — e' il problema della
- * regressione isotona, che si risolve esattamente con pool-adjacent-violators:
- * trasformando in `v_i = ideale_i − i·passo`, la soluzione monotona di v da'
- * le posizioni distanziate di almeno `passo` con lo spostamento TOTALE minimo.
- * Un'euristica «spingi in giu' finche' non si toccano» accumula invece tutto
- * lo scarto sulle ultime etichette, che finiscono lontanissime dal loro nodo.
- *
- * L'ordine verticale non cambia mai: quello che nel tempo viene prima resta
- * sopra, sempre. Un'etichetta che scavalca un'altra sarebbe peggio del
- * groviglio, perche' mentirebbe invece di confondere.
+ * `distribuisci` vive in `@/lib/distribuzioneVerticale`: serve anche al
+ * pannello della vista Timeline, e due copie di una regressione isotona
+ * sono due occasioni di correggerne una sola.
  */
-export function distribuisci(ideali: number[], passo: number, min: number, max: number): number[] {
-  const n = ideali.length;
-  if (n === 0) return [];
-  if (n === 1) return [Math.min(max, Math.max(min, ideali[0]))];
-
-  // Se proprio non ci stanno, si stringe: meglio tutte leggibili e vicine che
-  // metа' fuori dalla cornice.
-  const passoEff = Math.min(passo, (max - min) / (n - 1));
-
-  const ordine = ideali.map((_, i) => i).sort((a, b) => ideali[a] - ideali[b]);
-  const v = ordine.map((idx, k) => ideali[idx] - k * passoEff);
-
-  const somma: number[] = [];
-  const quanti: number[] = [];
-  for (const x of v) {
-    somma.push(x);
-    quanti.push(1);
-    while (
-      somma.length > 1 &&
-      somma[somma.length - 2] / quanti[quanti.length - 2] > somma[somma.length - 1] / quanti[quanti.length - 1]
-    ) {
-      const s = somma.pop()!;
-      const c = quanti.pop()!;
-      somma[somma.length - 1] += s;
-      quanti[quanti.length - 1] += c;
-    }
-  }
-
-  const piatto: number[] = [];
-  for (let j = 0; j < somma.length; j++) {
-    const media = somma[j] / quanti[j];
-    for (let k = 0; k < quanti[j]; k++) piatto.push(media);
-  }
-
-  // Il blocco intero rientra nella cornice, senza deformarlo.
-  const primo = piatto[0];
-  const ultimo = piatto[n - 1] + (n - 1) * passoEff;
-  let scarto = 0;
-  if (primo < min) scarto = min - primo;
-  else if (ultimo > max) scarto = Math.max(max - ultimo, min - primo);
-
-  const out = new Array<number>(n);
-  ordine.forEach((idx, k) => {
-    out[idx] = piatto[k] + k * passoEff + scarto;
-  });
-  return out;
-}
+export { distribuisci };
 
 /**
  * Il pannello non zooma: si allunga e scorre.
