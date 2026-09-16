@@ -174,55 +174,45 @@ export function distribuisci(ideali: number[], passo: number, min: number, max: 
   return out;
 }
 
+/**
+ * Il pannello non zooma: si allunga e scorre.
+ *
+ * Il tentativo precedente adattava la scala allo spazio disponibile, e il
+ * risultato era il contrario di quello che serviva: in un riquadro alto e
+ * stretto il testo diventava enorme e le righe restavano comunque sovrapposte.
+ * Ingrandire un disegno confuso lo rende un disegno confuso e grande.
+ *
+ * La regola giusta e' l'opposto: il testo sta SEMPRE alla sua dimensione — 12
+ * px, quelli che si leggono — e il disegno prende l'altezza che gli serve
+ * perche' ogni etichetta abbia la sua riga. Se l'altezza supera il riquadro, si
+ * scorre. Uno scorrimento e' un gesto; un groviglio e' un vicolo cieco.
+ */
 export function TimelineVerticale(props: Props) {
   const [espansa, setEspansa] = useState(false);
-  const box = useRiquadro(props.riempi === true);
 
   if (props.compatta) {
     return (
       <>
-        <button
-          ref={box.ref}
-          type="button"
-          onClick={() => setEspansa(true)}
-          className={cn(
-            "block w-full cursor-zoom-in rounded-xl text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary",
-            props.riempi && "min-h-0 flex-1 overflow-hidden"
-          )}
-          aria-label="Espandi la timeline a tutta la finestra"
-          title="Espandi: zoom, date complete, tutte le corsie del sito"
-        >
-          <Disegno {...props} pxGiorno={1.0} pannello adattaA={props.riempi ? box.misura : undefined} />
-        </button>
+        <div className={cn("min-h-0 overflow-auto rounded-xl", props.riempi && "flex-1")}>
+          <button
+            type="button"
+            onClick={() => setEspansa(true)}
+            className="block cursor-zoom-in rounded-xl text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+            aria-label="Espandi la timeline a tutta la finestra"
+            title="Espandi: tutte le corsie del sito, zoom, date complete"
+          >
+            <Disegno {...props} pxGiorno={1.0} pannello />
+          </button>
+        </div>
         {espansa && <Overlay {...props} onClose={() => setEspansa(false)} />}
       </>
     );
   }
-  return <Disegno {...props} pxGiorno={1.1} />;
-}
-
-/** Misura il riquadro disponibile. Serve solo quando si chiede di riempirlo. */
-function useRiquadro(attivo: boolean) {
-  const ref = useRef<HTMLButtonElement>(null);
-  const [misura, setMisura] = useState<{ larghezzaPx: number; altezzaPx: number } | undefined>();
-
-  useEffect(() => {
-    if (!attivo || !ref.current) return;
-    const n = ref.current;
-    const ro = new ResizeObserver(() => {
-      setMisura((m) => {
-        const nuovo = { larghezzaPx: n.clientWidth, altezzaPx: n.clientHeight };
-        // Senza soglia il grafico rimbalza: cambia pxGiorno, cambia l'altezza
-        // del contenuto, rimisura, cambia pxGiorno. Due pixel bastano.
-        if (m && Math.abs(m.larghezzaPx - nuovo.larghezzaPx) < 2 && Math.abs(m.altezzaPx - nuovo.altezzaPx) < 2) return m;
-        return nuovo;
-      });
-    });
-    ro.observe(n);
-    return () => ro.disconnect();
-  }, [attivo]);
-
-  return { ref, misura };
+  return (
+    <div className="overflow-auto">
+      <Disegno {...props} pxGiorno={1.1} />
+    </div>
+  );
 }
 
 /** L'overlay: tutta la viewport, zoom +/−/Adatta, chiusura esplicita (v1.3 §4). */
@@ -305,12 +295,10 @@ function Disegno({
   pxGiorno,
   pannello = false,
   multiCorsie = false,
-  adattaA,
 }: Props & {
   pxGiorno: number;
   pannello?: boolean;
   multiCorsie?: boolean;
-  adattaA?: { larghezzaPx: number; altezzaPx: number };
 }) {
   const oggiISO = oggi ?? format(new Date(), "yyyy-MM-dd");
 
@@ -353,23 +341,25 @@ function Disegno({
 
   const xProject = 330;
   const xCorsia = (i: number) => 570 + i * LARGH_CORSIA;
-  // La larghezza segue il contenuto. Nel wizard di import la corsia della
-  // certificazione e' vuota — non c'e' ancora nessuna scaletta — e riservarle
-  // comunque trecento pixel schiacciava tutto il disegno nella meta' sinistra,
-  // sprecando proprio lo spazio che serve alle etichette.
   const corsiePiene = corsie.some((c) => c.voci.some((v) => v.inizio));
-  const W = corsiePiene ? xCorsia(corsie.length - 1) + 330 : xProject + 150;
+  const W = corsiePiene ? xCorsia(corsie.length - 1) + 330 : xProject + 260;
 
-  // Il disegno e' un viewBox scalato alla larghezza: sullo schermo un'unita'
-  // vale (larghezzaRiquadro / W) pixel. Per far tornare l'altezza reale a
-  // quella del riquadro si risolve per pxGiorno, e si tiene un tetto perche'
-  // con due sole date ravvicinate il fattore esploderebbe.
+  // L'altezza la decidono le ETICHETTE, non lo spazio disponibile.
+  //
+  // Su due anni di cantiere con 26 attivita', un pixel al giorno da' 730 px e
+  // 26 etichette da 25 px ne vogliono 650: ci starebbero, se fossero
+  // distribuite uniformemente. Non lo sono mai — si ammassano nei mesi dei
+  // permessi e lasciano vuoto il resto. Quindi il criterio non e' «quanti
+  // giorni», e' «quante righe da scrivere»: si prende la scala piu' generosa
+  // fra le due, e il disegno diventa alto quanto serve. Se non ci sta nel
+  // riquadro, si scorre.
   const giorni = dominio.span + dominio.pad * 2;
-  const CHROME = 22; // bordo + padding del riquadro, su entrambi i lati
-  const pxG = adattaA && adattaA.larghezzaPx > CHROME && adattaA.altezzaPx > CHROME
-    ? Math.min(8, Math.max(0.3,
-        (((adattaA.altezzaPx - CHROME) * W) / (adattaA.larghezzaPx - CHROME) - 78) / giorni))
-    : pxGiorno;
+  const etichette = Math.max(
+    vociProject.filter((v) => v.inizio).length,
+    ...corsie.map((c) => c.voci.filter((v) => v.inizio).length),
+    1
+  );
+  const pxG = Math.max(pxGiorno, (etichette * ALTEZZA_ETICHETTA) / giorni);
 
   const H = Math.round(giorni * pxG);
   const y = (d: string) => Math.round((g(dominio.min, d) + dominio.pad) * pxG) + 26;
@@ -393,9 +383,14 @@ function Disegno({
 
   return (
     <div className={cn("rounded-xl border bg-card", pannello ? "p-2.5" : "p-4")}>
+      {/* Dimensione naturale, non stirata al contenitore: e' l'unico modo di
+          garantire che 12 px restino 12 px. Stirare il viewBox faceva sembrare
+          «zoomato» un disegno che era solo largo poco. */}
       <svg
+        width={W}
+        height={H + 52}
         viewBox={`0 0 ${W} ${H + 52}`}
-        className="block h-auto w-full"
+        className="block"
         role="img"
         aria-label={`Timeline: ${titoloProject} e ${corsie.map((c) => c.titolo).join(", ")}`}
       >

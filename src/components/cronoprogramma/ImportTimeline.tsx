@@ -7,13 +7,7 @@ import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import { ArrowLeft, FileUp, Loader2, TriangleAlert, X } from "lucide-react";
-import {
-  ANCORA_EFFETTO,
-  ANCORA_NOME,
-  ANCORE_MOTORE,
-  type CronoAncora,
-  type CronoEvento,
-} from "@/types/cronoprogramma";
+import { type CronoEvento } from "@/types/cronoprogramma";
 import {
   applicaAncoraggio,
   type AttivitaCandidata,
@@ -90,7 +84,6 @@ export function ImportTimeline({
   const [righe, setRighe] = useState<RigaRev[]>([]);
   const [nomeFile, setNomeFile] = useState("");
   const [ancoraggio, setAncoraggio] = useState("");
-  const [mantieniHandover, setMantieniHandover] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [errore, setErrore] = useState<string | null>(null);
   const [stato, setStato] = useState("");
@@ -122,7 +115,7 @@ export function ImportTimeline({
     try {
       sessionStorage.setItem(
         chiaveBozza,
-        JSON.stringify({ passo, nomeFile, righe, mantieniHandover, diario: esito?.diario ?? "" })
+        JSON.stringify({ passo, nomeFile, righe, diario: esito?.diario ?? "" })
       );
       toast({ title: "Bozza salvata", description: `Riprendi l'import dal passo ${passo} quando vuoi.` });
     } catch {
@@ -137,7 +130,6 @@ export function ImportTimeline({
       const b = JSON.parse(raw);
       setRighe(b.righe ?? []);
       setNomeFile(b.nomeFile ?? "");
-      setMantieniHandover(!!b.mantieniHandover);
       setEsito({ attivita: [], richiedeAncoraggio: false, ancoraggioSuggerito: null, diario: b.diario ?? "" });
       setPasso((b.passo === 3 ? 3 : 2) as 2 | 3);
     } catch {
@@ -162,7 +154,6 @@ export function ImportTimeline({
     setRighe([]);
     setNomeFile("");
     setAncoraggio("");
-    setMantieniHandover(false);
     setErrore(null);
     setMotore(null);
     setDedotte(0);
@@ -209,31 +200,6 @@ export function ImportTimeline({
   const aggiorna = (id: number, campi: Partial<RigaRev>) =>
     setRighe((rs) => rs.map((r) => (r.id === id ? { ...r, ...campi } : r)));
 
-  /**
-   * Assegnare un ruolo e' una cosa sola, fatta una volta.
-   *
-   * Prima era una colonna: ventisei menu identici, uno per riga, che
-   * chiedevano ventisei volte una domanda che ha al massimo tre risposte. E la
-   * cardinalita' era sbagliata di suo — l'ancora e' UNICA per cronoprogramma
-   * (c'e' un indice unico che lo impone), quindi cinque righe marcate
-   * «Lancio gara d'appalto» non erano solo false: erano un salvataggio che
-   * sarebbe fallito.
-   *
-   * Qui il ruolo si prende da una riga e si toglie automaticamente a chi
-   * l'aveva. L'unicita' non e' una regola da ricordare, e' la forma del
-   * comando.
-   */
-  const assegnaRuolo = (ancora: CronoAncora, rigaId: number | null) =>
-    setRighe((rs) =>
-      rs.map((r) => {
-        if (r.ancora_proposta === ancora && r.id !== rigaId) return { ...r, ancora_proposta: null };
-        if (r.id === rigaId) return { ...r, ancora_proposta: ancora, inclusa: true };
-        return r;
-      })
-    );
-
-  const rigaDelRuolo = (ancora: CronoAncora) => righe.find((r) => r.ancora_proposta === ancora) ?? null;
-
   const incluse = righe.filter((r) => r.inclusa);
   const escluse = righe.length - incluse.length;
 
@@ -250,21 +216,25 @@ export function ImportTimeline({
     return eventi.filter((e) => !toccati.has(e.id) && !e.ancora);
   }, [eventi, incluse]);
 
-  // ── Le regole del pulsante (v1.3 §3) ────────────────────────────────────
-  const handoverEsistente = perAncora.has("handover") && !!(perAncora.get("handover")!.data_pianificata ?? perAncora.get("handover")!.data_effettiva);
-  const handoverMappato = incluse.find((r) => r.ancora_proposta === "handover" && r.inizio);
-  const handoverRisolto = !!handoverMappato || mantieniHandover || handoverEsistente;
-  const divergenzaHandover =
-    handoverMappato && handoverBaseline && handoverMappato.inizio !== handoverBaseline
-      ? { da: handoverBaseline, a: handoverMappato.inizio! }
-      : null;
+  /**
+   * L'handover non si chiede: c'e' gia'.
+   *
+   * Arriva dalla Quotation, e' la data contrattuale della certificazione, ed e'
+   * quella che il cliente ha firmato. Chiedere al PM «quale riga del file e'
+   * l'handover?» quando quella data e' gia' nel sistema e gia' disegnata nella
+   * timeline e' una domanda che si risponde da sola — e la risposta sbagliata
+   * (una riga qualunque che assomiglia a una fine lavori) sposta una data
+   * contrattuale, che e' il tipo di errore che non si vuole rendere possibile.
+   *
+   * Qui lo si dice e basta, mostrandolo nella timeline accanto. Se il gantt
+   * racconta un'altra fine lavori, quello e' uno slittamento da discutere col
+   * cliente, non un campo da compilare in un wizard di import.
+   */
+  const eventoHandover = perAncora.get("handover") ?? null;
+  const dataHandover =
+    eventoHandover?.data_effettiva ?? eventoHandover?.data_pianificata ?? handoverBaseline ?? null;
 
-  const motivoBlocco =
-    incluse.length === 0
-      ? "nessuna riga inclusa"
-      : !handoverRisolto
-      ? "manca il mapping dell'handover: mappalo su una riga, o scegli «mantieni handover da Quotation»"
-      : null;
+  const motivoBlocco = incluse.length === 0 ? "nessuna riga inclusa" : null;
 
   // ── L'anteprima viva del passo 2 ────────────────────────────────────────
   const vociAnteprima: VoceTimeline[] = useMemo(() => {
@@ -293,19 +263,23 @@ export function ImportTimeline({
         traccia: !r.inclusa,
       });
     }
-    if (!handoverMappato && (mantieniHandover || handoverBaseline) && !handoverEsistente && handoverBaseline) {
+    // L'handover c'e' sempre nel disegno, anche quando non e' ancora una riga
+    // della timeline: e' il modo di dire «questo e' gia' considerato» senza
+    // scriverlo in una nota che nessuno legge.
+    if (!eventoHandover && dataHandover) {
       out.push({
         key: "hb",
-        label: "Handover (da Quotation)",
+        label: "Handover (fine cantiere)",
         corsia: "project",
         tipo: "milestone",
-        inizio: handoverBaseline,
+        inizio: dataHandover,
         natura: "ancora",
         isHandover: true,
+        nota: "dalla Quotation · già impostato",
       });
     }
     return out;
-  }, [righe, eventi, handoverMappato, mantieniHandover, handoverBaseline, handoverEsistente]);
+  }, [righe, eventi, eventoHandover, dataHandover]);
 
   // ── La conferma: nessun fallimento silenzioso ───────────────────────────
   const conferma = async () => {
@@ -316,10 +290,11 @@ export function ImportTimeline({
       let ordineDa = Math.max(0, ...eventi.map((e) => e.ordine));
 
       if (!cronoId) {
-        const template =
-          mantieniHandover && !handoverMappato
-            ? [{ nome: "Handover (fine cantiere)", fase: false, famiglia: null, ancora: "handover" }]
-            : [];
+        // La timeline nasce sempre con l'handover: e' la data contrattuale,
+        // c'e' gia', e senza di lei le scalette non hanno da cosa calcolarsi.
+        const template = dataHandover
+          ? [{ nome: "Handover (fine cantiere)", fase: false, famiglia: null, ancora: "handover" }]
+          : [];
         const k = await creaCrono.mutateAsync({
           site_id: siteId,
           nome: nomeSito,
@@ -538,41 +513,6 @@ export function ImportTimeline({
                 </button>
               </div>
 
-              {/* ── I tre ruoli, chiesti una volta sola ──────────────────
-                  Tre domande, non ventisei. E la forma impone l'unicita':
-                  dare un ruolo a una riga lo toglie a chi ce l'aveva, che e'
-                  esattamente cosa vuole l'indice unico sul database. */}
-              <div className="mb-3 rounded-lg border bg-muted/20 p-2.5">
-                <p className="mb-2 text-[11px] text-muted-foreground">
-                  Tre righe di questo file hanno un ruolo per il motore. Le altre {righe.length - 3 > 0 ? `${righe.length - 3} ` : ""}
-                  sono normali attività: non devi classificarle.
-                </p>
-                <div className="space-y-1.5">
-                  {ANCORE_MOTORE.map((a) => (
-                    <div key={a} className="flex items-center gap-2">
-                      <span className="w-[132px] shrink-0 text-[11px] font-medium">{ANCORA_NOME[a]}</span>
-                      <select
-                        value={rigaDelRuolo(a)?.id ?? ""}
-                        onChange={(e) => assegnaRuolo(a, e.target.value === "" ? null : Number(e.target.value))}
-                        className="h-7 min-w-0 flex-1 rounded-md border bg-background px-1.5 text-xs"
-                        aria-label={`Quale riga è ${ANCORA_NOME[a]}`}
-                      >
-                        <option value="">— nessuna riga di questo file</option>
-                        {righe.map((r) => (
-                          <option key={r.id} value={r.id}>
-                            {r.nome}
-                            {r.inizio ? ` · ${format(parseISO(r.inizio), "d LLL yy", { locale: it })}` : ""}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  ))}
-                </div>
-                <p className="mt-1.5 text-[10px] leading-tight text-muted-foreground">
-                  {ANCORE_MOTORE.map((a) => ANCORA_EFFETTO[a]).join(" · ")}
-                </p>
-              </div>
-
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b text-[10.5px] uppercase tracking-wider text-muted-foreground">
@@ -594,11 +534,6 @@ export function ImportTimeline({
                       </td>
                       <td className="px-1 py-1.5" onClick={(e) => e.stopPropagation()}>
                         <Input value={r.nome} onChange={(e) => aggiorna(r.id, { nome: e.target.value })} className={cn("h-8 min-w-[170px] text-xs", !r.inclusa && "line-through")} />
-                        {r.ancora_proposta && (
-                          <Badge variant="secondary" className="mt-0.5 text-[9.5px]">
-                            {ANCORA_NOME[r.ancora_proposta]}
-                          </Badge>
-                        )}
                         {r.eventoEsistente && (
                           <span className="mt-0.5 block text-[10.5px] text-muted-foreground">
                             aggiorna «{r.eventoEsistente.nome}»{" "}
@@ -609,11 +544,6 @@ export function ImportTimeline({
                             >
                               stacca
                             </button>
-                          </span>
-                        )}
-                        {r.ancora_proposta === "handover" && divergenzaHandover && (
-                          <span className="flex items-center gap-1 text-[10.5px] text-amber-700">
-                            <TriangleAlert className="h-3 w-3" /> diverge dalla baseline ({format(parseISO(divergenzaHandover.da), "d LLL yy", { locale: it })})
                           </span>
                         )}
                       </td>
@@ -658,22 +588,13 @@ export function ImportTimeline({
                 <b className="tabular-nums">{incluse.length}</b> righe entreranno
                 {escluse > 0 && <span className="text-muted-foreground"> · {escluse} escluse da te</span>}
               </li>
-              <li>
-                Ancore risolte:{" "}
-                <b className="tabular-nums">{incluse.filter((r) => r.ancora_proposta).length}</b>
-                {handoverMappato
-                  ? " · handover dal file"
-                  : mantieniHandover
-                  ? " · handover mantenuto da Quotation"
-                  : handoverEsistente
-                  ? " · handover gia' in timeline"
-                  : ""}
-              </li>
-              {divergenzaHandover && (
-                <li className="flex items-start gap-1.5 text-amber-700">
-                  <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                  L'handover del file ({format(parseISO(divergenzaHandover.a), "d LLL yy", { locale: it })}) diverge dalla baseline contrattuale (
-                  {format(parseISO(divergenzaHandover.da), "d LLL yy", { locale: it })}): la baseline non si sovrascrive, la divergenza restera' visibile.
+              {dataHandover && (
+                <li className="text-muted-foreground">
+                  Handover già impostato al{" "}
+                  <b className="tabular-nums text-foreground">
+                    {format(parseISO(dataHandover), "d LLL yy", { locale: it })}
+                  </b>{" "}
+                  dalla Quotation: l'import non lo tocca.
                 </li>
               )}
               {!cronoprogrammaId && (
@@ -739,19 +660,10 @@ export function ImportTimeline({
             <span className="flex items-center gap-1.5 text-amber-700">
               <TriangleAlert className="h-3.5 w-3.5" /> {motivoBlocco}
             </span>
-          ) : passo >= 2 && divergenzaHandover ? (
-            <span className="text-amber-700">handover del file diverso dalla baseline: verra' segnalato, non sovrascritto</span>
           ) : (
             <span className="text-muted-foreground">
               {passo === 1 ? "Nulla entra nella PROJECT TIMELINE senza la tua revisione." : `${incluse.length} incluse · ${escluse} escluse`}
             </span>
-          )}
-          {passo >= 2 && !handoverMappato && !handoverEsistente && (
-            <label className="flex items-center gap-1.5 whitespace-nowrap">
-              <input type="checkbox" checked={mantieniHandover} onChange={(e) => setMantieniHandover(e.target.checked)} />
-              mantieni handover da Quotation
-              {handoverBaseline && ` (${format(parseISO(handoverBaseline), "d LLL yy", { locale: it })})`}
-            </label>
           )}
         </div>
         <div className="flex items-center gap-2">
