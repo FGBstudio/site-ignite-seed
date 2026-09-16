@@ -37,6 +37,12 @@ export interface RigaPortafoglio {
   report_proiettati: number | null;
   conferme_in_sospeso: number;
   vincoli_violati: number;
+  /** Avanzamento del cantiere, pesato sulla durata delle righe. */
+  avanzamento: number;
+  /** Avanzamento medio delle certificazioni del sito: e' un'altra cosa. */
+  avanzamento_cert: number;
+  /** Righe in corso che nessuno aggiorna da due settimane. */
+  righe_ferme: number;
 }
 
 export function usePortafoglio(sogliaStantio = 21) {

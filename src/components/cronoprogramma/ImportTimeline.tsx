@@ -7,13 +7,20 @@ import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import { ArrowLeft, FileUp, Loader2, TriangleAlert, X } from "lucide-react";
-import { ANCORA_NOME, type CronoAncora, type CronoEvento } from "@/types/cronoprogramma";
+import {
+  ANCORA_EFFETTO,
+  ANCORA_NOME,
+  ANCORE_MOTORE,
+  type CronoAncora,
+  type CronoEvento,
+} from "@/types/cronoprogramma";
 import {
   applicaAncoraggio,
-  estraiTimeline,
   type AttivitaCandidata,
   type EsitoEstrazione,
 } from "@/lib/importTimeline";
+import { estraiTimelineIntelligente, type MotoreEstrazione } from "@/lib/importTimelineAI";
+import { CampoData } from "@/components/cronoprogramma/CampoData";
 import {
   useAttachCronoprogramma,
   useCreateCronoprogramma,
@@ -84,6 +91,9 @@ export function ImportTimeline({
   const [mantieniHandover, setMantieniHandover] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [errore, setErrore] = useState<string | null>(null);
+  const [stato, setStato] = useState("");
+  const [motore, setMotore] = useState<MotoreEstrazione | null>(null);
+  const [dedotte, setDedotte] = useState(0);
 
   // ── La bozza: la X chiude senza perdere niente (§0.2, V6) ──────────────
   //
@@ -151,14 +161,19 @@ export function ImportTimeline({
     setAncoraggio("");
     setMantieniHandover(false);
     setErrore(null);
+    setMotore(null);
+    setDedotte(0);
   };
 
   const carica = async (file: File) => {
     setInCorso(true);
+    setStato("Preparo il file…");
     setNomeFile(file.name);
     setErrore(null);
     try {
-      const e = await estraiTimeline(file);
+      const e = await estraiTimelineIntelligente(file, setStato);
+      setMotore(e.motore);
+      setDedotte(e.dedotte);
       setEsito(e);
       if (e.ancoraggioSuggerito) setAncoraggio(e.ancoraggioSuggerito);
       setRighe(
@@ -177,6 +192,7 @@ export function ImportTimeline({
       setEsito({ attivita: [], richiedeAncoraggio: false, ancoraggioSuggerito: null, diario: `Estrazione fallita: ${err.message}` });
     } finally {
       setInCorso(false);
+      setStato("");
     }
   };
 
@@ -373,7 +389,11 @@ export function ImportTimeline({
               {inCorso ? (
                 <>
                   <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" />
-                  <p className="text-sm text-muted-foreground">Estrazione in corso — per le immagini l'OCR puo' richiedere qualche secondo…</p>
+                  <p className="text-sm font-medium">{stato || "Estrazione in corso…"}</p>
+                  <p className="max-w-md text-xs text-muted-foreground">
+                    Se il gantt mostra solo barre senza date scritte, le date si leggono dalla
+                    posizione delle barre contro la scala dei mesi. Ci vogliono alcuni secondi.
+                  </p>
                 </>
               ) : (
                 <>
@@ -382,7 +402,8 @@ export function ImportTimeline({
                   <p className="text-xs text-muted-foreground">PDF · immagine (png/jpg) · xlsx</p>
                   <Button variant="outline" onClick={() => fileRef.current?.click()}>Scegli il file</Button>
                   <p className="mt-1 max-w-md text-xs text-muted-foreground">
-                    Estraggo le attivita', tu scegli quali tenere. Se l'estrazione e' parziale prosegui comunque: e' un acceleratore, non un esame.
+                    Leggo attivita' <b>e date</b>, anche quando le date stanno solo nelle barre. Tu
+                    scegli quali righe tenere: e' un acceleratore, non un esame.
                   </p>
                   <input
                     ref={fileRef}
@@ -401,10 +422,32 @@ export function ImportTimeline({
             {esito && (
               <div className="w-full max-w-2xl space-y-3">
                 <p className="text-center text-xs text-muted-foreground">{esito.diario}</p>
+
+                {/* Da dove vengono queste righe. Non e' un dettaglio tecnico:
+                    una data dedotta dalla posizione di una barra merita un
+                    controllo che una data letta nel testo non merita. */}
+                {motore && righe.length > 0 && (
+                  <p className="text-center text-[11px] text-muted-foreground">
+                    <Badge variant="outline" className="mr-1.5 text-[10px]">
+                      {motore === "ai" ? "lettura AI" : "lettore locale"}
+                    </Badge>
+                    {dedotte > 0 && (
+                      <span className="text-amber-700">
+                        {dedotte} righe con date dedotte dalle barre — controllale al passo 2.
+                      </span>
+                    )}
+                  </p>
+                )}
                 {esito.richiedeAncoraggio && righe.length > 0 && (
                   <div className="flex flex-wrap items-center justify-center gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs dark:border-amber-800 dark:bg-amber-950/30">
                     <span className="text-amber-900 dark:text-amber-200">Il file parla per durate: da quale giorno parte la prima fase?</span>
-                    <Input type="date" value={ancoraggio} onChange={(e) => setAncoraggio(e.target.value)} className="h-7 w-[150px] text-xs" />
+                    <CampoData
+                      value={ancoraggio}
+                      aria="Data di partenza della prima fase"
+                      placeholder="scegli la data"
+                      className="w-[150px] bg-background"
+                      onChange={(v) => setAncoraggio(v ?? "")}
+                    />
                     {esito.ancoraggioSuggerito && (
                       <span className="text-amber-800/70 dark:text-amber-300/70">
                         (il file suggerisce {format(parseISO(esito.ancoraggioSuggerito), "d LLL yyyy", { locale: it })})
@@ -445,7 +488,7 @@ export function ImportTimeline({
                     <th className="px-1 py-1.5 text-left font-medium">Attivita'</th>
                     <th className="px-1 py-1.5 text-left font-medium">Inizio</th>
                     <th className="px-1 py-1.5 text-left font-medium">Fine</th>
-                    <th className="px-1 py-1.5 text-left font-medium">Ancora</th>
+                    <th className="px-1 py-1.5 text-left font-medium">Ruolo</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -468,26 +511,77 @@ export function ImportTimeline({
                         )}
                       </td>
                       <td className="px-1 py-1.5" onClick={(e) => e.stopPropagation()}>
-                        <Input type="date" value={r.inizio ?? ""} onChange={(e) => aggiorna(r.id, { inizio: e.target.value || null, derivataDaAncoraggio: false })} className="h-8 w-[130px] text-xs" />
+                        <CampoData
+                          value={r.inizio}
+                          aria={`Inizio di ${r.nome}`}
+                          placeholder="manca"
+                          className="w-[134px]"
+                          onChange={(v) => aggiorna(r.id, { inizio: v, derivataDaAncoraggio: false })}
+                        />
                       </td>
                       <td className="px-1 py-1.5" onClick={(e) => e.stopPropagation()}>
-                        <Input type="date" value={r.fine ?? ""} onChange={(e) => aggiorna(r.id, { fine: e.target.value || null, derivataDaAncoraggio: false })} className="h-8 w-[130px] text-xs" />
+                        <CampoData
+                          value={r.fine}
+                          aria={`Fine di ${r.nome}`}
+                          placeholder="solo fasi"
+                          riferimento={r.inizio}
+                          riferimentoNome="l'inizio"
+                          className="w-[134px]"
+                          onChange={(v) => aggiorna(r.id, { fine: v, derivataDaAncoraggio: false })}
+                        />
                       </td>
                       <td className="px-1 py-1.5" onClick={(e) => e.stopPropagation()}>
+                        {/* La domanda e' una sola e concreta: questa riga del
+                            file, nella timeline del sito, cos'e'? Una riga
+                            nuova, l'aggiornamento di una che c'e' gia', o uno
+                            dei tre ruoli che il motore legge davvero. Prima
+                            qui c'erano gli otto nomi dell'enum, cinque dei
+                            quali non muovono nulla da nessuna parte. */}
                         <select
-                          value={r.ancora_proposta ?? ""}
+                          value={
+                            r.eventoEsistente ? `ev:${r.eventoEsistente.id}` : r.ancora_proposta ? `an:${r.ancora_proposta}` : ""
+                          }
                           onChange={(e) => {
-                            const a = (e.target.value || null) as CronoAncora | null;
-                            aggiorna(r.id, { ancora_proposta: a, eventoEsistente: a && perAncora.has(a) ? perAncora.get(a)! : accoppia({ ...r, ancora_proposta: a }) });
+                            const v = e.target.value;
+                            if (!v) {
+                              aggiorna(r.id, { ancora_proposta: null, eventoEsistente: null });
+                            } else if (v.startsWith("an:")) {
+                              const a = v.slice(3) as CronoAncora;
+                              aggiorna(r.id, {
+                                ancora_proposta: a,
+                                eventoEsistente: perAncora.get(a) ?? null,
+                              });
+                            } else {
+                              const ev = eventi.find((x) => x.id === v.slice(3)) ?? null;
+                              aggiorna(r.id, { ancora_proposta: ev?.ancora ?? null, eventoEsistente: ev });
+                            }
                           }}
-                          className="h-8 rounded-md border bg-background px-1.5 text-xs"
-                          aria-label={`Ancora per ${r.nome}`}
+                          className="h-8 max-w-[190px] rounded-md border bg-background px-1.5 text-xs"
+                          aria-label={`Ruolo di ${r.nome} nella timeline`}
                         >
-                          <option value="">ancora ▾</option>
-                          {Object.entries(ANCORA_NOME).map(([k, v]) => (
-                            <option key={k} value={k}>{v}</option>
-                          ))}
+                          <option value="">riga nuova</option>
+                          <optgroup label="Ruolo letto dal motore">
+                            {ANCORE_MOTORE.map((a) => (
+                              <option key={a} value={`an:${a}`} title={ANCORA_EFFETTO[a]}>
+                                {ANCORA_NOME[a]}
+                              </option>
+                            ))}
+                          </optgroup>
+                          {eventi.length > 0 && (
+                            <optgroup label="Aggiorna una riga che c'è già">
+                              {eventi.map((ev) => (
+                                <option key={ev.id} value={`ev:${ev.id}`}>
+                                  {ev.nome}
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
                         </select>
+                        {r.ancora_proposta && ANCORA_EFFETTO[r.ancora_proposta] && (
+                          <span className="mt-0.5 block max-w-[190px] text-[10px] leading-tight text-muted-foreground">
+                            {ANCORA_EFFETTO[r.ancora_proposta]}
+                          </span>
+                        )}
                       </td>
                     </tr>
                   ))}

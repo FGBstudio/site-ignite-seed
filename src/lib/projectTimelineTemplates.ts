@@ -44,17 +44,38 @@ export interface TemplateRiga {
   nota?: string;
 }
 
+/**
+ * Una nota sulle ancore, qui sotto.
+ *
+ * Marcare una riga con un'ancora non e' un'etichetta descrittiva: e' una
+ * promessa al motore, che quella data verra' letta da qualcosa. Verificato sul
+ * database, il motore ne legge tre — `handover` e `construction_start` dalle
+ * scalette (`cert_timeline_steps`), `lancio_gara` dai vincoli di precedenza
+ * (`cert_step_constraints`). Le altre cinque non sono lette da nessuna riga,
+ * nessuna funzione, nessun trigger.
+ *
+ * Prima i template le mettevano lo stesso: «Strutture / involucro» era marcata
+ * `involucro_chiuso`, «Tender» era `aggiudicazione_gc`. Il danno non era la
+ * marcatura in se' — era che rendeva quelle righe non eliminabili e non
+ * rinominabili (l'interfaccia protegge le righe ancorate, giustamente: sono
+ * quelle da cui pende qualcosa), e le faceva comparire come bersagli di
+ * ancoraggio. Righe bloccate a difesa di un calcolo che non esiste.
+ *
+ * Adesso porta un'ancora solo la riga che ne serve davvero una. Tutte le
+ * altre sono righe normali: si rinominano, si spostano, si cancellano.
+ */
+
 /** Template IDC (retail fit-out) — da bou_almathy.png, Boucheron Almaty. */
 const TEMPLATE_IDC: TemplateRiga[] = [
-  { nome: "Kick-off (criteria package, store committee)", fase: true,  famiglia: "design",       ancora: "lancio_gara", nota: "ancora di default: apre il percorso" },
+  { nome: "Kick-off (criteria package, store committee)", fase: true,  famiglia: "design",       ancora: null },
   { nome: "Schematic Design (SD)",                        fase: true,  famiglia: "design",       ancora: null },
   { nome: "Design Development (DD)",                      fase: true,  famiglia: "design",       ancora: null },
-  { nome: "Construction Documents (CD)",                  fase: true,  famiglia: "design",       ancora: "progetto_definitivo", nota: "fine CD = design freeze" },
-  { nome: "Tender",                                       fase: true,  famiglia: "design",       ancora: "aggiudicazione_gc",  nota: "chiusura = aggiudicazione" },
+  { nome: "Construction Documents (CD)",                  fase: true,  famiglia: "design",       ancora: null, nota: "fine CD = design freeze" },
+  { nome: "Tender",                                       fase: true,  famiglia: "design",       ancora: "lancio_gara", nota: "apre i vincoli di precedenza delle scalette" },
   { nome: "Pre-construction (preparazione GC, millwork, trasporto)", fase: true, famiglia: "construction", ancora: null },
   { nome: "Construction start",                           fase: false, famiglia: "construction", ancora: "construction_start" },
   { nome: "Mid-construction",                             fase: false, famiglia: "construction", ancora: null },
-  { nome: "Construction end",                             fase: false, famiglia: "construction", ancora: "sito_pronto_test" },
+  { nome: "Construction end",                             fase: false, famiglia: "construction", ancora: null },
   { nome: "Handover",                                     fase: false, famiglia: "construction", ancora: "handover", nota: "da Quotation" },
   { nome: "Opening",                                      fase: false, famiglia: "construction", ancora: null },
   { nome: "Snag list",                                    fase: true,  famiglia: "construction", ancora: null },
@@ -63,17 +84,17 @@ const TEMPLATE_IDC: TemplateRiga[] = [
 /** Template BDC (DESIGN+CONSTRUCTION) — da Grand Vespucci + xlsx greco. */
 const TEMPLATE_BDC: TemplateRiga[] = [
   { nome: "Concept design + review",                      fase: true,  famiglia: "design",       ancora: null },
-  { nome: "Developed design (RIBA st.3) + review",        fase: true,  famiglia: "design",       ancora: "progetto_definitivo", nota: "fine = design freeze" },
+  { nome: "Developed design (RIBA st.3) + review",        fase: true,  famiglia: "design",       ancora: null, nota: "fine = design freeze" },
   { nome: "Detailed design (RIBA st.4) + review",         fase: true,  famiglia: "design",       ancora: null },
-  { nome: "Permessi: submission → approvazione",          fase: true,  famiglia: "permitting",   ancora: "lancio_gara", nota: "SCIA / building permit / ambientali" },
+  { nome: "Permessi: submission → approvazione",          fase: true,  famiglia: "permitting",   ancora: null, nota: "SCIA / building permit / ambientali" },
   { nome: "Iter terze parti (soprintendenza, municipalità, enti)", fase: true, famiglia: "terze_parti", ancora: null },
-  { nome: "Tender / D&B tendering",                       fase: true,  famiglia: "design",       ancora: "aggiudicazione_gc", nota: "aggiudicazione" },
+  { nome: "Tender / D&B tendering",                       fase: true,  famiglia: "design",       ancora: "lancio_gara", nota: "apre i vincoli di precedenza delle scalette" },
   { nome: "Long-lead procurement",                        fase: true,  famiglia: "construction", ancora: null },
   { nome: "Mobilisation / consegna aree",                 fase: false, famiglia: "construction", ancora: null },
   { nome: "Construction start",                           fase: false, famiglia: "construction", ancora: "construction_start" },
-  { nome: "Strutture / involucro",                        fase: true,  famiglia: "construction", ancora: "involucro_chiuso" },
-  { nome: "Impianti",                                     fase: true,  famiglia: "construction", ancora: "impianti_pronti", nota: "fine = impianti pronti per test" },
-  { nome: "Finiture",                                     fase: true,  famiglia: "construction", ancora: "sito_pronto_test", nota: "fine = sito pronto per test" },
+  { nome: "Strutture / involucro",                        fase: true,  famiglia: "construction", ancora: null },
+  { nome: "Impianti",                                     fase: true,  famiglia: "construction", ancora: null, nota: "fine = impianti pronti per test" },
+  { nome: "Finiture",                                     fase: true,  famiglia: "construction", ancora: null, nota: "fine = sito pronto per test" },
   { nome: "Commissioning",                                fase: true,  famiglia: "construction", ancora: null },
   { nome: "Consegna lavori / Handover",                   fase: false, famiglia: "construction", ancora: "handover", nota: "da Quotation" },
 ];
@@ -141,12 +162,11 @@ const LESSICO: Array<{ ancora: CronoAncora; pattern: RegExp }> = [
   // sono due righe diverse a tre giorni di distanza. Confonderle darebbe al
   // construction start la data sbagliata.
   { ancora: "construction_start",  pattern: /construction start|cantierizzazione|inizio (dei )?lavori|site handover to gc|mobilisation|mobilitazione|start of works|apertura cantiere/i },
-  { ancora: "aggiudicazione_gc",   pattern: /aggiudicazion|tender award|award|contract sign|appalto assegnato|d&b tender/i },
-  { ancora: "lancio_gara",         pattern: /lancio gara|tender(ing)? (launch|start)|gara d.appalto|invito a offrire|permess|permit|scia\b|building permit/i },
-  { ancora: "progetto_definitivo", pattern: /progetto definitivo|developed design|design freeze|construction documents|detailed design|riba st(age)? ?[34]/i },
-  { ancora: "impianti_pronti",     pattern: /impianti pronti|systems? ready|mep complet|impianti complet/i },
-  { ancora: "involucro_chiuso",    pattern: /involucro|envelope|weathertight|strutture complet|shell complet/i },
-  { ancora: "sito_pronto_test",    pattern: /sito pronto|site ready|finiture complet|finish(es)? complet|ready for (performance )?test/i },
+  { ancora: "lancio_gara",         pattern: /lancio gara|tender(ing)? (launch|start)|gara d.appalto|invito a offrire|d&b tender|permess|permit|scia\b|building permit/i },
+  // Le altre cinque ancore dell'enum non le riconosce piu' nessuno, ed e'
+  // voluto: proporre a un PM «questa riga e' Involucro chiuso?» quando quel
+  // valore non e' letto da nessuna scaletta e da nessun vincolo significa
+  // chiedergli di classificare per niente, e bloccargli la riga in cambio.
 ];
 
 /** L'ancora FGB che un nome di attivita' fa venire in mente, se ne fa venire in mente una. */

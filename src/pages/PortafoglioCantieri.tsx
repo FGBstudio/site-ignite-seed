@@ -26,6 +26,7 @@ import {
 import { usePortafoglio, useCorsieSito, type RigaPortafoglio } from "@/hooks/usePortafoglio";
 import { PIETRA, stilePill, tintaServizio } from "@/lib/serviceColors";
 import { proponiTipo } from "@/lib/projectTimelineTemplates";
+import { AnelloAvanzamento } from "@/components/cronoprogramma/AnelloAvanzamento";
 
 const d = (s: string | null | undefined) =>
   s ? format(parseISO(s), "d LLL yy", { locale: it }) : "—";
@@ -502,7 +503,7 @@ export default function ProjectsAdmin() {
 
         {/* ── La tabella: header sticky (v1.2 §4) ── */}
         <div className="table-container max-h-[calc(100vh-270px)]">
-          <table className="w-full border-separate border-spacing-0 text-sm" style={{ minWidth: 1180 }}>
+          <table className="w-full border-separate border-spacing-0 text-sm" style={{ minWidth: 1280 }}>
             <thead className="sticky top-0 z-20 bg-card shadow-[0_1px_0_0_hsl(var(--border))]">
               <tr className="text-[10px] uppercase tracking-wider text-muted-foreground">
                 <Th k="client"   sort={sort} setSort={setSort}>Client</Th>
@@ -514,6 +515,9 @@ export default function ProjectsAdmin() {
                 <Th k="typology" sort={sort} setSort={setSort}>Typology</Th>
                 <Th k="handover" sort={sort} setSort={setSort}>Handover</Th>
                 <Th k="pm"       sort={sort} setSort={setSort}>PM</Th>
+                <th className="border-b bg-card px-3 py-2 text-left font-medium" title="Cantiere e certificazione, tenuti separati">
+                  Avanz.
+                </th>
                 <Th k="status"   sort={sort} setSort={setSort}>Status</Th>
               </tr>
             </thead>
@@ -530,7 +534,7 @@ export default function ProjectsAdmin() {
               ))}
               {visibili.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="p-10 text-center text-sm text-muted-foreground">
+                  <td colSpan={11} className="p-10 text-center text-sm text-muted-foreground">
                     {isLoading ? "Caricamento…" : "Nessun sito con questi filtri."}
                   </td>
                 </tr>
@@ -731,6 +735,35 @@ function RigaSito({
             `${puntato(v.pmNomi[0])} +${v.pmNomi.length - 1}`
           )}
         </td>
+        {/* Due anelli, non uno: il cantiere e la certificazione avanzano a
+            velocita' diverse, e il caso che va visto e' proprio quello in cui
+            divergono — cantiere al 70%, certificazione al 10%. Una media
+            unica lo nasconderebbe dietro un 40 che non significa niente. */}
+        <td className="border-b px-3 py-2.5">
+          <span className="flex items-center gap-2">
+            <AnelloAvanzamento
+              pct={r.avanzamento}
+              etichetta={`Cantiere · ${r.sito}`}
+              soloLettura
+              dimensione={26}
+            />
+            <AnelloAvanzamento
+              pct={r.avanzamento_cert}
+              etichetta={`Certificazioni · ${r.sito}`}
+              tinta="#009193"
+              soloLettura
+              dimensione={26}
+            />
+            {r.righe_ferme > 0 && (
+              <span
+                className="text-[10px] text-amber-700 dark:text-amber-400"
+                title="Righe in corso che nessuno aggiorna da due settimane"
+              >
+                {r.righe_ferme}⏸
+              </span>
+            )}
+          </span>
+        </td>
         <td className="border-b px-3 py-2.5">
           <span
             className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-medium"
@@ -752,7 +785,7 @@ function RigaSito({
 
       {aperta && (
         <tr className="bg-muted/20">
-          <td colSpan={10} className="border-b p-0">
+          <td colSpan={11} className="border-b p-0">
             <DrillDown r={r} x={x} oggi={oggi} onApri={onApri} />
           </td>
         </tr>

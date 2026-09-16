@@ -48,6 +48,34 @@ export const ANCORA_NOME: Record<CronoAncora, string> = Object.fromEntries(
 ) as Record<CronoAncora, string>;
 
 /**
+ * Le tre ancore che il motore legge davvero. Le altre cinque sono vocabolario.
+ *
+ * Verificato sul database, non dedotto: `cert_timeline_steps` — le 23 scalette,
+ * cioe' il motore vero — usa `construction_start` su 12 passi e `handover` su
+ * 11, e nient'altro. `cert_step_constraints` aggiunge `lancio_gara` su 16
+ * vincoli di precedenza. `aggiudicazione_gc`, `progetto_definitivo`,
+ * `impianti_pronti`, `involucro_chiuso` e `sito_pronto_test` non sono
+ * consumati da nessuna riga, da nessuna funzione, da nessun trigger.
+ *
+ * Questa lista esiste perche' l'interfaccia offriva tutte e otto come scelte
+ * possibili. Chiedere a un PM se una riga del suo gantt e' «Involucro chiuso»
+ * quando quel valore non muove niente non e' una domanda: e' rumore che
+ * produce dati che nessuno leggera' mai.
+ */
+export const ANCORE_MOTORE: ReadonlyArray<CronoAncora> = [
+  "lancio_gara",
+  "construction_start",
+  "handover",
+];
+
+/** Cosa succede davvero scegliendo quel ruolo: si dice, non si lascia indovinare. */
+export const ANCORA_EFFETTO: Partial<Record<CronoAncora, string>> = {
+  lancio_gara: "i vincoli di precedenza delle scalette guardano questa data",
+  construction_start: "le scalette che partono dall'inizio cantiere si calcolano da qui",
+  handover: "e' la fine cantiere: rispecchia la data contrattuale della certificazione",
+};
+
+/**
  * Le fonti ricorrenti, offerte come suggerimento e non come vincolo.
  *
  * La fonte e' facoltativa (v1.1 §3): l'interfaccia la chiede ma non blocca il
