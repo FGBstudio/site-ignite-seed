@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
@@ -34,6 +34,8 @@ export interface VoceTimeline {
   famiglia?: Famiglia | null;
   natura?: NaturaPasso | "ancora";
   fatta?: boolean;
+  /** 0..100: disegna l'arco intorno al nodo e riempie la barra della fase. */
+  avanzamento?: number | null;
   daConfermare?: boolean;
   isHandover?: boolean;
   /** Per i calcolati: l'etichetta +Ngg sul connettore. */
@@ -67,6 +69,14 @@ interface Props {
   /** Le corsie delle altre certificazioni del sito, mostrate nell'overlay. */
   altreCorsie?: CorsiaCert[];
   compatta?: boolean;
+  /**
+   * Il pannello prende tutta l'altezza che ha e ci distende dentro la scala
+   * del tempo, invece di disegnare in alto un quadratino e lasciare vuoto il
+   * resto. Serve a vedere le date comporsi mentre si compila: piu' altezza =
+   * piu' risoluzione temporale, che e' l'unica cosa che l'asse verticale sa
+   * fare.
+   */
+  riempi?: boolean;
 }
 
 // v1.2 §1: la project timeline e' neutra — scala di pietra; l'informazione
@@ -90,23 +100,53 @@ function g(a: string, b: string) {
 
 export function TimelineVerticale(props: Props) {
   const [espansa, setEspansa] = useState(false);
+  const box = useRiquadro(props.riempi === true);
+
   if (props.compatta) {
     return (
       <>
         <button
+          ref={box.ref}
           type="button"
           onClick={() => setEspansa(true)}
-          className="block w-full cursor-zoom-in rounded-xl text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+          className={cn(
+            "block w-full cursor-zoom-in rounded-xl text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary",
+            props.riempi && "min-h-0 flex-1 overflow-hidden"
+          )}
           aria-label="Espandi la timeline a tutta la finestra"
           title="Espandi: zoom, date complete, tutte le corsie del sito"
         >
-          <Disegno {...props} pxGiorno={1.0} pannello />
+          <Disegno {...props} pxGiorno={1.0} pannello adattaA={props.riempi ? box.misura : undefined} />
         </button>
         {espansa && <Overlay {...props} onClose={() => setEspansa(false)} />}
       </>
     );
   }
   return <Disegno {...props} pxGiorno={1.1} />;
+}
+
+/** Misura il riquadro disponibile. Serve solo quando si chiede di riempirlo. */
+function useRiquadro(attivo: boolean) {
+  const ref = useRef<HTMLButtonElement>(null);
+  const [misura, setMisura] = useState<{ larghezzaPx: number; altezzaPx: number } | undefined>();
+
+  useEffect(() => {
+    if (!attivo || !ref.current) return;
+    const n = ref.current;
+    const ro = new ResizeObserver(() => {
+      setMisura((m) => {
+        const nuovo = { larghezzaPx: n.clientWidth, altezzaPx: n.clientHeight };
+        // Senza soglia il grafico rimbalza: cambia pxGiorno, cambia l'altezza
+        // del contenuto, rimisura, cambia pxGiorno. Due pixel bastano.
+        if (m && Math.abs(m.larghezzaPx - nuovo.larghezzaPx) < 2 && Math.abs(m.altezzaPx - nuovo.altezzaPx) < 2) return m;
+        return nuovo;
+      });
+    });
+    ro.observe(n);
+    return () => ro.disconnect();
+  }, [attivo]);
+
+  return { ref, misura };
 }
 
 /** L'overlay: tutta la viewport, zoom +/−/Adatta, chiusura esplicita (v1.3 §4). */
@@ -189,7 +229,13 @@ function Disegno({
   pxGiorno,
   pannello = false,
   multiCorsie = false,
-}: Props & { pxGiorno: number; pannello?: boolean; multiCorsie?: boolean }) {
+  adattaA,
+}: Props & {
+  pxGiorno: number;
+  pannello?: boolean;
+  multiCorsie?: boolean;
+  adattaA?: { larghezzaPx: number; altezzaPx: number };
+}) {
   const oggiISO = oggi ?? format(new Date(), "yyyy-MM-dd");
 
   // Le corsie: la propria sempre; le altre del sito solo nell'overlay.
@@ -229,11 +275,23 @@ function Disegno({
     );
   }
 
-  const H = Math.round((dominio.span + dominio.pad * 2) * pxGiorno);
   const xProject = 330;
   const xCorsia = (i: number) => 570 + i * LARGH_CORSIA;
   const W = xCorsia(corsie.length - 1) + 330;
-  const y = (d: string) => Math.round((g(dominio.min, d) + dominio.pad) * pxGiorno) + 26;
+
+  // Il disegno e' un viewBox scalato alla larghezza: sullo schermo un'unita'
+  // vale (larghezzaRiquadro / W) pixel. Per far tornare l'altezza reale a
+  // quella del riquadro si risolve per pxGiorno, e si tiene un tetto perche'
+  // con due sole date ravvicinate il fattore esploderebbe.
+  const giorni = dominio.span + dominio.pad * 2;
+  const CHROME = 22; // bordo + padding del riquadro, su entrambi i lati
+  const pxG = adattaA && adattaA.larghezzaPx > CHROME && adattaA.altezzaPx > CHROME
+    ? Math.min(8, Math.max(0.3,
+        (((adattaA.altezzaPx - CHROME) * W) / (adattaA.larghezzaPx - CHROME) - 78) / giorni))
+    : pxGiorno;
+
+  const H = Math.round(giorni * pxG);
+  const y = (d: string) => Math.round((g(dominio.min, d) + dominio.pad) * pxG) + 26;
   const yOggi = y(oggiISO);
   const mesi = mesiTra(dominio.min, dominio.max, 14);
   const handover = conData.find((v) => v.isHandover && v.corsia === "project");
@@ -330,7 +388,29 @@ function Disegno({
                     strokeWidth={attivo ? 2 : 0}
                     strokeDasharray={v.traccia ? "4 3" : undefined}
                   />
-                  <Etichetta x={xProject - 22} y={(y1 + y2) / 2} lato="sx" testo={v.label} data={`${fmt(v.inizio!)} → ${fmt(v.fine)}`} attivo={attivo} traccia={v.traccia} />
+                  {/* La barra si riempie dall'alto per la quota dichiarata:
+                      su una fase la percentuale ha un posto naturale dove
+                      stare, ed e' lungo la durata stessa. */}
+                  {!!v.avanzamento && v.avanzamento > 0 && (
+                    <rect
+                      x={xProject - 8}
+                      y={y1}
+                      width={16}
+                      height={Math.max(2, ((y2 - y1) * Math.min(100, v.avanzamento)) / 100)}
+                      rx={8}
+                      fill={PIETRA.inchiostro}
+                      opacity={0.55}
+                    />
+                  )}
+                  <Etichetta
+                    x={xProject - 22}
+                    y={(y1 + y2) / 2}
+                    lato="sx"
+                    testo={v.label}
+                    data={`${fmt(v.inizio!)} → ${fmt(v.fine)}${v.avanzamento ? ` · ${v.avanzamento}%` : ""}`}
+                    attivo={attivo}
+                    traccia={v.traccia}
+                  />
                 </g>
               );
             }
@@ -351,6 +431,9 @@ function Disegno({
                     strokeWidth={2}
                     strokeDasharray={v.daConfermare || v.traccia ? "3 2" : undefined}
                   />
+                )}
+                {!v.isHandover && (
+                  <ArcoAvanzamento x={xProject} y={y1} r={11} pct={v.avanzamento ?? 0} colore={PIETRA.inchiostro} />
                 )}
                 {attivo && <circle cx={xProject} cy={y1} r={12} fill="none" stroke={TEAL} strokeWidth={1.5} opacity={0.6} />}
                 <Etichetta
@@ -451,7 +534,36 @@ function Disegno({
   );
 }
 
+/**
+ * L'arco di avanzamento intorno a un nodo.
+ *
+ * E' lo stesso gesto dell'anello nella tabella, in miniatura: qui non si
+ * clicca e non si legge il numero, si vede solo quanta circonferenza e' piena.
+ * Non compare a 0 (sarebbe un cerchio in piu' che non dice niente) ne' a 100
+ * (li' e' il nodo stesso a essere pieno).
+ */
+function ArcoAvanzamento({ x, y, r, pct, colore }: { x: number; y: number; r: number; pct: number; colore: string }) {
+  if (!pct || pct <= 0 || pct >= 100) return null;
+  const circ = 2 * Math.PI * r;
+  return (
+    <circle
+      cx={x}
+      cy={y}
+      r={r}
+      fill="none"
+      stroke={colore}
+      strokeWidth={2.2}
+      strokeLinecap="round"
+      strokeDasharray={circ}
+      strokeDashoffset={circ * (1 - pct / 100)}
+      transform={`rotate(-90 ${x} ${y})`}
+      opacity={0.9}
+    />
+  );
+}
+
 function NodoCert({ v, x, y, tinta, viol }: { v: VoceTimeline; x: number; y: number; tinta: TintaServizio; viol: boolean }) {
+  const arco = <ArcoAvanzamento x={x} y={y} r={11} pct={v.avanzamento ?? 0} colore={viol ? AMBRA : tinta.strong} />;
   if (v.fatta) {
     return (
       <>
@@ -461,9 +573,19 @@ function NodoCert({ v, x, y, tinta, viol }: { v: VoceTimeline; x: number; y: num
     );
   }
   if (v.natura === "ereditato")
-    return <circle cx={x} cy={y} r={5.5} fill="hsl(var(--muted))" stroke={GRIGIO} strokeWidth={1.6} />;
+    return (
+      <>
+        <circle cx={x} cy={y} r={5.5} fill="hsl(var(--muted))" stroke={GRIGIO} strokeWidth={1.6} />
+        {arco}
+      </>
+    );
   if (v.natura === "calcolato" || v.natura === "serie")
-    return <circle cx={x} cy={y} r={6.5} fill={tinta.bg} stroke={viol ? AMBRA : tinta.strong} strokeWidth={1.6} strokeDasharray="3 2" />;
+    return (
+      <>
+        <circle cx={x} cy={y} r={6.5} fill={tinta.bg} stroke={viol ? AMBRA : tinta.strong} strokeWidth={1.6} strokeDasharray="3 2" />
+        {arco}
+      </>
+    );
   if (v.isHandover)
     return (
       <>
@@ -472,7 +594,12 @@ function NodoCert({ v, x, y, tinta, viol }: { v: VoceTimeline; x: number; y: num
       </>
     );
   // Del PM: bianco con anello teal — questo lo scrivi tu.
-  return <circle cx={x} cy={y} r={7} fill="hsl(var(--card))" stroke={viol ? AMBRA : TEAL} strokeWidth={2} />;
+  return (
+    <>
+      <circle cx={x} cy={y} r={7} fill="hsl(var(--card))" stroke={viol ? AMBRA : TEAL} strokeWidth={2} />
+      {arco}
+    </>
+  );
 }
 
 function Etichetta({

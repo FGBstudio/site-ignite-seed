@@ -30,9 +30,10 @@ import {
   useSerieConteggi,
   useSetProjectTipo,
   useTimelineMilestones,
+  useAvanzamentoMilestone,
   useUpdateMilestoneDate,
   useViolazioni,
-  useVincoliDichiarati,
+  useVincoliRisolti,
 } from "@/hooks/useCronoprogramma";
 import { useCorsieSito } from "@/hooks/usePortafoglio";
 import {
@@ -49,6 +50,8 @@ import {
   type RigaOssatura,
 } from "@/components/cronoprogramma/SezioneProjectTimeline";
 import { AncoratoA, dataRiga } from "@/components/cronoprogramma/AncoratoA";
+import { CampoData } from "@/components/cronoprogramma/CampoData";
+import { AnelloAvanzamento } from "@/components/cronoprogramma/AnelloAvanzamento";
 
 const df = (s: string | null | undefined) =>
   s ? format(parseISO(s), "d LLL yy", { locale: it }) : "—";
@@ -96,13 +99,14 @@ export default function CronoprogrammaPage() {
   const { data: gate } = useCertGate(projectId);
   const { data: milestones = [] } = useTimelineMilestones(projectId);
   const { data: violazioni = [] } = useViolazioni(projectId);
-  const { data: vincoli = [] } = useVincoliDichiarati(projectId);
+  const { data: vincoli = [] } = useVincoliRisolti(projectId);
   const { data: conteggi = [] } = useSerieConteggi(projectId);
   const { data: altreCert = [] } = useCertificazioniSulSito(siteId);
   const { data: corsieSito } = useCorsieSito(siteId, crono?.id ?? null, !!crono);
 
   const genera = useMaterializeTimeline();
   const salvaMilestone = useUpdateMilestoneDate();
+  const avanzaMilestone = useAvanzamentoMilestone();
 
   const mio = isAdmin || cert?.pm_id === user?.id;
 
@@ -177,15 +181,16 @@ export default function CronoprogrammaPage() {
 
   // ── Le voci del pannello ────────────────────────────────────────────────
   const voci: VoceTimeline[] = useMemo(() => {
-    const righe: Array<{ id: string; nome: string; inizio: string | null; fine: string | null; famiglia: any; ancora: string | null; stato?: string; fonte?: string | null; effettiva?: string | null }> =
+    const righe: Array<{ id: string; nome: string; inizio: string | null; fine: string | null; famiglia: any; ancora: string | null; stato?: string; fonte?: string | null; effettiva?: string | null; avanzamento?: number | null }> =
       crono
         ? eventi.map((e) => ({
             id: e.id, nome: e.nome, inizio: e.data_effettiva ?? e.data_pianificata, fine: e.data_fine,
             famiglia: e.famiglia, ancora: e.ancora, stato: e.stato, fonte: e.fonte, effettiva: e.data_effettiva,
+            avanzamento: e.avanzamento,
           }))
         : ossatura.map((r) => ({
             id: r.id, nome: r.nome, inizio: r.inizio, fine: r.fine,
-            famiglia: r.famiglia, ancora: r.ancora, fonte: r.fonte,
+            famiglia: r.famiglia, ancora: r.ancora, fonte: r.fonte, avanzamento: 0,
           }));
 
     const out: VoceTimeline[] = righe.map((r) => ({
@@ -197,7 +202,8 @@ export default function CronoprogrammaPage() {
       fine: r.fine,
       famiglia: r.famiglia,
       natura: "ancora" as const,
-      fatta: !!r.effettiva,
+      fatta: !!r.effettiva || (r.avanzamento ?? 0) >= 100,
+      avanzamento: r.avanzamento ?? 0,
       daConfermare: r.stato === "da_confermare",
       isHandover: r.ancora === "handover",
       nota: r.fonte,
@@ -218,6 +224,7 @@ export default function CronoprogrammaPage() {
         inizio: m.due_date,
         natura: nat,
         fatta: m.status === "achieved" || !!m.completed_date,
+        avanzamento: m.avanzamento ?? 0,
         offsetGiorni: nat === "calcolato" ? m.offset_days : null,
         isHandover: m.derived_from === "handover",
         violazione: v ? { messaggio: v.messaggio ?? "Vincolo violato" } : null,
@@ -289,8 +296,11 @@ export default function CronoprogrammaPage() {
         <span className="font-medium text-foreground">{cert.name}</span>
       </nav>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_400px]">
-        <div className="min-w-0 space-y-5">
+      {/* Il pannello sta in colonna 1 e il lavoro in colonna 2: la timeline e'
+          cio' che si guarda mentre si compila, non un riquadro di servizio. In
+          DOM resta seconda — si legge il form, poi il disegno. */}
+      <div className="grid gap-6 xl:grid-cols-[minmax(520px,34%)_minmax(0,1fr)]">
+        <div className="min-w-0 space-y-5 xl:order-2">
           <ConfermeInSospeso />
 
           {/* ══ ① PROJECT TIMELINE ══ */}
@@ -415,6 +425,13 @@ export default function CronoprogrammaPage() {
                 onAnteprimaAncora={setAnteprimaAncora}
                 conseguenza={conseguenza}
                 onConseguenza={(id, testo) => setConseguenza({ id, testo })}
+                onAvanzamento={async (m: TimelineMilestone, v: number) => {
+                  await avanzaMilestone.mutateAsync({ id: m.id, avanzamento: v });
+                  toast({
+                    title: v >= 100 ? "Completato" : v === 0 ? "Riaperto" : `${v}%`,
+                    description: m.requirement,
+                  });
+                }}
                 onSalva={async (m: TimelineMilestone, v: string) => {
                   await salvaMilestone.mutateAsync({ id: m.id, due_date: v || null });
                   toast({ title: "Salvato", description: `${m.requirement} · ${df(v)}` });
@@ -463,9 +480,9 @@ export default function CronoprogrammaPage() {
           <Registro cronoId={crono?.id} numero={3} />
         </div>
 
-        {/* ══ Il pannello timeline: protagonista, sticky ══ */}
-        <div className="xl:sticky xl:top-[96px] xl:max-h-[calc(100vh-120px)] xl:self-start xl:overflow-y-auto">
-          <p className="mb-2 text-[10.5px] uppercase tracking-wider text-muted-foreground">
+        {/* ══ Il pannello timeline: protagonista, sticky, a tutta altezza ══ */}
+        <div className="flex flex-col xl:sticky xl:top-[92px] xl:order-1 xl:h-[calc(100vh-112px)] xl:self-start">
+          <p className="mb-2 shrink-0 text-[10.5px] uppercase tracking-wider text-muted-foreground">
             Timeline live · tocca per espandere
           </p>
           <TimelineVerticale
@@ -484,9 +501,10 @@ export default function CronoprogrammaPage() {
             servizio={servizio}
             altreCorsie={altreCorsie}
             compatta
+            riempi
           />
           {violazioni.length > 0 && (
-            <div className="mt-3 space-y-2">
+            <div className="mt-3 max-h-[28%] shrink-0 space-y-2 overflow-y-auto">
               {violazioni.map((v) => (
                 <div
                   key={v.order_index}
@@ -541,6 +559,7 @@ function TabellaPassi({
   conseguenza,
   onConseguenza,
   onSalva,
+  onAvanzamento,
 }: any) {
   const singole = milestones.filter((m: TimelineMilestone) => m.series_step_order === null);
   const serie = milestones.filter((m: TimelineMilestone) => m.series_step_order !== null);
@@ -548,6 +567,22 @@ function TabellaPassi({
     () => typeof window !== "undefined" && localStorage.getItem("fgb.hintAncora") === "1"
   );
   const primoCalcolato = singole.find((m: TimelineMilestone) => naturaPasso(m) === "calcolato");
+
+  /**
+   * La base per le scorciatoie «+30gg» del calendario: l'ultimo passo datato
+   * prima di questo, e se non ce n'e' l'handover del cantiere. Non e' un
+   * ancoraggio — quello sta nella colonna accanto e lo si dichiara — e' solo
+   * il numero da cui un PM conta quando scrive una data a mano.
+   */
+  const riferimento = (i: number): { data: string; nome: string } | null => {
+    for (let k = i - 1; k >= 0; k--) {
+      const p = singole[k] as TimelineMilestone;
+      if (p.due_date) return { data: p.due_date, nome: p.requirement };
+    }
+    const h = eventi.find((e: CronoEvento) => e.ancora === "handover");
+    const d = h?.data_effettiva ?? h?.data_pianificata;
+    return d ? { data: d, nome: h!.nome } : null;
+  };
 
   return (
     <div className="overflow-x-auto">
@@ -579,11 +614,13 @@ function TabellaPassi({
             <th className="px-2 py-1.5 text-left font-medium">Natura</th>
             <th className="px-2 py-1.5 text-left font-medium">Data</th>
             <th className="px-2 py-1.5 text-left font-medium">Ancorato a</th>
-            <th className="px-2 py-1.5 text-left font-medium">Fatto</th>
+            <th className="px-2 py-1.5 text-left font-medium" title="Tocca l'anello per aggiornare">
+              Avanz.
+            </th>
           </tr>
         </thead>
         <tbody>
-          {singole.map((m: TimelineMilestone) => {
+          {singole.map((m: TimelineMilestone, i: number) => {
             const nat = naturaPasso(m);
             const v = m.order_index !== null ? violPerOrdine.get(m.order_index) : undefined;
             const editabile = modificabile && nat === "pm" && !m.edit_locked_for_pm;
@@ -618,14 +655,19 @@ function TabellaPassi({
                   </td>
                   <td className="px-2 py-1">
                     {editabile ? (
-                      <Input
-                        type="date"
-                        defaultValue={m.due_date ?? ""}
+                      <CampoData
+                        value={m.due_date}
                         ref={(el) => (campiRef.current[m.id] = el)}
+                        aria={`Data di ${m.requirement}`}
+                        placeholder="aggiungi"
+                        attesa
+                        tinta={tinta}
                         onFocus={() => setFocus(`ms:${m.id}`)}
                         onBlur={() => setFocus(null)}
-                        onChange={(ev) => onSalva(m, ev.target.value)}
-                        className={cn("h-8 w-[132px] text-xs", v && "border-amber-500")}
+                        riferimento={riferimento(i)?.data ?? null}
+                        riferimentoNome={riferimento(i)?.nome ?? null}
+                        onChange={(val) => onSalva(m, val ?? "")}
+                        className={cn("w-[136px]", v && "border-amber-500")}
                       />
                     ) : (
                       /* Una data collegata si distingue a colpo d'occhio da una
@@ -643,6 +685,7 @@ function TabellaPassi({
                     <AncoratoA
                       m={m}
                       eventi={eventi}
+                      passi={singole}
                       vincolo={m.order_index !== null ? vincoliPerOrdine.get(m.order_index) : undefined}
                       modificabile={modificabile}
                       certId={certId}
@@ -654,12 +697,20 @@ function TabellaPassi({
                     />
                   </td>
                   <td className="px-2 py-1">
-                    <input
-                      type="checkbox"
-                      defaultChecked={m.status === "achieved"}
-                      disabled={!modificabile}
-                      aria-label={`Fatto: ${m.requirement}`}
-                      className="h-3.5 w-3.5"
+                    {/* Era una checkbox senza onChange: non salvava niente.
+                        Adesso e' l'unico comando dell'avanzamento — lo status
+                        lo deriva il database. Un passo di certificazione e'
+                        un istante (una consegna, una submission): il gesto e'
+                        uno, fatto / non fatto. */}
+                    <AnelloAvanzamento
+                      pct={m.avanzamento ?? 0}
+                      istante
+                      inizio={m.due_date}
+                      aggiornatoIl={m.avanzamento_aggiornato_il}
+                      tinta={tinta}
+                      etichetta={m.requirement}
+                      disabled={!modificabile || m.not_applicable}
+                      onChange={(v) => onAvanzamento(m, v)}
                     />
                   </td>
                 </tr>

@@ -17,6 +17,9 @@ import {
   type ProjectTipo,
   type TemplateKey,
 } from "@/lib/projectTimelineTemplates";
+import { AncoraRiga } from "@/components/cronoprogramma/AncoratoA";
+import { CampoData } from "@/components/cronoprogramma/CampoData";
+import { AnelloAvanzamento, rollup } from "@/components/cronoprogramma/AnelloAvanzamento";
 import {
   useAggiungiEvento,
   useAttachCronoprogramma,
@@ -98,6 +101,8 @@ interface Props {
   onCascata: (e: CronoEvento, nuovaData: string, fonte: string) => void;
   renderCascata: (e: CronoEvento) => React.ReactNode;
   cascataPer: string | null;
+  /** Accende sul pannello la riga che si sta scegliendo come ancora. */
+  onAnteprimaRiga?: (id: string | null) => void;
 }
 
 export function SezioneProjectTimeline(props: Props) {
@@ -105,6 +110,7 @@ export function SezioneProjectTimeline(props: Props) {
     cert, siteId, tipoEffettivo, crono, cronoInCaricamento, eventi, altreCertIds,
     modificabile, aperta, setAperta, onImporta, ossatura, setOssatura,
     selezionatoId, evidenziatoId, onSeleziona, onCascata, renderCascata, cascataPer,
+    onAnteprimaRiga,
   } = props;
 
   const { toast } = useToast();
@@ -146,10 +152,40 @@ export function SezioneProjectTimeline(props: Props) {
         <p className="text-sm font-medium tabular-nums">{v}</p>
       </div>
     );
+    const avanzamento = rollup(
+      eventi.map((e) => ({
+        avanzamento: e.avanzamento,
+        inizio: e.data_effettiva ?? e.data_pianificata,
+        fine: e.data_fine,
+      }))
+    );
+    const ferme = eventi.filter(
+      (e) =>
+        (e.avanzamento ?? 0) > 0 &&
+        (e.avanzamento ?? 0) < 100 &&
+        (!e.avanzamento_aggiornato_il ||
+          Date.now() - parseISO(e.avanzamento_aggiornato_il).getTime() > 14 * 86400000)
+    ).length;
+
     return (
       <div className="flex flex-wrap items-end justify-between gap-4 rounded-lg border bg-muted/20 p-4">
-        <div className="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-3 lg:grid-cols-6">
           {voce("Tipo", PROJECT_TIPO_LABEL[(crono.tipo ?? "design_construction") as ProjectTipo])}
+          {voce(
+            "Avanzamento",
+            <span className="flex items-center gap-2">
+              <AnelloAvanzamento pct={avanzamento.pct} etichetta="Project timeline" soloLettura dimensione={26} />
+              {avanzamento.pct}%
+              {ferme > 0 && (
+                <span
+                  className="text-[10.5px] font-normal text-amber-700"
+                  title="Righe in corso che nessuno aggiorna da due settimane"
+                >
+                  {ferme} ferme
+                </span>
+              )}
+            </span>
+          )}
           {voce("Eventi", `${eventi.length} · ${datati} datati`)}
           {voce("Prima data", date.length ? df(date[0]) : "—")}
           {voce("Handover", df(handover?.data_effettiva ?? handover?.data_pianificata))}
@@ -257,6 +293,9 @@ export function SezioneProjectTimeline(props: Props) {
                       className="h-8 w-[132px] text-xs"
                     />
                   </td>
+                  <td className="px-2 py-1">
+                    <span className="text-[11px] text-muted-foreground" title="Le dipendenze si impostano dopo il primo salvataggio">—</span>
+                  </td>
                   <td className="px-1 py-1">
                     <span className="text-[11px] text-muted-foreground">{r.fonte ?? "—"}</span>
                   </td>
@@ -340,6 +379,16 @@ export function SezioneProjectTimeline(props: Props) {
     }
   };
 
+  /**
+   * L'ultima riga datata prima di questa: e' il riferimento naturale quando si
+   * scrive «+30». Non e' un ancoraggio — quello lo si dichiara nella colonna
+   * «Dipende da» — e' solo la base delle scorciatoie del calendario.
+   */
+  const precedenteDatata = (e: CronoEvento): CronoEvento | null => {
+    const prima = eventi.filter((x) => x.ordine < e.ordine && (x.data_effettiva ?? x.data_pianificata));
+    return prima.length ? prima[prima.length - 1] : null;
+  };
+
   return (
     <div className="space-y-3">
       <div className="flex justify-end">
@@ -389,31 +438,46 @@ export function SezioneProjectTimeline(props: Props) {
                       )}
                     </td>
                     <td className="px-2 py-1">
-                      <Input
-                        type="date"
-                        defaultValue={e.data_pianificata ?? ""}
+                      <CampoData
+                        value={e.data_pianificata}
                         disabled={!modificabile}
-                        onChange={(ev) => {
-                          const v = ev.target.value;
-                          if (!v || v === e.data_pianificata) return;
+                        aria={`Inizio di ${e.nome}`}
+                        placeholder="aggiungi"
+                        attesa
+                        riferimento={precedenteDatata(e)?.data_effettiva ?? precedenteDatata(e)?.data_pianificata ?? null}
+                        riferimentoNome={precedenteDatata(e)?.nome ?? null}
+                        className="w-[136px]"
+                        onChange={(v) => {
+                          if (v === (e.data_pianificata ?? null)) return;
+                          if (!v) {
+                            salvaCampo(e, { data_pianificata: null }, `${e.nome} · data tolta`);
+                            return;
+                          }
                           // Una riga gia' datata che muove qualcosa passa
                           // dall'anteprima: mai uno spostamento silenzioso.
                           if (dataCorrente) onCascata(e, v, e.fonte ?? "");
                           else salvaCampo(e, { data_pianificata: v, stato: "inserita" }, `${e.nome} · ${df(v)}`);
                         }}
-                        className="h-8 w-[132px] text-xs"
                       />
                     </td>
                     <td className="px-2 py-1">
-                      <Input
-                        type="date"
-                        defaultValue={e.data_fine ?? ""}
+                      <CampoData
+                        value={e.data_fine}
                         disabled={!modificabile}
-                        title="Solo per le fasi: una milestone e' un istante"
-                        onChange={(ev) =>
-                          salvaCampo(e, { data_fine: ev.target.value || null }, `${e.nome} · fine ${df(ev.target.value)}`)
-                        }
-                        className="h-8 w-[132px] text-xs"
+                        aria={`Fine di ${e.nome}`}
+                        placeholder="solo fasi"
+                        riferimento={e.data_pianificata}
+                        riferimentoNome="l'inizio"
+                        className="w-[136px]"
+                        onChange={(v) => salvaCampo(e, { data_fine: v }, `${e.nome} · fine ${df(v)}`)}
+                      />
+                    </td>
+                    <td className="px-2 py-1">
+                      <AncoraRiga
+                        evento={e}
+                        eventi={eventi}
+                        modificabile={modificabile}
+                        onAnteprima={onAnteprimaRiga}
                       />
                     </td>
                     <td className="px-1 py-1">
@@ -424,7 +488,23 @@ export function SezioneProjectTimeline(props: Props) {
                       />
                     </td>
                     <td className="px-2 py-1">
-                      <Stato stato={e.stato} />
+                      <div className="flex items-center gap-2">
+                        {/* Una riga con inizio e fine e' una fase: ha una
+                            durata, quindi la percentuale ha senso e l'anello
+                            porta anche la tacca dell'atteso. Senza fine e'
+                            un istante: fatto o non fatto. */}
+                        <AnelloAvanzamento
+                          pct={e.avanzamento ?? 0}
+                          istante={!e.data_fine}
+                          inizio={e.data_effettiva ?? e.data_pianificata}
+                          fine={e.data_fine}
+                          aggiornatoIl={e.avanzamento_aggiornato_il}
+                          etichetta={e.nome}
+                          disabled={!modificabile}
+                          onChange={(v) => salvaCampo(e, { avanzamento: v }, `${e.nome} · ${v}%`)}
+                        />
+                        <Stato stato={e.stato} />
+                      </div>
                     </td>
                     <td className="px-2 py-1 text-right">
                       {libera && modificabile && (
@@ -444,7 +524,7 @@ export function SezioneProjectTimeline(props: Props) {
                   </tr>
                   {cascataPer === e.id && (
                     <tr>
-                      <td colSpan={6} className="px-2 pb-3">
+                      <td colSpan={7} className="px-2 pb-3">
                         {renderCascata(e)}
                       </td>
                     </tr>
@@ -493,6 +573,7 @@ function Testata() {
         <th className="px-2 py-1.5 text-left font-medium">Fase / milestone</th>
         <th className="px-2 py-1.5 text-left font-medium">Inizio</th>
         <th className="px-2 py-1.5 text-left font-medium">Fine</th>
+        <th className="px-2 py-1.5 text-left font-medium">Dipende da</th>
         <th className="w-8 px-1 py-1.5 text-left font-medium" title="Fonte">F.</th>
         <th className="px-2 py-1.5 text-left font-medium">Stato</th>
         <th />

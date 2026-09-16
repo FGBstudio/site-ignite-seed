@@ -88,10 +88,19 @@ export interface CronoEvento {
   data_fine: string | null;
   /** Il fatto: si scrive una volta sola, a cose avvenute. */
   data_effettiva: string | null;
+  /** La riga precedente da cui questa si calcola (NULL = data a mano). */
+  ancora_evento_id: string | null;
+  /** Giorni dopo la riga di ancoraggio. */
+  offset_giorni: number | null;
   /** La famiglia di fase (v1.1 §4.2): colora il grafico e deriva lo Status. */
   famiglia: "design" | "permitting" | "construction" | "terze_parti" | null;
   fonte: string | null;
+  /** L'affidabilita' della DATA. Non e' l'avanzamento del lavoro. */
   stato: CronoStato;
+  /** Quanto del lavoro e' fatto, 0..100. Sulle milestone vale 0 o 100. */
+  avanzamento: number;
+  avanzamento_aggiornato_il: string | null;
+  avanzamento_aggiornato_da: string | null;
   aggiornata_il: string | null;
   aggiornata_da: string | null;
 }
@@ -173,6 +182,12 @@ export interface TimelineMilestone {
   series_index: number | null;
   /** La riga di project timeline da cui il passo si calcola (flusso v2 §3.2). */
   crono_evento_id: string | null;
+  /**
+   * L'avanzamento, 0..100. `status` ne e' il derivato lato database, quindi i
+   * due non possono divergere: si scrive questo e lo status segue.
+   */
+  avanzamento: number;
+  avanzamento_aggiornato_il: string | null;
 }
 
 /**

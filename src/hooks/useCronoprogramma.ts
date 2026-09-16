@@ -275,6 +275,7 @@ export function useUpsertEvento() {
       ancora?: string | null;
       fonte?: string | null;
       stato?: string;
+      avanzamento?: number;
     }) => {
       const user = (await supabase.auth.getUser()).data.user;
       const { id, ...campi } = input;
@@ -384,30 +385,67 @@ export function useSerieAnteprima(certId: string | undefined, nuovoHandover?: st
  * colonna «Ancorato a» per dire al PM «prima di: Lancio gara» anche quando il
  * vincolo non e' (ancora) violato.
  */
-export interface VincoloDichiarato {
+export interface VincoloRisolto {
   order_index: number;
   operatore: "prima_di" | "dopo_di";
-  ancora: string;
+  evento_id: string;
+  evento_nome: string;
+  evento_data: string | null;
   messaggio: string | null;
 }
 
-export function useVincoliDichiarati(certId: string | undefined) {
+/**
+ * I vincoli di precedenza, risolti sulle righe vere del sito.
+ *
+ * Prima si leggevano dal catalogo e si mostravano col nome dell'ancora
+ * canonica — «prima di: Lancio gara d'appalto» — anche quando nella project
+ * timeline quella riga non esisteva, perche' il PM aveva importato il gantt
+ * del GC. Un vincolo senza bersaglio non ha niente da dire, e ora tace.
+ */
+export function useVincoliRisolti(certId: string | undefined) {
   return useQuery({
-    queryKey: ["crono", "vincoli-dichiarati", certId],
+    queryKey: ["crono", "vincoli-risolti", certId],
     enabled: !!certId,
     queryFn: async () => {
-      const { data: key, error: e1 } = await (supabase as any).rpc("fn_timeline_key_for_cert", {
+      const { data, error } = await (supabase as any).rpc("fn_cert_vincoli_risolti", {
         p_certification_id: certId,
       });
-      if (e1) throw e1;
-      if (!key) return [] as VincoloDichiarato[];
-      const { data, error } = await (supabase as any)
-        .from("cert_step_constraints")
-        .select("order_index, operatore, ancora, messaggio")
-        .eq("timeline_key", key);
       if (error) throw error;
-      return (data ?? []) as VincoloDichiarato[];
+      return (data ?? []) as VincoloRisolto[];
     },
+  });
+}
+
+/** Aggancia una riga della project timeline a una precedente dello stesso sito. */
+export function useAncoraRiga() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      evento_id: string;
+      cronoprogramma_id: string;
+      ancora_evento_id: string | null;
+      offset_giorni: number | null;
+    }) => {
+      const user = (await supabase.auth.getUser()).data.user;
+      const { error } = await (supabase as any)
+        .from("cronoprogramma_eventi")
+        .update({
+          ancora_evento_id: input.ancora_evento_id,
+          offset_giorni: input.ancora_evento_id ? input.offset_giorni ?? 0 : null,
+          aggiornata_il: new Date().toISOString(),
+          aggiornata_da: user?.id ?? null,
+        })
+        .eq("id", input.evento_id);
+      if (error) throw error;
+
+      // Il ricalcolo e' del database: e' li' che vive la catena, ed e' li'
+      // che si evitano i cicli.
+      const { error: e2 } = await (supabase as any).rpc("fn_crono_ricalcola", {
+        p_cronoprogramma_id: input.cronoprogramma_id,
+      });
+      if (e2) throw e2;
+    },
+    onSuccess: () => qc.invalidateQueries(),
   });
 }
 
@@ -429,8 +467,10 @@ export function useCambiaAncoraggio() {
       milestone_id: string;
       certification_id: string;
       requirement: string;
-      /** La riga di progetto a cui agganciare. NULL = sgancia. */
+      /** La riga di progetto a cui agganciare. NULL se si aggancia a un passo, o se si sgancia. */
       evento_id: string | null;
+      /** Il passo precedente della stessa scaletta (order_index). Alternativo a evento_id. */
+      anchor_order?: number | null;
       offset_days: number | null;
       /** Alla sgancio: la data da congelare come manuale. */
       data_da_congelare?: string | null;
@@ -439,14 +479,19 @@ export function useCambiaAncoraggio() {
       nota: string;
     }) => {
       const user = (await supabase.auth.getUser()).data.user;
+      // Tre casi, mutuamente esclusivi: agganciato a una riga di progetto,
+      // agganciato a un passo precedente della stessa scaletta, oppure
+      // sganciato. Tenerne due insieme darebbe al motore due sorgenti per la
+      // stessa data.
+      const agganciato = !!input.evento_id || input.anchor_order != null;
       const campi: Record<string, unknown> = {
         crono_evento_id: input.evento_id,
-        offset_days: input.evento_id ? input.offset_days ?? 0 : null,
+        anchor_order: input.evento_id ? null : input.anchor_order ?? null,
+        offset_days: agganciato ? input.offset_days ?? 0 : null,
       };
-      if (!input.evento_id) {
+      if (!agganciato) {
         // Sganciato: niente piu' ancore di nessun tipo, e la data resta la
         // sua. Senza azzerare anchor_order il motore la riprenderebbe.
-        campi.anchor_order = null;
         campi.derived_from = null;
         campi.edit_locked_for_pm = false;
         if (input.data_da_congelare) campi.due_date = input.data_da_congelare;
@@ -518,6 +563,27 @@ export function useUpdateMilestoneDate() {
       const { error } = await (supabase as any)
         .from("certification_milestones")
         .update({ due_date: input.due_date })
+        .eq("id", input.id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["crono"] }),
+  });
+}
+
+/**
+ * L'avanzamento di un passo di certificazione.
+ *
+ * Si scrive solo `avanzamento`: `status` e `completed_date` li deriva il
+ * trigger. Scriverli anche da qui sarebbe il modo piu' rapido per farli
+ * divergere.
+ */
+export function useAvanzamentoMilestone() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { id: string; avanzamento: number }) => {
+      const { error } = await (supabase as any)
+        .from("certification_milestones")
+        .update({ avanzamento: Math.max(0, Math.min(100, Math.round(input.avanzamento))) })
         .eq("id", input.id);
       if (error) throw error;
     },
