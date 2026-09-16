@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { leggiData } from "@/components/cronoprogramma/CampoData";
 import { attesoOggi, rollup } from "@/components/cronoprogramma/AnelloAvanzamento";
+import { distribuisci } from "@/components/cronoprogramma/TimelineVerticale";
 
 /**
  * Il lettore di date e l'aritmetica dell'avanzamento.
@@ -89,5 +90,58 @@ describe("rollup", () => {
 
   it("nessuna riga non e' zero per divisione, e' zero e basta", () => {
     expect(rollup([]).pct).toBe(0);
+  });
+});
+
+describe("distribuisci", () => {
+  const separate = (v: number[], passo: number) =>
+    [...v].sort((a, b) => a - b).every((x, i, arr) => i === 0 || x - arr[i - 1] >= passo - 0.01);
+
+  it("lascia stare le etichette che gia' non si toccano", () => {
+    const ideali = [10, 50, 90];
+    expect(distribuisci(ideali, 25, 0, 200)).toEqual(ideali);
+  });
+
+  it("separa le etichette impilate sulla stessa data", () => {
+    // Il caso vero: otto permessi che partono tutti il 1 marzo.
+    const ideali = [100, 100, 100, 100, 100, 100, 100, 100];
+    const out = distribuisci(ideali, 25, 0, 400);
+    expect(separate(out, 25)).toBe(true);
+    // Centrate sul punto di partenza: lo scarto si divide, non si scarica
+    // tutto sull'ultima.
+    const centro = out.reduce((a, b) => a + b, 0) / out.length;
+    expect(Math.abs(centro - 100)).toBeLessThan(1);
+  });
+
+  it("non scambia mai l'ordine: quello che viene prima resta sopra", () => {
+    const ideali = [10, 12, 14, 200, 201];
+    const out = distribuisci(ideali, 25, 0, 400);
+    for (let i = 1; i < out.length; i++) expect(out[i]).toBeGreaterThan(out[i - 1]);
+  });
+
+  it("rispetta l'ordine anche se gli ideali arrivano mescolati", () => {
+    const ideali = [200, 10, 100, 12];
+    const out = distribuisci(ideali, 25, 0, 400);
+    // La riga con l'ideale piu' basso deve finire piu' in alto di tutte.
+    expect(out[1]).toBeLessThan(out[3]);
+    expect(out[3]).toBeLessThan(out[2]);
+    expect(out[2]).toBeLessThan(out[0]);
+  });
+
+  it("tiene tutto dentro la cornice", () => {
+    const out = distribuisci([5, 5, 5, 5], 25, 0, 200);
+    expect(Math.min(...out)).toBeGreaterThanOrEqual(-0.01);
+    expect(Math.max(...out)).toBeLessThanOrEqual(200.01);
+  });
+
+  it("quando non ci stanno, stringe invece di uscire", () => {
+    const out = distribuisci([50, 50, 50, 50, 50], 25, 0, 40);
+    expect(Math.min(...out)).toBeGreaterThanOrEqual(-0.01);
+    expect(Math.max(...out)).toBeLessThanOrEqual(40.01);
+    for (let i = 1; i < out.length; i++) expect(out[i]).toBeGreaterThan(out[i - 1]);
+  });
+
+  it("nessuna etichetta, nessuna posizione", () => {
+    expect(distribuisci([], 25, 0, 100)).toEqual([]);
   });
 });

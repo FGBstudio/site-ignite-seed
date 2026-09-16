@@ -98,6 +98,82 @@ function g(a: string, b: string) {
   return Math.round((parseISO(b).getTime() - parseISO(a).getTime()) / 86400000);
 }
 
+/** Quanto spazio verticale vuole un'etichetta: titolo + riga della data. */
+const ALTEZZA_ETICHETTA = 25;
+
+/**
+ * Distribuisce le etichette lungo l'asse senza farle accavallare.
+ *
+ * Il problema, concreto: in un cronoprogramma vero decine di attivita' partono
+ * lo stesso giorno — «1 mar 26» su otto righe di permessi — e mettere ogni
+ * etichetta alla quota della sua data le impila tutte sullo stesso pixel. Il
+ * risultato e' il groviglio: il disegno c'e', ma non si legge piu' niente, che
+ * per un pannello che serve a leggere equivale a non esserci.
+ *
+ * La cura non e' nascondere etichette (si perde informazione) ne' rimpicciolire
+ * il testo (sotto una certa soglia e' comunque illeggibile): e' spostarle il
+ * minimo indispensabile perche' stiano distanziate, e tirare una linea sottile
+ * da ognuna al suo nodo, cosi' si vede a quale data appartiene.
+ *
+ * «Il minimo indispensabile» non e' un modo di dire — e' il problema della
+ * regressione isotona, che si risolve esattamente con pool-adjacent-violators:
+ * trasformando in `v_i = ideale_i − i·passo`, la soluzione monotona di v da'
+ * le posizioni distanziate di almeno `passo` con lo spostamento TOTALE minimo.
+ * Un'euristica «spingi in giu' finche' non si toccano» accumula invece tutto
+ * lo scarto sulle ultime etichette, che finiscono lontanissime dal loro nodo.
+ *
+ * L'ordine verticale non cambia mai: quello che nel tempo viene prima resta
+ * sopra, sempre. Un'etichetta che scavalca un'altra sarebbe peggio del
+ * groviglio, perche' mentirebbe invece di confondere.
+ */
+export function distribuisci(ideali: number[], passo: number, min: number, max: number): number[] {
+  const n = ideali.length;
+  if (n === 0) return [];
+  if (n === 1) return [Math.min(max, Math.max(min, ideali[0]))];
+
+  // Se proprio non ci stanno, si stringe: meglio tutte leggibili e vicine che
+  // metа' fuori dalla cornice.
+  const passoEff = Math.min(passo, (max - min) / (n - 1));
+
+  const ordine = ideali.map((_, i) => i).sort((a, b) => ideali[a] - ideali[b]);
+  const v = ordine.map((idx, k) => ideali[idx] - k * passoEff);
+
+  const somma: number[] = [];
+  const quanti: number[] = [];
+  for (const x of v) {
+    somma.push(x);
+    quanti.push(1);
+    while (
+      somma.length > 1 &&
+      somma[somma.length - 2] / quanti[quanti.length - 2] > somma[somma.length - 1] / quanti[quanti.length - 1]
+    ) {
+      const s = somma.pop()!;
+      const c = quanti.pop()!;
+      somma[somma.length - 1] += s;
+      quanti[quanti.length - 1] += c;
+    }
+  }
+
+  const piatto: number[] = [];
+  for (let j = 0; j < somma.length; j++) {
+    const media = somma[j] / quanti[j];
+    for (let k = 0; k < quanti[j]; k++) piatto.push(media);
+  }
+
+  // Il blocco intero rientra nella cornice, senza deformarlo.
+  const primo = piatto[0];
+  const ultimo = piatto[n - 1] + (n - 1) * passoEff;
+  let scarto = 0;
+  if (primo < min) scarto = min - primo;
+  else if (ultimo > max) scarto = Math.max(max - ultimo, min - primo);
+
+  const out = new Array<number>(n);
+  ordine.forEach((idx, k) => {
+    out[idx] = piatto[k] + k * passoEff + scarto;
+  });
+  return out;
+}
+
 export function TimelineVerticale(props: Props) {
   const [espansa, setEspansa] = useState(false);
   const box = useRiquadro(props.riempi === true);
@@ -277,7 +353,12 @@ function Disegno({
 
   const xProject = 330;
   const xCorsia = (i: number) => 570 + i * LARGH_CORSIA;
-  const W = xCorsia(corsie.length - 1) + 330;
+  // La larghezza segue il contenuto. Nel wizard di import la corsia della
+  // certificazione e' vuota — non c'e' ancora nessuna scaletta — e riservarle
+  // comunque trecento pixel schiacciava tutto il disegno nella meta' sinistra,
+  // sprecando proprio lo spazio che serve alle etichette.
+  const corsiePiene = corsie.some((c) => c.voci.some((v) => v.inizio));
+  const W = corsiePiene ? xCorsia(corsie.length - 1) + 330 : xProject + 150;
 
   // Il disegno e' un viewBox scalato alla larghezza: sullo schermo un'unita'
   // vale (larghezzaRiquadro / W) pixel. Per far tornare l'altezza reale a
@@ -294,6 +375,19 @@ function Disegno({
   const y = (d: string) => Math.round((g(dominio.min, d) + dominio.pad) * pxG) + 26;
   const yOggi = y(oggiISO);
   const mesi = mesiTra(dominio.min, dominio.max, 14);
+
+  // Le etichette della corsia project: quota ideale (il centro della barra per
+  // le fasi, il nodo per le milestone), poi distribuite perche' non si
+  // accavallino.
+  const projVisibili = vociProject.filter((v) => v.inizio);
+  const yEtProject = distribuisci(
+    projVisibili.map((v) =>
+      v.tipo === "fase" && v.fine ? (y(v.inizio!) + Math.max(y(v.inizio!) + 8, y(v.fine))) / 2 : y(v.inizio!)
+    ),
+    ALTEZZA_ETICHETTA,
+    26,
+    H + 26
+  );
   const handover = conData.find((v) => v.isHandover && v.corsia === "project");
   const acceso = (k: string) => focus === k || (evidenziate?.includes(k) ?? false);
 
@@ -309,11 +403,12 @@ function Disegno({
         <text x={xProject} y={14} textAnchor="middle" fontSize={12} fontWeight={600} fill={PIETRA.inchiostro}>
           {titoloProject}
         </text>
-        {corsie.map((c, i) => (
-          <text key={c.id} x={xCorsia(i)} y={14} textAnchor="middle" fontSize={12} fontWeight={600} fill={tintaServizio(c.servizio).strong}>
-            {c.titolo.length > 30 ? `${c.titolo.slice(0, 29)}…` : c.titolo}
-          </text>
-        ))}
+        {corsiePiene &&
+          corsie.map((c, i) => (
+            <text key={c.id} x={xCorsia(i)} y={14} textAnchor="middle" fontSize={12} fontWeight={600} fill={tintaServizio(c.servizio).strong}>
+              {c.titolo.length > 30 ? `${c.titolo.slice(0, 29)}…` : c.titolo}
+            </text>
+          ))}
 
         {/* La scala dei mesi. */}
         {mesi.map((m) => (
@@ -368,10 +463,10 @@ function Disegno({
         })}
 
         {/* Corsia project: fasi come barre, ancore come nodi. */}
-        {vociProject
-          .filter((v) => v.inizio)
-          .map((v) => {
+        {projVisibili
+          .map((v, iEt) => {
             const y1 = y(v.inizio!);
+            const yEt = yEtProject[iEt];
             const attivo = acceso(v.key);
             if (v.tipo === "fase" && v.fine) {
               const y2 = Math.max(y1 + 8, y(v.fine));
@@ -404,7 +499,9 @@ function Disegno({
                   )}
                   <Etichetta
                     x={xProject - 22}
-                    y={(y1 + y2) / 2}
+                    y={yEt}
+                    yNodo={(y1 + y2) / 2}
+                    xNodo={xProject - 10}
                     lato="sx"
                     testo={v.label}
                     data={`${fmt(v.inizio!)} → ${fmt(v.fine)}${v.avanzamento ? ` · ${v.avanzamento}%` : ""}`}
@@ -438,7 +535,9 @@ function Disegno({
                 {attivo && <circle cx={xProject} cy={y1} r={12} fill="none" stroke={TEAL} strokeWidth={1.5} opacity={0.6} />}
                 <Etichetta
                   x={xProject - 22}
-                  y={y1}
+                  y={yEt}
+                  yNodo={y1}
+                  xNodo={xProject - 10}
                   lato="sx"
                   testo={v.label}
                   data={`${fmt(v.inizio!)}${v.nota ? ` · ${v.nota}` : ""}`}
@@ -456,12 +555,19 @@ function Disegno({
           const xc = xCorsia(i);
           const tinta = tintaServizio(c.servizio);
           const maxLabel = corsie.length > 1 && i < corsie.length - 1 ? 20 : 30;
+          const visibili = c.voci.filter((v) => v.inizio);
+          const yEtCorsia = distribuisci(
+            visibili.map((v) => y(v.inizio!)),
+            ALTEZZA_ETICHETTA,
+            26,
+            H + 26
+          );
           return (
             <g key={c.id}>
-              {c.voci
-                .filter((v) => v.inizio)
-                .map((v) => {
+              {visibili
+                .map((v, iEt) => {
                   const y1 = y(v.inizio!);
+                  const yEt = yEtCorsia[iEt];
                   const attivo = acceso(v.key);
                   const viol = !!v.violazione;
                   return (
@@ -470,7 +576,9 @@ function Disegno({
                       {attivo && <circle cx={xc} cy={y1} r={11} fill="none" stroke={TEAL} strokeWidth={1.5} opacity={0.6} />}
                       <Etichetta
                         x={xc + 18}
-                        y={y1}
+                        y={yEt}
+                        yNodo={y1}
+                        xNodo={xc + 9}
                         lato="dx"
                         testo={v.label}
                         maxChars={maxLabel}
@@ -605,6 +713,8 @@ function NodoCert({ v, x, y, tinta, viol }: { v: VoceTimeline; x: number; y: num
 function Etichetta({
   x,
   y,
+  yNodo,
+  xNodo,
   lato,
   testo,
   data,
@@ -617,6 +727,9 @@ function Etichetta({
 }: {
   x: number;
   y: number;
+  /** La quota vera del nodo: se l'etichetta e' stata spostata, si collegano. */
+  yNodo?: number;
+  xNodo?: number;
   lato: "sx" | "dx";
   testo: string;
   data: string | null;
@@ -629,10 +742,25 @@ function Etichetta({
 }) {
   const anchor = lato === "sx" ? "end" : "start";
   const t = testo.length > maxChars ? `${testo.slice(0, maxChars - 1)}…` : testo;
+
+  // La linea di richiamo compare solo quando serve davvero. Sotto i tre pixel
+  // di scarto sarebbe un trattino orizzontale che non spiega niente e sporca.
+  const spostata = yNodo !== undefined && xNodo !== undefined && Math.abs(yNodo - y) > 3;
+  const xAttacco = lato === "sx" ? x + 4 : x - 4;
+
   return (
     <>
       {/* v1.2 §2: mai sotto le soglie; l'ellissi solo col testo completo nel tooltip. */}
       <title>{`${testo}${data ? ` · ${data}` : ""}`}</title>
+      {spostata && (
+        <polyline
+          points={`${xAttacco},${y} ${(xAttacco + xNodo!) / 2},${y} ${xNodo},${yNodo}`}
+          fill="none"
+          stroke={attivo ? TEAL : GRIGIO}
+          strokeWidth={attivo ? 1.2 : 0.8}
+          opacity={attivo ? 0.9 : 0.45}
+        />
+      )}
       <text
         x={x}
         y={data ? y - 1.5 : y + 3.5}
