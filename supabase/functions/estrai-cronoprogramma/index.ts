@@ -34,7 +34,23 @@ const CORS = {
 };
 
 const GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
-const MODELLO = "google/gemini-2.5-flash";
+
+/**
+ * Due modelli, in ordine, e non per ridondanza generica.
+ *
+ * Il primo e' quello che `analyze-bill` usa da mesi per estrarre dati
+ * strutturati da PDF: sappiamo che regge il formato. Il secondo e' piu' forte
+ * sul ragionamento visivo, che qui serve nel caso difficile — leggere dove
+ * cade una barra contro la scala dei mesi.
+ *
+ * Si passa al secondo in due casi: il gateway rifiuta il primo (nome del
+ * modello cambiato, quota sul modello), oppure il primo restituisce righe ma
+ * SENZA DATE. Il secondo caso e' il motivo vero: una lista di nomi senza date
+ * non e' una mezza risposta, e' il difetto che questa funzione esiste per
+ * togliere. Meglio spendere una seconda chiamata che consegnare al PM la
+ * stessa tabella vuota di prima.
+ */
+const MODELLI = ["google/gemini-2.5-flash", "google/gemini-3-flash-preview"];
 
 /** 12 MB in base64 ≈ 9 MB di file: oltre, il gateway rifiuta comunque. */
 const MAX_BASE64 = 12 * 1024 * 1024;
@@ -195,61 +211,107 @@ Deno.serve(async (req) => {
   }
 
   // ── Il modello ─────────────────────────────────────────────────────────
-  let esito: Response;
-  try {
-    esito = await fetch(GATEWAY, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${chiave}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: MODELLO,
-        messages: [
-          { role: "system", content: SISTEMA },
-          { role: "user", content: contenuto },
-        ],
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "estrai_cronoprogramma",
-              description: "Restituisce le attivita' del cronoprogramma con le loro date",
-              parameters: SCHEMA,
+
+  /** Una passata su un modello. Non decide nulla: riferisce cosa e' successo. */
+  async function chiedi(modello: string): Promise<
+    | { ok: true; dati: Record<string, unknown> }
+    | { ok: false; stato: number; messaggio: string; riprovabile: boolean }
+  > {
+    let risp: Response;
+    try {
+      risp = await fetch(GATEWAY, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${chiave}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: modello,
+          messages: [
+            { role: "system", content: SISTEMA },
+            { role: "user", content: contenuto },
+          ],
+          tools: [
+            {
+              type: "function",
+              function: {
+                name: "estrai_cronoprogramma",
+                description: "Restituisce le attivita' del cronoprogramma con le loro date",
+                parameters: SCHEMA,
+              },
             },
-          },
-        ],
-        tool_choice: { type: "function", function: { name: "estrai_cronoprogramma" } },
-      }),
-    });
-  } catch (e) {
-    console.error("gateway irraggiungibile:", e);
-    return risposta({ errore: "Servizio di estrazione irraggiungibile", ripiega: true }, 502);
+          ],
+          tool_choice: { type: "function", function: { name: "estrai_cronoprogramma" } },
+        }),
+      });
+    } catch (e) {
+      console.error(`[${modello}] gateway irraggiungibile:`, e);
+      return { ok: false, stato: 502, messaggio: "Servizio di estrazione irraggiungibile", riprovabile: false };
+    }
+
+    if (!risp.ok) {
+      const dettaglio = await risp.text();
+      console.error(`[${modello}] gateway ${risp.status}:`, dettaglio.slice(0, 400));
+      // 402 e 429 valgono per l'account, non per il modello: cambiare modello
+      // non le risolve e riprovare e' solo un secondo addebito.
+      const riprovabile = risp.status !== 402 && risp.status !== 429;
+      const messaggio =
+        risp.status === 429
+          ? "Troppe richieste in questo momento"
+          : risp.status === 402
+            ? "Crediti AI esauriti"
+            : "Estrazione AI non riuscita";
+      return { ok: false, stato: risp.status === 429 ? 429 : 502, messaggio, riprovabile };
+    }
+
+    const corpoRisposta = await risp.json();
+    const chiamata = corpoRisposta.choices?.[0]?.message?.tool_calls?.[0];
+    if (!chiamata?.function?.arguments) {
+      console.error(`[${modello}] nessuna tool call:`, JSON.stringify(corpoRisposta).slice(0, 400));
+      return { ok: false, stato: 502, messaggio: "Il modello non ha restituito dati strutturati", riprovabile: true };
+    }
+
+    try {
+      return { ok: true, dati: JSON.parse(chiamata.function.arguments) };
+    } catch {
+      console.error(`[${modello}] argomenti illeggibili`);
+      return { ok: false, stato: 502, messaggio: "Risposta del modello illeggibile", riprovabile: true };
+    }
   }
 
-  if (!esito.ok) {
-    const testoErrore = await esito.text();
-    console.error("gateway:", esito.status, testoErrore.slice(0, 400));
-    // 429 e 402 non sono colpa del file: il PM deve poter riprovare col parser
-    // locale invece di sentirsi dire che il suo gantt non si legge.
-    const messaggio =
-      esito.status === 429
-        ? "Troppe richieste in questo momento"
-        : esito.status === 402
-          ? "Crediti AI esauriti"
-          : "Estrazione AI non riuscita";
-    return risposta({ errore: messaggio, ripiega: true }, esito.status === 429 ? 429 : 502);
+  /** Quante righe hanno davvero una data: e' il metro di «ha funzionato». */
+  const datate = (d: Record<string, unknown>) =>
+    (Array.isArray(d?.attivita) ? (d.attivita as Array<{ inizio?: unknown }>) : []).filter(
+      (a) => typeof a?.inizio === "string" && /^\d{4}-\d{2}-\d{2}$/.test(a.inizio)
+    ).length;
+
+  let grezzo: Record<string, unknown> | null = null;
+  let modelloUsato = "";
+  let ultimoErrore: { stato: number; messaggio: string } | null = null;
+
+  for (let i = 0; i < MODELLI.length; i++) {
+    const m = MODELLI[i];
+    const esito = await chiedi(m);
+
+    if (!esito.ok) {
+      ultimoErrore = { stato: esito.stato, messaggio: esito.messaggio };
+      if (!esito.riprovabile) break;
+      continue;
+    }
+
+    grezzo = esito.dati;
+    modelloUsato = m;
+
+    // Righe senza date non sono una mezza risposta: sono il difetto che
+    // questa funzione esiste per togliere. Se c'e' un modello piu' forte da
+    // provare, si prova.
+    const n = datate(esito.dati);
+    if (n > 0 || i === MODELLI.length - 1) break;
+    console.log(`[${m}] zero righe datate: riprovo col modello successivo`);
   }
 
-  const dati = await esito.json();
-  const chiamata = dati.choices?.[0]?.message?.tool_calls?.[0];
-  if (!chiamata?.function?.arguments) {
-    console.error("nessuna tool call:", JSON.stringify(dati).slice(0, 400));
-    return risposta({ errore: "Il modello non ha restituito dati strutturati", ripiega: true }, 502);
-  }
-
-  let grezzo: any;
-  try {
-    grezzo = JSON.parse(chiamata.function.arguments);
-  } catch {
-    return risposta({ errore: "Risposta del modello illeggibile", ripiega: true }, 502);
+  if (!grezzo) {
+    return risposta(
+      { errore: ultimoErrore?.messaggio ?? "Estrazione AI non riuscita", ripiega: true },
+      ultimoErrore?.stato ?? 502
+    );
   }
 
   // ── La pulizia ─────────────────────────────────────────────────────────
@@ -311,7 +373,9 @@ Deno.serve(async (req) => {
     .filter(Boolean)
     .join(" ");
 
-  console.log(`estratte ${attivita.length} righe (${conDate} datate, ${dedotte} dedotte) da ${nomeFile ?? "?"}`);
+  console.log(
+    `[${modelloUsato}] estratte ${attivita.length} righe (${conDate} datate, ${dedotte} dedotte) da ${nomeFile ?? "?"}`
+  );
 
   return risposta({
     attivita,
@@ -320,5 +384,6 @@ Deno.serve(async (req) => {
     lingua: typeof grezzo.lingua === "string" ? grezzo.lingua : null,
     diario,
     motore: "ai",
+    modello: modelloUsato,
   });
 });
