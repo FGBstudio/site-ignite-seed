@@ -132,7 +132,7 @@ export function TimelineLive({ attivita, passi, servizio, oggiISO, evidenzia, on
       width={W}
       height={H}
       viewBox={`0 0 ${W} ${H}`}
-      className="block h-auto max-w-full"
+      className="mx-auto block h-auto max-w-full"
       role="img"
       aria-label={`Timeline live: ${P.length} attività di progetto e ${C.length} passi del servizio`}
     >

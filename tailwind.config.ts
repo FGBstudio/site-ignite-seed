@@ -13,6 +13,13 @@ export default {
       },
     },
     extend: {
+      screens: {
+        // SPECIFICA_TIMELINE §9: la vista Timeline passa a due colonne a
+        // ~1120px. L'`xl` di Tailwind (1280) e' troppo tardi — su un portatile
+        // da 13 pollici la schermata resterebbe in colonna singola proprio
+        // dove serve vedere il form e il disegno insieme.
+        tl: "1120px",
+      },
       fontFamily: {
         // Body: DM Sans (Gestionale primary font)
         sans: ["'DM Sans'", "-apple-system", "Inter", "system-ui", "sans-serif"],
