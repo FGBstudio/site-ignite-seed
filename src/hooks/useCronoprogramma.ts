@@ -101,9 +101,20 @@ export function useCreateCronoprogramma() {
         .single();
       if (error) throw error;
 
-      const base =
-        input.righeTemplate ??
-        ANCORE.map((a) => ({ nome: a.nome, fase: false, famiglia: null as string | null, ancora: a.ancora as string | null }));
+      // ESSERE ESPLICITI QUI E' IL PUNTO.
+      //
+      // Prima, senza `righeTemplate`, questa funzione seminava le otto ancore
+      // canoniche come righe: «Lancio gara d'appalto», «Involucro chiuso»,
+      // «Sito pronto per test». Sono i nomi dell'enum, non le fasi di un
+      // cantiere, e comparivano su qualunque sito — anche su uno che una gara
+      // d'appalto non l'ha mai avuta. E' l'origine delle «voci a caso»: non
+      // stavano nell'interfaccia, stavano nel database, seminate alla
+      // creazione. Le due timeline che esistono oggi nascono cosi'.
+      //
+      // Adesso non c'e' ripiego: chi crea una timeline dice quali righe ci
+      // vanno, oppure ne crea una vuota. Un default che inventa dodici righe
+      // di cantiere e' peggio di nessun default.
+      const base = input.righeTemplate ?? [];
 
       const righe = base.map((r, i) => {
         const isHandover = r.ancora === "handover";
@@ -126,8 +137,10 @@ export function useCreateCronoprogramma() {
         };
       });
 
-      const { error: e2 } = await (supabase as any).from("cronoprogramma_eventi").insert(righe);
-      if (e2) throw e2;
+      if (righe.length > 0) {
+        const { error: e2 } = await (supabase as any).from("cronoprogramma_eventi").insert(righe);
+        if (e2) throw e2;
+      }
 
       return crono as Cronoprogramma;
     },

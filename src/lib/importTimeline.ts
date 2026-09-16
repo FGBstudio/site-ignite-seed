@@ -19,7 +19,6 @@
  * Le librerie pesanti (pdfjs, tesseract) si caricano solo quando servono.
  */
 
-import { riconosciAncora } from "@/lib/projectTimelineTemplates";
 import type { CronoAncora } from "@/types/cronoprogramma";
 
 export interface AttivitaCandidata {
@@ -127,7 +126,7 @@ function candidataDaGruppo(gruppo: Frammento[]): AttivitaCandidata | null {
 
   const inizio = date[0];
   const fine = date.length > 1 && date[date.length - 1] !== inizio ? date[date.length - 1] : null;
-  return { nome, inizio, fine, durata_mesi: null, ancora_proposta: riconosciAncora(nome) };
+  return { nome, inizio, fine, durata_mesi: null, ancora_proposta: null };
 }
 
 function raggruppa(frammenti: Frammento[], asse: "x" | "y", tolleranza: number): Frammento[][] {
@@ -294,7 +293,7 @@ async function estraiXlsx(file: File): Promise<EsitoEstrazione> {
           inizio: serialeExcel(seriali[0]),
           fine: seriali.length > 1 ? serialeExcel(seriali[seriali.length - 1]) : null,
           durata_mesi: null,
-          ancora_proposta: riconosciAncora(nome),
+          ancora_proposta: null,
         });
         dateAssolute += 1;
         continue;
@@ -302,7 +301,7 @@ async function estraiXlsx(file: File): Promise<EsitoEstrazione> {
 
       const durata = typeof r?.[1] === "number" && r[1] > 0 && r[1] < 120 ? r[1] : null;
       if (durata !== null) {
-        attivita.push({ nome, inizio: null, fine: null, durata_mesi: durata, ancora_proposta: riconosciAncora(nome) });
+        attivita.push({ nome, inizio: null, fine: null, durata_mesi: durata, ancora_proposta: null });
         durate += 1;
       }
     }

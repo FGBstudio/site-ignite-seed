@@ -24,6 +24,7 @@ import { CampoData } from "@/components/cronoprogramma/CampoData";
 import {
   useAttachCronoprogramma,
   useCreateCronoprogramma,
+  useEliminaEvento,
   useImportaEventi,
 } from "@/hooks/useCronoprogramma";
 import { TimelineVerticale, type VoceTimeline } from "@/components/cronoprogramma/TimelineVerticale";
@@ -80,6 +81,7 @@ export function ImportTimeline({
   const importa = useImportaEventi();
   const creaCrono = useCreateCronoprogramma();
   const aggancia = useAttachCronoprogramma();
+  const eliminaEvento = useEliminaEvento();
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [passo, setPasso] = useState<1 | 2 | 3>(1);
@@ -94,6 +96,7 @@ export function ImportTimeline({
   const [stato, setStato] = useState("");
   const [motore, setMotore] = useState<MotoreEstrazione | null>(null);
   const [dedotte, setDedotte] = useState(0);
+  const [sortOrfane, setSortOrfane] = useState<"tieni" | "elimina">("tieni");
 
   // ── La bozza: la X chiude senza perdere niente (§0.2, V6) ──────────────
   //
@@ -206,8 +209,46 @@ export function ImportTimeline({
   const aggiorna = (id: number, campi: Partial<RigaRev>) =>
     setRighe((rs) => rs.map((r) => (r.id === id ? { ...r, ...campi } : r)));
 
+  /**
+   * Assegnare un ruolo e' una cosa sola, fatta una volta.
+   *
+   * Prima era una colonna: ventisei menu identici, uno per riga, che
+   * chiedevano ventisei volte una domanda che ha al massimo tre risposte. E la
+   * cardinalita' era sbagliata di suo — l'ancora e' UNICA per cronoprogramma
+   * (c'e' un indice unico che lo impone), quindi cinque righe marcate
+   * «Lancio gara d'appalto» non erano solo false: erano un salvataggio che
+   * sarebbe fallito.
+   *
+   * Qui il ruolo si prende da una riga e si toglie automaticamente a chi
+   * l'aveva. L'unicita' non e' una regola da ricordare, e' la forma del
+   * comando.
+   */
+  const assegnaRuolo = (ancora: CronoAncora, rigaId: number | null) =>
+    setRighe((rs) =>
+      rs.map((r) => {
+        if (r.ancora_proposta === ancora && r.id !== rigaId) return { ...r, ancora_proposta: null };
+        if (r.id === rigaId) return { ...r, ancora_proposta: ancora, inclusa: true };
+        return r;
+      })
+    );
+
+  const rigaDelRuolo = (ancora: CronoAncora) => righe.find((r) => r.ancora_proposta === ancora) ?? null;
+
   const incluse = righe.filter((r) => r.inclusa);
   const escluse = righe.length - incluse.length;
+
+  /**
+   * Le righe gia' presenti che l'import non tocca.
+   *
+   * Sono il residuo della timeline precedente: l'ossatura precaricata, o un
+   * import piu' vecchio. Quelle con un ruolo non entrano nell'elenco — hanno
+   * passi di certificazione agganciati, e cancellarle romperebbe dei calcoli
+   * senza dirlo.
+   */
+  const orfane = useMemo(() => {
+    const toccati = new Set(incluse.map((r) => r.eventoEsistente?.id).filter(Boolean));
+    return eventi.filter((e) => !toccati.has(e.id) && !e.ancora);
+  }, [eventi, incluse]);
 
   // ── Le regole del pulsante (v1.3 §3) ────────────────────────────────────
   const handoverEsistente = perAncora.has("handover") && !!(perAncora.get("handover")!.data_pianificata ?? perAncora.get("handover")!.data_effettiva);
@@ -306,9 +347,25 @@ export function ImportTimeline({
         ordineDa,
       });
 
+      // La pulizia arriva DOPO l'inserimento, mai prima: se l'import fallisce
+      // a meta', il PM si ritrova senza le righe vecchie e senza le nuove.
+      let eliminate = 0;
+      if (sortOrfane === "elimina" && orfane.length > 0) {
+        for (const e of orfane) {
+          await eliminaEvento.mutateAsync(e.id);
+          eliminate++;
+        }
+      }
+
       toast({
         title: `${aggiornate + nuove} righe inserite`,
-        description: `${nuove} nuove, ${aggiornate} aggiornate. Le date gia' presenti non sono state toccate.`,
+        description: [
+          `${nuove} nuove, ${aggiornate} aggiornate.`,
+          eliminate > 0 ? `${eliminate} righe vecchie eliminate.` : null,
+          "Le date gia' presenti non sono state toccate.",
+        ]
+          .filter(Boolean)
+          .join(" "),
       });
       sessionStorage.removeItem(chiaveBozza);
       azzera();
@@ -481,6 +538,41 @@ export function ImportTimeline({
                 </button>
               </div>
 
+              {/* ── I tre ruoli, chiesti una volta sola ──────────────────
+                  Tre domande, non ventisei. E la forma impone l'unicita':
+                  dare un ruolo a una riga lo toglie a chi ce l'aveva, che e'
+                  esattamente cosa vuole l'indice unico sul database. */}
+              <div className="mb-3 rounded-lg border bg-muted/20 p-2.5">
+                <p className="mb-2 text-[11px] text-muted-foreground">
+                  Tre righe di questo file hanno un ruolo per il motore. Le altre {righe.length - 3 > 0 ? `${righe.length - 3} ` : ""}
+                  sono normali attività: non devi classificarle.
+                </p>
+                <div className="space-y-1.5">
+                  {ANCORE_MOTORE.map((a) => (
+                    <div key={a} className="flex items-center gap-2">
+                      <span className="w-[132px] shrink-0 text-[11px] font-medium">{ANCORA_NOME[a]}</span>
+                      <select
+                        value={rigaDelRuolo(a)?.id ?? ""}
+                        onChange={(e) => assegnaRuolo(a, e.target.value === "" ? null : Number(e.target.value))}
+                        className="h-7 min-w-0 flex-1 rounded-md border bg-background px-1.5 text-xs"
+                        aria-label={`Quale riga è ${ANCORA_NOME[a]}`}
+                      >
+                        <option value="">— nessuna riga di questo file</option>
+                        {righe.map((r) => (
+                          <option key={r.id} value={r.id}>
+                            {r.nome}
+                            {r.inizio ? ` · ${format(parseISO(r.inizio), "d LLL yy", { locale: it })}` : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-1.5 text-[10px] leading-tight text-muted-foreground">
+                  {ANCORE_MOTORE.map((a) => ANCORA_EFFETTO[a]).join(" · ")}
+                </p>
+              </div>
+
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b text-[10.5px] uppercase tracking-wider text-muted-foreground">
@@ -488,7 +580,6 @@ export function ImportTimeline({
                     <th className="px-1 py-1.5 text-left font-medium">Attivita'</th>
                     <th className="px-1 py-1.5 text-left font-medium">Inizio</th>
                     <th className="px-1 py-1.5 text-left font-medium">Fine</th>
-                    <th className="px-1 py-1.5 text-left font-medium">Ruolo</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -503,7 +594,23 @@ export function ImportTimeline({
                       </td>
                       <td className="px-1 py-1.5" onClick={(e) => e.stopPropagation()}>
                         <Input value={r.nome} onChange={(e) => aggiorna(r.id, { nome: e.target.value })} className={cn("h-8 min-w-[170px] text-xs", !r.inclusa && "line-through")} />
-                        {r.eventoEsistente && <span className="text-[10.5px] text-muted-foreground">aggiorna «{r.eventoEsistente.nome}»</span>}
+                        {r.ancora_proposta && (
+                          <Badge variant="secondary" className="mt-0.5 text-[9.5px]">
+                            {ANCORA_NOME[r.ancora_proposta]}
+                          </Badge>
+                        )}
+                        {r.eventoEsistente && (
+                          <span className="mt-0.5 block text-[10.5px] text-muted-foreground">
+                            aggiorna «{r.eventoEsistente.nome}»{" "}
+                            <button
+                              type="button"
+                              onClick={() => aggiorna(r.id, { eventoEsistente: null })}
+                              className="underline hover:text-foreground"
+                            >
+                              stacca
+                            </button>
+                          </span>
+                        )}
                         {r.ancora_proposta === "handover" && divergenzaHandover && (
                           <span className="flex items-center gap-1 text-[10.5px] text-amber-700">
                             <TriangleAlert className="h-3 w-3" /> diverge dalla baseline ({format(parseISO(divergenzaHandover.da), "d LLL yy", { locale: it })})
@@ -529,59 +636,6 @@ export function ImportTimeline({
                           className="w-[134px]"
                           onChange={(v) => aggiorna(r.id, { fine: v, derivataDaAncoraggio: false })}
                         />
-                      </td>
-                      <td className="px-1 py-1.5" onClick={(e) => e.stopPropagation()}>
-                        {/* La domanda e' una sola e concreta: questa riga del
-                            file, nella timeline del sito, cos'e'? Una riga
-                            nuova, l'aggiornamento di una che c'e' gia', o uno
-                            dei tre ruoli che il motore legge davvero. Prima
-                            qui c'erano gli otto nomi dell'enum, cinque dei
-                            quali non muovono nulla da nessuna parte. */}
-                        <select
-                          value={
-                            r.eventoEsistente ? `ev:${r.eventoEsistente.id}` : r.ancora_proposta ? `an:${r.ancora_proposta}` : ""
-                          }
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            if (!v) {
-                              aggiorna(r.id, { ancora_proposta: null, eventoEsistente: null });
-                            } else if (v.startsWith("an:")) {
-                              const a = v.slice(3) as CronoAncora;
-                              aggiorna(r.id, {
-                                ancora_proposta: a,
-                                eventoEsistente: perAncora.get(a) ?? null,
-                              });
-                            } else {
-                              const ev = eventi.find((x) => x.id === v.slice(3)) ?? null;
-                              aggiorna(r.id, { ancora_proposta: ev?.ancora ?? null, eventoEsistente: ev });
-                            }
-                          }}
-                          className="h-8 max-w-[190px] rounded-md border bg-background px-1.5 text-xs"
-                          aria-label={`Ruolo di ${r.nome} nella timeline`}
-                        >
-                          <option value="">riga nuova</option>
-                          <optgroup label="Ruolo letto dal motore">
-                            {ANCORE_MOTORE.map((a) => (
-                              <option key={a} value={`an:${a}`} title={ANCORA_EFFETTO[a]}>
-                                {ANCORA_NOME[a]}
-                              </option>
-                            ))}
-                          </optgroup>
-                          {eventi.length > 0 && (
-                            <optgroup label="Aggiorna una riga che c'è già">
-                              {eventi.map((ev) => (
-                                <option key={ev.id} value={`ev:${ev.id}`}>
-                                  {ev.nome}
-                                </option>
-                              ))}
-                            </optgroup>
-                          )}
-                        </select>
-                        {r.ancora_proposta && ANCORA_EFFETTO[r.ancora_proposta] && (
-                          <span className="mt-0.5 block max-w-[190px] text-[10px] leading-tight text-muted-foreground">
-                            {ANCORA_EFFETTO[r.ancora_proposta]}
-                          </span>
-                        )}
                       </td>
                     </tr>
                   ))}
@@ -629,6 +683,47 @@ export function ImportTimeline({
               )}
               <li className="text-muted-foreground">Fonte per ogni riga: «{nomeFile}».</li>
             </ul>
+
+            {/* ── Le righe che c'erano prima ──────────────────────────────
+                Importare il gantt vero significa quasi sempre che quello che
+                c'era prima non vale piu'. Finche' non si poteva dirlo, le
+                righe vecchie restavano sotto quelle nuove e la timeline
+                mostrava due cantieri sovrapposti. Adesso e' una domanda, e la
+                risposta di default e' quella prudente. */}
+            {orfane.length > 0 && (
+              <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/30">
+                <p className="text-xs font-medium text-amber-900 dark:text-amber-200">
+                  Nella timeline ci sono {orfane.length} righe che questo file non nomina.
+                </p>
+                <p className="mt-1 max-w-[60ch] text-[11px] text-amber-800/80 dark:text-amber-300/70">
+                  {orfane.slice(0, 4).map((e) => e.nome).join(" · ")}
+                  {orfane.length > 4 && ` · +${orfane.length - 4}`}
+                </p>
+                <div className="mt-2 space-y-1">
+                  {(
+                    [
+                      ["tieni", "Tienile: convivono con quelle importate"],
+                      ["elimina", `Eliminale: il file è la timeline vera adesso`],
+                    ] as const
+                  ).map(([v, testo]) => (
+                    <label key={v} className="flex items-center gap-2 text-xs text-amber-900 dark:text-amber-200">
+                      <input
+                        type="radio"
+                        name="orfane"
+                        checked={sortOrfane === v}
+                        onChange={() => setSortOrfane(v)}
+                      />
+                      {testo}
+                    </label>
+                  ))}
+                </div>
+                {sortOrfane === "elimina" && (
+                  <p className="mt-1.5 text-[11px] text-amber-800/80 dark:text-amber-300/70">
+                    Le righe con un ruolo restano comunque: sono agganciate a passi di certificazione.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>

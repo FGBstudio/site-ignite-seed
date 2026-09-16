@@ -20,7 +20,6 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
-import { riconosciAncora } from "@/lib/projectTimelineTemplates";
 import { estraiTimeline, type AttivitaCandidata, type EsitoEstrazione } from "@/lib/importTimeline";
 
 export type MotoreEstrazione = "ai" | "locale";
@@ -131,10 +130,17 @@ export async function estraiTimelineIntelligente(
       inizio: a.inizio ?? null,
       fine: a.fine ?? null,
       durata_mesi: a.durata_mesi ?? null,
-      // Il ruolo lo propone il lessico locale, non il modello: sono tre valori
-      // che il motore legge davvero, e la regola di quali siano deve stare in
-      // un posto solo. Chiederlo al modello vorrebbe dire duplicarla.
-      ancora_proposta: riconosciAncora(a.nome),
+      // Il ruolo NON si indovina dal nome.
+      //
+      // Il lessico marcava `lancio_gara` tutto cio' che conteneva «permit», e
+      // su un gantt greco questo significava cinque righe diverse —
+      // «Submission for Permit», «Review & approval for Building Permit»,
+      // «Pre-Approval File», «Submission of Building Permit» — tutte
+      // etichettate «Lancio gara d'appalto». Che oltre a essere falso e'
+      // impossibile: l'ancora e' unica per cronoprogramma.
+      //
+      // I ruoli sono tre e si assegnano una volta sola, non riga per riga.
+      ancora_proposta: null,
     }));
 
     if (attivita.length === 0) throw new Error("nessuna attività riconosciuta");
