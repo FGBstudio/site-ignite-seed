@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Palazzo Aurora — Timeline · FGB</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400..800&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --paper:#F6F7F8; --panel:#FFFFFF;
+    --ink:#131A17; --ink-soft:#7A8783;
+    --line:#E5E9E7; --line-soft:#F0F3F1;
+    --green:#1E9E55; --green-deep:#137842; --green-wash:#E9F6EE;
+    --violet:#8A7CE0;
+    --amberlink:#C2702A;
+    --ring-base:#E7EAE8;
+    --amber:#B77415; --ok:#1E9E55; --ok-wash:#E9F6EE;
+    --shadow:0 1px 2px rgba(19,26,23,.04),0 10px 28px -16px rgba(19,26,23,.16);
+    --radius:16px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --paper:#101514; --panel:#161C1A; --ink:#EAF0ED; --ink-soft:#8FA09A;
+      --line:#28322E; --line-soft:#1C2522;
+      --green:#3FC17C; --green-deep:#6ED9A0; --green-wash:#15301F;
+      --violet:#A79BF0; --amberlink:#DF9A55; --ring-base:#2A3430;
+      --amber:#DF9A55; --ok:#3FC17C; --ok-wash:#15301F;
+      --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px -12px rgba(0,0,0,.6);
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#101514; --panel:#161C1A; --ink:#EAF0ED; --ink-soft:#8FA09A;
+    --line:#28322E; --line-soft:#1C2522;
+    --green:#3FC17C; --green-deep:#6ED9A0; --green-wash:#15301F;
+    --violet:#A79BF0; --amberlink:#DF9A55; --ring-base:#2A3430;
+    --amber:#DF9A55; --ok:#3FC17C; --ok-wash:#15301F;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px -12px rgba(0,0,0,.6);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{background:var(--paper);color:var(--ink);font-family:'DM Sans',system-ui,sans-serif;font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased}
+
+  .topbar{display:flex;align-items:center;gap:14px;padding:13px 28px;border-bottom:1px solid var(--line);background:var(--panel);position:sticky;top:0;z-index:40}
+  .logo{width:34px;height:34px;border-radius:50%;background:var(--ink);color:var(--panel);display:grid;place-items:center;font-weight:800;font-size:12px;letter-spacing:.03em}
+  .crumbs{font-size:13.5px;color:var(--ink-soft)}
+  .crumbs b{color:var(--ink);font-weight:700}
+  .crumbs span{margin:0 6px;color:var(--line)}
+  .topbar .grow{flex:1}
+  .save-state{font-size:13px;color:var(--ink-soft);display:flex;align-items:center;gap:7px}
+  .save-state .dot{width:7px;height:7px;border-radius:50%;background:var(--ok)}
+  .btn{border:1.5px solid var(--ink);background:var(--panel);color:var(--ink);font:inherit;font-weight:700;font-size:13.5px;padding:9px 18px;border-radius:999px;cursor:pointer;transition:all .15s}
+  .btn:hover{background:var(--ink);color:var(--panel)}
+  .btn:focus-visible,input:focus-visible,select:focus-visible,.upload:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+  .btn.primary{background:var(--ink);color:var(--panel)}
+  .btn.primary:hover{background:var(--green);border-color:var(--green)}
+
+  .layout{max-width:1560px;margin:0 auto;display:grid;grid-template-columns:minmax(520px,47fr) 53fr;gap:24px;padding:24px 28px 80px;align-items:start}
+  @media (max-width:1120px){
+    .layout{grid-template-columns:1fr}
+    .viz-panel{position:static !important;max-height:none !important}
+    .viz-body{max-height:72vh}
+  }
+
+  /* ===== intestazione card in stile sito: pallino nero + titolo maiuscolo + chip ===== */
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+  .card-head{display:flex;align-items:center;gap:12px;padding:20px 24px 12px;flex-wrap:wrap}
+  .card-head .n{width:27px;height:27px;border-radius:50%;background:var(--ink);color:var(--panel);display:grid;place-items:center;font-size:13px;font-weight:800;flex:none}
+  .card-head h2{margin:0;font-size:16px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+  .chip{font-size:12px;font-weight:700;padding:4.5px 12px;border-radius:999px;border:1.5px solid var(--line);color:var(--ink);white-space:nowrap}
+  .card-head .grow{flex:1}
+  .card-sub{padding:0 24px 14px;margin:-4px 0 0;font-size:13.5px;color:var(--violet)}
+  .progress-pill{font-size:12.5px;font-weight:700;padding:4.5px 12px;border-radius:999px;background:var(--line-soft);color:var(--ink-soft);white-space:nowrap}
+  .progress-pill.done{background:var(--ok-wash);color:var(--green-deep)}
+
+  /* banner nero informativo, come nell'app */
+  .banner{margin:0 24px 14px;background:var(--ink);color:var(--panel);border-radius:12px;padding:10px 16px;font-size:13px;display:flex;align-items:center;gap:10px}
+  .banner svg{flex:none;opacity:.85}
+  .banner b{font-weight:700}
+
+  /* ===== pannello timeline ===== */
+  .viz-panel{position:sticky;top:76px;display:flex;flex-direction:column;overflow:hidden;max-height:calc(100vh - 96px);background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+  .viz-meta{padding:2px 24px 10px;font-size:12.5px;color:var(--ink-soft);display:flex;gap:8px;align-items:center;flex-wrap:wrap;min-height:18px}
+  .viz-meta .range{font-weight:700;color:var(--ink)}
+  .viz-body{position:relative;flex:1;min-height:440px;overflow-y:auto;padding:0 6px 18px}
+  svg{display:block;width:100%}
+  .empty{position:absolute;inset:0;display:grid;place-items:center;text-align:center;color:var(--ink-soft);padding:30px}
+  .empty .box{max-width:300px}
+  .empty svg{width:52px;height:52px;margin:0 auto 14px;opacity:.5}
+  .empty p{margin:0;font-size:14.5px}
+  .empty b{color:var(--ink);font-weight:700;display:block;margin-bottom:5px;font-size:15.5px}
+
+  .t-col{font:800 11.5px 'DM Sans';letter-spacing:.14em;fill:var(--ink)}
+  .t-title{font:700 12.5px 'DM Sans';fill:var(--ink)}
+  .t-sub{font:500 10.5px 'DM Sans';fill:var(--ink-soft)}
+  .t-pct{font:800 11px 'DM Sans'}
+  .t-day{font:800 12.5px 'DM Sans';fill:var(--ink)}
+  .t-yr{font:700 9.5px 'DM Sans';fill:var(--ink-soft);letter-spacing:.05em}
+  .t-gap{font:600 10px 'DM Sans';fill:var(--ink-soft)}
+  .t-today{font:800 9.5px 'DM Sans';fill:var(--amber);letter-spacing:.06em}
+  .t-wait{font:italic 500 12.5px 'DM Sans';fill:var(--ink-soft)}
+
+  /* ===== upload ===== */
+  .upload{margin:2px 24px 18px;border:1.5px dashed var(--line);border-radius:14px;padding:16px 18px;display:flex;align-items:center;gap:16px;cursor:pointer;transition:all .15s}
+  .upload:hover,.upload.drag{border-color:var(--green);background:var(--green-wash)}
+  .upload .ic{width:40px;height:40px;border-radius:12px;background:var(--green-wash);display:grid;place-items:center;color:var(--green);flex:none}
+  .upload b{font-weight:700}
+  .upload p{margin:2px 0 0;font-size:13px;color:var(--ink-soft)}
+  .upload .cta{margin-left:auto;font-size:13px;font-weight:800;color:var(--green);white-space:nowrap}
+  .demo-link{margin:-6px 24px 18px;font-size:13px;color:var(--ink-soft)}
+  .demo-link a{color:var(--green);font-weight:700;cursor:pointer;text-decoration:none}
+  .demo-link a:hover{text-decoration:underline}
+
+  /* ===== righe ===== */
+  .rows-head{display:grid;gap:14px;padding:8px 24px;font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);border-top:1px solid var(--line-soft)}
+  .rows-head.project{grid-template-columns:26px 1fr 150px 150px 110px}
+  .rows-head.cert{grid-template-columns:26px 1fr 150px 88px 96px 16px}
+  .rows{border-top:1px solid var(--line-soft)}
+  .row{display:grid;gap:8px 14px;align-items:center;padding:11px 24px;border-bottom:1px solid var(--line-soft);transition:background .2s}
+  .rows.project .row{grid-template-columns:26px 1fr 150px 150px 110px}
+  .rows.cert .row{grid-template-columns:26px 1fr 150px 88px 96px 16px}
+  .row:last-child{border-bottom:0}
+  .row.flash{background:var(--green-wash)}
+  .row .idx{font-size:13px;font-weight:600;color:var(--ink-soft)}
+  .row .nm{font-weight:700;font-size:14.5px}
+  .row .meta{font-size:12.5px;color:var(--ink-soft);margin-top:2px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .dep-select{font:inherit;font-size:12px;font-weight:600;color:var(--amberlink);background:none;border:0;padding:0;cursor:pointer;max-width:230px;text-decoration:underline dotted}
+  .glink{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:800;color:var(--green-deep);border:1.5px solid var(--green);border-radius:999px;padding:2.5px 10px;background:var(--panel)}
+  .glink svg{flex:none}
+  input[type=date],input[type=number]{font:inherit;font-size:13.5px;font-weight:600;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:7px 10px;transition:border-color .15s;color-scheme:light dark}
+  input[type=date]{width:150px}
+  input[type=date]:hover,input[type=number]:hover{border-color:var(--green)}
+  input.auto{color:var(--ink-soft);font-weight:500;border-style:dashed}
+  .pct{display:flex;align-items:center;gap:4px}
+  .pct input{width:54px;text-align:right}
+  .pct span{font-size:13px;color:var(--ink-soft);font-weight:700}
+  /* avanzamento auto del progetto: barra + % */
+  .autoprog{display:flex;flex-direction:column;gap:4px;min-width:96px}
+  .autoprog .bar{height:6px;border-radius:99px;background:var(--ring-base);overflow:hidden}
+  .autoprog .fill{height:100%;border-radius:99px;background:var(--ink);transition:width .4s}
+  .autoprog .lbl{font-size:11.5px;font-weight:800;color:var(--ink-soft)}
+  .autoprog.run .fill{background:var(--green)}
+  .autoprog.run .lbl{color:var(--green-deep)}
+  .autoprog.full .fill{background:var(--green-deep)}
+  .row .clear{border:0;background:none;color:var(--ink-soft);cursor:pointer;font-size:15px;padding:2px 0;visibility:hidden}
+  .row:hover .clear{visibility:visible}
+  .row .clear:hover{color:var(--amberlink)}
+  @media (max-width:680px){
+    .rows-head{display:none}
+    .rows.project .row{grid-template-columns:1fr 130px 130px}
+    .rows.project .row .idx,.rows.project .row .autoprog{display:none}
+    .rows.cert .row{grid-template-columns:1fr 130px 70px}
+    .rows.cert .row .idx,.rows.cert .row .clear{display:none}
+  }
+
+  .toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,10px);background:var(--ink);color:var(--panel);padding:11px 18px;border-radius:12px;font-size:14px;font-weight:600;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;z-index:60;max-width:92vw;text-align:center}
+  .toast.show{opacity:1;transform:translate(-50%,0)}
+  @media (prefers-reduced-motion:reduce){*{transition:none !important;animation:none !important}}
+  @keyframes pop{from{opacity:0;transform:scale(.4)}to{opacity:1;transform:scale(1)}}
+  .dot-anim{animation:pop .4s cubic-bezier(.2,.9,.3,1.4);transform-origin:center;transform-box:fill-box}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="logo">FGB</div>
+  <nav class="crumbs">Services <span>/</span> ZZ Test — Palazzo Aurora <span>/</span> <b>Timeline</b></nav>
+  <div class="grow"></div>
+  <div class="save-state" id="saveState"><span class="dot"></span>Tutto salvato</div>
+  <button class="btn primary" id="btnClose">Salva e chiudi</button>
+</header>
+
+<main class="layout">
+
+  <!-- ============ SINISTRA: le due timeline ============ -->
+  <section class="viz-panel" aria-label="Timeline live">
+    <div class="card-head">
+      <span class="n">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 8v4l2.5 2.5"/><circle cx="12" cy="12" r="9"/></svg>
+      </span>
+      <h2>Timeline live</h2>
+      <span class="chip">Palazzo Aurora — LEED BD+C</span>
+    </div>
+    <div class="viz-meta" id="vizMeta"></div>
+    <div class="viz-body">
+      <svg id="tl" role="img" aria-label="Timeline di progetto e di certificazione"></svg>
+      <div class="empty" id="emptyState">
+        <div class="box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M12 3v14m0 0l-4-4m4 4l4-4"/><path d="M4 21h16"/></svg>
+          <p><b>Le timeline nascono qui</b>Inserisci inizio e fine delle attività a destra — o importa un file — e le due colonne si costruiranno da sole.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ DESTRA: compilazione ============ -->
+  <div class="stack" style="display:flex;flex-direction:column;gap:22px;min-width:0">
+
+    <section class="card">
+      <div class="card-head">
+        <h2 style="font-size:14px">Importa il cronoprogramma</h2>
+        <span class="chip" style="border-style:dashed;color:var(--ink-soft)">facoltativo</span>
+      </div>
+      <label class="upload" id="dropzone" tabindex="0">
+        <span class="ic">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m0 0l-4 4m4-4l4 4"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+        </span>
+        <span>
+          <b>Trascina qui PDF, PNG o XLSX</b>
+          <p>Colonne attese: Attività · Inizio · Fine. Le date riconosciute compilano i campi; potrai sempre correggerle. Un nuovo caricamento aggiorna le date di fine.</p>
+        </span>
+        <span class="cta">Scegli file</span>
+        <input type="file" id="fileInput" accept=".pdf,.png,.xlsx" hidden>
+      </label>
+      <p class="demo-link">Vuoi solo vedere come funziona? <a id="demoFill">Carica dati d'esempio</a></p>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <span class="n">1</span>
+        <h2>Project timeline</h2>
+        <span class="chip">condivisa</span>
+        <span class="grow"></span>
+        <span class="progress-pill" id="progProject">0 di 8 attività</span>
+      </div>
+      <p class="card-sub">Record unico per sito. Ogni attività ha inizio e fine: l'avanzamento si campisce da solo col passare del tempo e arriva al 100% alla data di fine. La dipendenza da un'altra attività è facoltativa.</p>
+      <div class="rows-head project"><span>#</span><span>Attività</span><span>Inizio</span><span>Fine</span><span>Avanz.</span></div>
+      <div class="rows project" id="projectRows"></div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <span class="n">2</span>
+        <h2>HQ FGB timeline</h2>
+        <span class="chip">Palazzo Aurora — LEED BD+C</span>
+        <span class="grow"></span>
+        <span class="progress-pill" id="progCert">0 di 6 passi</span>
+      </div>
+      <p class="card-sub">Milestone del servizio: una data ciascuna, la durata corre fino al passo successivo. La data è ancorata alla project timeline — tocca la catena per vedere il collegamento.</p>
+      <div class="banner">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 8v4l2.5 2.5"/><circle cx="12" cy="12" r="9"/></svg>
+        <span>L'avanzamento parte da zero e si aggiorna <b>manualmente</b>: ogni venerdì la tua dashboard ti inviterà ad aggiornare le % delle attività in corso.</span>
+      </div>
+      <div class="rows-head cert"><span>#</span><span>Passo</span><span>Data</span><span>Avanz.</span><span>Natura</span><span></span></div>
+      <div class="rows cert" id="certRows"></div>
+    </section>
+
+  </div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ================= modello dati ================= */
+/* Progetto: attività con inizio + fine + dipendenza facoltativa. Avanzamento AUTOMATICO col tempo. */
+const activities = [
+  {id:'gara',     name:"Lancio gara d'appalto",          start:null, end:null, dep:null},
+  {id:'gc',       name:"Aggiudicazione GC",              start:null, end:null, dep:null},
+  {id:'defin',    name:"Progetto definitivo consegnato", start:null, end:null, dep:null},
+  {id:'constr',   name:"Construction",                   start:null, end:null, dep:null},
+  {id:'involucro',name:"Involucro chiuso",               start:null, end:null, dep:null},
+  {id:'impianti', name:"Impianti pronti per test",       start:null, end:null, dep:null},
+  {id:'sito',     name:"Sito pronto per test",           start:null, end:null, dep:null},
+  {id:'handover', name:"Handover (fine cantiere)",       start:null, end:null, dep:null},
+];
+/* Certificazione: milestone con una data (ancorata a inizio/fine di un'attività), avanzamento MANUALE. */
+const certSteps = [
+  {id:'pre',   name:'Pre-assessment',        anchor:'gara',     pt:'start', offset:-60,  override:null, prog:0},
+  {id:'guide', name:'FGB Design Guidelines', anchor:'gara',     pt:'start', offset:-30,  override:null, prog:0},
+  {id:'dsub',  name:'LEED Design Submittal', anchor:'defin',    pt:'end',   offset:+90,  override:null, prog:0},
+  {id:'cxa',   name:'CxA site inspection',   anchor:'impianti', pt:'end',   offset:+60,  override:null, prog:0},
+  {id:'close', name:'GC closeout documents', anchor:'handover', pt:'end',   offset:+30,  override:null, prog:0},
+  {id:'cert',  name:'LEED Certification',    anchor:'handover', pt:'end',   offset:+180, override:null, prog:0},
+];
+
+const byId=id=>activities.find(a=>a.id===id);
+const addDays=(d,n)=>{const x=new Date(d);x.setDate(x.getDate()+n);return x};
+const anchorDate=s=>{const a=byId(s.anchor);const base=s.pt==='start'?a.start:a.end;return base?addDays(base,s.offset):null};
+const certDate=s=>s.override?new Date(s.override):anchorDate(s);
+
+const MONTHS=['gen','feb','mar','apr','mag','giu','lug','ago','set','ott','nov','dic'];
+const fmt=d=>d?`${d.getDate()} ${MONTHS[d.getMonth()]} ${String(d.getFullYear()).slice(2)}`:'';
+const iso=d=>d?d.toISOString().slice(0,10):'';
+const clampPct=v=>Math.max(0,Math.min(100,Math.round(+v||0)));
+const DAY=864e5;
+
+/* avanzamento automatico dell'attività: % di tempo trascorso tra inizio e fine */
+function autoPct(a){
+  if(!a.start||!a.end) return null;
+  const now=Date.now();
+  if(now<=+a.start) return 0;
+  if(now>=+a.end) return 100;
+  return Math.round((now-+a.start)/(+a.end-+a.start)*100);
+}
+function actStatus(a){
+  const p=autoPct(a);
+  if(p===null) return null;
+  if(p>=100) return 'completata';
+  if(p>0) return 'in corso';
+  return 'pianificata';
+}
+
+/* ================= righe ================= */
+function buildRows(){
+  const pr=document.getElementById('projectRows');
+  pr.innerHTML='';
+  activities.forEach((a,i)=>{
+    const r=document.createElement('div');
+    r.className='row'; r.dataset.id=a.id;
+    const opts=activities.filter(o=>o.id!==a.id)
+      .map(o=>`<option value="${o.id}">${o.name}</option>`).join('');
+    r.innerHTML=`
+      <span class="idx">${i+1}</span>
+      <div>
+        <div class="nm">${a.name}</div>
+        <div class="meta">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--amberlink)" stroke-width="2.2" stroke-linecap="round"><path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1.5 1.5M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7L12.5 19"/></svg>
+          <select class="dep-select" aria-label="Dipendenza di ${a.name}">
+            <option value="">dipende da: nessuna</option>${opts}
+          </select>
+        </div>
+      </div>
+      <input type="date" class="in-start" aria-label="Inizio: ${a.name}">
+      <input type="date" class="in-end" aria-label="Fine: ${a.name}">
+      <div class="autoprog"><div class="bar"><div class="fill" style="width:0%"></div></div><span class="lbl">—</span></div>`;
+    r.querySelector('.in-start').addEventListener('change',e=>{
+      a.start=e.target.value?new Date(e.target.value):null; refresh(a.id); note();
+    });
+    r.querySelector('.in-end').addEventListener('change',e=>{
+      a.end=e.target.value?new Date(e.target.value):null; refresh(a.id); note();
+    });
+    r.querySelector('.dep-select').addEventListener('change',e=>{
+      a.dep=e.target.value||null;
+      /* se manca l'inizio, proponilo alla fine dell'attività da cui dipende */
+      if(a.dep && !a.start && byId(a.dep).end){ a.start=new Date(byId(a.dep).end); }
+      refresh(a.id); note(a.dep?'Attività concatenata':'Dipendenza rimossa');
+    });
+    pr.appendChild(r);
+  });
+
+  const cr=document.getElementById('certRows');
+  cr.innerHTML='';
+  certSteps.forEach((s,i)=>{
+    const a=byId(s.anchor);
+    const short=a.name.replace(/\s*\(.*\)/,'');
+    const off=(s.offset>=0?'+':'−')+Math.abs(s.offset)+'gg';
+    const pt=s.pt==='start'?'inizio':'fine';
+    const r=document.createElement('div');
+    r.className='row'; r.dataset.id='c_'+s.id;
+    r.innerHTML=`
+      <span class="idx">${i+1}</span>
+      <div>
+        <div class="nm">${s.name}</div>
+        <div class="meta">
+          <span class="glink" title="Ancorata alla project timeline">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1.5 1.5M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7L12.5 19"/></svg>
+            ${off}</span>
+          <span style="color:var(--amberlink);font-weight:600;font-size:12px">${pt} di: ${short}</span>
+        </div>
+      </div>
+      <input type="date" class="in-date" aria-label="Data: ${s.name}">
+      <div class="pct"><input type="number" min="0" max="100" step="5" value="0" aria-label="Avanzamento %: ${s.name}"><span>%</span></div>
+      <span class="chip natura" style="font-size:11px"></span>
+      <button class="clear" title="Torna al calcolo automatico" aria-label="Rimuovi data manuale">↺</button>`;
+    r.querySelector('.in-date').addEventListener('change',e=>{
+      s.override=e.target.value||null; refresh('c_'+s.id); note();
+    });
+    r.querySelector('.pct input').addEventListener('change',e=>{
+      s.prog=clampPct(e.target.value); e.target.value=s.prog; refresh('c_'+s.id); note();
+    });
+    r.querySelector('.clear').addEventListener('click',()=>{
+      s.override=null; refresh('c_'+s.id); note('Data ricalcolata dall\u2019ancora');
+    });
+    cr.appendChild(r);
+  });
+}
+
+function syncRows(){
+  let nP=0;
+  activities.forEach(a=>{
+    const r=document.querySelector(`.row[data-id="${a.id}"]`);
+    const is=r.querySelector('.in-start'), ie=r.querySelector('.in-end');
+    if(document.activeElement!==is) is.value=iso(a.start);
+    if(document.activeElement!==ie) ie.value=iso(a.end);
+    const sel=r.querySelector('.dep-select');
+    if(document.activeElement!==sel) sel.value=a.dep||'';
+    const ap=r.querySelector('.autoprog'), fill=ap.querySelector('.fill'), lbl=ap.querySelector('.lbl');
+    const p=autoPct(a), st=actStatus(a);
+    ap.classList.toggle('run', st==='in corso');
+    ap.classList.toggle('full', st==='completata');
+    if(p===null){ fill.style.width='0%'; lbl.textContent = a.start? 'manca la fine':'—'; }
+    else { fill.style.width=p+'%'; lbl.textContent=`${p}% · ${st}`; nP++; }
+  });
+  let nC=0;
+  certSteps.forEach(s=>{
+    const r=document.querySelector(`.row[data-id="c_${s.id}"]`);
+    const d=certDate(s);
+    const inp=r.querySelector('.in-date');
+    if(document.activeElement!==inp) inp.value=iso(d);
+    inp.classList.toggle('auto', !!d && !s.override);
+    const pi=r.querySelector('.pct input');
+    if(document.activeElement!==pi) pi.value=s.prog;
+    const nat=r.querySelector('.natura');
+    if(s.override){ nat.textContent='manuale'; nat.style.borderColor='var(--amberlink)'; nat.style.color='var(--amberlink)'; nC++; }
+    else if(d){ nat.textContent='calcolata'; nat.style.borderColor='var(--green)'; nat.style.color='var(--green-deep)'; nC++; }
+    else { nat.textContent='in attesa'; nat.style.borderColor='var(--line)'; nat.style.color='var(--ink-soft)'; }
+    r.querySelector('.clear').style.display=s.override?'':'none';
+  });
+  const pp=document.getElementById('progProject');
+  pp.textContent=`${nP} di ${activities.length} attività`;
+  pp.classList.toggle('done', nP===activities.length);
+  const pc=document.getElementById('progCert');
+  pc.textContent=`${nC} di ${certSteps.length} passi`;
+  pc.classList.toggle('done', nC===certSteps.length);
+}
+
+/* ================= SVG: due colonne + ancore visive ================= */
+const svg=document.getElementById('tl');
+const NS='http://www.w3.org/2000/svg';
+const el=(n,at)=>{const e=document.createElementNS(NS,n);for(const k in at)e.setAttribute(k,at[k]);return e};
+let lastKeys=new Set();
+
+function wrap(name,max){
+  if(name.length<=max)return[name];
+  const w=name.split(' ');let l1='',l2='';
+  w.forEach(x=>{if((l1+' '+x).trim().length<=max&&!l2)l1=(l1+' '+x).trim();else l2=(l2+' '+x).trim();});
+  if(l2.length>max)l2=l2.slice(0,max-1)+'…';
+  return[l1,l2];
+}
+
+function drawTimeline(highlight){
+  const P=activities.filter(a=>a.start)
+    .map(a=>({key:a.id,id:a.id,name:a.name,d:a.start,end:a.end,dep:a.dep,pct:autoPct(a),st:actStatus(a)}))
+    .sort((x,y)=>x.d-y.d);
+  const C=certSteps.map(s=>({key:'c_'+s.id,name:s.name,d:certDate(s),prog:s.prog,auto:!s.override,anchor:s.anchor}))
+    .filter(p=>p.d).sort((x,y)=>x.d-y.d);
+
+  const empty=document.getElementById('emptyState');
+  const meta=document.getElementById('vizMeta');
+  svg.innerHTML='';
+  if(!P.length&&!C.length){empty.style.display='grid';meta.innerHTML='';svg.removeAttribute('height');return;}
+  empty.style.display='none';
+
+  const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  const INK=css('--ink'),GREEN=css('--green'),GDEEP=css('--green-deep'),BASE=css('--ring-base'),
+        PANEL=css('--panel'),AMBER=css('--amber'),SOFTLN=css('--line-soft');
+
+  const W=560,R=29,RING=6,TOP=58,BOT=26;
+  const ROWP=158,ROWC=126;                 /* il progetto ha la barra in più sotto */
+  const CXP=W*0.26,CXC=W*0.74;
+  const HP=P.length?TOP+R+(P.length-1)*ROWP+92:0;
+  const HC=C.length?TOP+R+(C.length-1)*ROWC+66:0;
+  const H=Math.max(HP,HC,380)+BOT;
+  svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
+  svg.setAttribute('height',H);
+
+  svg.appendChild(el('line',{x1:W/2,x2:W/2,y1:26,y2:H-12,stroke:SOFTLN,'stroke-width':1}));
+
+  function colHeader(cx,txt,color){
+    const t=el('text',{x:cx,y:21,'text-anchor':'middle',class:'t-col'});
+    t.textContent=txt;t.setAttribute('fill',color);svg.appendChild(t);
+    svg.appendChild(el('line',{x1:cx-50,x2:cx+50,y1:30,y2:30,stroke:color,'stroke-width':3,'stroke-linecap':'round',opacity:.25}));
+  }
+  colHeader(CXP,'PROGETTO',INK);
+  colHeader(CXC,'CERTIFICAZIONE',GDEEP);
+
+  const yP=i=>TOP+R+i*ROWP, yC=i=>TOP+R+i*ROWC;
+
+  /* --- ancore visive: passo di certificazione → attività di progetto --- */
+  C.forEach((c,ci)=>{
+    const pi=P.findIndex(p=>p.id===c.anchor);
+    if(pi<0)return;
+    const y1=yP(pi),y2=yC(ci);
+    svg.appendChild(el('path',{
+      d:`M ${CXP+R+4} ${y1} C ${CXP+110} ${y1}, ${CXC-110} ${y2}, ${CXC-R-4} ${y2}`,
+      fill:'none',stroke:GREEN,'stroke-width':1.2,'stroke-dasharray':'3 5',opacity:.45}));
+  });
+
+  /* --- dipendenze facoltative tra attività di progetto (archetti a sinistra) --- */
+  P.forEach((p,i)=>{
+    if(!p.dep)return;
+    const di=P.findIndex(o=>o.id===p.dep);
+    if(di<0)return;
+    const y1=yP(di),y2=yP(i);
+    svg.appendChild(el('path',{
+      d:`M ${CXP-R-4} ${y1} C ${CXP-R-40} ${y1}, ${CXP-R-40} ${y2}, ${CXP-R-4} ${y2}`,
+      fill:'none',stroke:AMBER,'stroke-width':1.2,'stroke-dasharray':'3 5',opacity:.55}));
+  });
+
+  function spine(list,cx,yFn,gapLabel){
+    for(let i=0;i<list.length-1;i++){
+      const y1=yFn(i)+R+3,y2=yFn(i+1)-R-3;
+      svg.appendChild(el('line',{x1:cx,x2:cx,y1,y2,stroke:BASE,'stroke-width':7,'stroke-linecap':'round'}));
+      if(gapLabel){
+        const gap=Math.round((+list[i+1].d-+list[i].d)/DAY);
+        if(gap>0){
+          const t=el('text',{x:cx+12,y:(y1+y2)/2+3.5,class:'t-gap'});
+          t.textContent=gap>=60?`${Math.round(gap/30.4)} mesi`:`${gap} gg`;
+          svg.appendChild(t);
+        }
+      }
+      const now=Date.now();
+      if(now>+list[i].d&&now<=+list[i+1].d){
+        const f=(now-+list[i].d)/(+list[i+1].d-+list[i].d);
+        const ty=y1+(y2-y1)*f;
+        svg.appendChild(el('line',{x1:cx-13,x2:cx+13,y1:ty,y2:ty,stroke:AMBER,'stroke-width':2,'stroke-linecap':'round'}));
+        const t=el('text',{x:cx-18,y:ty+3.5,'text-anchor':'end',class:'t-today'});
+        t.textContent='OGGI';svg.appendChild(t);
+      }
+    }
+  }
+  if(P.length)spine(P,CXP,yP,false);
+  if(C.length)spine(C,CXC,yC,true);
+  if(!P.length){const t=el('text',{x:CXP,y:TOP+44,'text-anchor':'middle',class:'t-wait'});t.textContent='in attesa di date…';svg.appendChild(t);}
+  if(!C.length){const t=el('text',{x:CXC,y:TOP+44,'text-anchor':'middle',class:'t-wait'});t.textContent='in attesa di date…';svg.appendChild(t);}
+
+  function badge(g,cx,y,color,pct,dateTxt,yrTxt){
+    g.appendChild(el('circle',{cx,cy:y,r:R,fill:'none',stroke:BASE,'stroke-width':RING}));
+    if(pct>0){
+      const Circ=2*Math.PI*R;
+      g.appendChild(el('circle',{cx,cy:y,r:R,fill:'none',stroke:color,'stroke-width':RING,
+        'stroke-dasharray':`${Circ*pct/100} ${Circ}`,'stroke-linecap':'round',
+        transform:`rotate(-90 ${cx} ${y})`}));
+    }
+    g.appendChild(el('circle',{cx,cy:y,r:R-RING+1,fill:PANEL,stroke:color,'stroke-width':1,'stroke-opacity':.22}));
+    const t1=el('text',{x:cx,y:y-1,'text-anchor':'middle',class:'t-day'});t1.textContent=dateTxt;
+    const t2=el('text',{x:cx,y:y+12,'text-anchor':'middle',class:'t-yr'});t2.textContent=yrTxt;
+    g.appendChild(t1);g.appendChild(t2);
+  }
+
+  /* --- colonna PROGETTO: badge (anello = % tempo) + barra inizio→fine --- */
+  P.forEach((p,i)=>{
+    const y=yP(i);
+    const g=el('g',{});
+    const stamp=`${p.key}@${p.pct}@${iso(p.end)}`;
+    if(p.key===highlight||!lastKeys.has(stamp))g.classList.add('dot-anim');
+    const pct=p.pct===null?0:p.pct;
+    const color = p.st==='completata'?GDEEP:(p.st==='in corso'?GREEN:INK);
+    badge(g,CXP,y,color,pct,`${p.d.getDate()} ${MONTHS[p.d.getMonth()].toUpperCase()}`,`’${String(p.d.getFullYear()).slice(2)}`);
+
+    const lines=wrap(p.name,24);
+    let by=y+R+15;
+    lines.forEach((ln,li)=>{const t=el('text',{x:CXP,y:by+li*13.5,'text-anchor':'middle',class:'t-title'});t.textContent=ln;g.appendChild(t);});
+    by+=lines.length*13.5+3;
+
+    /* barra che si campisce col tempo */
+    const BW=118,BH=6,bx=CXP-BW/2;
+    g.appendChild(el('rect',{x:bx,y:by,width:BW,height:BH,rx:3,fill:BASE}));
+    if(p.end&&pct>0)g.appendChild(el('rect',{x:bx,y:by,width:BW*pct/100,height:BH,rx:3,fill:color}));
+    const sub=el('text',{x:CXP,y:by+BH+12,'text-anchor':'middle'});
+    const pt=el('tspan',{class:'t-pct'});pt.setAttribute('fill',p.pct===null?css('--ink-soft'):color);
+    pt.textContent=p.pct===null?'manca la fine':`${pct}%`;
+    sub.appendChild(pt);
+    if(p.end){const dt=el('tspan',{class:'t-sub'});dt.textContent=`  ·  fino al ${fmt(p.end)}`;sub.appendChild(dt);}
+    g.appendChild(sub);
+    svg.appendChild(g);
+  });
+
+  /* --- colonna CERTIFICAZIONE: milestone, anello = % manuale --- */
+  C.forEach((c,i)=>{
+    const y=yC(i);
+    const g=el('g',{});
+    const stamp=`${c.key}@${c.prog}@${iso(c.d)}`;
+    if(c.key===highlight||!lastKeys.has(stamp))g.classList.add('dot-anim');
+    badge(g,CXC,y,GREEN,c.prog,`${c.d.getDate()} ${MONTHS[c.d.getMonth()].toUpperCase()}`,`’${String(c.d.getFullYear()).slice(2)}`);
+    const lines=wrap(c.name,24);
+    const by=y+R+15;
+    lines.forEach((ln,li)=>{const t=el('text',{x:CXC,y:by+li*13.5,'text-anchor':'middle',class:'t-title'});t.textContent=ln;g.appendChild(t);});
+    const sub=el('text',{x:CXC,y:by+lines.length*13.5+2,'text-anchor':'middle'});
+    const pt=el('tspan',{class:'t-pct'});pt.setAttribute('fill',c.prog>0?GDEEP:css('--ink-soft'));
+    pt.textContent=`${c.prog}%`;sub.appendChild(pt);
+    const au=el('tspan',{class:'t-sub'});au.textContent=c.auto?'  ·  calcolata':'  ·  manuale';
+    sub.appendChild(au);
+    g.appendChild(sub);
+    svg.appendChild(g);
+  });
+
+  lastKeys=new Set([
+    ...P.map(p=>`${p.key}@${p.pct}@${iso(p.end)}`),
+    ...C.map(c=>`${c.key}@${c.prog}@${iso(c.d)}`),
+  ]);
+
+  const all=[...P.map(p=>+p.d),...P.filter(p=>p.end).map(p=>+p.end),...C.map(c=>+c.d)];
+  if(all.length){
+    const d0=new Date(Math.min(...all)),d1=new Date(Math.max(...all));
+    const mDur=Math.round((+d1-+d0)/DAY/30.4);
+    const inCorso=P.filter(p=>p.st==='in corso').length;
+    meta.innerHTML=`<span class="range">${fmt(d0)} → ${fmt(d1)}</span><span>·</span><span>~${mDur} mesi</span>`+
+      (inCorso?`<span>·</span><span>${inCorso} attività in corso</span>`:'');
+  }
+}
+
+/* ================= collante ================= */
+function refresh(changedId){
+  syncRows();
+  drawTimeline(changedId);
+  if(changedId){
+    const r=document.querySelector(`.row[data-id="${changedId}"]`);
+    if(r){r.classList.add('flash');setTimeout(()=>r.classList.remove('flash'),600);}
+  }
+}
+let toastT;
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.classList.add('show');
+  clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),2600);
+}
+let saveT;
+function note(msg){
+  const s=document.getElementById('saveState');
+  s.innerHTML='<span class="dot" style="background:var(--amber)"></span>Salvataggio…';
+  clearTimeout(saveT);
+  saveT=setTimeout(()=>{s.innerHTML='<span class="dot"></span>Tutto salvato';},700);
+  if(msg)toast(msg);
+}
+
+/* ================= import ================= */
+const dz=document.getElementById('dropzone');
+const fi=document.getElementById('fileInput');
+dz.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();fi.click();}});
+['dragover','dragenter'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.add('drag');}));
+['dragleave','drop'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.remove('drag');}));
+dz.addEventListener('drop',e=>{if(e.dataTransfer.files[0])handleFile(e.dataTransfer.files[0]);});
+fi.addEventListener('change',()=>{if(fi.files[0])handleFile(fi.files[0]);fi.value='';});
+
+function handleFile(f){
+  const ext=f.name.split('.').pop().toLowerCase();
+  if(ext==='xlsx'){
+    if(typeof XLSX==='undefined'){demoData();toast(`Libreria XLSX non caricata — «${f.name}» simulato con dati d'esempio`);return;}
+    importXlsx(f);
+  } else {demoData();toast(`«${f.name}» importato — estrazione simulata in questo prototipo`);}
+}
+
+function importXlsx(f){
+  const rd=new FileReader();
+  rd.onload=e=>{
+    try{
+      const wb=XLSX.read(e.target.result,{type:'array',cellDates:true});
+      const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1});
+      let hit=0;
+      const norm=s=>String(s||'').toLowerCase().replace(/[^a-z]/g,'');
+      const toDate=v=>v instanceof Date?v:parseIt(String(v));
+      rows.forEach(r=>{
+        const label=norm(r[0]);
+        if(!label)return;
+        const dates=r.slice(1).map(toDate).filter(Boolean);
+        if(!dates.length)return;
+        const a=activities.find(a=>{const nn=norm(a.name);return nn.includes(label)||label.includes(nn.slice(0,10));});
+        if(a){ a.start=dates[0]; if(dates[1])a.end=dates[1]; hit++; }
+      });
+      refresh();
+      toast(hit?`${hit} attività aggiornate da «${f.name}»`:`Nessuna attività riconosciuta in «${f.name}» — formato atteso: Attività | Inizio | Fine`);
+    }catch(err){toast('Non riesco a leggere questo file XLSX');}
+  };
+  rd.readAsArrayBuffer(f);
+}
+function parseIt(s){
+  const m=String(s).match(/(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);
+  if(!m)return null;
+  let y=+m[3];if(y<100)y+=2000;
+  return new Date(y,+m[2]-1,+m[1]);
+}
+
+/* demo: date attorno a oggi per mostrare la campitura automatica */
+function demoData(){
+  const D=(y,m,d)=>new Date(y,m-1,d);
+  const set=(id,s,e,dep)=>{const a=byId(id);a.start=s;a.end=e;if(dep!==undefined)a.dep=dep;};
+  set('gara',     D(2026,6,1),  D(2026,8,31));            /* completata */
+  set('gc',       D(2026,8,1),  D(2026,10,30),'gara');    /* in corso */
+  set('defin',    D(2026,10,1), D(2027,1,20),'gc');
+  set('constr',   D(2027,2,15), D(2028,1,15));
+  set('involucro',D(2027,5,1),  D(2027,7,30));
+  set('impianti', D(2027,6,1),  D(2027,9,10));
+  set('sito',     D(2027,9,10), D(2027,10,5));
+  set('handover', D(2028,2,1),  D(2028,3,15));
+  certSteps.find(s=>s.id==='pre').prog=100;
+  certSteps.find(s=>s.id==='guide').prog=45;
+  refresh();
+}
+document.getElementById('demoFill').addEventListener('click',()=>{demoData();toast('Dati d\u2019esempio caricati — prova a modificarli');});
+document.getElementById('btnClose').addEventListener('click',()=>toast('Timeline salvata e condivisa col sito'));
+
+/* init */
+buildRows();
+refresh();
+try{
+  if(typeof ResizeObserver!=='undefined'){
+    new ResizeObserver(()=>drawTimeline()).observe(document.querySelector('.viz-body'));
+  }else{window.addEventListener('resize',()=>drawTimeline());}
+}catch(e){window.addEventListener('resize',()=>drawTimeline());}
+</script>
+</body>
+</html>
