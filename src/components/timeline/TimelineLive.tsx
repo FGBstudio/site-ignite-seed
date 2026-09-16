@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
-import { PIETRA, tintaServizio } from "@/lib/serviceColors";
+import { tintaServizio } from "@/lib/serviceColors";
 import {
   etichettaDurata,
   type AttivitaDerivata,
@@ -115,7 +115,9 @@ export function TimelineLive({ attivita, passi, servizio, oggiISO, evidenzia, on
   const HC = C.length ? TOP + R + (C.length - 1) * ROW_CERT + 66 : 0;
   const H = Math.max(HP, HC, 380) + BOT;
 
-  const INCHIOSTRO = PIETRA.inchiostro;
+  // Il colore della colonna progetto viene dal tema, non da un esadecimale
+  // fisso: PIETRA e' tarata sul fondo avorio e in dark mode sparirebbe.
+  const INCHIOSTRO = "hsl(var(--foreground))";
   const ANELLO = "hsl(var(--muted))";
   const SOTTILE = "hsl(var(--border))";
   const AMBRA = "hsl(var(--warning))";
@@ -130,7 +132,7 @@ export function TimelineLive({ attivita, passi, servizio, oggiISO, evidenzia, on
       width={W}
       height={H}
       viewBox={`0 0 ${W} ${H}`}
-      className="block max-w-full"
+      className="block h-auto max-w-full"
       role="img"
       aria-label={`Timeline live: ${P.length} attività di progetto e ${C.length} passi del servizio`}
     >

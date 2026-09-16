@@ -102,9 +102,9 @@ export default function TimelineVista() {
         </div>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(460px,42%)_minmax(0,1fr)]">
+      <div className="grid gap-6 tl:grid-cols-[minmax(440px,42%)_minmax(0,1fr)]">
         {/* ── Pannello live: sticky, scroll interno ── */}
-        <aside className="xl:sticky xl:top-[92px] xl:order-1 xl:h-[calc(100vh-120px)]">
+        <aside className="tl:sticky tl:top-[92px] tl:order-1 tl:h-[calc(100vh-120px)]">
           <div className="flex h-full flex-col rounded-xl border bg-card p-4">
             <IntestazioneCard
               titolo="TIMELINE LIVE"
@@ -113,7 +113,7 @@ export default function TimelineVista() {
             <div className="mb-2 shrink-0">
               <MetaTimeline attivita={attivita} passi={passi} />
             </div>
-            <div className="min-h-0 flex-1 overflow-auto">
+            <div className="max-h-[70vh] min-h-0 flex-1 overflow-auto tl:max-h-none">
               <TimelineLive
                 attivita={attivita}
                 passi={passi}
@@ -126,7 +126,7 @@ export default function TimelineVista() {
         </aside>
 
         {/* ── Colonna di compilazione ── */}
-        <div className="min-w-0 space-y-5 xl:order-2">
+        <div className="min-w-0 space-y-5 tl:order-2">
           <CardImport
             attivita={data.attivita}
             modificabile={modificabile}

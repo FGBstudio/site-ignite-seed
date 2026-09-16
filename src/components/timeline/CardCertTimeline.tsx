@@ -73,11 +73,13 @@ export function CardCertTimeline({
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b text-[10.5px] uppercase tracking-wider text-muted-foreground">
-                <th className="w-8 px-2 py-1.5 text-left font-medium">#</th>
+                {/* Spec 9: su mobile cadono # e Natura. La natura resta
+                    leggibile dal campo data, tratteggiato quando e' calcolata. */}
+                <th className="hidden w-8 px-2 py-1.5 text-left font-medium sm:table-cell">#</th>
                 <th className="px-2 py-1.5 text-left font-medium">Passo</th>
                 <th className="px-2 py-1.5 text-left font-medium">Data</th>
                 <th className="px-2 py-1.5 text-left font-medium">Avanz.</th>
-                <th className="px-2 py-1.5 text-left font-medium">Natura</th>
+                <th className="hidden px-2 py-1.5 text-left font-medium md:table-cell">Natura</th>
               </tr>
             </thead>
             <tbody>
@@ -91,7 +93,9 @@ export function CardCertTimeline({
                       evidenziato === p.id && "bg-primary/5"
                     )}
                   >
-                    <td className="px-2 py-2 text-xs text-muted-foreground tabular-nums">{i + 1}</td>
+                    <td className="hidden px-2 py-2 text-xs text-muted-foreground tabular-nums sm:table-cell">
+                      {i + 1}
+                    </td>
 
                     <td className="px-2 py-2">
                       <p className="font-medium leading-tight">{p.nome}</p>
@@ -140,7 +144,7 @@ export function CardCertTimeline({
                       />
                     </td>
 
-                    <td className="px-2 py-2">
+                    <td className="hidden px-2 py-2 md:table-cell">
                       <span className="flex items-center gap-1.5">
                         <NaturaChip natura={p.natura} tinta={tinta.strong} />
                         {p.natura === "manuale" && modificabile && (
@@ -149,7 +153,7 @@ export function CardCertTimeline({
                             onClick={() => onData(p.id, null)}
                             title="Torna alla data calcolata dall'àncora"
                             aria-label={`Ricalcola la data di ${p.nome} dall'àncora`}
-                            className="opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+                            className="rounded opacity-0 motion-safe:transition-opacity hover:text-foreground focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary group-hover:opacity-100"
                           >
                             <RotateCcw className="h-3.5 w-3.5 text-muted-foreground" />
                           </button>

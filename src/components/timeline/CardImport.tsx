@@ -252,7 +252,7 @@ export function CardImport({ attivita, modificabile, onApplica }: Props) {
                             )
                           )
                         }
-                        className="h-7 rounded-md border bg-background px-1.5 text-xs"
+                        className="h-7 rounded-md border bg-background px-1.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                         aria-label={`Cosa fare con ${r.riga.nome}`}
                       >
                         {r.attivitaId && <option value="aggiorna">aggiorna «{r.attivitaNome}»</option>}

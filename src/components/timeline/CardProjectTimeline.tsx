@@ -63,7 +63,9 @@ export function CardProjectTimeline({
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b text-[10.5px] uppercase tracking-wider text-muted-foreground">
-                <th className="w-8 px-2 py-1.5 text-left font-medium">#</th>
+                {/* Le colonne secondarie si tolgono sul telefono (spec 9):
+                    il numero di riga non serve a compilare. */}
+                <th className="hidden w-8 px-2 py-1.5 text-left font-medium sm:table-cell">#</th>
                 <th className="px-2 py-1.5 text-left font-medium">Attività</th>
                 <th className="px-2 py-1.5 text-left font-medium">Inizio</th>
                 <th className="px-2 py-1.5 text-left font-medium">Fine</th>
@@ -79,7 +81,9 @@ export function CardProjectTimeline({
                     evidenziata === a.id && "bg-primary/5"
                   )}
                 >
-                  <td className="px-2 py-2 text-xs text-muted-foreground tabular-nums">{i + 1}</td>
+                  <td className="hidden px-2 py-2 text-xs text-muted-foreground tabular-nums sm:table-cell">
+                    {i + 1}
+                  </td>
 
                   <td className="px-2 py-2">
                     <p className="font-medium leading-tight">{a.nome}</p>
@@ -164,7 +168,7 @@ function Avanzamento({ a }: { a: AttivitaDerivata }) {
     <span className="block w-[104px]">
       <span className="block h-1.5 w-full overflow-hidden rounded-full bg-muted">
         <span
-          className="block h-full rounded-full transition-[width] duration-300"
+          className="block h-full rounded-full motion-safe:transition-[width] motion-safe:duration-300"
           style={{ width: `${a.avanzamento}%`, background: colore }}
         />
       </span>
@@ -212,7 +216,8 @@ function SelettoreDipendenze({
       <button
         type="button"
         onClick={() => setAperto((v) => !v)}
-        className="flex items-center gap-1 text-[11px] text-amber-700 hover:underline dark:text-amber-400"
+        aria-expanded={aperto}
+        className="flex items-center gap-1 rounded text-[11px] text-amber-700 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary dark:text-amber-400"
       >
         <Link2 className="h-3 w-3" />
         {nomi.length === 0 ? "dipende da: nessuna" : `dipende da: ${nomi.join(", ")}`}
