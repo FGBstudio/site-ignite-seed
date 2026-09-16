@@ -317,3 +317,94 @@ export function useMadriPossibili(attivita: AttivitaProgetto[]) {
     [attivita]
   );
 }
+
+/**
+ * Applica un import rivisto.
+ *
+ * Due regole scritte nell'ordine delle operazioni, non nei commenti:
+ *
+ *  1. si AGGIORNANO solo le date, mai il nome, mai le dipendenze, mai le date
+ *     forzate sui passi. L'import porta quello che il file sa — le date — e
+ *     lascia intatto quello che il file non sa (§4.2, non distruttivo);
+ *  2. le righe nuove si aggiungono in coda. Se la timeline del sito non
+ *     esiste ancora, nasce qui e ci si agganciano le certificazioni: è una
+ *     delle due strade di creazione previste.
+ */
+export function useApplicaImport(certId: string | undefined) {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: {
+      cronoprogrammaId: string | null;
+      siteId: string | null;
+      nomeSito: string | null;
+      aggiornamenti: Array<{ attivitaId: string; inizio: string | null; fine: string | null }>;
+      nuove: Array<{ nome: string; inizio: string | null; fine: string | null }>;
+    }) => {
+      const utente = (await supabase.auth.getUser()).data.user;
+      let cronoId = input.cronoprogrammaId;
+
+      if (!cronoId) {
+        if (!input.siteId) throw new Error("Il sito non è noto: non posso creare la timeline.");
+        const { data: creato, error } = await (supabase as any)
+          .from("cronoprogrammi")
+          .insert({ site_id: input.siteId, nome: input.nomeSito, created_by: utente?.id })
+          .select("id")
+          .single();
+        if (error) throw error;
+        cronoId = creato.id as string;
+
+        if (certId) {
+          await (supabase as any)
+            .from("certifications")
+            .update({ cronoprogramma_id: cronoId })
+            .eq("id", certId);
+        }
+      }
+
+      for (const a of input.aggiornamenti) {
+        const { error } = await (supabase as any)
+          .from("cronoprogramma_eventi")
+          .update({
+            data_pianificata: a.inizio,
+            data_fine: a.fine,
+            aggiornata_il: new Date().toISOString(),
+            aggiornata_da: utente?.id ?? null,
+          })
+          .eq("id", a.attivitaId);
+        if (error) throw error;
+      }
+
+      if (input.nuove.length > 0) {
+        const { data: ultime } = await (supabase as any)
+          .from("cronoprogramma_eventi")
+          .select("ordine")
+          .eq("cronoprogramma_id", cronoId)
+          .order("ordine", { ascending: false })
+          .limit(1);
+        const da = (ultime?.[0]?.ordine as number | undefined) ?? 0;
+
+        const { error } = await (supabase as any).from("cronoprogramma_eventi").insert(
+          input.nuove.map((n, i) => ({
+            cronoprogramma_id: cronoId,
+            nome: n.nome,
+            ordine: da + i + 1,
+            data_pianificata: n.inizio,
+            data_fine: n.fine,
+            stato: n.inizio ? "inserita" : "da_confermare",
+          }))
+        );
+        if (error) throw error;
+      }
+
+      return {
+        aggiornate: input.aggiornamenti.length,
+        create: input.nuove.length,
+      };
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["timeline-vista", certId] });
+      qc.invalidateQueries({ queryKey: ["crono"] });
+    },
+  });
+}

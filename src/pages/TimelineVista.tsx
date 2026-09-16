@@ -9,15 +9,15 @@ import { TimelineLive, MetaTimeline } from "@/components/timeline/TimelineLive";
 import { IntestazioneCard } from "@/components/timeline/IntestazioneCard";
 import { CardProjectTimeline } from "@/components/timeline/CardProjectTimeline";
 import { CardCertTimeline } from "@/components/timeline/CardCertTimeline";
-import { ImportTimeline } from "@/components/cronoprogramma/ImportTimeline";
+import { CardImport } from "@/components/timeline/CardImport";
 import {
+  useApplicaImport,
   useAutosave,
   useScritture,
   useStatoSalvataggio,
   useTimelineVista,
 } from "@/hooks/useTimelineVista";
 import { derivaAttivita, derivaPassi } from "@/lib/timelineDerivazione";
-import { useCronoEventi } from "@/hooks/useCronoprogramma";
 
 /**
  * La vista Timeline — SPECIFICA_TIMELINE §4.
@@ -42,13 +42,9 @@ export default function TimelineVista() {
   const scritture = useScritture(projectId);
   const stato = useStatoSalvataggio(scritture.inCorso, scritture.fallito);
   const autosave = useAutosave();
+  const applicaImport = useApplicaImport(projectId);
 
   const [evidenziata, setEvidenziata] = useState<string | null>(null);
-  const [importAperto, setImportAperto] = useState(false);
-
-  // Il wizard di import lavora ancora sugli eventi grezzi: glieli passiamo
-  // dalla sua sorgente, non dal modello tradotto della vista.
-  const { data: eventiGrezzi = [] } = useCronoEventi(data?.cronoprogrammaId ?? undefined);
 
   const attivita = useMemo(() => derivaAttivita(data?.attivita ?? []), [data?.attivita]);
   const passi = useMemo(
@@ -131,28 +127,28 @@ export default function TimelineVista() {
 
         {/* ── Colonna di compilazione ── */}
         <div className="min-w-0 space-y-5 xl:order-2">
-          <section className="rounded-xl border bg-card p-5">
-            <IntestazioneCard
-              titolo="IMPORTA IL CRONOPROGRAMMA"
-              chip="facoltativo"
-              nota="Se hai il gantt del cantiere, caricalo: attività e date entrano da lì e tu controlli prima di confermare. XLSX, PDF o immagine."
-            />
-            <Button variant="outline" size="sm" disabled={!modificabile} onClick={() => setImportAperto(true)}>
-              Scegli il file
-            </Button>
-            <ImportTimeline
-              aperto={importAperto}
-              onChiudi={() => setImportAperto(false)}
-              siteId={data.siteId ?? ""}
-              nomeSito={data.nomeSito}
-              cronoprogrammaId={data.cronoprogrammaId}
-              eventi={eventiGrezzi}
-              tipoProposto={data.tipoProgetto}
-              handoverBaseline={data.handoverBaseline}
-              certIds={[data.certId]}
-              onRiprendi={() => setImportAperto(true)}
-            />
-          </section>
+          <CardImport
+            attivita={data.attivita}
+            modificabile={modificabile}
+            onApplica={async (aggiornamenti, nuove) => {
+              const esito = await applicaImport.mutateAsync({
+                cronoprogrammaId: data.cronoprogrammaId,
+                siteId: data.siteId,
+                nomeSito: data.nomeSito,
+                aggiornamenti,
+                nuove,
+              });
+              toast({
+                title: `${esito.aggiornate + esito.create} attività aggiornate`,
+                description: [
+                  esito.aggiornate ? `${esito.aggiornate} riconosciute` : null,
+                  esito.create ? `${esito.create} nuove` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · "),
+              });
+            }}
+          />
 
           <CardProjectTimeline
             attivita={attivita}
