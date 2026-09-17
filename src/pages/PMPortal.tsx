@@ -349,7 +349,17 @@ export default function PMPortal() {
             </CardHeader>
             <CardContent className="space-y-3">
               {recentProjects.map((project) => {
-                const statusMeta = STATUS_META[project.setup_status];
+                // STATUS_META copre tre stati; nel database ne esistono dieci
+                // — `completato` da solo vale 93 commesse, `in_progress` 55.
+                // Bastava che una finisse fra i cinque progetti recenti perché
+                // `STATUS_META[...]` fosse undefined e `.icon` portasse via
+                // tutta la pagina. Uno stato che non conosciamo si mostra per
+                // quello che è, invece di far sparire la dashboard.
+                const statusMeta = STATUS_META[project.setup_status] ?? {
+                  label: (project.setup_status ?? "unknown").replace(/_/g, " "),
+                  icon: FolderKanban,
+                  className: "border-border bg-muted text-muted-foreground",
+                };
                 const StatusIcon = statusMeta.icon;
                 return (
                   <div

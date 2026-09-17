@@ -9,6 +9,7 @@ import {
   CheckSquare,
   Clock3,
   DollarSign,
+  FolderKanban,
   Layers3,
   Radio,
   Settings2,
@@ -103,7 +104,17 @@ function PMProjectCard({
   onConfigure: (project: PMProjectView) => void;
   financialAlert?: { paymentDelay: number; paymentAmount: number; extraCanone: number };
 }) {
-  const statusMeta = STATUS_META[project.setup_status];
+  // Stesso difetto del PM Portal, stessa cura. `usePMDashboard` lascia col
+  // proprio stato le commesse che non sono lavoro operativo — potential,
+  // quotation, quotation_approved, canceled — e nessuno di quei quattro sta in
+  // STATUS_META. Su un PM che ne ha anche una sola, la scheda spariva insieme
+  // a tutta la pagina.
+  const statusMeta = STATUS_META[project.setup_status] ?? {
+    label: (project.setup_status ?? "unknown").replace(/_/g, " "),
+    icon: FolderKanban,
+    className: "border-border bg-muted text-muted-foreground",
+    emptyMessage: "",
+  };
   const StatusIcon = statusMeta.icon;
   const daysLeft = Math.ceil((new Date(project.handover_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
   const timelineConfigured = !project.missing.includes("Timeline");
