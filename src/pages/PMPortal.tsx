@@ -378,7 +378,16 @@ export default function PMPortal() {
                     <div className="flex flex-col items-start gap-2 text-sm text-muted-foreground lg:items-end">
                       <span className="inline-flex items-center gap-1.5">
                         <CalendarIcon className="h-3.5 w-3.5" />
-                        {format(new Date(project.handover_date), "dd MMM yyyy")}
+                        {/* Senza questo controllo la pagina diventa bianca.
+                            `new Date(null)` è una data invalida e `format` di
+                            date-fns lancia RangeError invece di restituire una
+                            stringa vuota: l'errore risale fino alla radice e
+                            porta via tutta la schermata. Le certificazioni
+                            senza handover sono 461 su 1507 — bastava che una
+                            sola finisse in questa lista. */}
+                        {project.handover_date
+                          ? format(new Date(project.handover_date), "dd MMM yyyy")
+                          : "no handover date"}
                       </span>
                       <Button size="sm" variant="ghost" className="gap-2 px-0" onClick={() => navigate("/projects")}>
                         Go to operational dashboard

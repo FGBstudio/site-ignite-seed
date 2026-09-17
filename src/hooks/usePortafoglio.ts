@@ -146,3 +146,30 @@ export function useCorsieSito(siteId: string | undefined, cronoId: string | null
     },
   });
 }
+
+/**
+ * Le certificazioni su cui una persona collabora, approvate.
+ *
+ * Serve a decidere cosa un PM vede in PROJECTS: essere collaboratore su una
+ * commessa è lavoro suo quanto esserne il titolare, e una vista che mostra
+ * solo `pm_id` glielo nasconderebbe.
+ *
+ * Per un amministratore non si interroga nemmeno: vede tutto comunque, e la
+ * query sarebbe lavoro buttato a ogni apertura della pagina.
+ */
+export function useCertificazioniCollaborate(userId: string | undefined, isAdmin: boolean) {
+  return useQuery({
+    queryKey: ["portafoglio", "collaborazioni", userId],
+    enabled: !!userId && !isAdmin,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("cert_collaborations")
+        .select("certification_id")
+        .eq("guest_pm_id", userId)
+        .eq("status", "approved");
+      if (error) throw error;
+      return ((data ?? []) as Array<{ certification_id: string }>).map((r) => r.certification_id);
+    },
+  });
+}

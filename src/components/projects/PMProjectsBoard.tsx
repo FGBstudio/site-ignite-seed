@@ -316,7 +316,7 @@ export function PMProjectsBoard() {
 
   return (
     <>
-      <Tabs defaultValue="cards" className="w-full space-y-6">
+      <Tabs defaultValue="kanban" className="w-full space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
           <div className="flex items-center gap-3">
             <h2 className="text-xl font-bold tracking-tight">Projects Overview</h2>
@@ -335,11 +335,11 @@ export function PMProjectsBoard() {
             )}
           </div>
           <TabsList className="bg-muted">
-            <TabsTrigger value="cards" className="gap-2">
-              <LayoutGrid className="w-4 h-4" /> My projects
-            </TabsTrigger>
             <TabsTrigger value="kanban" className="gap-2">
               <Layers3 className="w-4 h-4" /> Kanban Board
+            </TabsTrigger>
+            <TabsTrigger value="cards" className="gap-2">
+              <LayoutGrid className="w-4 h-4" /> My projects
             </TabsTrigger>
             <TabsTrigger value="planner" className="gap-2">
               <GanttChartSquare className="w-4 h-4" /> Global Planner

@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { nomePersona } from "@/lib/nomePersona";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -24,7 +25,12 @@ import {
   Plus,
   X,
 } from "lucide-react";
-import { usePortafoglio, useCorsieSito, type RigaPortafoglio } from "@/hooks/usePortafoglio";
+import {
+  useCertificazioniCollaborate,
+  useCorsieSito,
+  usePortafoglio,
+  type RigaPortafoglio,
+} from "@/hooks/usePortafoglio";
 import { PIETRA, stilePill, tintaServizio } from "@/lib/serviceColors";
 import { proponiTipo } from "@/lib/projectTimelineTemplates";
 import { AnelloAvanzamento } from "@/components/cronoprogramma/AnelloAvanzamento";
@@ -265,6 +271,7 @@ const STATUS_FILTRI: Status[] = ["design", "construction", "certification", "cer
 export default function ProjectsAdmin() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
+  const { user, isAdmin } = useAuth();
   const oggi = format(new Date(), "yyyy-MM-dd");
 
   const { data: righe = [], isLoading } = usePortafoglio();
@@ -297,10 +304,28 @@ export default function ProjectsAdmin() {
   };
   const azzera = () => setParams(new URLSearchParams(), { replace: true });
 
-  const tutte: RigaV2[] = useMemo(
-    () => righe.map((r) => derivaRiga(r, extra?.get(r.site_id), ritardi, oggi)),
-    [righe, extra, ritardi, oggi]
-  );
+  /**
+   * Un PM vede i siti su cui lavora, non il portafoglio intero.
+   *
+   * «Su cui lavora» vuol dire due cose: è il PM di almeno una certificazione
+   * del sito, oppure vi collabora con una richiesta approvata. La seconda
+   * conta quanto la prima — il lavoro che fa da collaboratore è lavoro suo, e
+   * nasconderglielo lo obbligherebbe a chiedere a un collega di guardare per
+   * lui.
+   *
+   * L'amministratore vede tutto, come prima.
+   */
+  const { data: certCollaborate = [] } = useCertificazioniCollaborate(user?.id, isAdmin);
+
+  const tutte: RigaV2[] = useMemo(() => {
+    const derivate = righe.map((r) => derivaRiga(r, extra?.get(r.site_id), ritardi, oggi));
+    if (isAdmin || !user?.id) return derivate;
+
+    const collab = new Set(certCollaborate);
+    return derivate.filter((v) =>
+      (v.x?.certs ?? []).some((c) => c.pm_id === user.id || collab.has(c.id))
+    );
+  }, [righe, extra, ritardi, oggi, isAdmin, user?.id, certCollaborate]);
 
   const filtra = (righe: RigaV2[], escludi?: string) =>
     righe.filter((v) => {
