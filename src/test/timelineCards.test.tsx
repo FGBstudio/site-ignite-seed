@@ -231,3 +231,65 @@ describe("Card 2 · HQ FGB timeline", () => {
     screen.getAllByRole("spinbutton").forEach((c) => expect(c).toBeDisabled());
   });
 });
+
+describe("l'ancoraggio alla conclusione di un'attività di progetto", () => {
+  const attivita = [
+    att({ id: "constr", nome: "Construction", inizio: "2027-01-01", fine: "2027-09-01" }),
+  ];
+
+  const monta = (p: Partial<PassoServizio> = {}) => {
+    const onAncoraggio = vi.fn();
+    render(
+      <CardCertTimeline
+        passi={derivaPassi([passo({ id: "p1", nome: "GC closeout", ...p })], attivita)}
+        attivita={derivaAttivita(attivita, OGGI)}
+        servizio="LEED BD+C"
+        nomeServizio="Test"
+        modificabile
+        evidenziato={null}
+        onData={vi.fn()}
+        onAvanzamento={vi.fn()}
+        onAncoraggio={onAncoraggio}
+      />
+    );
+    return { onAncoraggio };
+  };
+
+  it("dice a parole che il passo segue la FINE dell'attività", () => {
+    monta({ ancora: { attivitaId: "constr", punto: "end", offsetGiorni: 30 } });
+    // «30d after Construction ends» si legge di sfuggita; «end of Construction»
+    // va decifrato, ed e' la differenza che conta su una riga di passaggio.
+    const chip = screen.getByLabelText(/Link GC closeout to a project activity/);
+    expect(chip.textContent).toContain("30d after");
+    expect(chip.textContent).toContain("ends");
+  });
+
+  it("distingue la fine dall'inizio, che su una fase lunga sono mesi", () => {
+    monta({ ancora: { attivitaId: "constr", punto: "start", offsetGiorni: 30 } });
+    const chip = screen.getByLabelText(/Link GC closeout to a project activity/);
+    expect(chip.textContent).toContain("starts");
+    expect(chip.textContent).not.toContain("ends");
+  });
+
+  it("senza àncora invita ad agganciare invece di stare zitto", () => {
+    monta();
+    const chip = screen.getByLabelText(/Link GC closeout to a project activity/);
+    expect(chip.textContent).toContain("link to a project activity");
+  });
+
+  it("la data calcolata usa la FINE quando il punto è end", () => {
+    // Construction finisce l'1 set 27: +30 giorni = 1 ott 27. Se leggesse
+    // l'inizio uscirebbe il 31 gen 27 — otto mesi di differenza.
+    const [p] = derivaPassi(
+      [passo({ id: "p1", ancora: { attivitaId: "constr", punto: "end", offsetGiorni: 30 } })],
+      attivita
+    );
+    expect(p.dataEffettiva).toBe("2027-10-01");
+
+    const [q] = derivaPassi(
+      [passo({ id: "p2", ancora: { attivitaId: "constr", punto: "start", offsetGiorni: 30 } })],
+      attivita
+    );
+    expect(q.dataEffettiva).toBe("2027-01-31");
+  });
+});

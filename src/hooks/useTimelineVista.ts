@@ -638,3 +638,26 @@ export function useAncoraggio(certId: string | undefined) {
     },
   });
 }
+
+/**
+ * Ritrova un passo appena materializzato dal suo posto nella scaletta.
+ *
+ * Serve in un caso solo, ma ricorrente: il PM aggancia un passo che sta
+ * ancora vedendo dal catalogo. Prima di poterlo ancorare bisogna farlo
+ * nascere, e la riga nuova ha un id che nessuno conosce — l'unico filo che
+ * lega quello che era sullo schermo a quello che ora sta nel database è il
+ * posto che occupa nella scaletta.
+ */
+export async function passoPerOrdine(
+  certId: string,
+  orderIndex: number
+): Promise<string | null> {
+  const { data } = await (supabase as any)
+    .from("certification_milestones")
+    .select("id")
+    .eq("certification_id", certId)
+    .eq("milestone_type", "timeline")
+    .eq("order_index", orderIndex)
+    .maybeSingle();
+  return (data?.id as string | undefined) ?? null;
+}

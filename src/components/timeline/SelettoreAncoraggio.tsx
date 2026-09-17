@@ -66,10 +66,11 @@ export function SelettoreAncoraggio({ passo, attivita, modificabile, tinta, onCa
 
   if (!modificabile) {
     return madre ? (
-      <span className="text-[10.5px] text-muted-foreground">
-        {passo.ancora!.offsetGiorni >= 0 ? "+" : "−"}
-        {Math.abs(passo.ancora!.offsetGiorni)}d from the{" "}
-        {passo.ancora!.punto === "start" ? "start" : "end"} of {madre.nome}
+      <span className="mt-1 block text-[10.5px] text-muted-foreground">
+        {passo.ancora!.offsetGiorni === 0
+          ? "when"
+          : `${Math.abs(passo.ancora!.offsetGiorni)}d ${passo.ancora!.offsetGiorni < 0 ? "before" : "after"}`}{" "}
+        {madre.nome} {passo.ancora!.punto === "start" ? "starts" : "ends"}
       </span>
     ) : null;
   }
@@ -98,13 +99,18 @@ export function SelettoreAncoraggio({ passo, attivita, modificabile, tinta, onCa
         >
           <Link2 className="h-2.5 w-2.5" />
           {madre ? (
+            /* Una frase, non una sigla: «+30d after Handover ends» si legge di
+               sfuggita, «+30d · end of Handover» va decifrato. La differenza
+               conta perché questa riga si guarda di passaggio, non si studia. */
             <>
-              {passo.ancora!.offsetGiorni >= 0 ? "+" : "−"}
-              {Math.abs(passo.ancora!.offsetGiorni)}d · {passo.ancora!.punto === "start" ? "start" : "end"} of{" "}
-              {madre.nome.length > 22 ? `${madre.nome.slice(0, 21)}…` : madre.nome}
+              {passo.ancora!.offsetGiorni === 0
+                ? "when"
+                : `${Math.abs(passo.ancora!.offsetGiorni)}d ${passo.ancora!.offsetGiorni < 0 ? "before" : "after"}`}{" "}
+              {madre.nome.length > 20 ? `${madre.nome.slice(0, 19)}…` : madre.nome}{" "}
+              {passo.ancora!.punto === "start" ? "starts" : "ends"}
             </>
           ) : (
-            "link to an activity"
+            "link to a project activity"
           )}
         </button>
       </PopoverTrigger>
@@ -135,24 +141,30 @@ export function SelettoreAncoraggio({ passo, attivita, modificabile, tinta, onCa
               ))}
             </select>
 
-            {/* L'estremo. Su una milestone i due coincidono e la scelta non
-                serve; su una fase di otto mesi è la differenza fra due date
-                lontane otto mesi. */}
+            {/* L'estremo. E' la scelta che si dimentica e che cambia tutto: su
+                una fase di otto mesi «dopo Construction» significa due date
+                lontane otto mesi. Per questo sono due bottoni scritti per
+                esteso e non un menu: la differenza si deve vedere, non
+                cercare. */}
             <label className="mb-1 block text-[10.5px] uppercase tracking-wider text-muted-foreground">
-              Counting from
+              This step depends on
             </label>
-            <div className="mb-3 flex gap-1.5">
-              {(["start", "end"] as const).map((p) => (
+            <div className="mb-3 grid grid-cols-2 gap-1.5">
+              {([
+                ["end", "when it ENDS", "the activity must be finished"],
+                ["start", "when it STARTS", "the activity only needs to have begun"],
+              ] as const).map(([p, titolo, sotto]) => (
                 <button
                   key={p}
                   type="button"
                   onClick={() => setPunto(p)}
                   className={cn(
-                    "flex-1 rounded-md border px-2 py-1.5 text-xs transition-colors",
-                    punto === p ? "border-primary bg-primary/10 font-medium" : "hover:bg-muted"
+                    "rounded-md border px-2 py-1.5 text-left transition-colors",
+                    punto === p ? "border-primary bg-primary/10" : "hover:bg-muted"
                   )}
                 >
-                  {p === "start" ? "its start" : "its end"}
+                  <span className={cn("block text-xs", punto === p && "font-medium")}>{titolo}</span>
+                  <span className="block text-[10px] leading-tight text-muted-foreground">{sotto}</span>
                 </button>
               ))}
             </div>
@@ -178,8 +190,10 @@ export function SelettoreAncoraggio({ passo, attivita, modificabile, tinta, onCa
             <p className="text-xs">
               {candidata ? (
                 <>
-                  {offset === 0 ? "On" : `${Math.abs(offset)} days ${offset < 0 ? "before" : "after"}`} the{" "}
-                  {punto === "start" ? "start" : "end"} of <b>{candidata.nome}</b> →{" "}
+                  {offset === 0
+                    ? "As soon as"
+                    : `${Math.abs(offset)} days ${offset < 0 ? "before" : "after"}`}{" "}
+                  <b>{candidata.nome}</b> {punto === "start" ? "starts" : "ends"} →{" "}
                   <b style={{ color: tinta }}>{risultato ? df(risultato) : "no date yet"}</b>
                 </>
               ) : (

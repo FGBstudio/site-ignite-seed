@@ -196,7 +196,7 @@ export function CardCertTimeline({
                       {/* L'ancora non si legge soltanto: si imposta. Prima
                           il chip diceva da dove veniva la data e basta, e
                           per cambiarla bisognava andare nella vista vecchia. */}
-                      {onAncoraggio && !p.id.startsWith("catalogo:") ? (
+                      {onAncoraggio ? (
                         <SelettoreAncoraggio
                           passo={p}
                           attivita={attivita}

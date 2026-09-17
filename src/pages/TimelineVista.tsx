@@ -15,6 +15,7 @@ import {
   useApplicaImport,
   useAutosave,
   useAncoraggio,
+  passoPerOrdine,
   useRigheManuali,
   useScritture,
   useStatoSalvataggio,
@@ -319,12 +320,35 @@ export default function TimelineVista() {
               toast({ title: "Step deleted", description: nome });
             }}
             onAncoraggio={async (passoId, attivitaId, punto, off) => {
-              await ancoraggio.mutateAsync({ passoId, attivitaId, punto, offsetGiorni: off });
+              // Un passo che il PM sta ancora vedendo dal catalogo non ha una
+              // riga nel database: agganciarlo lo fa nascere prima. L'unico
+              // filo fra quello che era sullo schermo e quello che ora sta nel
+              // database è il posto che occupa nella scaletta.
+              let id = passoId;
+              if (passoId.startsWith("catalogo:")) {
+                const creati = await materializza();
+                if (creati === 0) return;
+                const ordine = Number(passoId.slice("catalogo:".length));
+                const vero = await passoPerOrdine(data.certId, ordine);
+                if (!vero) {
+                  toast({
+                    variant: "destructive",
+                    title: "Could not find the step after creating it",
+                    description: "Reload the page and try again.",
+                  });
+                  return;
+                }
+                id = vero;
+              }
+
+              await ancoraggio.mutateAsync({ passoId: id, attivitaId, punto, offsetGiorni: off });
+
+              const madre = attivita.find((a) => a.id === attivitaId);
               toast({
-                title: attivitaId ? 'Step linked' : 'Link removed',
+                title: attivitaId ? "Step linked" : "Link removed",
                 description: attivitaId
-                  ? 'If the activity moves, this date follows it.'
-                  : 'This date no longer follows the project timeline.',
+                  ? `It now follows the ${punto === "start" ? "start" : "end"} of ${madre?.nome ?? "that activity"}: if it moves, this date moves with it.`
+                  : "This date no longer follows the project timeline.",
               });
             }}
             generando={generaScaletta.isPending}
