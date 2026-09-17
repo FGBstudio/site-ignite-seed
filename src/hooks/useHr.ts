@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { nomePersona } from "@/lib/nomePersona";
 import { supabase } from "@/integrations/supabase/client";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -82,8 +83,13 @@ export interface HrQrToken {
 export interface HrProfile {
   id: string;
   full_name: string | null;
+  /** Per meta' delle persone il nome sta qui e non in `full_name`. */
+  display_name: string | null;
   email: string | null;
   avatar_url: string | null;
+  office_id: string | null;
+  /** Il nome gia' risolto: una regola sola, in `lib/nomePersona`. */
+  nome: string;
 }
 
 /**
@@ -103,11 +109,18 @@ export function useHrProfiles() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, full_name, email, avatar_url")
-        .ilike("email", `%${INTERNAL_EMAIL_DOMAIN}`)
-        .order("full_name", { ascending: true });
+        .select("id, full_name, display_name, email, avatar_url, office_id")
+        .ilike("email", `%${INTERNAL_EMAIL_DOMAIN}`);
       if (error) throw error;
-      return (data ?? []) as HrProfile[];
+
+      // L'ordinamento non lo fa piu' il database su `full_name`: per meta'
+      // delle persone quella colonna e' vuota, e finivano tutte in fondo
+      // insieme, in ordine casuale. Si ordina sul nome risolto, che esiste
+      // sempre — e con `localeCompare` perche' «Àngela» venga dove ci si
+      // aspetta e non dopo la Z.
+      return ((data ?? []) as HrProfile[])
+        .map((p) => ({ ...p, nome: nomePersona(p) }))
+        .sort((a, b) => a.nome.localeCompare(b.nome, "it"));
     },
   });
 }

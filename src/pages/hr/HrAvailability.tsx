@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { FiltroUfficio } from "@/components/hr/FiltroUfficio";
 import { nomePersona } from "@/lib/nomePersona";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -138,7 +139,23 @@ export default function HrAvailability() {
   const fromISO = format(startOfMonth(cursor), "yyyy-MM-dd");
   const toISO = format(endOfMonth(cursor), "yyyy-MM-dd");
 
-  const { data: profiles = [] } = useHrProfiles();
+  const { data: tutteLePersone = [] } = useHrProfiles();
+  const [ufficio, setUfficio] = useState<string | null>(null);
+
+  // Quante persone per ufficio: serve al filtro per sapere se ha senso
+  // mostrarsi. Se nessuno e' assegnato, il filtro sparisce da solo.
+  const perUfficio = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const p of tutteLePersone) {
+      if (p.office_id) m.set(p.office_id, (m.get(p.office_id) ?? 0) + 1);
+    }
+    return m;
+  }, [tutteLePersone]);
+
+  const profiles = useMemo(
+    () => (ufficio ? tutteLePersone.filter((p) => p.office_id === ufficio) : tutteLePersone),
+    [tutteLePersone, ufficio]
+  );
   const { data: avail = [] } = useHrAvailability(fromISO, toISO);
   const upsert = useUpsertAvailability();
   const del = useDeleteAvailability();
@@ -161,6 +178,11 @@ export default function HrAvailability() {
           : "Your calendar in full. Of your colleagues, available or not, current month only"
       }
     >
+      {/* Il filtro porta con sé l'ora locale: chi guarda Shanghai da Milano
+          deve sapere che lì la giornata è finita, non dedurlo da un calendario
+          vuoto. */}
+      <FiltroUfficio scelto={ufficio} onScegli={setUfficio} conteggi={perUfficio} className="mb-3" />
+
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Button size="sm" variant="outline" onClick={() => setCursor(addMonths(cursor, -1))}>

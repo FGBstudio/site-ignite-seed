@@ -36,6 +36,7 @@ import HrAvailability from "./pages/hr/HrAvailability";
 import HrRequests from "./pages/hr/HrRequests";
 import HrAttendance from "./pages/hr/HrAttendance";
 import HrScanner from "./pages/hr/HrScanner";
+import HrUffici from "./pages/hr/HrUffici";
 import Quotations from "./pages/Quotations";
 import TimelineVista from "./pages/TimelineVista";
 import CronoprogrammaPage from "./pages/Cronoprogramma";
@@ -88,6 +89,7 @@ function AppRoutes() {
       <Route path="/hr/availability" element={<ProtectedRoute allowedRoles={R("ADMIN", "PM")}><HrAvailability /></ProtectedRoute>} />
       <Route path="/hr/requests" element={<ProtectedRoute allowedRoles={R("ADMIN", "PM")}><HrRequests /></ProtectedRoute>} />
       <Route path="/hr/attendance" element={<ProtectedRoute allowedRoles={R("ADMIN", "PM")}><HrAttendance /></ProtectedRoute>} />
+      <Route path="/hr/uffici" element={<ProtectedRoute allowedRoles={R("ADMIN")}><HrUffici /></ProtectedRoute>} />
       <Route path="/hr/scanner" element={<ProtectedRoute allowedRoles={R("ADMIN")}><HrScanner /></ProtectedRoute>} />
 
       <Route path="/monitor" element={<ProtectedRoute allowedRoles={R("ADMIN", "PM")}><Monitor /></ProtectedRoute>} />

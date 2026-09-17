@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { FiltroUfficio } from "@/components/hr/FiltroUfficio";
 import { nomePersona } from "@/lib/nomePersona";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -36,8 +37,33 @@ export default function HrRequests() {
   const updateStatus = useUpdateRequestStatus();
   const del = useDeleteRequest();
 
+  const [ufficio, setUfficio] = useState<string | null>(null);
+
+  const perUfficio = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const p of profiles) {
+      if (p.office_id) m.set(p.office_id, (m.get(p.office_id) ?? 0) + 1);
+    }
+    return m;
+  }, [profiles]);
+
+  /** Chi appartiene all'ufficio scelto. Senza scelta, tutti. */
+  const diUfficio = useMemo(() => {
+    if (!ufficio) return null;
+    return new Set(profiles.filter((p) => p.office_id === ufficio).map((p) => p.id));
+  }, [profiles, ufficio]);
+
   const mine = useMemo(() => requests.filter((r) => r.user_id === user?.id), [requests, user]);
-  const pending = useMemo(() => requests.filter((r) => r.status === "pending"), [requests]);
+
+  // Il filtro vale sulle richieste da approvare, non sulle proprie: le proprie
+  // sono proprie, e restringerle per ufficio non vorrebbe dire niente.
+  const pending = useMemo(
+    () =>
+      requests.filter(
+        (r) => r.status === "pending" && (!diUfficio || diUfficio.has(r.user_id))
+      ),
+    [requests, diUfficio]
+  );
 
   const nameOf = (uid: string) => {
     const p = profiles.find((x) => x.id === uid);
@@ -46,6 +72,17 @@ export default function HrRequests() {
 
   return (
     <MainLayout title="Leave & Permits" subtitle="Request holidays, permits and travel — managers approve.">
+      {/* Solo per chi approva: il filtro serve a guardare un ufficio per
+          volta, e chi non approva non ha niente da restringere. */}
+      {isAdmin && (
+        <FiltroUfficio
+          scelto={ufficio}
+          onScegli={setUfficio}
+          conteggi={perUfficio}
+          className="mb-3"
+        />
+      )}
+
       <Tabs defaultValue="mine" className="space-y-4">
         <div className="flex items-center justify-between">
           <TabsList>

@@ -1,4 +1,4 @@
-import { Calendar, ClipboardList, ScanLine, QrCode, type LucideIcon } from "lucide-react";
+import { Building2, Calendar, ClipboardList, ScanLine, QrCode, type LucideIcon } from "lucide-react";
 
 /**
  * Le pagine della sezione HR, in un posto solo.
@@ -42,6 +42,14 @@ export const HR_PAGES: HrPage[] = [
     icon: ScanLine,
     route: "/hr/attendance",
     adminOnly: false,
+  },
+  {
+    id: "uffici",
+    title: "Uffici",
+    desc: "Chi lavora dove, e che ore sono lì",
+    icon: Building2,
+    route: "/hr/uffici",
+    adminOnly: true,
   },
   {
     id: "scanner",

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { FiltroUfficio } from "@/components/hr/FiltroUfficio";
 import { nomePersona } from "@/lib/nomePersona";
 import { useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -19,9 +20,25 @@ import { useToast } from "@/hooks/use-toast";
 export default function HrAttendance() {
   const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
-  const { data: profiles = [] } = useHrProfiles();
+  const { data: tuttiIProfili = [] } = useHrProfiles();
   const [userFilter, setUserFilter] = useState<string>("all");
+  const [ufficio, setUfficio] = useState<string | null>(null);
   const [from, setFrom] = useState<string>("");
+
+  const perUfficio = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const p of tuttiIProfili) {
+      if (p.office_id) m.set(p.office_id, (m.get(p.office_id) ?? 0) + 1);
+    }
+    return m;
+  }, [tuttiIProfili]);
+
+  // Scegliere un ufficio restringe l'elenco delle persone, non solo le righe:
+  // altrimenti nel menu «Person» resterebbero nomi che non possono comparire.
+  const profiles = useMemo(
+    () => (ufficio ? tuttiIProfili.filter((p) => p.office_id === ufficio) : tuttiIProfili),
+    [tuttiIProfili, ufficio]
+  );
   const [to, setTo] = useState<string>("");
 
   const filters = useMemo(() => {
@@ -41,6 +58,18 @@ export default function HrAttendance() {
 
   return (
     <MainLayout title="Attendance Log" subtitle="Automatic check-ins via QR scanner. Manual overrides require manager approval.">
+      <FiltroUfficio
+        scelto={ufficio}
+        onScegli={(id) => {
+          setUfficio(id);
+          // La persona scelta potrebbe non appartenere al nuovo ufficio: si
+          // torna a «tutte» invece di mostrare un filtro che non filtra.
+          setUserFilter("all");
+        }}
+        conteggi={perUfficio}
+        className="mb-3"
+      />
+
       <div className="flex flex-wrap items-end gap-3 mb-4">
         {isAdmin && (
           <div>
