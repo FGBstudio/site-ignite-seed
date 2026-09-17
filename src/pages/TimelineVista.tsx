@@ -20,6 +20,7 @@ import {
   useTimelineVista,
 } from "@/hooks/useTimelineVista";
 import { derivaAttivita, derivaPassi } from "@/lib/timelineDerivazione";
+import { useMaterializeTimeline } from "@/hooks/useCronoprogramma";
 
 /**
  * La vista Timeline — SPECIFICA_TIMELINE §4.
@@ -46,6 +47,7 @@ export default function TimelineVista() {
   const autosave = useAutosave();
   const applicaImport = useApplicaImport(projectId);
   const righe = useRigheManuali(projectId);
+  const generaScaletta = useMaterializeTimeline();
   const [modelliAperto, setModelliAperto] = useState(false);
 
   const [evidenziata, setEvidenziata] = useState<string | null>(null);
@@ -106,9 +108,9 @@ export default function TimelineVista() {
         </div>
       </div>
 
-      <div className="grid gap-6 tl:grid-cols-[minmax(440px,42%)_minmax(0,1fr)]">
+      <div className="grid gap-6 lg:grid-cols-[minmax(440px,42%)_minmax(0,1fr)]">
         {/* ── Pannello live: sticky, scroll interno ── */}
-        <aside className="tl:sticky tl:top-[92px] tl:order-1 tl:h-[calc(100vh-120px)]">
+        <aside className="lg:sticky lg:top-[92px] lg:order-1 lg:h-[calc(100vh-120px)]">
           <div className="flex h-full flex-col rounded-xl border bg-card p-4">
             <IntestazioneCard
               titolo="TIMELINE LIVE"
@@ -117,7 +119,7 @@ export default function TimelineVista() {
             <div className="mb-2 shrink-0">
               <MetaTimeline attivita={attivita} passi={passi} />
             </div>
-            <div className="max-h-[70vh] min-h-0 flex-1 overflow-auto tl:max-h-none">
+            <div className="max-h-[70vh] min-h-0 flex-1 overflow-auto lg:max-h-none">
               <TimelineLive
                 attivita={attivita}
                 passi={passi}
@@ -130,7 +132,7 @@ export default function TimelineVista() {
         </aside>
 
         {/* ── Colonna di compilazione ── */}
-        <div className="min-w-0 space-y-5 tl:order-2">
+        <div className="min-w-0 space-y-5 lg:order-2">
           <CardImport
             attivita={data.attivita}
             modificabile={modificabile}
@@ -278,6 +280,17 @@ export default function TimelineVista() {
             onElimina={async (id, nome) => {
               await righe.eliminaPasso.mutateAsync(id);
               toast({ title: "Passo eliminato", description: nome });
+            }}
+            generando={generaScaletta.isPending}
+            onGenera={async () => {
+              const n = await generaScaletta.mutateAsync(data.certId);
+              toast({
+                title: n > 0 ? `${n} passi creati` : "Niente da creare",
+                description:
+                  n > 0
+                    ? "Dalla scaletta del servizio. Adesso tocca alle date."
+                    : "La scaletta esiste già, oppure il catalogo non ne prevede una per questo servizio.",
+              });
             }}
           />
 

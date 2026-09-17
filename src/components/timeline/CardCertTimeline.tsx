@@ -3,7 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { Link2, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { Link2, Loader2, Plus, RotateCcw, Sparkles, Trash2 } from "lucide-react";
 import { CampoData } from "@/components/cronoprogramma/CampoData";
 import { IntestazioneCard } from "@/components/timeline/IntestazioneCard";
 import { tintaServizio } from "@/lib/serviceColors";
@@ -38,6 +38,9 @@ interface Props {
   onAggiungi?: (nome: string) => Promise<void> | void;
   onRinomina?: (id: string, nome: string) => void;
   onElimina?: (id: string, nome: string) => void;
+  /** Genera la scaletta del servizio. Senza, la card resta muta. */
+  onGenera?: () => Promise<void> | void;
+  generando?: boolean;
 }
 
 export function CardCertTimeline({
@@ -52,6 +55,8 @@ export function CardCertTimeline({
   onAggiungi,
   onRinomina,
   onElimina,
+  onGenera,
+  generando,
 }: Props) {
   const [nuovo, setNuovo] = useState("");
   const [inCorso, setInCorso] = useState(false);
@@ -90,9 +95,47 @@ export function CardCertTimeline({
       </div>
 
       {passi.length === 0 ? (
-        <p className="rounded-lg border border-dashed bg-muted/20 p-6 text-center text-xs text-muted-foreground">
-          La scaletta del servizio non è ancora stata generata.
-        </p>
+        /* Dire «non è stata generata» e fermarsi lì lascia il PM davanti a un
+           muro: la frase descrive uno stato e non offre l'azione che lo
+           cambia, che è a un click di distanza. I passi arrivano dalla
+           scaletta del servizio — LEED BD+C, WELL Core — che il catalogo
+           conosce già: non c'è niente da scegliere, solo da chiedere. */
+        <div className="rounded-lg border border-dashed bg-muted/20 p-6 text-center">
+          <p className="text-xs text-muted-foreground">
+            I passi di <b className="text-foreground">{nomeServizio ?? "questo servizio"}</b> non
+            sono ancora stati creati. Arrivano dalla scaletta del servizio, già pronta nel
+            catalogo.
+          </p>
+          <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+            {modificabile && onGenera && (
+              <Button size="sm" disabled={generando} onClick={() => onGenera()}>
+                {generando && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+                <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                Crea i passi del servizio
+              </Button>
+            )}
+            {modificabile && onAggiungi && (
+              <span className="flex items-center gap-1.5">
+                <Input
+                  value={nuovo}
+                  onChange={(e) => setNuovo(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && aggiungi()}
+                  placeholder="…oppure scrivi il primo passo"
+                  aria-label="Nome del primo passo"
+                  className="h-8 w-52 text-xs"
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!nuovo.trim() || inCorso}
+                  onClick={aggiungi}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </Button>
+              </span>
+            )}
+          </div>
+        </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
