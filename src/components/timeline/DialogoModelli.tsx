@@ -60,10 +60,10 @@ export function DialogoModelli({ aperto, onChiudi, suggerito, onApplica }: Props
     <Dialog open={aperto} onOpenChange={(o) => !o && onChiudi()}>
       <DialogContent className="max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Parti da un modello</DialogTitle>
+          <DialogTitle>Start from a template</DialogTitle>
           <DialogDescription>
-            Una bozza da correggere, non un calendario definitivo. Le durate vengono da
-            cronoprogrammi reali.
+            A draft to adjust, not a final calendar. The durations come from real
+            construction schedules.
           </DialogDescription>
         </DialogHeader>
 
@@ -85,7 +85,7 @@ export function DialogoModelli({ aperto, onChiudi, suggerito, onApplica }: Props
                   {m.descrizione}
                 </p>
                 <p className="mt-1.5 text-[10px] text-muted-foreground">
-                  {m.voci.length} attività · da {m.origine}
+                  {m.voci.length} activities · from {m.origine}
                 </p>
               </button>
             ))}
@@ -94,18 +94,18 @@ export function DialogoModelli({ aperto, onChiudi, suggerito, onApplica }: Props
           {/* ── Quando comincia, e cosa ne esce ── */}
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs text-muted-foreground">La prima attività parte il</span>
+              <span className="text-xs text-muted-foreground">First activity starts on</span>
               <CampoData
                 value={inizio}
-                aria="Data di inizio del progetto"
+                aria="Project start date"
                 onChange={(v) => v && setInizio(v)}
                 className="w-[140px]"
               />
             </div>
 
             <p className="text-[11px] text-muted-foreground">
-              Fine stimata <b className="text-foreground">{df(fine)}</b> — è la somma delle durate
-              del modello, non un impegno.
+              Estimated end <b className="text-foreground">{df(fine)}</b> — the sum of the
+              template durations, not a commitment.
             </p>
 
             <div className="max-h-64 overflow-y-auto rounded-lg border">
@@ -120,7 +120,7 @@ export function DialogoModelli({ aperto, onChiudi, suggerito, onApplica }: Props
                             {v.ancora === "handover"
                               ? "handover"
                               : v.ancora === "construction_start"
-                                ? "inizio cantiere"
+                                ? "site start"
                                 : "gara"}
                           </span>
                         )}
@@ -139,15 +139,15 @@ export function DialogoModelli({ aperto, onChiudi, suggerito, onApplica }: Props
 
         <DialogFooter className="gap-2 sm:justify-between">
           <span className="text-[11px] text-muted-foreground">
-            Le attività entrano vuote di dipendenze: le colleghi tu dove serve.
+            Activities come in without dependencies: you link them where it matters.
           </span>
           <span className="flex gap-2">
             <Button variant="ghost" size="sm" onClick={onChiudi}>
-              Annulla
+              Cancel
             </Button>
             <Button size="sm" disabled={salvando} onClick={applica}>
               {salvando && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
-              Crea {scelto.voci.length} attività
+              Create {scelto.voci.length} activities
             </Button>
           </span>
         </DialogFooter>

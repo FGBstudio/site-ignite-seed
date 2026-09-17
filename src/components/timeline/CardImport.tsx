@@ -71,10 +71,10 @@ export function CardImport({ attivita, modificabile, onApplica }: Props) {
       if (est === "xlsx" || est === "xls") {
         // Il foglio si legge qui: il formato è semplice e un modello
         // aggiungerebbe solo incertezza (§8).
-        setStato("Leggo il foglio…");
+        setStato("Reading the sheet…");
         lette = await leggiXlsx(file);
       } else {
-        setStato("Analizzo il documento…");
+        setStato("Analysing the document…");
         const esito = await estraiTimelineIntelligente(file, setStato);
         lette = esito.attivita.map((a) => ({ nome: a.nome, inizio: a.inizio, fine: a.fine }));
         nota = esito.diario;
@@ -83,8 +83,8 @@ export function CardImport({ attivita, modificabile, onApplica }: Props) {
       if (lette.length === 0) {
         setErrore(
           est === "xlsx" || est === "xls"
-            ? `Nessuna attività riconosciuta in «${file.name}» — formato atteso: Attività | Inizio | Fine`
-            : `Non sono riuscito a leggere attività da «${file.name}».`
+            ? `No activity recognised in «${file.name}» — expected format: Activity | Start | End`
+            : `Could not read any activity from «${file.name}».`
         );
         setRighe(null);
         return;
@@ -103,7 +103,7 @@ export function CardImport({ attivita, modificabile, onApplica }: Props) {
       );
       setDiario(nota);
     } catch (e) {
-      setErrore(e instanceof Error ? e.message : "Non riesco a leggere questo file.");
+      setErrore(e instanceof Error ? e.message : "Cannot read this file.");
       setRighe(null);
     } finally {
       setInCorso(false);
@@ -124,7 +124,7 @@ export function CardImport({ attivita, modificabile, onApplica }: Props) {
       );
       azzera();
     } catch (e) {
-      setErrore(e instanceof Error ? e.message : "Salvataggio non riuscito.");
+      setErrore(e instanceof Error ? e.message : "Could not save.");
     } finally {
       setSalvando(false);
     }
@@ -136,9 +136,9 @@ export function CardImport({ attivita, modificabile, onApplica }: Props) {
   return (
     <section className="rounded-xl border bg-card p-5">
       <IntestazioneCard
-        titolo="IMPORTA IL CRONOPROGRAMMA"
-        chip="facoltativo"
-        nota="Se hai il gantt del cantiere, caricalo: attività e date entrano da lì. Aggiorna solo le righe che riconosci — dipendenze e date forzate restano come sono."
+        titolo="IMPORT THE SCHEDULE"
+        chip="optional"
+        nota="If you have the site gantt, upload it: activities and dates come from there. Only the rows you recognise get updated — dependencies and manual dates stay as they are."
       />
 
       {!righe && (
@@ -158,21 +158,21 @@ export function CardImport({ attivita, modificabile, onApplica }: Props) {
           {inCorso ? (
             <>
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              <p className="text-sm font-medium">{stato || "Lettura in corso…"}</p>
+              <p className="text-sm font-medium">{stato || "Reading…"}</p>
               <p className="max-w-md text-xs text-muted-foreground">
-                Se il gantt mostra solo barre senza date scritte, le date si leggono dalla
-                posizione delle barre contro la scala dei mesi.
+                If the gantt shows only bars with no written dates, the dates are read
+                from where the bars fall against the month scale.
               </p>
             </>
           ) : (
             <>
               <FileUp className="h-6 w-6 text-muted-foreground" />
-              <p className="text-sm font-medium">Trascina qui il file</p>
+              <p className="text-sm font-medium">Drop the file here</p>
               <p className="text-xs text-muted-foreground">
-                XLSX (<span className="tabular-nums">Attività | Inizio | Fine</span>) · PDF · immagine
+                XLSX (<span className="tabular-nums">Activity | Start | End</span>) · PDF · image
               </p>
               <Button variant="outline" size="sm" disabled={!modificabile} onClick={() => fileRef.current?.click()}>
-                Scegli il file
+                Choose a file
               </Button>
               <input
                 ref={fileRef}
@@ -201,9 +201,9 @@ export function CardImport({ attivita, modificabile, onApplica }: Props) {
         <div className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs">
-              <b>{righe.length}</b> righe lette da «{nomeFile}» ·{" "}
+              <b>{righe.length}</b> rows read from «{nomeFile}» ·{" "}
               <span className="text-muted-foreground">
-                {conta("aggiorna")} aggiornano, {conta("nuova")} nuove, {conta("ignora")} ignorate
+                {conta("aggiorna")} update, {conta("nuova")} new, {conta("ignora")} ignored
               </span>
             </p>
             <button
@@ -211,7 +211,7 @@ export function CardImport({ attivita, modificabile, onApplica }: Props) {
               onClick={azzera}
               className="text-xs text-muted-foreground underline hover:text-foreground"
             >
-              scarta e ricomincia
+              discard and start over
             </button>
           </div>
 
@@ -221,9 +221,9 @@ export function CardImport({ attivita, modificabile, onApplica }: Props) {
             <table className="w-full text-xs">
               <thead className="sticky top-0 bg-card">
                 <tr className="border-b text-[10px] uppercase tracking-wider text-muted-foreground">
-                  <th className="px-2 py-1.5 text-left font-medium">Riga del file</th>
-                  <th className="px-2 py-1.5 text-left font-medium">Date</th>
-                  <th className="px-2 py-1.5 text-left font-medium">Cosa ne faccio</th>
+                  <th className="px-2 py-1.5 text-left font-medium">File row</th>
+                  <th className="px-2 py-1.5 text-left font-medium">Dates</th>
+                  <th className="px-2 py-1.5 text-left font-medium">What to do</th>
                 </tr>
               </thead>
               <tbody>
@@ -233,7 +233,7 @@ export function CardImport({ attivita, modificabile, onApplica }: Props) {
                       <p className={cn("font-medium", r.destino === "ignora" && "line-through")}>{r.riga.nome}</p>
                       {r.attivitaNome && (
                         <p className="text-[10.5px] text-muted-foreground">
-                          somiglia a «{r.attivitaNome}»{" "}
+                          matches «{r.attivitaNome}»{" "}
                           <span className="tabular-nums">({Math.round(r.punteggio * 100)}%)</span>
                         </p>
                       )}
@@ -253,11 +253,11 @@ export function CardImport({ attivita, modificabile, onApplica }: Props) {
                           )
                         }
                         className="h-7 rounded-md border bg-background px-1.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-                        aria-label={`Cosa fare con ${r.riga.nome}`}
+                        aria-label={`What to do with ${r.riga.nome}`}
                       >
-                        {r.attivitaId && <option value="aggiorna">aggiorna «{r.attivitaNome}»</option>}
-                        <option value="nuova">crea come nuova attività</option>
-                        <option value="ignora">ignora</option>
+                        {r.attivitaId && <option value="aggiorna">update «{r.attivitaNome}»</option>}
+                        <option value="nuova">create as a new activity</option>
+                        <option value="ignora">ignore</option>
                       </select>
                     </td>
                   </tr>
@@ -275,12 +275,12 @@ export function CardImport({ attivita, modificabile, onApplica }: Props) {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-[11px] text-muted-foreground">
               {daScrivere === 0
-                ? "Nessuna riga selezionata: non c'è niente da scrivere."
-                : "Le date già presenti sulle righe non toccate restano dove sono."}
+                ? "No rows selected: there is nothing to write."
+                : "Dates already on untouched rows stay where they are."}
             </span>
             <Button size="sm" disabled={daScrivere === 0 || salvando} onClick={conferma}>
               {salvando && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
-              Applica · {daScrivere} righe
+              Apply · {daScrivere} rows
             </Button>
           </div>
         </div>

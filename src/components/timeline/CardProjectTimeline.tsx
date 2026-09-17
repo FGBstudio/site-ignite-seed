@@ -76,9 +76,9 @@ export function CardProjectTimeline({
       <IntestazioneCard
         numero={1}
         titolo="PROJECT TIMELINE"
-        chip="condivisa"
-        pill={`${datate} di ${attivita.length} attività`}
-        nota="Record unico per sito: compilata una volta, vale per tutti i servizi che vi insistono. L'avanzamento si calcola dal tempo — la dipendenza è facoltativa."
+        chip="shared"
+        pill={`${datate} of ${attivita.length} activities`}
+        nota="One record per site: fill it in once and it serves every service on that site. Progress comes from elapsed time — dependencies are optional."
       />
 
       {attivita.length === 0 ? (
@@ -86,14 +86,14 @@ export function CardProjectTimeline({
            cronoprogramma»: chi il gantt non ce l'ha ancora restava fermo. */
         <div className="rounded-lg border border-dashed bg-muted/20 p-6 text-center">
           <p className="text-xs text-muted-foreground">
-            La timeline è vuota. Carica il gantt qui sopra, parti da un modello, oppure
-            scrivi la prima attività.
+            This timeline is empty. Upload the gantt above, start from a template, or
+            type the first activity.
           </p>
           {modificabile && (
             <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
               {onUsaModello && (
                 <Button size="sm" variant="outline" onClick={onUsaModello}>
-                  <LayoutTemplate className="mr-1.5 h-3.5 w-3.5" /> Parti da un modello
+                  <LayoutTemplate className="mr-1.5 h-3.5 w-3.5" /> Start from a template
                 </Button>
               )}
               {onAggiungi && (
@@ -102,12 +102,12 @@ export function CardProjectTimeline({
                     value={nuova}
                     onChange={(e) => setNuova(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && aggiungi()}
-                    placeholder="Nome dell'attività…"
-                    aria-label="Nome della nuova attività"
+                    placeholder="Activity name…"
+                    aria-label="Name of the new activity"
                     className="h-8 w-52 text-xs"
                   />
                   <Button size="sm" disabled={!nuova.trim() || inCorso} onClick={aggiungi}>
-                    <Plus className="mr-1 h-3.5 w-3.5" /> Aggiungi
+                    <Plus className="mr-1 h-3.5 w-3.5" /> Add
                   </Button>
                 </span>
               )}
@@ -122,10 +122,10 @@ export function CardProjectTimeline({
                 {/* Le colonne secondarie si tolgono sul telefono (spec 9):
                     il numero di riga non serve a compilare. */}
                 <th className="hidden w-8 px-2 py-1.5 text-left font-medium sm:table-cell">#</th>
-                <th className="px-2 py-1.5 text-left font-medium">Attività</th>
-                <th className="px-2 py-1.5 text-left font-medium">Inizio</th>
-                <th className="px-2 py-1.5 text-left font-medium">Fine</th>
-                <th className="px-2 py-1.5 text-left font-medium">Avanz.</th>
+                <th className="px-2 py-1.5 text-left font-medium">Activity</th>
+                <th className="px-2 py-1.5 text-left font-medium">Start</th>
+                <th className="px-2 py-1.5 text-left font-medium">End</th>
+                <th className="px-2 py-1.5 text-left font-medium">Progress</th>
               </tr>
             </thead>
             <tbody>
@@ -156,7 +156,7 @@ export function CardProjectTimeline({
                           else e.target.value = a.nome;
                         }}
                         onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-                        aria-label={`Nome di ${a.nome}`}
+                        aria-label={`Name of ${a.nome}`}
                         className="w-full min-w-[150px] rounded border border-transparent bg-transparent px-1 py-0.5 font-medium leading-tight outline-none hover:border-border focus-visible:border-primary focus-visible:bg-background"
                       />
                     ) : (
@@ -182,8 +182,8 @@ export function CardProjectTimeline({
                     <CampoData
                       value={a.inizio}
                       disabled={!modificabile}
-                      aria={`Inizio di ${a.nome}`}
-                      placeholder="aggiungi"
+                      aria={`Start of ${a.nome}`}
+                      placeholder="add"
                       attesa
                       className="w-[134px]"
                       onChange={(v) => onData(a.id, "inizio", v)}
@@ -194,11 +194,11 @@ export function CardProjectTimeline({
                     <CampoData
                       value={a.fine}
                       disabled={!modificabile}
-                      aria={`Fine di ${a.nome}`}
-                      placeholder="aggiungi"
+                      aria={`End of ${a.nome}`}
+                      placeholder="add"
                       attesa
                       riferimento={a.inizio}
-                      riferimentoNome="l'inizio"
+                      riferimentoNome="the start"
                       className="w-[134px]"
                       onChange={(v) => onData(a.id, "fine", v)}
                     />
@@ -213,8 +213,8 @@ export function CardProjectTimeline({
                       <button
                         type="button"
                         onClick={() => onElimina(a.id, a.nome)}
-                        aria-label={`Elimina ${a.nome}`}
-                        title="Elimina questa attività"
+                        aria-label={`Delete ${a.nome}`}
+                        title="Delete this activity"
                         className="rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:text-destructive focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary group-hover:opacity-100"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -236,8 +236,8 @@ export function CardProjectTimeline({
                         value={nuova}
                         onChange={(e) => setNuova(e.target.value)}
                         onKeyDown={(e) => e.key === "Enter" && aggiungi()}
-                        placeholder="Aggiungi un'attività…"
-                        aria-label="Nome della nuova attività"
+                        placeholder="Add an activity…"
+                        aria-label="Name of the new activity"
                         className="h-8 max-w-xs text-xs"
                       />
                       <Button
@@ -271,15 +271,15 @@ function Avanzamento({ a }: { a: AttivitaDerivata }) {
   if (a.avanzamento === null) {
     return (
       <span className="text-[11px] text-amber-700 dark:text-amber-400">
-        manca la fine
+        end date missing
       </span>
     );
   }
 
   const colore =
-    a.stato === "completata"
+    a.stato === "completed"
       ? "hsl(var(--success))"
-      : a.stato === "in corso"
+      : a.stato === "in progress"
         ? "hsl(var(--primary))"
         : "hsl(var(--muted-foreground))";
 
@@ -339,14 +339,14 @@ function SelettoreDipendenze({
         className="flex items-center gap-1 rounded text-[11px] text-amber-700 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary dark:text-amber-400"
       >
         <Link2 className="h-3 w-3" />
-        {nomi.length === 0 ? "dipende da: nessuna" : `dipende da: ${nomi.join(", ")}`}
+        {nomi.length === 0 ? "depends on: none" : `depends on: ${nomi.join(", ")}`}
       </button>
 
       {aperto && (
         <div className="mt-1 max-h-44 space-y-0.5 overflow-y-auto rounded-md border bg-popover p-1.5">
           {tutte.length <= 1 && (
             <p className="px-1 py-1 text-[11px] text-muted-foreground">
-              Serve almeno un'altra attività.
+              At least one other activity is needed.
             </p>
           )}
           {tutte
@@ -357,7 +357,7 @@ function SelettoreDipendenze({
               return (
                 <label
                   key={o.id}
-                  title={ciclo ? "Creerebbe una dipendenza circolare" : undefined}
+                  title={ciclo ? "This would create a circular dependency" : undefined}
                   className={cn(
                     "flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-xs hover:bg-muted",
                     ciclo && "cursor-not-allowed opacity-40 hover:bg-transparent"
@@ -374,7 +374,7 @@ function SelettoreDipendenze({
                     }
                   />
                   <span className="min-w-0 truncate">{o.nome}</span>
-                  {ciclo && <span className="ml-auto shrink-0 text-[10px]">circolare</span>}
+                  {ciclo && <span className="ml-auto shrink-0 text-[10px]">circular</span>}
                 </label>
               );
             })}

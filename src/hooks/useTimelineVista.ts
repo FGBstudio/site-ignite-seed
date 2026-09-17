@@ -30,6 +30,8 @@ export interface DatiVista {
   attivita: AttivitaProgetto[];
   passi: PassoServizio[];
   modificabile: boolean;
+  /** I passi vengono dal catalogo: esistono, ma non sono ancora righe salvate. */
+  passiDaCatalogo: boolean;
   /** La data contrattuale: il wizard di import la mostra e non la tocca. */
   handoverBaseline: string | null;
   tipoProgetto: "design_construction" | "construction";
@@ -99,7 +101,52 @@ export function useTimelineVista(certId: string | undefined) {
         dipendeDa: madri.get(e.id) ?? [],
       }));
 
-      const passi: PassoServizio[] = (msRes.data ?? [])
+      /**
+       * I passi del servizio ci sono SEMPRE.
+       *
+       * Prima comparivano solo dopo che qualcuno premeva «genera»: fino a
+       * quel momento la card era vuota, e il PM non aveva modo di sapere
+       * quali fossero i passi della sua certificazione. Peggio, il pulsante
+       * poteva non funzionare — la materializzazione ha un gate che la ferma
+       * finché il sito non ha una project timeline — e allora restava una
+       * card muta senza spiegazione.
+       *
+       * Adesso, quando non c'è ancora niente di salvato, si leggono i passi
+       * dal CATALOGO: la scaletta di LEED ID+C, di WELL Core, quella che
+       * corrisponde al servizio. Sono già lì, pronti, con le loro date vuote
+       * da compilare. Diventano righe vere del database alla prima cosa che
+       * il PM ci scrive — non prima, perché finché non le tocca non c'è
+       * niente da salvare.
+       */
+      const materializzati = (msRes.data ?? []).length > 0;
+
+      let daCatalogo: PassoServizio[] = [];
+      if (!materializzati) {
+        const { data: chiave } = await (supabase as any).rpc("fn_timeline_key_for_cert", {
+          p_certification_id: certId,
+        });
+        if (chiave) {
+          const { data: scaletta } = await (supabase as any)
+            .from("cert_timeline_steps")
+            .select("order_index, requirement, timing_kind, anchor_order, offset_days, optional")
+            .eq("timeline_key", chiave)
+            .order("order_index");
+
+          daCatalogo = ((scaletta ?? []) as any[]).map((s) => ({
+            // L'id porta il prefisso: chi lo riceve deve poter capire che
+            // questa riga nel database non esiste ancora.
+            id: `catalogo:${s.order_index}`,
+            nome: s.requirement,
+            ordine: s.order_index ?? 0,
+            ancora: null,
+            dataForzata: null,
+            avanzamento: 0,
+          }));
+        }
+      }
+
+      const passi: PassoServizio[] = materializzati
+        ? (msRes.data ?? [])
         // La serie ricorrente (report mensili) non è un passo della scaletta:
         // ha una riga per occorrenza e va mostrata altrove. Fuori scope §12.
         .filter((m: any) => m.series_step_order === null && !m.not_applicable)
@@ -119,7 +166,8 @@ export function useTimelineVista(certId: string | undefined) {
           // è l'unica cosa che può mostrare e modificare.
           dataForzata: m.override_date ?? (m.crono_evento_id ? null : m.due_date ?? null),
           avanzamento: m.avanzamento ?? 0,
-        }));
+        }))
+        : daCatalogo;
 
       const admin = !!utente && (await isAdmin(utente.id));
 
@@ -133,6 +181,7 @@ export function useTimelineVista(certId: string | undefined) {
         attivita,
         passi,
         modificabile: admin || cert.pm_id === utente?.id,
+        passiDaCatalogo: !materializzati && daCatalogo.length > 0,
         handoverBaseline: cert.baseline_handover_date ?? cert.handover_date ?? null,
         tipoProgetto: proponiTipo(cert.cert_type, cert.cert_rating).tipo === "construction"
           ? "construction"
@@ -542,4 +591,50 @@ export function useRigheManuali(certId: string | undefined) {
     rinominaPasso,
     eliminaPasso,
   };
+}
+
+/**
+ * Agganciare un passo del servizio a un'attività di progetto.
+ *
+ * È il gesto che rende la HQ FGB timeline viva invece che una lista di date
+ * scritte a mano: «GC closeout, 30 giorni dopo la fine dell'Handover». Da quel
+ * momento, se il cantiere slitta, la data del passo si sposta da sola.
+ *
+ * I tre campi viaggiano insieme perché insieme sono una frase — quale
+ * attività, quale estremo, quanti giorni — e scriverne uno senza gli altri
+ * lascia un'àncora che punta a qualcosa senza dire cosa leggerne.
+ */
+export function useAncoraggio(certId: string | undefined) {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (i: {
+      passoId: string;
+      attivitaId: string | null;
+      punto: PuntoAncora;
+      offsetGiorni: number;
+    }) => {
+      const { error } = await (supabase as any)
+        .from("certification_milestones")
+        .update({
+          crono_evento_id: i.attivitaId,
+          anchor_point: i.attivitaId ? i.punto : null,
+          offset_days: i.attivitaId ? i.offsetGiorni : null,
+          // Sganciare rimette in gioco il calcolo: se restasse l'override, la
+          // data continuerebbe a non seguire niente e sembrerebbe un difetto.
+          ...(i.attivitaId ? {} : { override_date: null }),
+        })
+        .eq("id", i.passoId);
+      if (error) throw error;
+
+      // Il ricalcolo lo fa il database: qui si chiede, non si calcola.
+      if (certId) {
+        await (supabase as any).rpc("fn_refresh_timeline_dates", { p_certification_id: certId });
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["timeline-vista", certId] });
+      qc.invalidateQueries({ queryKey: ["crono"] });
+    },
+  });
 }

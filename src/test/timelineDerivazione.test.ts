@@ -56,11 +56,11 @@ describe("aggiungiGiorni", () => {
   });
 });
 
-describe("avanzamento delle attività di progetto (§11: 100/in corso/0)", () => {
+describe("avanzamento delle attività di progetto (§11: 100/in progress/0)", () => {
   it("attività conclusa nel passato → 100% completata", () => {
     const pct = avanzamentoAttivita({ inizio: "2026-01-01", fine: "2026-03-01" }, OGGI);
     expect(pct).toBe(100);
-    expect(statoAttivita(pct)).toBe("completata");
+    expect(statoAttivita(pct)).toBe("completed");
   });
 
   it("attività a cavallo di oggi → percentuale coerente col tempo (±1%)", () => {
@@ -68,13 +68,13 @@ describe("avanzamento delle attività di progetto (§11: 100/in corso/0)", () =>
     const pct = avanzamentoAttivita({ inizio: "2026-06-01", fine: "2026-07-01" }, OGGI);
     expect(pct).toBeGreaterThanOrEqual(46);
     expect(pct).toBeLessThanOrEqual(48);
-    expect(statoAttivita(pct)).toBe("in corso");
+    expect(statoAttivita(pct)).toBe("in progress");
   });
 
   it("attività futura → 0% pianificata", () => {
     const pct = avanzamentoAttivita({ inizio: "2026-09-01", fine: "2026-12-01" }, OGGI);
     expect(pct).toBe(0);
-    expect(statoAttivita(pct)).toBe("pianificata");
+    expect(statoAttivita(pct)).toBe("planned");
   });
 
   it("manca una delle due date → non si dice, e non si dice zero", () => {
@@ -128,7 +128,7 @@ describe("dataDaAncora — il punto (start | end)", () => {
     const m = new Map([[vuota.id, vuota]]);
     const d = dataDaAncora({ attivitaId: "x", punto: "end", offsetGiorni: 30 }, m);
     expect(d).toBeNull();
-    expect(naturaPasso({ dataForzata: null }, d)).toBe("in attesa");
+    expect(naturaPasso({ dataForzata: null }, d)).toBe("waiting");
   });
 });
 
@@ -144,7 +144,7 @@ describe("derivaPassi", () => {
       atts
     );
     expect(p.dataEffettiva).toBe("2026-05-02");
-    expect(p.natura).toBe("calcolata");
+    expect(p.natura).toBe("calculated");
   });
 
   it("override → natura manuale, e vince sull'àncora (§11)", () => {
@@ -159,7 +159,7 @@ describe("derivaPassi", () => {
       atts
     );
     expect(p.dataEffettiva).toBe("2026-07-01");
-    expect(p.natura).toBe("manuale");
+    expect(p.natura).toBe("manual");
   });
 
   it("tolto l'override si torna al calcolo (§11: il ↺ funziona)", () => {
@@ -168,7 +168,7 @@ describe("derivaPassi", () => {
     const [senza] = derivaPassi([base], atts);
     expect(conOverride.dataEffettiva).toBe("2026-07-01");
     expect(senza.dataEffettiva).toBe("2026-05-02");
-    expect(senza.natura).toBe("calcolata");
+    expect(senza.natura).toBe("calculated");
   });
 
   it("le durate si misurano sull'ordine di DATA, non di elenco", () => {
@@ -210,16 +210,16 @@ describe("derivaPassi", () => {
     );
     expect(p.find((x) => x.id === "b")!.durataGiorni).toBeNull();
     expect(p.find((x) => x.id === "muto")!.durataGiorni).toBeNull();
-    expect(p.find((x) => x.id === "muto")!.natura).toBe("in attesa");
+    expect(p.find((x) => x.id === "muto")!.natura).toBe("waiting");
   });
 });
 
 describe("etichettaDurata", () => {
   it("giorni sotto i due mesi, mesi sopra", () => {
-    expect(etichettaDurata(47)).toBe("47 gg");
-    expect(etichettaDurata(59)).toBe("59 gg");
-    expect(etichettaDurata(60)).toBe("2 mesi");
-    expect(etichettaDurata(180)).toBe("6 mesi");
+    expect(etichettaDurata(47)).toBe("47 d");
+    expect(etichettaDurata(59)).toBe("59 d");
+    expect(etichettaDurata(60)).toBe("2 months");
+    expect(etichettaDurata(180)).toBe("6 months");
     expect(etichettaDurata(null)).toBeNull();
   });
 });

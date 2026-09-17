@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { Link2, Loader2, Plus, RotateCcw, Sparkles, Trash2 } from "lucide-react";
 import { CampoData } from "@/components/cronoprogramma/CampoData";
 import { IntestazioneCard } from "@/components/timeline/IntestazioneCard";
+import { SelettoreAncoraggio } from "@/components/timeline/SelettoreAncoraggio";
 import { tintaServizio } from "@/lib/serviceColors";
 import type { AttivitaDerivata, PassoDerivato } from "@/lib/timelineDerivazione";
 
@@ -38,6 +39,13 @@ interface Props {
   onAggiungi?: (nome: string) => Promise<void> | void;
   onRinomina?: (id: string, nome: string) => void;
   onElimina?: (id: string, nome: string) => void;
+  /** Agganciare il passo a un'attivita' di progetto. */
+  onAncoraggio?: (
+    passoId: string,
+    attivitaId: string | null,
+    punto: "start" | "end",
+    offsetGiorni: number
+  ) => Promise<void> | void;
   /** Genera la scaletta del servizio. Senza, la card resta muta. */
   onGenera?: () => Promise<void> | void;
   generando?: boolean;
@@ -55,6 +63,7 @@ export function CardCertTimeline({
   onAggiungi,
   onRinomina,
   onElimina,
+  onAncoraggio,
   onGenera,
   generando,
 }: Props) {
@@ -83,14 +92,14 @@ export function CardCertTimeline({
         numero={2}
         titolo="HQ FGB TIMELINE"
         chip={nomeServizio ?? undefined}
-        pill={`${datati} di ${passi.length} passi`}
-        nota="Milestone del servizio: una data ciascuna, la durata corre fino al passo successivo. La data è ancorata alla project timeline — tocca la catena per vedere il collegamento."
+        pill={`${datati} of ${passi.length} steps`}
+        nota="Service milestones: one date each, the duration runs to the next step. Dates are anchored to the project timeline — tap the chain to see the link."
       />
 
       <div className="mb-4 flex items-start gap-2 rounded-lg bg-foreground px-3 py-2.5 text-[11px] leading-relaxed text-background">
         <span>
-          L'avanzamento parte da zero e si aggiorna <b>manualmente</b>: ogni venerdì la dashboard ti
-          inviterà ad aggiornare le percentuali delle attività in corso.
+          Progress starts at zero and is updated <b>manually</b>: every Friday the dashboard will
+          ask you to update the percentages of what is in progress.
         </span>
       </div>
 
@@ -102,16 +111,15 @@ export function CardCertTimeline({
            conosce già: non c'è niente da scegliere, solo da chiedere. */
         <div className="rounded-lg border border-dashed bg-muted/20 p-6 text-center">
           <p className="text-xs text-muted-foreground">
-            I passi di <b className="text-foreground">{nomeServizio ?? "questo servizio"}</b> non
-            sono ancora stati creati. Arrivano dalla scaletta del servizio, già pronta nel
-            catalogo.
+            The steps for <b className="text-foreground">{nomeServizio ?? "this service"}</b> have
+            not been created yet. They come from the service checklist, already in the catalogue.
           </p>
           <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
             {modificabile && onGenera && (
               <Button size="sm" disabled={generando} onClick={() => onGenera()}>
                 {generando && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
                 <Sparkles className="mr-1.5 h-3.5 w-3.5" />
-                Crea i passi del servizio
+                Create the service steps
               </Button>
             )}
             {modificabile && onAggiungi && (
@@ -120,8 +128,8 @@ export function CardCertTimeline({
                   value={nuovo}
                   onChange={(e) => setNuovo(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && aggiungi()}
-                  placeholder="…oppure scrivi il primo passo"
-                  aria-label="Nome del primo passo"
+                  placeholder="…or type the first step"
+                  aria-label="Name of the first step"
                   className="h-8 w-52 text-xs"
                 />
                 <Button
@@ -144,10 +152,10 @@ export function CardCertTimeline({
                 {/* Spec 9: su mobile cadono # e Natura. La natura resta
                     leggibile dal campo data, tratteggiato quando e' calcolata. */}
                 <th className="hidden w-8 px-2 py-1.5 text-left font-medium sm:table-cell">#</th>
-                <th className="px-2 py-1.5 text-left font-medium">Passo</th>
-                <th className="px-2 py-1.5 text-left font-medium">Data</th>
-                <th className="px-2 py-1.5 text-left font-medium">Avanz.</th>
-                <th className="hidden px-2 py-1.5 text-left font-medium md:table-cell">Natura</th>
+                <th className="px-2 py-1.5 text-left font-medium">Step</th>
+                <th className="px-2 py-1.5 text-left font-medium">Date</th>
+                <th className="px-2 py-1.5 text-left font-medium">Progress</th>
+                <th className="hidden px-2 py-1.5 text-left font-medium md:table-cell">Source</th>
               </tr>
             </thead>
             <tbody>
@@ -179,27 +187,32 @@ export function CardCertTimeline({
                             else e.target.value = p.nome;
                           }}
                           onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-                          aria-label={`Nome di ${p.nome}`}
+                          aria-label={`Name of ${p.nome}`}
                           className="w-full min-w-[150px] rounded border border-transparent bg-transparent px-1 py-0.5 font-medium leading-tight outline-none hover:border-border focus-visible:border-primary focus-visible:bg-background"
                         />
                       ) : (
                         <p className="font-medium leading-tight">{p.nome}</p>
                       )}
-                      {p.ancora && (
-                        <span className="mt-1 flex flex-wrap items-center gap-1.5">
-                          <span
-                            className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium"
-                            style={{ background: tinta.bg, color: tinta.strong }}
-                          >
-                            <Link2 className="h-2.5 w-2.5" />
+                      {/* L'ancora non si legge soltanto: si imposta. Prima
+                          il chip diceva da dove veniva la data e basta, e
+                          per cambiarla bisognava andare nella vista vecchia. */}
+                      {onAncoraggio && !p.id.startsWith("catalogo:") ? (
+                        <SelettoreAncoraggio
+                          passo={p}
+                          attivita={attivita}
+                          modificabile={modificabile}
+                          tinta={tinta.strong}
+                          onCambia={(id, punto, off) => onAncoraggio(p.id, id, punto, off)}
+                        />
+                      ) : (
+                        p.ancora && (
+                          <span className="mt-1 text-[10.5px] text-amber-700 dark:text-amber-400">
                             {p.ancora.offsetGiorni >= 0 ? "+" : "−"}
-                            {Math.abs(p.ancora.offsetGiorni)}gg
+                            {Math.abs(p.ancora.offsetGiorni)}d from the{" "}
+                            {p.ancora.punto === "start" ? "start" : "end"} of{" "}
+                            {madre?.nome ?? "activity removed"}
                           </span>
-                          <span className="text-[10.5px] text-amber-700 dark:text-amber-400">
-                            {p.ancora.punto === "start" ? "inizio" : "fine"} di:{" "}
-                            {madre?.nome ?? "attività rimossa"}
-                          </span>
-                        </span>
+                        )
                       )}
                     </td>
 
@@ -209,12 +222,12 @@ export function CardCertTimeline({
                       <CampoData
                         value={p.dataEffettiva}
                         disabled={!modificabile}
-                        aria={`Data di ${p.nome}`}
-                        placeholder={p.natura === "in attesa" ? "in attesa" : "aggiungi"}
+                        aria={`Date of ${p.nome}`}
+                        placeholder={p.natura === "waiting" ? "waiting" : "aggiungi"}
                         tinta={tinta.strong}
                         className={cn(
                           "w-[134px]",
-                          p.natura === "calcolata" && "border-dashed text-muted-foreground"
+                          p.natura === "calculated" && "border-dashed text-muted-foreground"
                         )}
                         onChange={(v) => onData(p.id, v)}
                       />
@@ -233,12 +246,12 @@ export function CardCertTimeline({
                     <td className="hidden px-2 py-2 md:table-cell">
                       <span className="flex items-center gap-1.5">
                         <NaturaChip natura={p.natura} tinta={tinta.strong} />
-                        {p.natura === "manuale" && modificabile && (
+                        {p.natura === "manual" && modificabile && (
                           <button
                             type="button"
                             onClick={() => onData(p.id, null)}
-                            title="Torna alla data calcolata dall'àncora"
-                            aria-label={`Ricalcola la data di ${p.nome} dall'àncora`}
+                            title="Back to the date calculated from the anchor"
+                            aria-label={`Recalculate the date of ${p.nome} from its anchor`}
                             className="rounded opacity-0 motion-safe:transition-opacity hover:text-foreground focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary group-hover:opacity-100"
                           >
                             <RotateCcw className="h-3.5 w-3.5 text-muted-foreground" />
@@ -252,8 +265,8 @@ export function CardCertTimeline({
                           <button
                             type="button"
                             onClick={() => onElimina(p.id, p.nome)}
-                            aria-label={`Elimina ${p.nome}`}
-                            title="Elimina questo passo aggiunto a mano"
+                            aria-label={`Delete ${p.nome}`}
+                            title="Delete this manually added step"
                             className="rounded p-0.5 text-muted-foreground opacity-0 motion-safe:transition-opacity hover:text-destructive focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary group-hover:opacity-100"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -274,8 +287,8 @@ export function CardCertTimeline({
                         value={nuovo}
                         onChange={(e) => setNuovo(e.target.value)}
                         onKeyDown={(e) => e.key === "Enter" && aggiungi()}
-                        placeholder="Aggiungi un passo…"
-                        aria-label="Nome del nuovo passo"
+                        placeholder="Add a step…"
+                        aria-label="Name of the new step"
                         className="h-8 max-w-xs text-xs"
                       />
                       <Button
@@ -328,7 +341,7 @@ function Percentuale({
         step={5}
         value={valore}
         disabled={disabled}
-        aria-label={`Percentuale di avanzamento di ${etichetta}`}
+        aria-label={`Progress percentage for ${etichetta}`}
         onChange={(e) => {
           const n = Number(e.target.value);
           if (Number.isFinite(n)) onChange(Math.max(0, Math.min(100, Math.round(n))));
@@ -342,26 +355,26 @@ function Percentuale({
 }
 
 function NaturaChip({ natura, tinta }: { natura: PassoDerivato["natura"]; tinta: string }) {
-  if (natura === "calcolata") {
+  if (natura === "calculated") {
     return (
       <Badge
         variant="outline"
         className="text-[10px]"
         style={{ borderColor: tinta, color: tinta }}
-        title="La data viene dall'àncora sulla project timeline"
+        title="The date comes from the anchor on the project timeline"
       >
-        calcolata
+        calculated
       </Badge>
     );
   }
-  if (natura === "manuale") {
+  if (natura === "manual") {
     return (
       <Badge
         variant="outline"
         className="border-amber-500 text-[10px] text-amber-700 dark:text-amber-400"
-        title="Data scritta a mano: non segue più l'àncora finché non premi ↺"
+        title="Date typed by hand: it no longer follows the anchor until you press ↺"
       >
-        manuale
+        manual
       </Badge>
     );
   }
@@ -369,9 +382,9 @@ function NaturaChip({ natura, tinta }: { natura: PassoDerivato["natura"]; tinta:
     <Badge
       variant="outline"
       className="text-[10px] text-muted-foreground"
-      title="L'attività di riferimento non ha ancora una data"
+      title="The referenced activity does not have a date yet"
     >
-      in attesa
+      waiting
     </Badge>
   );
 }

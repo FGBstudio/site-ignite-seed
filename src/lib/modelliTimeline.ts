@@ -58,7 +58,7 @@ const IDC: VoceModello[] = [
   { nome: "Design Development (DD)", giorni: 45, famiglia: "design", dopo: 2 },
   { nome: "Construction Documents (CD)", giorni: 60, famiglia: "design", dopo: 3 },
   { nome: "Tender", giorni: 45, famiglia: "design", dopo: 4, ancora: "lancio_gara",
-    nota: "la chiusura della gara apre i vincoli di precedenza delle scalette" },
+    nota: "closing the tender opens the checklist precedence rules" },
   { nome: "Construction Preparation (GC, MW, FC)", giorni: 21, famiglia: "construction", dopo: 5 },
   { nome: "Production (MW, FC)", giorni: 14, famiglia: "construction", dopo: 6 },
   { nome: "Transport (MW, FC)", giorni: 14, famiglia: "construction", dopo: 7 },
@@ -66,7 +66,7 @@ const IDC: VoceModello[] = [
   { nome: "Mid-Construction", giorni: 28, famiglia: "construction", dopo: 9 },
   { nome: "Construction end", giorni: 35, famiglia: "construction", dopo: 10 },
   { nome: "Handover", giorni: 0, famiglia: "construction", dopo: 11, ancora: "handover",
-    nota: "la data arriva dalla Quotation: è contrattuale" },
+    nota: "the date comes from the Quotation: it is contractual" },
   { nome: "Opening", giorni: 0, famiglia: "construction", dopo: 12 },
   { nome: "Snag list", giorni: 5, famiglia: "construction", dopo: 13 },
 ];
@@ -92,7 +92,7 @@ const BDC: VoceModello[] = [
 
   { nome: "Preparation of Environmental Impact Study (EIS)", giorni: g(2.5), famiglia: "permitting" },
   { nome: "Issuance of Environmental Terms Approval (AEΠΟ)", giorni: g(8), famiglia: "terze_parti", dopo: 8,
-    nota: "otto mesi di ente terzo: non è tempo nostro" },
+    nota: "eight months of third-party review: not our time" },
   { nome: "Submission and Issuance of Installation Approval", giorni: g(3), famiglia: "terze_parti", dopo: 9 },
   { nome: "Obtaining other Approvals (Aviation, Archaeology…)", giorni: g(3), famiglia: "terze_parti", dopo: 8 },
   { nome: "Approval of Traffic Connection", giorni: g(4), famiglia: "terze_parti", dopo: 8 },
@@ -111,7 +111,7 @@ const BDC: VoceModello[] = [
   { nome: "Construction of the Project", giorni: g(11.5), famiglia: "construction", dopo: 22 },
   { nome: "Installation of Racking System", giorni: g(2), famiglia: "construction", dopo: 23 },
   { nome: "Commissioning", giorni: g(0.5), famiglia: "construction", dopo: 24 },
-  { nome: "Consegna lavori / Handover", giorni: 0, famiglia: "construction", dopo: 25, ancora: "handover" },
+  { nome: "Handover of works", giorni: 0, famiglia: "construction", dopo: 25, ancora: "handover" },
 ];
 
 /**
@@ -126,55 +126,55 @@ const BDC: VoceModello[] = [
  * riunioni di cantiere.
  */
 const CANTIERE: VoceModello[] = [
-  { nome: "Consegna aree di cantiere", giorni: 0, famiglia: "construction" },
-  { nome: "F1 — Cantierizzazione e inizio lavori", giorni: 5, famiglia: "construction", dopo: 0,
+  { nome: "Site areas handover", giorni: 0, famiglia: "construction" },
+  { nome: "F1 — Site setup and start of works", giorni: 5, famiglia: "construction", dopo: 0,
     ancora: "construction_start" },
 
-  { nome: "F2 — Sottoservizi esterni", giorni: 32, famiglia: "construction", dopo: 1 },
-  { nome: "F2 — Palificazioni", giorni: 15, famiglia: "construction", dopo: 1 },
-  { nome: "F2 — Scavo plinti", giorni: 15, famiglia: "construction", dopo: 3 },
-  { nome: "F2 — Carpenterie plinti e travi porta pannello", giorni: 31, famiglia: "construction", dopo: 4 },
+  { nome: "F2 — External utilities", giorni: 32, famiglia: "construction", dopo: 1 },
+  { nome: "F2 — Piling", giorni: 15, famiglia: "construction", dopo: 1 },
+  { nome: "F2 — Footing excavation", giorni: 15, famiglia: "construction", dopo: 3 },
+  { nome: "F2 — Footings and panel beams formwork", giorni: 31, famiglia: "construction", dopo: 4 },
 
-  { nome: "F3 — Prefabbricato", giorni: 55, famiglia: "construction", dopo: 5 },
-  { nome: "F3 — Copertura", giorni: 15, famiglia: "construction", dopo: 6 },
-  { nome: "F3 — Tinteggiature", giorni: 14, famiglia: "construction", dopo: 6 },
-  { nome: "F3 — Pavimenti interni", giorni: 12, famiglia: "construction", dopo: 7 },
-  { nome: "F3 — Vespaio", giorni: 22, famiglia: "construction", dopo: 6 },
-  { nome: "F3 — Portoni e baie di carico", giorni: 30, famiglia: "construction", dopo: 9 },
-  { nome: "F3 — Uffici interni", giorni: 60, famiglia: "construction", dopo: 6 },
-  { nome: "F3 — Impianto antincendio", giorni: 60, famiglia: "construction", dopo: 6 },
-  { nome: "F3 — Impianti elettrici e meccanici", giorni: 90, famiglia: "construction", dopo: 9 },
-  { nome: "F3 — Celle frigo", giorni: 42, famiglia: "construction", dopo: 9 },
-  { nome: "F3 — Impianti celle", giorni: 60, famiglia: "construction", dopo: 15 },
+  { nome: "F3 — Precast structure", giorni: 55, famiglia: "construction", dopo: 5 },
+  { nome: "F3 — Roofing", giorni: 15, famiglia: "construction", dopo: 6 },
+  { nome: "F3 — Painting", giorni: 14, famiglia: "construction", dopo: 6 },
+  { nome: "F3 — Internal flooring", giorni: 12, famiglia: "construction", dopo: 7 },
+  { nome: "F3 — Ventilated slab", giorni: 22, famiglia: "construction", dopo: 6 },
+  { nome: "F3 — Doors and loading bays", giorni: 30, famiglia: "construction", dopo: 9 },
+  { nome: "F3 — Internal offices", giorni: 60, famiglia: "construction", dopo: 6 },
+  { nome: "F3 — Fire protection system", giorni: 60, famiglia: "construction", dopo: 6 },
+  { nome: "F3 — Electrical and mechanical systems", giorni: 90, famiglia: "construction", dopo: 9 },
+  { nome: "F3 — Cold rooms", giorni: 42, famiglia: "construction", dopo: 9 },
+  { nome: "F3 — Cold room systems", giorni: 60, famiglia: "construction", dopo: 15 },
 
-  { nome: "F4 — Preparazione sottofondi", giorni: 16, famiglia: "construction", dopo: 6 },
-  { nome: "F4 — Asfalti", giorni: 10, famiglia: "construction", dopo: 17 },
-  { nome: "F4 — Guardiania e recinzioni", giorni: 10, famiglia: "construction", dopo: 18 },
-  { nome: "F4 — Aree verdi", giorni: 15, famiglia: "construction", dopo: 18 },
+  { nome: "F4 — Sub-base preparation", giorni: 16, famiglia: "construction", dopo: 6 },
+  { nome: "F4 — Asphalt", giorni: 10, famiglia: "construction", dopo: 17 },
+  { nome: "F4 — Gatehouse and fencing", giorni: 10, famiglia: "construction", dopo: 18 },
+  { nome: "F4 — Landscaping", giorni: 15, famiglia: "construction", dopo: 18 },
 
-  { nome: "Consegna lavori", giorni: 0, famiglia: "construction", dopo: 20, ancora: "handover" },
+  { nome: "Handover of works", giorni: 0, famiglia: "construction", dopo: 20, ancora: "handover" },
 ];
 
 export const MODELLI: ModelloTimeline[] = [
   {
     chiave: "idc",
     nome: "IDC · retail fit-out",
-    descrizione: "Dal criteria package all'apertura del negozio. Fasi di design del marchio (SD, DD, CD), poi produzione, trasporto e cantiere.",
+    descrizione: "From the criteria package to store opening. The brand's design phases (SD, DD, CD), then production, transport and site works.",
     origine: "Boucheron Almaty — Store Planning EMEA",
     voci: IDC,
   },
   {
     chiave: "bdc",
-    nome: "BDC · progetto completo",
-    descrizione: "Design, permessi, enti terzi e costruzione. Il più lungo: l'approvazione ambientale da sola vale otto mesi.",
-    origine: "Γ.Χ. Έργου — progetto logistico, Grecia",
+    nome: "BDC · full project",
+    descrizione: "Design, permits, third parties and construction. The longest one: environmental approval alone takes eight months.",
+    origine: "Γ.Χ. Έργου — logistics project, Greece",
     voci: BDC,
   },
   {
     chiave: "cantiere",
-    nome: "BDC · solo cantiere",
-    descrizione: "Quando FGB entra a cantiere aperto: dalla consegna delle aree alla consegna dei lavori, fasi F1–F4.",
-    origine: "Metro Pontedera — gantt LCP",
+    nome: "BDC · site only",
+    descrizione: "When FGB joins an open site: from handover of the areas to handover of the works, phases F1–F4.",
+    origine: "Metro Pontedera — LCP gantt",
     voci: CANTIERE,
   },
 ];

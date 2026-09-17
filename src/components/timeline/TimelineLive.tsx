@@ -142,7 +142,7 @@ export function TimelineLive({ attivita, passi, servizio, oggiISO, evidenzia, on
   const FATTA = "hsl(var(--success))";
 
   const coloreAttivita = (a: AttivitaDerivata) =>
-    a.stato === "completata" ? FATTA : a.stato === "in corso" ? CORSO : INCHIOSTRO;
+    a.stato === "completed" ? FATTA : a.stato === "in progress" ? CORSO : INCHIOSTRO;
 
   return (
     <svg
@@ -151,7 +151,7 @@ export function TimelineLive({ attivita, passi, servizio, oggiISO, evidenzia, on
       viewBox={`0 0 ${W} ${H}`}
       className="mx-auto block h-auto max-w-full"
       role="img"
-      aria-label={`Timeline live: ${P.length} attività di progetto e ${C.length} passi del servizio`}
+      aria-label={`Live timeline: ${P.length} project activities and ${C.length} service steps`}
     >
       <style>{`
         @media (prefers-reduced-motion: no-preference) {
@@ -163,8 +163,8 @@ export function TimelineLive({ attivita, passi, servizio, oggiISO, evidenzia, on
       {/* La hairline centrale: le due colonne sono sempre distinte (§11). */}
       <line x1={W / 2} x2={W / 2} y1={26} y2={H - 12} stroke={SOTTILE} strokeWidth={1} />
 
-      <Testata cx={CX_PROGETTO} testo="PROGETTO" colore={INCHIOSTRO} />
-      <Testata cx={CX_CERT} testo="CERTIFICAZIONE" colore={tinta.strong} />
+      <Testata cx={CX_PROGETTO} testo="PROJECT" colore={INCHIOSTRO} />
+      <Testata cx={CX_CERT} testo="CERTIFICATION" colore={tinta.strong} />
 
       {/* ── Ancore: dal badge dell'attività a quello del passo ──────────────
           Sotto i badge e a bassa opacità: dicono «questa data viene da lì»
@@ -271,10 +271,10 @@ export function TimelineLive({ attivita, passi, servizio, oggiISO, evidenzia, on
 
             <text x={CX_PROGETTO} y={yTesto} textAnchor="middle" fontSize={11}>
               <tspan fontWeight={600} fill={a.avanzamento === null ? AMBRA : colore}>
-                {a.avanzamento === null ? "manca la fine" : `${pct}%`}
+                {a.avanzamento === null ? "end date missing" : `${pct}%`}
               </tspan>
               {a.fine && (
-                <tspan fill="hsl(var(--muted-foreground))">{`  ·  fino al ${dataBreve(a.fine)}`}</tspan>
+                <tspan fill="hsl(var(--muted-foreground))">{`  ·  until ${dataBreve(a.fine)}`}</tspan>
               )}
             </text>
           </g>
@@ -421,7 +421,7 @@ function Spina({
               <>
                 <line x1={cx - 13} x2={cx + 13} y1={yOggi} y2={yOggi} stroke={ambra} strokeWidth={2} strokeLinecap="round" />
                 <text x={cx - 18} y={yOggi + 3.5} textAnchor="end" fontSize={9} fontWeight={700} letterSpacing="0.08em" fill={ambra}>
-                  OGGI
+                  TODAY
                 </text>
               </>
             )}
@@ -481,7 +481,7 @@ function Badge({
 function InAttesa({ cx }: { cx: number }) {
   return (
     <text x={cx} y={TOP + 44} textAnchor="middle" fontSize={12} fontStyle="italic" fill="hsl(var(--muted-foreground))">
-      in attesa di date…
+      waiting for dates…
     </text>
   );
 }
@@ -495,7 +495,7 @@ function StatoVuoto() {
         <line x1={22} y1={31} x2={22} y2={58} stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeDasharray="2 7" />
         <line x1={50} y1={14} x2={50} y2={41} stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeDasharray="2 7" />
       </svg>
-      <p className="text-sm font-medium">Le timeline nascono qui</p>
+      <p className="text-sm font-medium">Timelines start here</p>
       <p className="max-w-[32ch] text-xs text-muted-foreground">
         Inserisci una data — o importa il cronoprogramma — e le due colonne cominciano a
         comporsi.
@@ -526,7 +526,7 @@ export function MetaTimeline({
   const min = date[0];
   const max = date[date.length - 1];
   const mesi = Math.max(1, Math.round(giorniTra(min, max) / 30.4));
-  const inCorso = attivita.filter((a) => a.stato === "in corso").length;
+  const inCorso = attivita.filter((a) => a.stato === "in progress").length;
 
   return (
     <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
@@ -534,12 +534,12 @@ export function MetaTimeline({
         {dataBreve(min)} → {dataBreve(max)}
       </span>
       <span>·</span>
-      <span>~{mesi} mesi</span>
+      <span>~{mesi} months</span>
       {inCorso > 0 && (
         <>
           <span>·</span>
           <span>
-            {inCorso} attività in corso
+            {inCorso} in progress
           </span>
         </>
       )}

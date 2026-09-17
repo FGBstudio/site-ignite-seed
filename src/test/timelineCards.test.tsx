@@ -70,16 +70,16 @@ describe("Card 1 · Project timeline", () => {
 
   it("gli stati sono scritti, non solo colorati (§9 accessibilità)", () => {
     monta();
-    expect(screen.getByText(/completata/)).toBeInTheDocument();
-    expect(screen.getByText(/in corso/)).toBeInTheDocument();
-    expect(screen.getByText("manca la fine")).toBeInTheDocument();
+    expect(screen.getByText(/completed/)).toBeInTheDocument();
+    expect(screen.getByText(/in progress/)).toBeInTheDocument();
+    expect(screen.getByText("end date missing")).toBeInTheDocument();
   });
 
   it("§11 — scegliere una dipendenza la salva e propone l'inizio se manca", () => {
     const { onDipendenze, onProponiInizio } = monta();
     // Tre attività senza dipendenze mostrano tre volte lo stesso testo:
     // si apre quella di «Handover», la terza.
-    fireEvent.click(screen.getAllByText(/dipende da: nessuna/i, { selector: "button" })[2]);
+    fireEvent.click(screen.getAllByText(/depends on: none/i, { selector: "button" })[2]);
     fireEvent.click(screen.getByText("Concept design", { selector: "span" }));
 
     expect(onDipendenze).toHaveBeenCalledWith("a3", ["a1"]);
@@ -103,15 +103,15 @@ describe("Card 1 · Project timeline", () => {
       />
     );
     // «Prima» non può dipendere da «Seconda»: sarebbe un anello.
-    fireEvent.click(screen.getAllByText(/dipende da/i, { selector: "button" })[0]);
-    expect(screen.getByText("circolare")).toBeInTheDocument();
-    const spunta = screen.getByTitle("Creerebbe una dipendenza circolare").querySelector("input")!;
+    fireEvent.click(screen.getAllByText(/depends on/i, { selector: "button" })[0]);
+    expect(screen.getByText("circular")).toBeInTheDocument();
+    const spunta = screen.getByTitle("This would create a circular dependency").querySelector("input")!;
     expect(spunta).toBeDisabled();
   });
 
   it("in sola lettura non compare nessun comando", () => {
     monta({ modificabile: false });
-    expect(screen.queryByText(/dipende da: nessuna/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/depends on: none/i)).not.toBeInTheDocument();
   });
 });
 
@@ -150,14 +150,14 @@ describe("Card 2 · HQ FGB timeline", () => {
 
   it("§11 — le tre nature si distinguono", () => {
     monta();
-    expect(screen.getByText("calcolata")).toBeInTheDocument();
-    expect(screen.getByText("manuale")).toBeInTheDocument();
-    expect(screen.getByText("in attesa")).toBeInTheDocument();
+    expect(screen.getByText("calculated")).toBeInTheDocument();
+    expect(screen.getByText("manual")).toBeInTheDocument();
+    expect(screen.getByText("waiting")).toBeInTheDocument();
   });
 
   it("§11 — il ↺ compare solo sul passo manuale e riporta al calcolo", () => {
     const { onData } = monta();
-    const bottoni = screen.getAllByLabelText(/Ricalcola la data/);
+    const bottoni = screen.getAllByLabelText(/Recalculate the date/);
     expect(bottoni.length).toBe(1); // solo «Submittal», che è forzato
 
     fireEvent.click(bottoni[0]);
@@ -167,8 +167,35 @@ describe("Card 2 · HQ FGB timeline", () => {
 
   it("l'àncora dice da dove viene la data, estremo compreso", () => {
     monta();
-    expect(screen.getByText("+30gg")).toBeInTheDocument();
-    expect(screen.getByText(/fine di:\s*Handover/)).toBeInTheDocument();
+    // Tre informazioni in una frase: quanti giorni, da quale estremo, di
+    // quale attività. Si controlla il testo della card e non un elemento
+    // preciso, perché l'àncora si presenta in due forme — comando quando è
+    // modificabile, etichetta quando non lo è — e la frase deve dire le
+    // stesse tre cose in entrambe.
+    const testo = document.body.textContent ?? "";
+    expect(testo).toContain("+30d");
+    expect(testo).toMatch(/end of\s*:?\s*Handover/);
+  });
+
+  it("§11 — l'àncora si può impostare, non solo leggere", () => {
+    const onAncoraggio = vi.fn();
+    render(
+      <CardCertTimeline
+        passi={derivaPassi(passi, attivita)}
+        attivita={derivaAttivita(attivita, OGGI)}
+        servizio="LEED BD+C"
+        nomeServizio="Palazzo Aurora — LEED BD+C"
+        modificabile
+        evidenziato={null}
+        onData={vi.fn()}
+        onAvanzamento={vi.fn()}
+        onAncoraggio={onAncoraggio}
+      />
+    );
+    // Ogni passo salvato ha il comando, anche quelli non ancora agganciati:
+    // agganciare è il gesto che rende viva la timeline, e nasconderlo a chi
+    // non ha ancora un'àncora vorrebbe dire non farlo scoprire mai.
+    expect(screen.getAllByLabelText(/to a project activity/).length).toBeGreaterThan(0);
   });
 
   it("§11 — la percentuale è modificabile a mano e parte da zero", () => {
@@ -194,13 +221,13 @@ describe("Card 2 · HQ FGB timeline", () => {
 
   it("il banner dice che l'avanzamento è manuale, invece di farlo dedurre", () => {
     monta();
-    const banner = screen.getByText(/L'avanzamento parte da zero/);
-    expect(within(banner).getByText("manualmente")).toBeInTheDocument();
+    const banner = screen.getByText(/Progress starts at zero/);
+    expect(within(banner).getByText("manually")).toBeInTheDocument();
   });
 
   it("in sola lettura i campi ci sono ma non si toccano", () => {
     monta({ modificabile: false });
-    expect(screen.queryAllByLabelText(/Ricalcola la data/).length).toBe(0);
+    expect(screen.queryAllByLabelText(/Recalculate the date/).length).toBe(0);
     screen.getAllByRole("spinbutton").forEach((c) => expect(c).toBeDisabled());
   });
 });

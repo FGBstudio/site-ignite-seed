@@ -14,6 +14,7 @@ import { DialogoModelli } from "@/components/timeline/DialogoModelli";
 import {
   useApplicaImport,
   useAutosave,
+  useAncoraggio,
   useRigheManuali,
   useScritture,
   useStatoSalvataggio,
@@ -48,6 +49,7 @@ export default function TimelineVista() {
   const applicaImport = useApplicaImport(projectId);
   const righe = useRigheManuali(projectId);
   const generaScaletta = useMaterializeTimeline();
+  const ancoraggio = useAncoraggio(projectId);
   const [modelliAperto, setModelliAperto] = useState(false);
 
   const [evidenziata, setEvidenziata] = useState<string | null>(null);
@@ -58,6 +60,28 @@ export default function TimelineVista() {
     [data?.passi, data?.attivita]
   );
 
+  /**
+   * Fa nascere i passi del servizio.
+   *
+   * Si chiama alla prima cosa che il PM scrive su un passo che arriva dal
+   * catalogo. Il gate lato database può rifiutare — la scaletta di un
+   * progetto di cantiere ha bisogno che il sito abbia una project timeline —
+   * e in quel caso si dice il motivo vero invece di lasciare la schermata
+   * muta: è la stessa domanda che si fa il PM guardandola.
+   */
+  const materializza = async () => {
+    const n = await generaScaletta.mutateAsync(data!.certId);
+    if (n === 0) {
+      toast({
+        variant: "destructive",
+        title: "The service steps need the project timeline first",
+        description:
+          "This certification follows the construction site: fill in at least one project activity above, then the steps can be saved.",
+      });
+    }
+    return n;
+  };
+
   /** Il lampo sulla riga toccata: dice «ho preso» prima ancora del salvataggio. */
   const lampeggia = (id: string) => {
     setEvidenziata(id);
@@ -67,7 +91,7 @@ export default function TimelineVista() {
   if (isLoading || !data) {
     return (
       <MainLayout title="Timeline">
-        <div className="py-20 text-center text-sm text-muted-foreground">Caricamento…</div>
+        <div className="py-20 text-center text-sm text-muted-foreground">Loading…</div>
       </MainLayout>
     );
   }
@@ -77,17 +101,17 @@ export default function TimelineVista() {
   return (
     <MainLayout
       title={data.nomeSito ?? "Timeline"}
-      subtitle={`${data.nomeServizio ?? ""} · compila le due timeline`}
+      subtitle={`${data.nomeServizio ?? ""} · fill in both timelines`}
     >
       {/* ── Barra: percorso, stato del salvataggio, uscita (§4.3) ── */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <nav className="flex items-center gap-1 text-xs text-muted-foreground" aria-label="Percorso">
+        <nav className="flex items-center gap-1 text-xs text-muted-foreground" aria-label="Breadcrumb">
           <button onClick={() => navigate("/projects")} className="hover:text-foreground hover:underline">
             Services
           </button>
           <ChevronRight className="h-3 w-3" />
           <button onClick={() => navigate("/portafoglio")} className="hover:text-foreground hover:underline">
-            {data.nomeSito ?? "Sito"}
+            {data.nomeSito ?? "Site"}
           </button>
           <ChevronRight className="h-3 w-3" />
           <span className="font-medium text-foreground">Timeline</span>
@@ -103,7 +127,7 @@ export default function TimelineVista() {
               navigate(`/projects/${projectId}`);
             }}
           >
-            Salva e chiudi
+            Save and close
           </Button>
         </div>
       </div>
@@ -113,8 +137,8 @@ export default function TimelineVista() {
         <aside className="lg:sticky lg:top-[92px] lg:order-1 lg:h-[calc(100vh-120px)]">
           <div className="flex h-full flex-col rounded-xl border bg-card p-4">
             <IntestazioneCard
-              titolo="TIMELINE LIVE"
-              chip={`${data.nomeSito ?? "Sito"} — ${data.nomeServizio ?? "Servizio"}`}
+              titolo="LIVE TIMELINE"
+              chip={`${data.nomeSito ?? "Site"} — ${data.nomeServizio ?? "Servizio"}`}
             />
             <div className="mb-2 shrink-0">
               <MetaTimeline attivita={attivita} passi={passi} />
@@ -145,10 +169,10 @@ export default function TimelineVista() {
                 nuove,
               });
               toast({
-                title: `${esito.aggiornate + esito.create} attività aggiornate`,
+                title: `${esito.aggiornate + esito.create} activities updated`,
                 description: [
-                  esito.aggiornate ? `${esito.aggiornate} riconosciute` : null,
-                  esito.create ? `${esito.create} nuove` : null,
+                  esito.aggiornate ? `${esito.aggiornate} matched` : null,
+                  esito.create ? `${esito.create} new` : null,
                 ]
                   .filter(Boolean)
                   .join(" · "),
@@ -169,8 +193,8 @@ export default function TimelineVista() {
                     onError: (e: unknown) =>
                       toast({
                         variant: "destructive",
-                        title: "Non sono riuscito a salvare",
-                        description: e instanceof Error ? e.message : "Riprova fra un momento.",
+                        title: "Could not save",
+                        description: e instanceof Error ? e.message : "Try again in a moment.",
                       }),
                   }
                 )
@@ -184,14 +208,14 @@ export default function TimelineVista() {
                   onError: (e: unknown) =>
                     toast({
                       variant: "destructive",
-                      title: "Dipendenza non salvata",
-                      description: e instanceof Error ? e.message : "Riprova fra un momento.",
+                      title: "Dependency not saved",
+                      description: e instanceof Error ? e.message : "Try again in a moment.",
                     }),
                   onSuccess: () =>
                     toast({
-                      title: madri.length ? "Dipendenza impostata" : "Dipendenza rimossa",
+                      title: madri.length ? "Dependency set" : "Dependency removed",
                       description: madri.length
-                        ? "Se l'attività da cui dipende slitta, questa la segue."
+                        ? "If the activity it depends on slips, this one follows."
                         : undefined,
                     }),
                 }
@@ -221,7 +245,7 @@ export default function TimelineVista() {
                   nome,
                 });
               }
-              toast({ title: "Attività aggiunta", description: nome });
+              toast({ title: "Activity added", description: nome });
             }}
             onRinomina={(id, nome) =>
               autosave.programma(`att:${id}:nome`, () =>
@@ -230,7 +254,7 @@ export default function TimelineVista() {
             }
             onElimina={async (id, nome) => {
               await righe.eliminaAttivita.mutateAsync(id);
-              toast({ title: "Attività eliminata", description: nome });
+              toast({ title: "Activity deleted", description: nome });
             }}
           />
 
@@ -241,7 +265,16 @@ export default function TimelineVista() {
             nomeServizio={data.nomeServizio}
             modificabile={modificabile}
             evidenziato={evidenziata}
-            onData={(id, valore) => {
+            onData={async (id, valore) => {
+              // Un passo di catalogo non esiste ancora nel database: la prima
+              // cosa che il PM ci scrive lo fa nascere, insieme a tutti i
+              // suoi fratelli. E' il momento giusto — prima non c'era niente
+              // da salvare, e chiederlo con un pulsante significava fargli
+              // fare un gesto che il sistema poteva fare da solo.
+              if (id.startsWith("catalogo:")) {
+                await materializza();
+                return;
+              }
               lampeggia(id);
               autosave.programma(`passo:${id}:data`, () =>
                 scritture.dataPasso.mutate(
@@ -249,20 +282,24 @@ export default function TimelineVista() {
                   {
                     onSuccess: () => {
                       if (valore === null) {
-                        toast({ title: "Data ricalcolata dall'àncora" });
+                        toast({ title: "Date recalculated from the anchor" });
                       }
                     },
                     onError: (e: unknown) =>
                       toast({
                         variant: "destructive",
-                        title: "Non sono riuscito a salvare",
-                        description: e instanceof Error ? e.message : "Riprova fra un momento.",
+                        title: "Could not save",
+                        description: e instanceof Error ? e.message : "Try again in a moment.",
                       }),
                   }
                 )
               );
             }}
-            onAvanzamento={(id, pct) => {
+            onAvanzamento={async (id, pct) => {
+              if (id.startsWith("catalogo:")) {
+                await materializza();
+                return;
+              }
               lampeggia(id);
               autosave.programma(`passo:${id}:pct`, () =>
                 scritture.avanzamentoPasso.mutate({ id, pct })
@@ -270,7 +307,7 @@ export default function TimelineVista() {
             }}
             onAggiungi={async (nome) => {
               await righe.aggiungiPasso.mutateAsync({ certificationId: data.certId, nome });
-              toast({ title: "Passo aggiunto", description: nome });
+              toast({ title: "Step added", description: nome });
             }}
             onRinomina={(id, nome) =>
               autosave.programma(`passo:${id}:nome`, () =>
@@ -279,7 +316,16 @@ export default function TimelineVista() {
             }
             onElimina={async (id, nome) => {
               await righe.eliminaPasso.mutateAsync(id);
-              toast({ title: "Passo eliminato", description: nome });
+              toast({ title: "Step deleted", description: nome });
+            }}
+            onAncoraggio={async (passoId, attivitaId, punto, off) => {
+              await ancoraggio.mutateAsync({ passoId, attivitaId, punto, offsetGiorni: off });
+              toast({
+                title: attivitaId ? 'Step linked' : 'Link removed',
+                description: attivitaId
+                  ? 'If the activity moves, this date follows it.'
+                  : 'This date no longer follows the project timeline.',
+              });
             }}
             generando={generaScaletta.isPending}
             onGenera={async () => {
@@ -309,8 +355,8 @@ export default function TimelineVista() {
                 nuove: voci,
               });
               toast({
-                title: `${esito.create} attività create dal modello`,
-                description: "Adesso correggi le date: sono stime, non impegni.",
+                title: `${esito.create} activities created from the template`,
+                description: "Now adjust the dates: they are estimates, not commitments.",
               });
             }}
           />
@@ -320,19 +366,19 @@ export default function TimelineVista() {
   );
 }
 
-/** «● Tutto salvato» / «● Salvataggio…» — spec §4.3. */
+/** «● All saved» / «● Salvataggio…» — spec §4.3. */
 function StatoBarra({ stato }: { stato: "fermo" | "salvataggio" | "salvato" | "errore" }) {
   if (stato === "salvataggio") {
     return (
       <span className="flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-400">
-        <Loader2 className="h-3 w-3 animate-spin" /> Salvataggio…
+        <Loader2 className="h-3 w-3 animate-spin" /> Saving…
       </span>
     );
   }
   if (stato === "errore") {
     return (
       <span className="flex items-center gap-1.5 text-xs text-destructive">
-        <span className="h-1.5 w-1.5 rounded-full bg-destructive" /> Salvataggio non riuscito
+        <span className="h-1.5 w-1.5 rounded-full bg-destructive" /> Could not save
       </span>
     );
   }
@@ -344,7 +390,7 @@ function StatoBarra({ stato }: { stato: "fermo" | "salvataggio" | "salvato" | "e
       )}
       aria-live="polite"
     >
-      <span className="h-1.5 w-1.5 rounded-full bg-success" /> Tutto salvato
+      <span className="h-1.5 w-1.5 rounded-full bg-success" /> All saved
     </span>
   );
 }

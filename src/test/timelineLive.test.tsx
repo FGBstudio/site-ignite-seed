@@ -50,12 +50,12 @@ function disegna(attivita: AttivitaProgetto[], passi: PassoServizio[]) {
 describe("stato vuoto (§11)", () => {
   it("senza nessuna data mostra l'invito, non un SVG vuoto", () => {
     disegna([att({ id: "a" })], [passo({ id: "p" })]);
-    expect(screen.getByText("Le timeline nascono qui")).toBeInTheDocument();
+    expect(screen.getByText("Timelines start here")).toBeInTheDocument();
   });
 
   it("basta UNA data perché il disegno compaia", () => {
     const c = disegna([att({ id: "a", nome: "Concept", inizio: "2026-03-01" })], []);
-    expect(screen.queryByText("Le timeline nascono qui")).not.toBeInTheDocument();
+    expect(screen.queryByText("Timelines start here")).not.toBeInTheDocument();
     expect(c.querySelector("svg")).toBeTruthy();
   });
 });
@@ -66,8 +66,8 @@ describe("le due colonne restano distinte (§11)", () => {
       [att({ id: "a", nome: "Concept", inizio: "2026-03-01", fine: "2026-05-01" })],
       [passo({ id: "p", nome: "Pre-assessment", dataForzata: "2026-04-01" })]
     );
-    expect(screen.getByText("PROGETTO")).toBeInTheDocument();
-    expect(screen.getByText("CERTIFICAZIONE")).toBeInTheDocument();
+    expect(screen.getByText("PROJECT")).toBeInTheDocument();
+    expect(screen.getByText("CERTIFICATION")).toBeInTheDocument();
 
     // La hairline centrale: x1 = x2 = metà della tela.
     const linee = Array.from(c.querySelectorAll("line"));
@@ -79,7 +79,7 @@ describe("le due colonne restano distinte (§11)", () => {
 
   it("una colonna vuota lo dichiara invece di sparire", () => {
     disegna([att({ id: "a", nome: "Concept", inizio: "2026-03-01" })], []);
-    expect(screen.getByText("in attesa di date…")).toBeInTheDocument();
+    expect(screen.getByText("waiting for dates…")).toBeInTheDocument();
   });
 });
 
@@ -121,12 +121,12 @@ describe("colonna progetto", () => {
   it("attività conclusa: 100% e la data di fine scritta accanto", () => {
     disegna([att({ id: "a", nome: "Concept", inizio: "2026-01-01", fine: "2026-03-01" })], []);
     expect(screen.getByText("100%")).toBeInTheDocument();
-    expect(screen.getByText(/fino al 1 mar 26/)).toBeInTheDocument();
+    expect(screen.getByText(/until 1 mar 26/)).toBeInTheDocument();
   });
 
   it("senza la fine lo dice, invece di mostrare 0%", () => {
     disegna([att({ id: "a", nome: "Concept", inizio: "2026-01-01" })], []);
-    expect(screen.getByText("manca la fine")).toBeInTheDocument();
+    expect(screen.getByText("end date missing")).toBeInTheDocument();
   });
 
   it("il nome lungo va a capo e non esce dalla colonna", () => {
@@ -153,7 +153,7 @@ describe("colonna certificazione", () => {
         }),
       ]
     );
-    expect(screen.getAllByText(/calcolata/).some((n) => n.tagName.toLowerCase() === "tspan")).toBe(true);
+    expect(screen.getAllByText(/calculated/).some((n) => n.tagName.toLowerCase() === "tspan")).toBe(true);
     // La curva dell'ancora è l'unico `path` tratteggiato disegnato.
     const curve = Array.from(c.querySelectorAll("path")).filter(
       (p) => p.getAttribute("stroke-dasharray") === "3 5"
@@ -163,7 +163,7 @@ describe("colonna certificazione", () => {
 
   it("data forzata: natura manuale", () => {
     disegna([], [passo({ id: "p", nome: "Submittal", dataForzata: "2026-07-01" })]);
-    expect(screen.getAllByText(/manuale/).some((n) => n.tagName.toLowerCase() === "tspan")).toBe(true);
+    expect(screen.getAllByText(/manual/).some((n) => n.tagName.toLowerCase() === "tspan")).toBe(true);
   });
 
   it("le durate compaiono sui segmenti fra un passo e il successivo", () => {
@@ -174,7 +174,7 @@ describe("colonna certificazione", () => {
         passo({ id: "p2", nome: "Due", ordine: 2, dataForzata: "2026-04-17" }),
       ]
     );
-    expect(screen.getByText("47 gg")).toBeInTheDocument();
+    expect(screen.getByText("47 d")).toBeInTheDocument();
   });
 
   it("oltre i due mesi la durata si legge in mesi", () => {
@@ -185,7 +185,7 @@ describe("colonna certificazione", () => {
         passo({ id: "p2", nome: "Due", ordine: 2, dataForzata: "2026-07-01" }),
       ]
     );
-    expect(screen.getByText("6 mesi")).toBeInTheDocument();
+    expect(screen.getByText("6 months")).toBeInTheDocument();
   });
 });
 
@@ -198,7 +198,7 @@ describe("marcatore OGGI (§4.1)", () => {
       ],
       []
     );
-    expect(screen.getByText("OGGI")).toBeInTheDocument();
+    expect(screen.getByText("TODAY")).toBeInTheDocument();
   });
 
   it("non compare se tutte le tappe sono nel futuro", () => {
@@ -209,7 +209,7 @@ describe("marcatore OGGI (§4.1)", () => {
       ],
       []
     );
-    expect(screen.queryByText("OGGI")).not.toBeInTheDocument();
+    expect(screen.queryByText("TODAY")).not.toBeInTheDocument();
   });
 });
 
@@ -264,7 +264,7 @@ describe("regge il carico (§11: 0..12+ voci per colonna)", () => {
     );
     const svg = c.querySelector("svg")!;
     expect(Number(svg.getAttribute("height"))).toBeGreaterThan(1000);
-    expect(screen.getByText("PROGETTO")).toBeInTheDocument();
-    expect(screen.getByText("CERTIFICAZIONE")).toBeInTheDocument();
+    expect(screen.getByText("PROJECT")).toBeInTheDocument();
+    expect(screen.getByText("CERTIFICATION")).toBeInTheDocument();
   });
 });

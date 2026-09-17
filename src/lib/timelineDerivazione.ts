@@ -57,8 +57,8 @@ export interface PassoServizio {
 
 // ── Uscite ────────────────────────────────────────────────────────────────
 
-export type StatoAttivita = "pianificata" | "in corso" | "completata";
-export type NaturaPasso = "calcolata" | "manuale" | "in attesa";
+export type StatoAttivita = "planned" | "in progress" | "completed";
+export type NaturaPasso = "calculated" | "manual" | "waiting";
 
 export interface AttivitaDerivata extends AttivitaProgetto {
   /** % di tempo trascorso fra inizio e fine. `null` se manca una delle due. */
@@ -129,9 +129,9 @@ export function avanzamentoAttivita(
 
 export function statoAttivita(pct: number | null): StatoAttivita | null {
   if (pct === null) return null;
-  if (pct >= 100) return "completata";
-  if (pct > 0) return "in corso";
-  return "pianificata";
+  if (pct >= 100) return "completed";
+  if (pct > 0) return "in progress";
+  return "planned";
 }
 
 export function derivaAttivita(
@@ -180,8 +180,8 @@ export function naturaPasso(
   p: Pick<PassoServizio, "dataForzata">,
   effettiva: string | null
 ): NaturaPasso {
-  if (valida(p.dataForzata)) return "manuale";
-  return effettiva ? "calcolata" : "in attesa";
+  if (valida(p.dataForzata)) return "manual";
+  return effettiva ? "calculated" : "waiting";
 }
 
 /**
@@ -233,8 +233,8 @@ export function derivaPassi(
 /** «47 gg» sotto i due mesi, poi «2 mesi»: come il prototipo approvato. */
 export function etichettaDurata(giorni: number | null): string | null {
   if (giorni === null) return null;
-  if (giorni < 60) return `${giorni} gg`;
-  return `${Math.round(giorni / 30)} mesi`;
+  if (giorni < 60) return `${giorni} d`;
+  return `${Math.round(giorni / 30)} months`;
 }
 
 // ── Intervallo complessivo, per la riga meta del pannello ─────────────────
