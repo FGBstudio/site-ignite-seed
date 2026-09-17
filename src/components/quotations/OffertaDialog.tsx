@@ -18,7 +18,8 @@ import { it } from "date-fns/locale";
 import { AlertTriangle, FileDown, Loader2, Plus, Trash2, UserPlus } from "lucide-react";
 import { ContactFormDialog } from "@/components/contacts/ContactFormDialog";
 import {
-  datiDaSocieta, scarica, useGeneraOfferta, useSalvaDatiOfferta, useSocietaDelBrand,
+  datiDaSocieta, emittentePredefinito, scarica, useEmittenti, useGeneraOfferta,
+  useSalvaDatiOfferta, useSocietaDelBrand,
   type DatiOfferta,
 } from "@/hooks/useOfferta";
 
@@ -55,7 +56,7 @@ export function OffertaDialog({ open, onOpenChange, certificationId }: Props) {
         .select(
           `id, name, client, cert_type, cert_rating, project_subtype, currency,
            total_fees, services_fees, gbci_fees, quotation_sent_date, quotation_notes,
-           quotation_line_items, quotation_list_price, billing_contact_id,
+           quotation_line_items, quotation_list_price, billing_contact_id, issuer_contact_id,
            sites ( id, name, city, country, address, brand_id, brands ( id, name ) )`,
         )
         .eq("id", certificationId)
@@ -68,6 +69,19 @@ export function OffertaDialog({ open, onOpenChange, certificationId }: Props) {
   const brandId = cert?.sites?.brand_id as string | undefined;
   const brandNome = cert?.sites?.brands?.name as string | undefined;
   const { data: societa = [] } = useSocietaDelBrand(brandId);
+  const { data: emittenti = [] } = useEmittenti();
+  const [emittenteId, setEmittenteId] = useState<string>("");
+
+  // Chi emette: la scelta già fatta sulla commessa, altrimenti il default —
+  // che esiste solo finché di società emittenti ce n'è una. Con due, la scelta
+  // diventa obbligatoria da sé e il campo resta vuoto finché non si decide.
+  const emittente = useMemo(
+    () =>
+      emittenti.find((e) => e.id === emittenteId) ??
+      emittenti.find((e) => e.id === (cert as any)?.issuer_contact_id) ??
+      emittentePredefinito(emittenti),
+    [emittenti, emittenteId, cert]
+  );
 
   const [contattoId, setContattoId] = useState<string>("");
   const [righe, setRighe] = useState<string[]>([""]);
@@ -135,6 +149,15 @@ export function OffertaDialog({ open, onOpenChange, certificationId }: Props) {
     prezzo_finale: finale.trim(),
     cliente_breve: brandNome ?? cert?.client ?? "",
     termini_giorni: giorni.trim() || "30",
+    // Chi emette viaggia col documento. Oggi il template Word ha
+    // l'intestazione fissa e li ignora; quando la prevederà, i dati sono già
+    // qui e la scelta non va rifatta.
+    emittente_ragione_sociale: emittente?.company_name ?? undefined,
+    emittente_indirizzo: [emittente?.address, emittente?.postal_code, emittente?.city, emittente?.country]
+      .filter(Boolean)
+      .join(", ") || undefined,
+    emittente_piva: emittente?.vat_number ?? undefined,
+    emittente_iban: emittente?.iban ?? undefined,
   });
 
   const onGenera = async () => {
@@ -144,6 +167,10 @@ export function OffertaDialog({ open, onOpenChange, certificationId }: Props) {
       await salva.mutateAsync({
         certification_id: certificationId!,
         billing_contact_id: contattoId || null,
+        // Si registra anche quando è il default: la fattura, fra mesi, deve
+        // uscire dalla stessa società di questa offerta — e per allora le
+        // società emittenti potrebbero essere due.
+        issuer_contact_id: emittente?.id ?? null,
         quotation_line_items: righeValide,
         quotation_list_price: listino.trim()
           ? Number(listino.replace(/\./g, "").replace(",", "."))
@@ -171,6 +198,43 @@ export function OffertaDialog({ open, onOpenChange, certificationId }: Props) {
           </DialogHeader>
 
           <div className="space-y-5">
+            {/* ── Chi emette ──────────────────────────────────────────────
+                Prima non c'era, e non era una dimenticanza: l'intestazione
+                stava nel template Word e bastava, finché la società era una.
+                Con due, un documento che non dice da chi esce non è un
+                documento. */}
+            <section className="space-y-2">
+              <Label>Società che emette</Label>
+              {emittenti.length === 0 ? (
+                <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
+                  Nessuna società emittente in anagrafica: va caricata in Contacts con
+                  tipo «emittente». Senza, l'offerta non ha un mittente.
+                </p>
+              ) : emittenti.length === 1 ? (
+                /* Una sola: si dice qual è e non si chiede niente. Un menu con
+                   una voce sola è una domanda con una risposta sola. */
+                <p className="rounded-lg border bg-muted/30 px-3 py-2 text-xs">
+                  <b>{emittente?.company_name}</b>
+                  {emittente?.vat_number ? ` · ${emittente.vat_number}` : ""}
+                  {emittente?.country ? ` · ${emittente.country}` : ""}
+                </p>
+              ) : (
+                <Select value={emittente?.id ?? ""} onValueChange={setEmittenteId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Scegli chi emette…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {emittenti.map((e) => (
+                      <SelectItem key={e.id} value={e.id}>
+                        {e.company_name}
+                        {e.country ? ` · ${e.country}` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </section>
+
             {/* ── A chi si intesta ── */}
             <section className="space-y-2">
               <Label>Società a cui emettere l'offerta</Label>

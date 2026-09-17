@@ -29,6 +29,41 @@ export function useSocietaDelBrand(brandId: string | null | undefined) {
   });
 }
 
+/**
+ * Le nostre societa' emittenti.
+ *
+ * Non filtrate per brand: l'emittente siamo noi, e non dipende da chi e' il
+ * cliente. E' la ragione per cui non poteva stare nella query qui sopra.
+ */
+export function useEmittenti() {
+  return useQuery({
+    queryKey: ["offerta", "emittenti"],
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("contacts")
+        .select("*")
+        .eq("kind", "issuer")
+        .order("company_name");
+      if (error) throw error;
+      return (data ?? []) as Contact[];
+    },
+  });
+}
+
+/**
+ * Quale societa' emette, per una commessa.
+ *
+ * NULL sulla certificazione non vuol dire «nessuna»: vuol dire «quella di
+ * default». Finche' di emittenti ce n'e' uno solo non c'e' niente da
+ * scegliere, e chiederlo sarebbe una domanda con una risposta sola. Il giorno
+ * che ne esiste un secondo, la scelta diventa obbligatoria da se': questa
+ * funzione smette di indovinare e torna NULL.
+ */
+export function emittentePredefinito(emittenti: Contact[]): Contact | null {
+  return emittenti.length === 1 ? emittenti[0] : null;
+}
+
 export interface DatiOfferta {
   data: string;
   cliente_ragione_sociale: string;
@@ -43,6 +78,13 @@ export interface DatiOfferta {
   prezzo_finale: string;
   cliente_breve: string;
   termini_giorni?: string;
+  /** Chi emette. Il template Word ha l'intestazione fissa: questi campi
+   *  viaggiano lo stesso, perche' il servizio che compone il PDF li usera'
+   *  appena il template li prevede, e intanto la scelta resta registrata. */
+  emittente_ragione_sociale?: string;
+  emittente_indirizzo?: string;
+  emittente_piva?: string;
+  emittente_iban?: string;
 }
 
 /**
@@ -145,6 +187,7 @@ export function useSalvaDatiOfferta() {
     mutationFn: async (input: {
       certification_id: string;
       billing_contact_id: string | null;
+      issuer_contact_id?: string | null;
       quotation_line_items: string[];
       quotation_list_price: number | null;
     }) => {
