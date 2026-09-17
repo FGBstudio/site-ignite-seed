@@ -408,3 +408,138 @@ export function useApplicaImport(certId: string | undefined) {
     },
   });
 }
+
+// ── Righe aggiunte a mano ─────────────────────────────────────────────────
+
+/**
+ * Aggiungere, rinominare ed eliminare a mano.
+ *
+ * Erano sparite quando la vista è stata riscritta, e l'assenza non era una
+ * semplificazione: senza, l'unico modo di avere una timeline era caricare un
+ * file. Un cantiere che il gantt non ce l'ha ancora — o che ne ha uno che
+ * copre metà delle fasi — restava senza niente. L'import è un acceleratore:
+ * quando diventa l'unica strada, chi non ha il file è fuori.
+ */
+export function useRigheManuali(certId: string | undefined) {
+  const qc = useQueryClient();
+  const invalida = () => {
+    qc.invalidateQueries({ queryKey: ["timeline-vista", certId] });
+    qc.invalidateQueries({ queryKey: ["crono"] });
+  };
+
+  /** Una nuova attività di progetto, in coda. */
+  const aggiungiAttivita = useMutation({
+    mutationFn: async (i: { cronoprogrammaId: string; nome: string }) => {
+      const { data: ultime } = await (supabase as any)
+        .from("cronoprogramma_eventi")
+        .select("ordine")
+        .eq("cronoprogramma_id", i.cronoprogrammaId)
+        .order("ordine", { ascending: false })
+        .limit(1);
+
+      const { data, error } = await (supabase as any)
+        .from("cronoprogramma_eventi")
+        .insert({
+          cronoprogramma_id: i.cronoprogrammaId,
+          nome: i.nome,
+          ordine: ((ultime?.[0]?.ordine as number | undefined) ?? 0) + 1,
+          stato: "da_confermare",
+        })
+        .select("id")
+        .single();
+      if (error) throw error;
+      return data.id as string;
+    },
+    onSuccess: invalida,
+  });
+
+  const rinominaAttivita = useMutation({
+    mutationFn: async (i: { id: string; nome: string }) => {
+      const { error } = await (supabase as any)
+        .from("cronoprogramma_eventi")
+        .update({ nome: i.nome, aggiornata_il: new Date().toISOString() })
+        .eq("id", i.id);
+      if (error) throw error;
+    },
+    onSuccess: invalida,
+  });
+
+  const eliminaAttivita = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await (supabase as any)
+        .from("cronoprogramma_eventi")
+        .delete()
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: invalida,
+  });
+
+  /**
+   * Un passo di servizio aggiunto a mano.
+   *
+   * `order_index` va oltre l'ultimo della scaletta: i passi del catalogo
+   * occupano le posizioni basse, e infilarsi in mezzo sposterebbe i
+   * riferimenti di chi si ancora a loro per numero.
+   */
+  const aggiungiPasso = useMutation({
+    mutationFn: async (i: { certificationId: string; nome: string }) => {
+      const { data: ultimi } = await (supabase as any)
+        .from("certification_milestones")
+        .select("order_index")
+        .eq("certification_id", i.certificationId)
+        .eq("milestone_type", "timeline")
+        .order("order_index", { ascending: false })
+        .limit(1);
+
+      const { data, error } = await (supabase as any)
+        .from("certification_milestones")
+        .insert({
+          certification_id: i.certificationId,
+          milestone_type: "timeline",
+          category: "Timeline",
+          requirement: i.nome,
+          order_index: ((ultimi?.[0]?.order_index as number | undefined) ?? 0) + 1,
+          status: "pending",
+          optional: true,
+          edit_locked_for_pm: false,
+        })
+        .select("id")
+        .single();
+      if (error) throw error;
+      return data.id as string;
+    },
+    onSuccess: invalida,
+  });
+
+  const rinominaPasso = useMutation({
+    mutationFn: async (i: { id: string; nome: string }) => {
+      const { error } = await (supabase as any)
+        .from("certification_milestones")
+        .update({ requirement: i.nome })
+        .eq("id", i.id);
+      if (error) throw error;
+    },
+    onSuccess: invalida,
+  });
+
+  const eliminaPasso = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await (supabase as any)
+        .from("certification_milestones")
+        .delete()
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: invalida,
+  });
+
+  return {
+    aggiungiAttivita,
+    rinominaAttivita,
+    eliminaAttivita,
+    aggiungiPasso,
+    rinominaPasso,
+    eliminaPasso,
+  };
+}

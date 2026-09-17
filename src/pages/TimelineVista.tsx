@@ -10,9 +10,11 @@ import { IntestazioneCard } from "@/components/timeline/IntestazioneCard";
 import { CardProjectTimeline } from "@/components/timeline/CardProjectTimeline";
 import { CardCertTimeline } from "@/components/timeline/CardCertTimeline";
 import { CardImport } from "@/components/timeline/CardImport";
+import { DialogoModelli } from "@/components/timeline/DialogoModelli";
 import {
   useApplicaImport,
   useAutosave,
+  useRigheManuali,
   useScritture,
   useStatoSalvataggio,
   useTimelineVista,
@@ -43,6 +45,8 @@ export default function TimelineVista() {
   const stato = useStatoSalvataggio(scritture.inCorso, scritture.fallito);
   const autosave = useAutosave();
   const applicaImport = useApplicaImport(projectId);
+  const righe = useRigheManuali(projectId);
+  const [modelliAperto, setModelliAperto] = useState(false);
 
   const [evidenziata, setEvidenziata] = useState<string | null>(null);
 
@@ -196,6 +200,36 @@ export default function TimelineVista() {
                 scritture.dataAttivita.mutate({ id, inizio })
               )
             }
+            onUsaModello={() => setModelliAperto(true)}
+            onAggiungi={async (nome) => {
+              // Senza cronoprogramma la riga non ha dove andare: lo si crea
+              // qui, come fa l'import. Una prima attività scritta a mano vale
+              // quanto una importata.
+              if (!data.cronoprogrammaId) {
+                await applicaImport.mutateAsync({
+                  cronoprogrammaId: null,
+                  siteId: data.siteId,
+                  nomeSito: data.nomeSito,
+                  aggiornamenti: [],
+                  nuove: [{ nome, inizio: null, fine: null }],
+                });
+              } else {
+                await righe.aggiungiAttivita.mutateAsync({
+                  cronoprogrammaId: data.cronoprogrammaId,
+                  nome,
+                });
+              }
+              toast({ title: "Attività aggiunta", description: nome });
+            }}
+            onRinomina={(id, nome) =>
+              autosave.programma(`att:${id}:nome`, () =>
+                righe.rinominaAttivita.mutate({ id, nome })
+              )
+            }
+            onElimina={async (id, nome) => {
+              await righe.eliminaAttivita.mutateAsync(id);
+              toast({ title: "Attività eliminata", description: nome });
+            }}
           />
 
           <CardCertTimeline
@@ -231,6 +265,40 @@ export default function TimelineVista() {
               autosave.programma(`passo:${id}:pct`, () =>
                 scritture.avanzamentoPasso.mutate({ id, pct })
               );
+            }}
+            onAggiungi={async (nome) => {
+              await righe.aggiungiPasso.mutateAsync({ certificationId: data.certId, nome });
+              toast({ title: "Passo aggiunto", description: nome });
+            }}
+            onRinomina={(id, nome) =>
+              autosave.programma(`passo:${id}:nome`, () =>
+                righe.rinominaPasso.mutate({ id, nome })
+              )
+            }
+            onElimina={async (id, nome) => {
+              await righe.eliminaPasso.mutateAsync(id);
+              toast({ title: "Passo eliminato", description: nome });
+            }}
+          />
+
+          {/* I modelli: solo quando la timeline è vuota, perché applicarli su
+              una già compilata raddoppierebbe le righe invece di aiutare. */}
+          <DialogoModelli
+            aperto={modelliAperto}
+            onChiudi={() => setModelliAperto(false)}
+            suggerito={data.tipoProgetto === "construction" ? "cantiere" : "bdc"}
+            onApplica={async (voci) => {
+              const esito = await applicaImport.mutateAsync({
+                cronoprogrammaId: data.cronoprogrammaId,
+                siteId: data.siteId,
+                nomeSito: data.nomeSito,
+                aggiornamenti: [],
+                nuove: voci,
+              });
+              toast({
+                title: `${esito.create} attività create dal modello`,
+                description: "Adesso correggi le date: sono stime, non impegni.",
+              });
             }}
           />
         </div>

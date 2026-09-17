@@ -1,6 +1,8 @@
 import { useState } from "react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Link2 } from "lucide-react";
+import { LayoutTemplate, Link2, Plus, Trash2 } from "lucide-react";
 import { CampoData } from "@/components/cronoprogramma/CampoData";
 import { IntestazioneCard } from "@/components/timeline/IntestazioneCard";
 import {
@@ -31,6 +33,12 @@ interface Props {
   onData: (id: string, campo: "inizio" | "fine", valore: string | null) => void;
   onDipendenze: (id: string, madri: string[]) => void;
   onProponiInizio: (id: string, inizio: string) => void;
+  /** Scrivere a mano: senza, l'unica strada sarebbe caricare un file. */
+  onAggiungi?: (nome: string) => Promise<void> | void;
+  onRinomina?: (id: string, nome: string) => void;
+  onElimina?: (id: string, nome: string) => void;
+  /** I modelli di partenza, offerti solo quando non c'è ancora niente. */
+  onUsaModello?: () => void;
 }
 
 export function CardProjectTimeline({
@@ -40,9 +48,28 @@ export function CardProjectTimeline({
   onData,
   onDipendenze,
   onProponiInizio,
+  onAggiungi,
+  onRinomina,
+  onElimina,
+  onUsaModello,
 }: Props) {
+  const [nuova, setNuova] = useState("");
+  const [inCorso, setInCorso] = useState(false);
+
   const datate = attivita.filter((a) => a.inizio).length;
   const indice = new Map<string, AttivitaProgetto>(attivita.map((a) => [a.id, a]));
+
+  const aggiungi = async () => {
+    const nome = nuova.trim();
+    if (!nome || !onAggiungi) return;
+    setInCorso(true);
+    try {
+      await onAggiungi(nome);
+      setNuova("");
+    } finally {
+      setInCorso(false);
+    }
+  };
 
   return (
     <section className="rounded-xl border bg-card p-5">
@@ -55,9 +82,38 @@ export function CardProjectTimeline({
       />
 
       {attivita.length === 0 ? (
-        <p className="rounded-lg border border-dashed bg-muted/20 p-6 text-center text-xs text-muted-foreground">
-          Nessuna attività. Importa il cronoprogramma qui sopra per popolarla.
-        </p>
+        /* Tre strade, e nessuna obbligata. Prima qui c'era solo «importa il
+           cronoprogramma»: chi il gantt non ce l'ha ancora restava fermo. */
+        <div className="rounded-lg border border-dashed bg-muted/20 p-6 text-center">
+          <p className="text-xs text-muted-foreground">
+            La timeline è vuota. Carica il gantt qui sopra, parti da un modello, oppure
+            scrivi la prima attività.
+          </p>
+          {modificabile && (
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+              {onUsaModello && (
+                <Button size="sm" variant="outline" onClick={onUsaModello}>
+                  <LayoutTemplate className="mr-1.5 h-3.5 w-3.5" /> Parti da un modello
+                </Button>
+              )}
+              {onAggiungi && (
+                <span className="flex items-center gap-1.5">
+                  <Input
+                    value={nuova}
+                    onChange={(e) => setNuova(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && aggiungi()}
+                    placeholder="Nome dell'attività…"
+                    aria-label="Nome della nuova attività"
+                    className="h-8 w-52 text-xs"
+                  />
+                  <Button size="sm" disabled={!nuova.trim() || inCorso} onClick={aggiungi}>
+                    <Plus className="mr-1 h-3.5 w-3.5" /> Aggiungi
+                  </Button>
+                </span>
+              )}
+            </div>
+          )}
+        </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -77,7 +133,7 @@ export function CardProjectTimeline({
                 <tr
                   key={a.id}
                   className={cn(
-                    "border-b align-top last:border-0 transition-colors",
+                    "group border-b align-top last:border-0 transition-colors",
                     evidenziata === a.id && "bg-primary/5"
                   )}
                 >
@@ -86,7 +142,26 @@ export function CardProjectTimeline({
                   </td>
 
                   <td className="px-2 py-2">
-                    <p className="font-medium leading-tight">{a.nome}</p>
+                    {/* Il nome si corregge sul posto. Un'attività importata da
+                        un gantt arriva quasi sempre con un nome da sistemare —
+                        troncato, in un'altra lingua, con un codice WBS
+                        davanti — e mandare il PM altrove per una parola è il
+                        modo di non fargliela correggere mai. */}
+                    {modificabile && onRinomina ? (
+                      <input
+                        defaultValue={a.nome}
+                        onBlur={(e) => {
+                          const v = e.target.value.trim();
+                          if (v && v !== a.nome) onRinomina(a.id, v);
+                          else e.target.value = a.nome;
+                        }}
+                        onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                        aria-label={`Nome di ${a.nome}`}
+                        className="w-full min-w-[150px] rounded border border-transparent bg-transparent px-1 py-0.5 font-medium leading-tight outline-none hover:border-border focus-visible:border-primary focus-visible:bg-background"
+                      />
+                    ) : (
+                      <p className="font-medium leading-tight">{a.nome}</p>
+                    )}
                     <SelettoreDipendenze
                       attivita={a}
                       tutte={attivita}
@@ -132,8 +207,52 @@ export function CardProjectTimeline({
                   <td className="px-2 py-2">
                     <Avanzamento a={a} />
                   </td>
+
+                  <td className="w-8 px-1 py-2 text-right">
+                    {modificabile && onElimina && (
+                      <button
+                        type="button"
+                        onClick={() => onElimina(a.id, a.nome)}
+                        aria-label={`Elimina ${a.nome}`}
+                        title="Elimina questa attività"
+                        className="rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:text-destructive focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary group-hover:opacity-100"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
+
+              {/* Aggiungere resta possibile anche a tabella piena: un gantt
+                  copre quasi mai tutto, e la voce che manca la si scrive qui
+                  invece di ricaricare il file. */}
+              {modificabile && onAggiungi && (
+                <tr>
+                  <td />
+                  <td colSpan={4} className="px-2 py-2">
+                    <span className="flex items-center gap-1.5">
+                      <Input
+                        value={nuova}
+                        onChange={(e) => setNuova(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && aggiungi()}
+                        placeholder="Aggiungi un'attività…"
+                        aria-label="Nome della nuova attività"
+                        className="h-8 max-w-xs text-xs"
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8"
+                        disabled={!nuova.trim() || inCorso}
+                        onClick={aggiungi}
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                      </Button>
+                    </span>
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
