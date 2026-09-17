@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { nomePersona } from "@/lib/nomePersona";
 import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -36,7 +37,7 @@ import {
 } from "@/hooks/useCollaborations";
 
 function name(p?: { full_name: string | null; email: string | null } | null) {
-  return p?.full_name || p?.email || "—";
+  return nomePersona(p);
 }
 
 const STATUS_BADGE: Record<CollabStatus, string> = {

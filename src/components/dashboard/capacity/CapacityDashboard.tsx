@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { nomePersona } from "@/lib/nomePersona";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,7 +24,7 @@ export function CapacityDashboard() {
       .filter((p) => owners.has(p.id))
       .map((p) => ({
         id: p.id as string,
-        label: (p.full_name || p.email || p.id.slice(0, 8)) as string,
+        label: nomePersona(p, p.id.slice(0, 8)),
       }));
   }, [profiles, certs]);
 

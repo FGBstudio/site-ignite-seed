@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { nomePersona } from "@/lib/nomePersona";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -215,7 +216,7 @@ export default function HrAvailability() {
             {profiles.map((p) => (
               <tr key={p.id} className="border-t hover:bg-muted/20">
                 <td className="sticky left-0 z-10 bg-card/95 backdrop-blur-md px-3 py-2 w-56">
-                  <div className="truncate font-medium">{p.full_name || p.email || "—"}</div>
+                  <div className="truncate font-medium">{nomePersona(p)}</div>
                   <div className="text-[10px] text-muted-foreground truncate">{p.email}</div>
                 </td>
                 {days.map((d) => {

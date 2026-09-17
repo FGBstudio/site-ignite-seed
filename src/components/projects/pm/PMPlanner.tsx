@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { nomePersona } from "@/lib/nomePersona";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -32,7 +33,7 @@ export function PMPlanner() {
         ? [
             {
               id: user.id,
-              label: (me?.full_name || me?.email || "Me") as string,
+              label: nomePersona(me, "Me"),
             },
           ]
         : [],

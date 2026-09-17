@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { nomePersona } from "@/lib/nomePersona";
 import { format } from "date-fns";
 import {
   Dialog,
@@ -44,7 +45,7 @@ const STATUS_META: Record<CollabStatus, { label: string; cls: string }> = {
 };
 
 function displayName(p?: { full_name: string | null; email: string | null } | null) {
-  return p?.full_name || p?.email || "Unknown";
+  return nomePersona(p, "Unknown");
 }
 
 export function CollaboratorsPanel({ certificationId }: { certificationId: string }) {

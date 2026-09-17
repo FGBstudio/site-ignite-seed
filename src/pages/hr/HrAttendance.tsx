@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { nomePersona } from "@/lib/nomePersona";
 import { useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -35,7 +36,7 @@ export default function HrAttendance() {
   const { data: records = [] } = useHrAttendance(filters);
   const nameOf = (uid: string) => {
     const p = profiles.find((x) => x.id === uid);
-    return p?.full_name || p?.email || uid.slice(0, 8);
+    return p ? nomePersona(p) : uid.slice(0, 8);
   };
 
   return (
@@ -49,7 +50,7 @@ export default function HrAttendance() {
               <SelectContent>
                 <SelectItem value="all">All people</SelectItem>
                 {profiles.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>{p.full_name || p.email}</SelectItem>
+                  <SelectItem key={p.id} value={p.id}>{nomePersona(p)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -149,7 +150,7 @@ function QrTokensDialog() {
             const t = tokenFor(p.id);
             return (
               <Card key={p.id} className="p-3 flex flex-col items-center gap-2">
-                <div className="text-xs font-medium text-center truncate w-full">{p.full_name || p.email}</div>
+                <div className="text-xs font-medium text-center truncate w-full">{nomePersona(p)}</div>
                 {t ? <QrPreview value={t.token} /> : <div className="w-32 h-32 bg-muted rounded" />}
                 <Button
                   size="sm"

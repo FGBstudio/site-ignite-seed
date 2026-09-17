@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { nomePersona } from "@/lib/nomePersona";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
@@ -40,7 +41,7 @@ export default function HrRequests() {
 
   const nameOf = (uid: string) => {
     const p = profiles.find((x) => x.id === uid);
-    return p?.full_name || p?.email || uid.slice(0, 8);
+    return p ? nomePersona(p) : uid.slice(0, 8);
   };
 
   return (

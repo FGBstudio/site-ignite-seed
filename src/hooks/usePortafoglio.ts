@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { nomePersona } from "@/lib/nomePersona";
 import { supabase } from "@/integrations/supabase/client";
 
 /**
@@ -122,7 +123,7 @@ export function useCorsieSito(siteId: string | undefined, cronoId: string | null
         ? await (supabase as any).from("profiles").select("id, full_name, email").in("id", pmIds)
         : { data: [] };
       const nome = new Map<string, string>(
-        ((profili ?? []) as any[]).map((p) => [p.id as string, (p.full_name || p.email) as string])
+        ((profili ?? []) as any[]).map((p) => [p.id as string, nomePersona(p)])
       );
 
       return {

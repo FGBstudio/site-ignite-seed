@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { nomePersona } from "@/lib/nomePersona";
 import { supabase } from "@/integrations/supabase/client";
 import {
   ANCORE,
@@ -671,7 +672,7 @@ export function useCertificazioniSulSito(siteId: string | undefined) {
         .select("id, full_name, email")
         .in("id", pmIds);
       const nome = new Map<string, string>(
-        ((profili ?? []) as any[]).map((p) => [p.id as string, (p.full_name || p.email) as string])
+        ((profili ?? []) as any[]).map((p) => [p.id as string, nomePersona(p)])
       );
       return righe.map((r) => ({ ...r, pm_nome: r.pm_id ? nome.get(r.pm_id) ?? null : null }));
     },

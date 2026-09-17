@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { nomePersona } from "@/lib/nomePersona";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -47,7 +48,7 @@ export default function HrScanner() {
             return;
           }
           const profile = profiles.find((p) => p.id === userId);
-          const name = profile?.full_name || profile?.email || userId.slice(0, 8);
+          const name = profile ? nomePersona(profile) : userId.slice(0, 8);
 
           // Get location best-effort
           const location = await new Promise<{ lat: number; lng: number } | null>((resolve) => {

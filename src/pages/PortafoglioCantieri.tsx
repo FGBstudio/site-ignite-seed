@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { nomePersona } from "@/lib/nomePersona";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -106,7 +107,7 @@ function useExtraSiti() {
         ? await (supabase as any).from("profiles").select("id, full_name, email").in("id", pmIds)
         : { data: [] };
       const nomePm = new Map<string, string>(
-        ((profili ?? []) as any[]).map((p) => [p.id as string, (p.full_name || p.email) as string])
+        ((profili ?? []) as any[]).map((p) => [p.id as string, nomePersona(p)])
       );
 
       const cronoIds = ((croni ?? []) as any[]).map((c) => c.id);

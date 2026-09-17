@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { inizialiPersona, nomePersona } from "@/lib/nomePersona";
 import { useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useAuth } from "@/contexts/AuthContext";
@@ -369,7 +370,7 @@ export default function TeamBoard() {
             <SelectItem value="all">All assignees</SelectItem>
             {members.map((m) => (
               <SelectItem key={m.user_id} value={m.user_id}>
-                {m.profile?.full_name || m.profile?.email || "User"}
+                {nomePersona(m.profile, "User")}
               </SelectItem>
             ))}
           </SelectContent>
@@ -582,7 +583,7 @@ function TaskCard({
                 {shown.map((p) => (
                   <Avatar key={p.id} className="h-5 w-5 ring-2 ring-background">
                     <AvatarFallback className="text-[9px] bg-primary/10 text-primary">
-                      {initials(p.full_name || p.email)}
+                      {inizialiPersona(p)}
                     </AvatarFallback>
                   </Avatar>
                 ))}
@@ -730,11 +731,11 @@ function MembersSheet({
               <div key={m.id} className="flex items-center gap-3 p-2 rounded-md bg-muted/30">
                 <Avatar className="h-7 w-7">
                   <AvatarFallback className="text-[10px]">
-                    {initials(m.profile?.full_name || m.profile?.email)}
+                    {inizialiPersona(m.profile)}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm truncate">{m.profile?.full_name || m.profile?.email || "User"}</p>
+                  <p className="text-sm truncate">{nomePersona(m.profile, "User")}</p>
                   <p className="text-[10px] text-muted-foreground capitalize">{m.role}</p>
                 </div>
               </div>
@@ -824,7 +825,7 @@ function EditTaskDialog({
     assignees.length === 0
       ? "Unassigned"
       : assignees.length === 1
-      ? (memberById.get(assignees[0])?.profile?.full_name || memberById.get(assignees[0])?.profile?.email || "1 person")
+      ? nomePersona(memberById.get(assignees[0])?.profile, "1 person")
       : `${assignees.length} people`;
 
   return (
@@ -859,7 +860,7 @@ function EditTaskDialog({
                     )}
                     {(members || []).map((m) => {
                       const checked = assignees.includes(m.user_id);
-                      const name = m.profile?.full_name || m.profile?.email || "User";
+                      const name = nomePersona(m.profile, "User");
                       return (
                         <label
                           key={m.user_id}
