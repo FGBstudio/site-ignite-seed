@@ -16,5 +16,8 @@
   "prezzo_listino": "4.000",
   "prezzo_finale": "2.500",
   "cliente_breve": "ACME",
-  "termini_giorni": "30"
+  "termini_giorni": "30",
+  "emittente_ragione_sociale": "FGB studio * Zmyrna limited",
+  "emittente_indirizzo": "3 The Shrubberies - George Lane - London E18 1BD - UK",
+  "emittente_piva": "VAT GB 215421643"
 }

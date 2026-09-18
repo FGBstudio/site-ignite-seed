@@ -11,10 +11,19 @@ import type { Contact } from "@/types/contacts";
  * segreto nel bundle non e' un segreto.
  */
 
-/** Le societa' fatturabili di un brand. */
+/**
+ * Le societa' fatturabili di un brand.
+ *
+ * La chiave sta sotto `contacts` e non sotto `offerta` perche' e' la tabella
+ * che questa query legge. Non e' pedanteria: `useContacts` invalida
+ * `["contacts"]` dopo ogni salvataggio, e finche' questa query si chiamava
+ * `["offerta", …]` quell'invalidazione non la raggiungeva. Il risultato era che
+ * creando la societa' dal form dell'offerta — col pulsante che sta li' apposta
+ * — l'elenco restava vuoto e «Genera PDF» non si abilitava mai.
+ */
 export function useSocietaDelBrand(brandId: string | null | undefined) {
   return useQuery({
-    queryKey: ["offerta", "societa", brandId],
+    queryKey: ["contacts", "societa-brand", brandId],
     enabled: !!brandId,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -37,7 +46,9 @@ export function useSocietaDelBrand(brandId: string | null | undefined) {
  */
 export function useEmittenti() {
   return useQuery({
-    queryKey: ["offerta", "emittenti"],
+    // Stessa ragione della query qui sopra: legge `contacts`, sta sotto
+    // `contacts`, così un salvataggio la rinfresca da sé.
+    queryKey: ["contacts", "emittenti"],
     staleTime: 5 * 60_000,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -78,13 +89,61 @@ export interface DatiOfferta {
   prezzo_finale: string;
   cliente_breve: string;
   termini_giorni?: string;
-  /** Chi emette. Il template Word ha l'intestazione fissa: questi campi
-   *  viaggiano lo stesso, perche' il servizio che compone il PDF li usera'
-   *  appena il template li prevede, e intanto la scelta resta registrata. */
+  /** Chi emette, stampato nel piede del PDF. Facoltativi: se mancano, il
+   *  servizio ripiega sulla societa' UK, che e' quella che stava scritta nel
+   *  template prima che l'emittente diventasse una scelta. */
   emittente_ragione_sociale?: string;
   emittente_indirizzo?: string;
   emittente_piva?: string;
+  /** Non compare nell'offerta — il piede ha tre righe e le coordinate bancarie
+   *  servono alla fattura, non a un preventivo. Viaggia lo stesso perche' la
+   *  fattura nasce da questa stessa scelta. */
   emittente_iban?: string;
+}
+
+/**
+ * Chi emette, scritto come lo vogliono i template.
+ *
+ * Le tre righe del piede servono a offerta e fattura; le coordinate bancarie
+ * solo alla fattura, che è l'unico documento su cui qualcuno deve pagare.
+ *
+ * La sigla fiscale la mette qui il codice e non piu' il template. Nel template
+ * «VAT » era scritto a mano prima del numero, il che andava bene finche' la
+ * societa' era una britannica sola; con una societa' italiana lo stesso
+ * template avrebbe stampato «VAT» sopra una partita IVA italiana — una riga
+ * fiscale sbagliata su un documento che gira al cliente.
+ *
+ * La regola guarda il paese e non la lingua dell'interfaccia: e' il paese della
+ * societa' che decide come si chiama il suo numero.
+ */
+export function datiEmittente(c: Contact | null | undefined) {
+  if (!c) return null;
+
+  const paese = (c.country ?? "").trim().toLowerCase();
+  const italiana = paese === "italia" || paese === "italy" || paese === "it";
+  const numero = (c.vat_number ?? "").trim();
+
+  return {
+    ragioneSociale: c.company_name ?? "",
+    // Una riga sola, come nel piede: via, CAP, citta', paese.
+    indirizzo: [c.address, c.postal_code, c.city, c.country].filter(Boolean).join(", "),
+    // Se il numero porta gia' la sigla non si raddoppia: qualcuno, prima o poi,
+    // scrivera' «VAT GB…» dentro il campo.
+    piva: !numero
+      ? ""
+      : /^(vat|p\.?\s?iva)\b/i.test(numero)
+      ? numero
+      : `${italiana ? "P.IVA" : "VAT"} ${numero}`,
+
+    // Coordinate bancarie: nella fattura stavano scritte nel corpo del
+    // documento. Sono il dato che il cliente usa davvero — un IBAN della
+    // società sbagliata manda i soldi altrove, e non è un errore che si
+    // recupera ristampando il PDF.
+    banca: c.bank_name ?? "",
+    conto: c.bank_account ?? "",
+    iban: c.iban ?? "",
+    bic: c.bic ?? "",
+  };
 }
 
 /**
@@ -109,7 +168,13 @@ export function datiDaSocieta(c: Contact | null | undefined) {
     indirizzo: c.address ?? "",
     capCitta,
     fiscale,
-    /** Cosa manca perché l'offerta sia intestabile. */
+    /**
+     * Quali righe dell'intestazione usciranno vuote.
+     *
+     * Non impedisce di emettere: serve a far vedere in anticipo com'è fatto il
+     * documento che si sta per mandare. L'unico dato senza cui non si può
+     * intestare è la ragione sociale, che in anagrafica è NOT NULL.
+     */
     mancanti: [
       !c.address && "indirizzo",
       !capCitta && "CAP e città",

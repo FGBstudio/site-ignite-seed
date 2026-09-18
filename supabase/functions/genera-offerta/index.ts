@@ -22,6 +22,16 @@ const CORS = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+/**
+ * Cosa serve per emettere.
+ *
+ * Le prime quattro sono l'intestazione — chi e' il cliente, dove sta, con che
+ * partita IVA — e un'offerta senza non si sa a chi e' rivolta. Il resto e' il
+ * contenuto: titolo, oggetto, voci, prezzo.
+ *
+ * Quello che NON e' qui e' tutto il resto dell'anagrafica (PEC, sito, telefono,
+ * coordinate bancarie): non entra nel documento, quindi non blocca niente.
+ */
 const OBBLIGATORI = [
   "data",
   "cliente_ragione_sociale",

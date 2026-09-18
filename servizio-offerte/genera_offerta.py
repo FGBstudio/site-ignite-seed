@@ -25,11 +25,12 @@ TEMPLATE = Path(__file__).parent / "template_offerta.docx"
 # Campi attesi dal template (tutti stringhe salvo "righe" che è una lista di stringhe)
 CAMPI_OBBLIGATORI = [
     "data",                      # es. "11 Settembre 2026"
-    "cliente_ragione_sociale",   # es. "ACME Retail S.p.A."
-    "cliente_indirizzo",         # es. "Via Monte Napoleone 8"
-    "cliente_cap_citta",         # es. "20121 Milano"
-    "cliente_piva",              # es. "P.IVA 01234567890" (testo libero: puoi passare anche CF)
-    "titolo_riga1",              # riga 1 del titolo centrale, es. "ACME"
+    # L'intestazione: le quattro righe in testa al documento.
+    "cliente_ragione_sociale",   # es. "Banca Agricola Popolare di Sicilia"
+    "cliente_indirizzo",         # es. "Via Europa 65"
+    "cliente_cap_citta",         # es. "97100 Ragusa"
+    "cliente_piva",              # es. "P.IVA 00026870881" (testo libero: anche CF)
+    "titolo_riga1",              # riga 1 del titolo centrale, es. "BAPS"
     "titolo_riga2",              # riga 2 del titolo centrale, es. "Flagship Store Milano"
     "oggetto",                   # es. "CLAIR – FGB Air Quality Monitoring System"
     "righe",                     # lista voci offerta, es. ["N. 4 Sensori ...", "Spedizione"]
@@ -39,6 +40,23 @@ CAMPI_OBBLIGATORI = [
 CAMPI_OPZIONALI = {
     "prezzo_listino": "",        # es. "4.000" -> mostrato barrato; vuoto = non mostrato
     "termini_giorni": "30",      # giorni di pagamento
+
+    # Chi emette l'offerta, stampato nel piede del documento.
+    #
+    # Sono opzionali con un default, non obbligatori, per una ragione precisa:
+    # finché le società erano una sola questi dati stavano scritti dentro il
+    # template, e ogni offerta usciva intestata alla UK. Rendendoli obbligatori,
+    # ogni chiamata già in giro che non li manda smetterebbe di funzionare da
+    # un momento all'altro; con il default, chi non sceglie ottiene esattamente
+    # il documento di prima, e chi sceglie ottiene la società giusta.
+    #
+    # I valori qui sotto sono copiati alla lettera dal piede che c'era nel
+    # template: è quello il comportamento che non deve cambiare.
+    "emittente_ragione_sociale": "FGB studio * Zmyrna limited",
+    "emittente_indirizzo": "3 The Shrubberies - George Lane - London E18 1BD - UK",
+    # La sigla fa parte del valore: «VAT» per la UK, «P.IVA» per l'Italia. Il
+    # template non la mette più da sé, perché da sé la metterebbe sbagliata.
+    "emittente_piva": "VAT GB 215421643",
 }
 
 
@@ -51,7 +69,10 @@ def _valida(dati: dict) -> dict:
     ctx = {**{k: str(dati[k]) for k in CAMPI_OBBLIGATORI if k != "righe"},
            "righe": dati["righe"]}
     for k, default in CAMPI_OPZIONALI.items():
-        ctx[k] = str(dati.get(k, default) or default if k == "termini_giorni" else dati.get(k, default) or "")
+        # Assente, None o stringa vuota valgono tutti «non me l'hanno detto»:
+        # un campo emittente vuoto che passasse com'è lascerebbe il piede in
+        # bianco, che è peggio del dato di ripiego.
+        ctx[k] = str(dati.get(k) or default)
     # Il listino barrato è opzionale: se vuoto non compare nulla
     ctx["prezzo_listino_txt"] = f"{ctx.pop('prezzo_listino')} Euro" if ctx.get("prezzo_listino") else ""
     return ctx

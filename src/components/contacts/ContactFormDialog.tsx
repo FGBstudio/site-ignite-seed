@@ -28,6 +28,8 @@ const ContactSchema = z.object({
   pec: z.string().trim().max(255).optional().or(z.literal("")),
   iban: z.string().trim().max(50).optional().or(z.literal("")),
   bank_name: z.string().trim().max(150).optional().or(z.literal("")),
+  bank_account: z.string().trim().max(50).optional().or(z.literal("")),
+  bic: z.string().trim().max(20).optional().or(z.literal("")),
   primary_contact_name: z.string().trim().max(150).optional().or(z.literal("")),
   primary_contact_role: z.string().trim().max(100).optional().or(z.literal("")),
   primary_contact_email: z.string().trim().email("Invalid email").max(255).optional().or(z.literal("")),
@@ -51,7 +53,7 @@ const emptyForm = (kind: ContactKind, brandId = ""): Record<string, string> => (
   company_name: "", vat_number: "", tax_code: "",
   address: "", city: "", country: "", postal_code: "",
   website: "", email: "", phone: "", pec: "",
-  iban: "", bank_name: "",
+  iban: "", bank_name: "", bank_account: "", bic: "",
   primary_contact_name: "", primary_contact_role: "",
   primary_contact_email: "", primary_contact_phone: "",
   notes: "",
@@ -107,6 +109,8 @@ export function ContactFormDialog({
         pec: contact.pec ?? "",
         iban: contact.iban ?? "",
         bank_name: contact.bank_name ?? "",
+        bank_account: contact.bank_account ?? "",
+        bic: contact.bic ?? "",
         primary_contact_name: contact.primary_contact_name ?? "",
         primary_contact_role: contact.primary_contact_role ?? "",
         primary_contact_email: contact.primary_contact_email ?? "",
@@ -150,6 +154,8 @@ export function ContactFormDialog({
       pec: toNullable(parsed.data.pec || ""),
       iban: toNullable(parsed.data.iban || ""),
       bank_name: toNullable(parsed.data.bank_name || ""),
+      bank_account: toNullable(parsed.data.bank_account || ""),
+      bic: toNullable(parsed.data.bic || ""),
       primary_contact_name: toNullable(parsed.data.primary_contact_name || ""),
       primary_contact_role: toNullable(parsed.data.primary_contact_role || ""),
       primary_contact_email: toNullable(parsed.data.primary_contact_email || ""),
@@ -262,6 +268,11 @@ export function ContactFormDialog({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="IBAN" value={form.iban} onChange={(v) => set("iban", v)} />
               <Field label="Bank name" value={form.bank_name} onChange={(v) => set("bank_name", v)} />
+              {/* Conto e BIC completano il blocco bancario che la fattura
+                  stampa: senza, per una società nuova quelle righe uscirebbero
+                  vuote e non ci sarebbe nessun posto dove riempirle. */}
+              <Field label="Account number" value={form.bank_account} onChange={(v) => set("bank_account", v)} />
+              <Field label="BIC / SWIFT" value={form.bic} onChange={(v) => set("bic", v)} />
             </div>
           </section>
 

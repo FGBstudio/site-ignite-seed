@@ -115,8 +115,24 @@ python genera_offerta.py dati_esempio.json -o offerta.pdf
 Obbligatori: `data`, `cliente_ragione_sociale`, `cliente_indirizzo`,
 `cliente_cap_citta`, `cliente_piva`, `titolo_riga1`, `titolo_riga2`, `oggetto`,
 `righe`, `prezzo_finale`, `cliente_breve`.
+
 Opzionali: `prezzo_listino` (vuoto = niente prezzo barrato), `termini_giorni`
 (default `30`).
+
+I primi quattro sono l'intestazione — a chi è rivolta l'offerta e con che
+partita IVA. Il resto dell'anagrafica del cliente (PEC, sito, telefono,
+coordinate bancarie) non entra nel documento e non serve per emetterlo.
+
+**Chi emette** — `emittente_ragione_sociale`, `emittente_indirizzo`,
+`emittente_piva`: le tre righe del piede di pagina. Sono opzionali e chi non le
+manda ottiene la società britannica, che è quella che stava scritta dentro il
+template prima che l'emittente fosse una scelta — così le chiamate già in giro
+continuano a produrre il documento di sempre.
+
+La sigla fa parte del valore: si manda `VAT GB 215421643` o
+`P.IVA 01234567890`, non il numero nudo. Il template non la mette più da sé
+perché, con due società in due paesi, da sé la metterebbe sbagliata su una
+delle due.
 
 ---
 
@@ -141,3 +157,28 @@ Si modifica **`template_offerta.docx`** in Word e si rimettono i segnaposto
 `{{ nome_campo }}`. Non si tocca l'XML da codice e non si ricostruisce il
 layout altrove: il docx è la fonte di verità grafica, tutto il resto è un
 tubo che ci passa i dati dentro.
+
+---
+
+## Il template della fattura
+
+`template_fattura_uk.docx` non ha ancora un servizio che lo compili — è pronto e
+aspetta. I suoi segnaposto per l'emittente sono gli stessi dell'offerta, più il
+blocco bancario che nella fattura sta nel corpo del documento:
+
+| Segnaposto | Da dove viene |
+|---|---|
+| `emittente_ragione_sociale` | `contacts.company_name` — anche come intestatario del conto |
+| `emittente_indirizzo` | via, CAP, città, paese in una riga |
+| `emittente_piva` | `vat_number`, sigla compresa |
+| `emittente_banca` | `bank_name` |
+| `emittente_conto` | `bank_account` |
+| `emittente_iban` | `iban` |
+| `emittente_bic` | `bic` |
+
+Il nome del file dice `_uk` per ragioni storiche: il layout non ha più niente di
+britannico dentro, e le altre società useranno lo stesso file. Quello che
+manca per emetterle non è un template — sono le anagrafiche.
+
+I segnaposto li ha messi `strumenti/emittente_nel_template.mjs`, che si può
+rieseguire: su un template già fatto non tocca niente.

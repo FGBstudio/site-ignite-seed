@@ -16,6 +16,10 @@ export interface Contact {
   pec: string | null;
   iban: string | null;
   bank_name: string | null;
+  // Le due coordinate che mancavano: stanno in anagrafica dalla migrazione
+  // delle società emittenti, e la fattura le stampa nel blocco bancario.
+  bank_account: string | null;
+  bic: string | null;
   primary_contact_name: string | null;
   primary_contact_role: string | null;
   primary_contact_email: string | null;

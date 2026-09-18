@@ -18,7 +18,7 @@ import { it } from "date-fns/locale";
 import { AlertTriangle, FileDown, Loader2, Plus, Trash2, UserPlus } from "lucide-react";
 import { ContactFormDialog } from "@/components/contacts/ContactFormDialog";
 import {
-  datiDaSocieta, emittentePredefinito, scarica, useEmittenti, useGeneraOfferta,
+  datiDaSocieta, datiEmittente, emittentePredefinito, scarica, useEmittenti, useGeneraOfferta,
   useSalvaDatiOfferta, useSocietaDelBrand,
   type DatiOfferta,
 } from "@/hooks/useOfferta";
@@ -130,10 +130,27 @@ export function OffertaDialog({ open, onOpenChange, certificationId }: Props) {
     [societa, contattoId],
   );
   const dati = datiDaSocieta(scelta);
+  const piede = datiEmittente(emittente);
 
   const righeValide = righe.map((r) => r.trim()).filter(Boolean);
-  const pronta =
-    !!scelta && dati?.mancanti.length === 0 && righeValide.length > 0 && !!finale.trim();
+
+  // Cosa manca, detto per esteso. Un pulsante grigio senza motivo è un vicolo
+  // cieco: chi lo guarda ha già compilato tutto quello che vede, e il dato che
+  // manca sta in anagrafica, cioè in un'altra schermata. L'elenco è anche la
+  // condizione che abilita il pulsante, così non possono dire due cose diverse.
+  //
+  // Le quattro righe che intestano l'offerta — nome, via, CAP e città, partita
+  // IVA — sono obbligatorie: sono l'offerta a qualcuno, e senza non si sa a chi
+  // è rivolta. Tutto il resto dell'anagrafica (PEC, sito, telefono, coordinate
+  // bancarie) non entra nel documento e non ferma niente.
+  const manca = [
+    !scelta && "la società a cui intestare l'offerta",
+    dati && dati.mancanti.length > 0 && `alla società: ${dati.mancanti.join(", ")}`,
+    righeValide.length === 0 && "almeno una voce",
+    !finale.trim() && "il prezzo finale",
+  ].filter(Boolean) as string[];
+
+  const pronta = manca.length === 0;
 
   const componi = (): DatiOfferta => ({
     data: dataOfferta.trim(),
@@ -149,15 +166,13 @@ export function OffertaDialog({ open, onOpenChange, certificationId }: Props) {
     prezzo_finale: finale.trim(),
     cliente_breve: brandNome ?? cert?.client ?? "",
     termini_giorni: giorni.trim() || "30",
-    // Chi emette viaggia col documento. Oggi il template Word ha
-    // l'intestazione fissa e li ignora; quando la prevederà, i dati sono già
-    // qui e la scelta non va rifatta.
-    emittente_ragione_sociale: emittente?.company_name ?? undefined,
-    emittente_indirizzo: [emittente?.address, emittente?.postal_code, emittente?.city, emittente?.country]
-      .filter(Boolean)
-      .join(", ") || undefined,
-    emittente_piva: emittente?.vat_number ?? undefined,
-    emittente_iban: emittente?.iban ?? undefined,
+    // Chi emette, stampato nel piede del PDF. Si mandano solo i campi pieni:
+    // una stringa vuota sovrascriverebbe il ripiego del servizio e lascerebbe
+    // il piede in bianco, che è il modo peggiore di non sapere una cosa.
+    emittente_ragione_sociale: piede?.ragioneSociale || undefined,
+    emittente_indirizzo: piede?.indirizzo || undefined,
+    emittente_piva: piede?.piva || undefined,
+    emittente_iban: piede?.iban || undefined,
   });
 
   const onGenera = async () => {
@@ -269,13 +284,14 @@ export function OffertaDialog({ open, onOpenChange, certificationId }: Props) {
                   </Select>
 
                   {dati && dati.mancanti.length > 0 && (
-                    /* Non basta che la società esista: questi campi finiscono
-                       in testa all'offerta, e vuoti si vedono. */
+                    /* Non basta che la società esista: questi campi sono
+                       l'intestazione dell'offerta, e vuoti si vedono. */
                     <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-2.5 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
                       <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                       <span>
                         A <b>{dati.ragioneSociale}</b> mancano {dati.mancanti.join(", ")}.
-                        Sono dati che compaiono in testa all'offerta.
+                        Sono le righe che intestano l'offerta: completa l'anagrafica
+                        per poterla generare.
                       </span>
                     </div>
                   )}
@@ -372,9 +388,7 @@ export function OffertaDialog({ open, onOpenChange, certificationId }: Props) {
 
           <DialogFooter className="gap-2 sm:justify-between">
             <span className="self-center text-[11px] text-muted-foreground">
-              {pronta
-                ? "Il PDF si scarica appena pronto."
-                : "Servono società completa, almeno una voce e il prezzo finale."}
+              {pronta ? "Il PDF si scarica appena pronto." : `Manca ${manca.join(" · ")}.`}
             </span>
             <Button onClick={onGenera} disabled={!pronta || genera.isPending || salva.isPending}>
               {(genera.isPending || salva.isPending) && (
