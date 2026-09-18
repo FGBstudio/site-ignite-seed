@@ -79,7 +79,16 @@ export function CollaboratorsPanel({ certificationId }: { certificationId: strin
       ) : (
         <div className="space-y-2">
           {requests.map((r) => {
-            const meta = STATUS_META[r.status];
+            // Stesso difetto che ha portato via il PM Portal: una chiave non
+            // mappata dà `undefined`, e leggerne `.cls` fa saltare l'intero
+            // albero React. Qui è anche meno improbabile che altrove — su
+            // `cert_collaborations.status` NON c'è nessun CHECK, quindi il
+            // database accetta qualunque stringa e nessuno se ne accorgerebbe
+            // finché la pagina non sparisce.
+            const meta = STATUS_META[r.status] ?? {
+              label: String(r.status ?? "unknown").replace(/_/g, " "),
+              cls: "bg-muted text-muted-foreground border-border",
+            };
             const canRevoke = r.status === "pending" || r.status === "approved";
             return (
               <Card key={r.id}>
