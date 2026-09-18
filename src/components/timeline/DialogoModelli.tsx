@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import { Loader2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import { CampoData } from "@/components/cronoprogramma/CampoData";
 import { dateDaModello, MODELLI, type ModelloTimeline } from "@/lib/modelliTimeline";
 
@@ -35,6 +36,7 @@ interface Props {
 }
 
 export function DialogoModelli({ aperto, onChiudi, suggerito, onApplica }: Props) {
+  const { toast } = useToast();
   const [scelto, setScelto] = useState<ModelloTimeline>(
     MODELLI.find((m) => m.chiave === suggerito) ?? MODELLI[0]
   );
@@ -51,6 +53,19 @@ export function DialogoModelli({ aperto, onChiudi, suggerito, onApplica }: Props
         scelto.voci.map((v, i) => ({ nome: v.nome, inizio: date[i].inizio, fine: date[i].fine }))
       );
       onChiudi();
+    } catch (e) {
+      // Qui prima c'era `try/finally` senza `catch`, e un salvataggio fallito
+      // non lasciava traccia: il dialogo restava aperto, identico a com'era, e
+      // dal di fuori sembrava che il pulsante non facesse niente. Chi lo usava
+      // riprovava all'infinito senza avere nulla da riferire.
+      //
+      // Il dialogo NON si chiude sull'errore: quello che hai scelto resta lì,
+      // pronto per un altro tentativo.
+      toast({
+        variant: "destructive",
+        title: "Le attività non sono state create",
+        description: e instanceof Error ? e.message : "Errore sconosciuto.",
+      });
     } finally {
       setSalvando(false);
     }

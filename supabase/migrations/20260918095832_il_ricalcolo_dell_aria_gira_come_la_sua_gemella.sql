@@ -1,0 +1,31 @@
+-- Il ricalcolo dell'aria gira come la sua gemella.
+--
+-- `fn_recalculate_site_air` ricalcola le righe di `site_air_records` quando una
+-- commessa cambia, ed e' chiamata da `trg_refresh_air_on_certs` — un trigger che
+-- scatta su QUALUNQUE update di `certifications`.
+--
+-- Era SECURITY INVOKER: girava con i privilegi di chi aveva fatto l'update. Un
+-- PM non puo' scrivere su `site_air_records`, quindi il ricalcolo veniva
+-- respinto dalle RLS e l'errore annullava l'update che l'aveva innescato:
+--
+--     new row violates row-level security policy for table "site_air_records"
+--
+-- Effetto pratico: nessun PM poteva modificare nessuna delle proprie commesse.
+-- Il caso che l'ha fatto emergere e' «Start from a template» nella timeline: le
+-- attivita' venivano create, il collegamento alla commessa no, e la pagina
+-- restava vuota senza spiegazioni.
+--
+-- Non e' un permesso nuovo concesso ai PM: il PM continua a non poter scrivere
+-- a mano su `site_air_records`. E' il ricalcolo automatico che smette di essere
+-- attribuito a lui — non e' una sua scrittura, e' una conseguenza.
+--
+-- La prova che si tratta di una svista e non di una scelta: la funzione sorella
+-- `fn_recalculate_site_energy` e' gia' SECURITY DEFINER con lo stesso
+-- search_path. Qui si allinea l'aria all'energia.
+--
+-- `SET search_path = public` e' obbligatorio insieme a SECURITY DEFINER: senza,
+-- chi chiama la funzione potrebbe anteporre uno schema con oggetti omonimi e
+-- farli eseguire con i privilegi del proprietario.
+
+ALTER FUNCTION public.fn_recalculate_site_air(uuid) SECURITY DEFINER;
+ALTER FUNCTION public.fn_recalculate_site_air(uuid) SET search_path = public;

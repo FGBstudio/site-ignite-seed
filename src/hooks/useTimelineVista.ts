@@ -404,10 +404,28 @@ export function useApplicaImport(certId: string | undefined) {
         cronoId = creato.id as string;
 
         if (certId) {
-          await (supabase as any)
+          // Questo collegamento è tutto: la vista trova le attività passando da
+          // `certifications.cronoprogramma_id`, non cercandole per sito. Se non
+          // viene scritto, le righe esistono ma non le vede nessuno.
+          //
+          // E può non essere scritto in perfetto silenzio: le RLS lasciano
+          // aggiornare una commessa solo al PM assegnato, e un UPDATE che non
+          // supera la regola non è un errore — tocca zero righe e basta.
+          // Chiedendo indietro le righe aggiornate la differenza si vede.
+          const { data: collegata, error: eLink } = await (supabase as any)
             .from("certifications")
             .update({ cronoprogramma_id: cronoId })
-            .eq("id", certId);
+            .eq("id", certId)
+            .select("id");
+          if (eLink) throw eLink;
+          if (!collegata || collegata.length === 0) {
+            // Ci si ferma prima di scrivere le attività: crearne quindici che
+            // nessuno vedrà è peggio che non crearne nessuna.
+            throw new Error(
+              "La timeline non è stata collegata al progetto: non risulti il PM di questa commessa. " +
+                "Chiedi a un amministratore di assegnartela, poi riprova."
+            );
+          }
         }
       }
 
