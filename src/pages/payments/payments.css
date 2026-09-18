@@ -1,0 +1,115 @@
+/*
+ * Payments — i valori del mockup, definiti una volta sola.
+ *
+ * Nessun esadecimale sparso nei componenti: se il rosso dello scaduto cambia,
+ * cambia qui e cambia ovunque insieme. È anche l'unico modo per accorgersi che
+ * due rossi diversi sono finiti nella stessa schermata.
+ *
+ * I nomi sono quelli della specifica, per poterli confrontare a colpo d'occhio
+ * con il documento invece di doverli tradurre.
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&display=swap');
+
+.fgb-payments {
+  --ink: #182220;
+  --muted: #66756f;
+  --faint: #93a19b;
+  --ground: #f4f6f5;
+  --border: #e2e7e4;
+
+  --teal: #0a8f80;
+  --teal-dark: #0a7264;
+  --teal-bg: #e6f4f1;
+
+  --green: #1d7f47;
+  --green-bg: #e7f4eb;
+
+  --amber: #b97a0e;
+  --amber-bg: #fbf2df;
+
+  --red: #c6362b;
+  --red-bg: #fbebe8;
+
+  --purple: #7a4fb0;
+  --purple-bg: #f1eaf9;
+
+  --dark: #17211f;
+
+  --r-card: 14px;
+  --r-input: 10px;
+
+  font-family: "Archivo", "DM Sans", system-ui, sans-serif;
+  color: var(--ink);
+  background: var(--ground);
+}
+
+/* I numeri incolonnati devono stare incolonnati: cifre di larghezza uguale. */
+.fgb-payments .num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Le etichette del mockup: piccole, spaziate, maiuscole. */
+.fgb-payments .label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.fgb-payments h1,
+.fgb-payments .titolo {
+  font-weight: 900;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.fgb-payments .card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+}
+
+/*
+ * La tabella del registro.
+ *
+ * `border-collapse: separate` con spacing zero invece di `collapse`: serve per
+ * poter dare un bordo alla riga espansa senza che sparisca sotto quello della
+ * riga sopra.
+ */
+.fgb-payments table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+}
+
+.fgb-payments thead th {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--faint);
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.fgb-payments tbody td {
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.fgb-payments tbody tr.riga:hover {
+  background: #fafbfa;
+  cursor: pointer;
+}
+
+/* La riga aperta e il suo dettaglio sono un blocco solo, anche visivamente. */
+.fgb-payments tbody tr.aperta,
+.fgb-payments tbody tr.aperta + tr .dettaglio {
+  background: var(--teal-bg);
+}

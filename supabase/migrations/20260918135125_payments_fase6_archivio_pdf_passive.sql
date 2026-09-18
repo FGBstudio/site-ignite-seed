@@ -1,0 +1,76 @@
+-- Payments, fase 6 — l'archivio dei PDF delle fatture passive.
+--
+-- Bucket dedicato e non `bills`, che esiste gia': quello appartiene a un'altra
+-- funzionalita' e le sue regole lasciano leggere a chiunque sia autenticato.
+-- Le fatture dei fornitori sono documenti fiscali dell'amministrazione, e
+-- appoggiarle li' vorrebbe dire aprirle a tutta l'azienda per comodita'.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('fatture-passive', 'fatture-passive', false, 20971520, array['application/pdf'])
+on conflict (id) do update
+  set file_size_limit = excluded.file_size_limit,
+      allowed_mime_types = excluded.allowed_mime_types,
+      public = false;
+
+-- Solo l'amministrazione, in lettura e in scrittura. Il bucket e' privato: i
+-- file si raggiungono con un link firmato che scade, mai con un URL indovinabile.
+drop policy if exists fatture_passive_admin_read on storage.objects;
+create policy fatture_passive_admin_read on storage.objects
+  for select to authenticated
+  using (bucket_id = 'fatture-passive' and coalesce(public.is_admin(auth.uid()), false));
+
+drop policy if exists fatture_passive_admin_write on storage.objects;
+create policy fatture_passive_admin_write on storage.objects
+  for insert to authenticated
+  with check (bucket_id = 'fatture-passive' and coalesce(public.is_admin(auth.uid()), false));
+
+drop policy if exists fatture_passive_admin_delete on storage.objects;
+create policy fatture_passive_admin_delete on storage.objects
+  for delete to authenticated
+  using (bucket_id = 'fatture-passive' and coalesce(public.is_admin(auth.uid()), false));
+
+/**
+ * Segna pagata una fattura passiva.
+ *
+ * La data serve: «pagata» senza sapere quando non basta a chiudere un conto ne'
+ * a rispondere a un fornitore che chiede notizie.
+ */
+create or replace function public.fn_paga_fattura_passiva(
+  p_id uuid,
+  p_data date default null
+) returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not coalesce(public.is_admin(auth.uid()), false) then
+    raise exception 'Solo l''amministrazione registra i pagamenti ai fornitori';
+  end if;
+
+  update public.passive_invoices
+     set state = 'paid',
+         paid_date = coalesce(p_data, current_date)
+   where id = p_id;
+
+  if not found then raise exception 'Fattura passiva inesistente'; end if;
+end;
+$$;
+
+/**
+ * I termini di un fornitore valgono per le fatture nuove, non per quelle gia'
+ * registrate.
+ *
+ * Cambiare l'accordo con un fornitore non sposta le scadenze di documenti gia'
+ * in casa: quelle sono nate sotto i termini di allora, e riscriverle vorrebbe
+ * dire cambiare il passato. Per questo `terms_days` e' una colonna della
+ * fattura, copiata dal fornitore al momento della registrazione.
+ */
+create or replace function public.fn_termini_fornitore(p_supplier_id uuid)
+returns integer
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce((select default_terms_days from public.suppliers where id = p_supplier_id), 60);
+$$;

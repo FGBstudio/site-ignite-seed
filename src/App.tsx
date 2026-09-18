@@ -10,6 +10,16 @@ import Home from "./pages/Home";
 import ProjectsHub from "./pages/ProjectsHub";
 import ComingSoon from "./pages/ComingSoon";
 import InvoicePage from "./pages/Invoice/InvoicePage";
+import PaymentsLayout from "./pages/payments/PaymentsLayout";
+import RegistroFatture from "./pages/payments/RegistroFatture";
+import Recall from "./pages/payments/Recall";
+import NoteCredito from "./pages/payments/NoteCredito";
+import FatturePassive from "./pages/payments/FatturePassive";
+import DaEmettere from "./pages/payments/DaEmettere";
+import Insoluti from "./pages/payments/Insoluti";
+import DashboardPayments from "./pages/payments/Dashboard";
+import IvaPrevisionale from "./pages/payments/IvaPrevisionale";
+import TasksAlerts from "./pages/payments/TasksAlerts";
 import { HUB_SECTIONS } from "@/lib/hubSections";
 import Projects from "./pages/Projects";
 import ProjectCreateWizard from "./pages/ProjectCreateWizard";
@@ -94,6 +104,22 @@ function AppRoutes() {
 
       <Route path="/monitor" element={<ProtectedRoute allowedRoles={R("ADMIN", "PM")}><Monitor /></ProtectedRoute>} />
       <Route path="/monitor/report" element={<ProtectedRoute allowedRoles={R("ADMIN", "PM")}><MonitorReport /></ProtectedRoute>} />
+      {/* ── Payments ──
+          Nove schede su un registro solo. Le schermate arrivano una fase per
+          volta; quelle non ancora fatte dicono che il motore sotto gira già.
+          `/invoice` resta raggiungibile per confronto finché la sostituzione
+          non è completa, poi sparisce insieme al suo store nel localStorage. */}
+      <Route path="/payments" element={<ProtectedRoute allowedRoles={R("ADMIN")}><PaymentsLayout /></ProtectedRoute>}>
+        <Route index element={<DashboardPayments />} />
+        <Route path="registro" element={<RegistroFatture />} />
+        <Route path="da-emettere" element={<DaEmettere />} />
+        <Route path="recall" element={<Recall />} />
+        <Route path="insoluti" element={<Insoluti />} />
+        <Route path="note-credito" element={<NoteCredito />} />
+        <Route path="passive" element={<FatturePassive />} />
+        <Route path="iva" element={<IvaPrevisionale />} />
+        <Route path="alerts" element={<TasksAlerts />} />
+      </Route>
       <Route path="/invoice" element={<ProtectedRoute allowedRoles={R("ADMIN")}><InvoicePage /></ProtectedRoute>} />
       <Route path="/quotations" element={<ProtectedRoute allowedRoles={R("ADMIN")}><Quotations /></ProtectedRoute>} />
 
