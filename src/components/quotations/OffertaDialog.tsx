@@ -15,10 +15,11 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
-import { AlertTriangle, FileDown, Loader2, Plus, Trash2, UserPlus } from "lucide-react";
+import { AlertTriangle, FileDown, FileText, Loader2, Plus, Trash2, UserPlus } from "lucide-react";
 import { ContactFormDialog } from "@/components/contacts/ContactFormDialog";
 import {
   datiDaSocieta, datiEmittente, emittentePredefinito, scarica, useEmittenti, useGeneraOfferta,
+  useScaricaOfferta,
   useSalvaDatiOfferta, useSocietaDelBrand,
   type DatiOfferta,
 } from "@/hooks/useOfferta";
@@ -42,9 +43,25 @@ interface Props {
 const prezzo = (n: number | null | undefined) =>
   n === null || n === undefined ? "" : new Intl.NumberFormat("it-IT").format(n);
 
+/**
+ * Se il PDF si puo' chiedere.
+ *
+ * Il Word si compone qui nel browser; il PDF no, perche' convertire mantenendo
+ * l'impaginazione richiede LibreOffice — e il servizio che ce l'ha non e'
+ * ancora acceso. Finche' non lo e', il pulsante non si mostra: uno che risponde
+ * «servizio non configurato» insegna solo a non premerlo.
+ *
+ * Il resto del percorso e' gia' scritto e collaudato. Per riaccenderlo basta
+ * questa riga, piu' i font Futura caricati sul servizio: senza quelli il PDF
+ * esce con metriche diverse dal Word, e si nota sul titolo e sulla tabella
+ * firme.
+ */
+const PDF_DISPONIBILE = false;
+
 export function OffertaDialog({ open, onOpenChange, certificationId }: Props) {
   const { toast } = useToast();
-  const genera = useGeneraOfferta();
+  const scaricaOfferta = useScaricaOfferta();
+  const generaPdf = useGeneraOfferta();
   const salva = useSalvaDatiOfferta();
 
   const { data: cert } = useQuery({
@@ -151,6 +168,7 @@ export function OffertaDialog({ open, onOpenChange, certificationId }: Props) {
   ].filter(Boolean) as string[];
 
   const pronta = manca.length === 0;
+  const occupato = scaricaOfferta.isPending || generaPdf.isPending || salva.isPending;
 
   const componi = (): DatiOfferta => ({
     data: dataOfferta.trim(),
@@ -175,7 +193,15 @@ export function OffertaDialog({ open, onOpenChange, certificationId }: Props) {
     emittente_iban: piede?.iban || undefined,
   });
 
-  const onGenera = async () => {
+  /**
+   * Scarica l'offerta, nei due formati.
+   *
+   * Il Word si compone qui e arriva subito. Il PDF passa dal servizio con
+   * LibreOffice, perche' convertire mantenendo l'impaginazione richiede un
+   * motore di impaginazione vero: e' l'unico passaggio che il browser non puo'
+   * fare da se'.
+   */
+  const onScarica = async (formato: "docx" | "pdf") => {
     try {
       // Prima si salva, poi si genera: se la generazione fallisce — il servizio
       // dorme, la rete cade — quello che hai scritto resta comunque.
@@ -191,12 +217,30 @@ export function OffertaDialog({ open, onOpenChange, certificationId }: Props) {
           ? Number(listino.replace(/\./g, "").replace(",", "."))
           : null,
       });
-      const { blob, nome } = await genera.mutateAsync(componi());
+
+      const { blob, nome } =
+        formato === "docx"
+          ? await scaricaOfferta.mutateAsync(componi())
+          : await generaPdf.mutateAsync(componi());
+
       scarica(blob, nome);
-      toast({ title: "Offerta generata", description: nome });
+      toast({
+        title: formato === "docx" ? "Offerta scaricata in Word" : "Offerta scaricata in PDF",
+        description:
+          formato === "docx"
+            ? `${nome} — da Word, se ti serve il PDF: «Salva con nome → PDF».`
+            : nome,
+      });
       onOpenChange(false);
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Non è stato possibile generare", description: e.message });
+      toast({
+        variant: "destructive",
+        title: `Non è stato possibile scaricare ${formato === "docx" ? "il Word" : "il PDF"}`,
+        description:
+          formato === "pdf"
+            ? `${e.message} — il Word funziona comunque: il PDF ha bisogno del servizio di conversione.`
+            : e.message,
+      });
     }
   };
 
@@ -388,14 +432,30 @@ export function OffertaDialog({ open, onOpenChange, certificationId }: Props) {
 
           <DialogFooter className="gap-2 sm:justify-between">
             <span className="self-center text-[11px] text-muted-foreground">
-              {pronta ? "Il PDF si scarica appena pronto." : `Manca ${manca.join(" · ")}.`}
+              {pronta
+                ? "Si scarica in Word: da lì «Salva con nome → PDF», se ti serve."
+                : `Manca ${manca.join(" · ")}.`}
             </span>
-            <Button onClick={onGenera} disabled={!pronta || genera.isPending || salva.isPending}>
-              {(genera.isPending || salva.isPending) && (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              )}
+            {/* Il PDF sta in secondo piano non per gerarchia ma per come si
+                comporta: il Word arriva subito, il PDF aspetta il servizio. */}
+            {PDF_DISPONIBILE && (
+              <Button
+                variant="outline"
+                onClick={() => onScarica("pdf")}
+                disabled={!pronta || occupato}
+              >
+                {generaPdf.isPending ? (
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                ) : (
+                  <FileText className="mr-1.5 h-4 w-4" />
+                )}
+                PDF
+              </Button>
+            )}
+            <Button onClick={() => onScarica("docx")} disabled={!pronta || occupato}>
+              {scaricaOfferta.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               <FileDown className="mr-1.5 h-4 w-4" />
-              Genera PDF
+              Word
             </Button>
           </DialogFooter>
         </DialogContent>

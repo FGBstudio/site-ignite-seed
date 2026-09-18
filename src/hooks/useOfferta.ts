@@ -1,6 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Contact } from "@/types/contacts";
+import { compilaDocx, nomeFileSicuro, TIPO_DOCX, type Contesto } from "@/lib/docx";
+// Il modello viaggia col sito come un qualunque allegato. È lo stesso file che
+// usa il servizio Python: una sola copia, nessun secondo layout da tenere
+// allineato a mano.
+import urlModelloOfferta from "../../servizio-offerte/template_offerta.docx?url";
 
 /**
  * L'offerta in PDF.
@@ -184,11 +189,66 @@ export function datiDaSocieta(c: Contact | null | undefined) {
 }
 
 /**
- * Genera il PDF.
+ * I valori che il modello Word si aspetta.
  *
- * La Edge Function risponde con il PDF oppure con un JSON di errore: si guarda
- * il tipo di contenuto, perche' trattare un messaggio d'errore come un PDF
- * produce un file che si scarica e non si apre — e nessuno capisce perche'.
+ * Rispecchia `_valida` di `servizio-offerte/genera_offerta.py`: sono due strade
+ * verso lo stesso documento — qui il Word scaricato dal browser, li' il PDF
+ * composto da LibreOffice — e devono riempire gli stessi segnaposto allo stesso
+ * modo, altrimenti lo stesso preventivo uscirebbe diverso a seconda di come lo
+ * si e' chiesto.
+ */
+function contestoOfferta(d: DatiOfferta): Contesto {
+  return {
+    ...d,
+    // Il listino compare barrato accanto al totale. Vuoto vuol dire «nessuno
+    // sconto da mostrare», e allora non deve comparire nemmeno la parola Euro.
+    prezzo_listino_txt: d.prezzo_listino ? `${d.prezzo_listino} Euro` : "",
+    termini_giorni: d.termini_giorni || "30",
+    // Chi non ha scelto l'emittente ottiene la societa' che stava scritta nel
+    // modello prima che l'emittente fosse una scelta: stesso documento di
+    // sempre, nessuna regressione.
+    emittente_ragione_sociale: d.emittente_ragione_sociale || "FGB studio * Zmyrna limited",
+    emittente_indirizzo:
+      d.emittente_indirizzo || "3 The Shrubberies - George Lane - London E18 1BD - UK",
+    emittente_piva: d.emittente_piva || "VAT GB 215421643",
+  };
+}
+
+/**
+ * L'offerta in Word, composta qui.
+ *
+ * Il modello si scarica come un allegato qualsiasi, si riempie in memoria e si
+ * consegna. Non c'e' nessun servizio da tenere acceso: quello che serviva un
+ * server era convertire in PDF, e quel passaggio lo fa Word con «Salva con
+ * nome» — in cambio, chi emette puo' ritoccare una riga prima di mandarla, che
+ * su un preventivo capita spesso.
+ */
+export function useScaricaOfferta() {
+  return useMutation({
+    mutationFn: async (dati: DatiOfferta) => {
+      const risposta = await fetch(urlModelloOfferta);
+      if (!risposta.ok) {
+        throw new Error("Il modello Word non è raggiungibile: ricarica la pagina e riprova.");
+      }
+      const modello = new Uint8Array(await risposta.arrayBuffer());
+      const documento = compilaDocx(modello, contestoOfferta(dati));
+
+      const nome = nomeFileSicuro(
+        `Offerta ${dati.cliente_breve} ${dati.titolo_riga2}`.trim(),
+      );
+      return { blob: new Blob([documento], { type: TIPO_DOCX }), nome: `${nome}.docx` };
+    },
+  });
+}
+
+/**
+ * Genera il PDF passando dal servizio.
+ *
+ * Resta per quando il servizio su Render sara' acceso: li' il PDF esce gia'
+ * impaginato, senza il passaggio da Word. La Edge Function risponde con il PDF
+ * oppure con un JSON di errore: si guarda il tipo di contenuto, perche'
+ * trattare un messaggio d'errore come un PDF produce un file che si scarica e
+ * non si apre — e nessuno capisce perche'.
  */
 export function useGeneraOfferta() {
   return useMutation({
