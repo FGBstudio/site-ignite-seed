@@ -279,6 +279,11 @@ export const CampoData = forwardRef<HTMLInputElement, Props>(function CampoData(
           mode="single"
           locale={it}
           weekStartsOn={1}
+          // Sempre sei righe, anche quando il mese ne riempirebbe cinque.
+          // Senza, il riquadro cambia altezza passando da luglio ad agosto e le
+          // scorciatoie qui sotto si spostano sotto il dito di chi sta per
+          // premerle: si finisce per cliccare «+30gg» volendo cambiare mese.
+          fixedWeeks
           defaultMonth={startOfMonth(meseIniziale)}
           selected={valore ? parseISO(valore) : undefined}
           onSelect={(d) => {

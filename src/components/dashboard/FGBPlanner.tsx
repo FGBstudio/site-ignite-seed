@@ -26,6 +26,15 @@ export interface GanttRowData {
   id: string;
   label: string;
   subLabel?: string;
+  /**
+   * Cliente e città in campi propri, non impastati in `subLabel`.
+   *
+   * Servono come colonne separate — ordinabili e leggibili in colonna — come
+   * nella vista admin: «Rodeo Drive» da solo non dice se è Los Angeles o Milano,
+   * e i nomi dei negozi si ripetono fra città diverse.
+   */
+  client?: string | null;
+  city?: string | null;
   currentActivity?: string;
   launchDate?: string | null;
   // --- COLONNE FASI LEED ---
@@ -78,10 +87,13 @@ const LEFT_W: Record<PlannerView, number> = {
   // Nel diagramma resta solo il nome: un Gantt senza etichette di riga non si
   // legge, ma le date stanno gia' disegnate nelle barre.
   timeline: 210,
-  // Affiancati: nome, stato, consegna, avanzamento. Il resto sta nella tabella.
-  split: 366,
+  // Affiancati: cliente, città, progetto, stato, consegna, avanzamento. Con
+  // 366px le sei colonne si schiacciavano l'una sull'altra e non si leggeva
+  // niente — meglio togliere spazio alle barre, che senza etichette leggibili
+  // non dicono comunque di chi sono.
+  split: 596,
   // Tabella: tutte le colonne.
-  table: 890,
+  table: 1130,
 };
 
 /**
@@ -558,6 +570,15 @@ const COL = "shrink-0 px-2 text-[11px]";
 function HeaderCells({ full, view }: { full: boolean; view: PlannerView }) {
   return (
     <div className="flex items-center w-full font-semibold text-[10px] text-muted-foreground uppercase tracking-wide">
+      {/* Cliente e città accanto al progetto, come nella vista admin: sono le
+          tre cose che insieme identificano una commessa. Nel solo diagramma
+          restano fuori — lì lo spazio serve alle barre. */}
+      {view !== "timeline" && (
+        <>
+          <div className={cn(COL, "w-[128px]")}>Client</div>
+          <div className={cn(COL, "w-[112px]")}>Città</div>
+        </>
+      )}
       <div className={cn(COL, "flex-1 min-w-0")}>Progetto</div>
       {view !== "timeline" && (
         <>
@@ -595,9 +616,27 @@ function RowCells({
 }) {
   return (
     <div className="relative z-10 flex items-center w-full">
+      {view !== "timeline" && (
+        <>
+          <div className={cn(COL, "w-[128px] min-w-0")}>
+            <span className="block truncate text-[11px] font-semibold uppercase" title={row.client ?? ""}>
+              {row.client ?? "—"}
+            </span>
+          </div>
+          <div className={cn(COL, "w-[112px] min-w-0")}>
+            <span className="block truncate text-[11px] uppercase text-muted-foreground" title={row.city ?? ""}>
+              {row.city ?? "—"}
+            </span>
+          </div>
+        </>
+      )}
       <div className={cn(COL, "flex-1 min-w-0 flex flex-col justify-center leading-tight")}>
         <span className="truncate text-xs font-medium text-foreground" title={row.label}>{row.label}</span>
-        {row.subLabel && <span className="truncate text-[10px] text-muted-foreground">{row.subLabel}</span>}
+        {/* Nel solo diagramma il sottotitolo resta: è l'unico posto dove si può
+            leggere di chi è la riga, perché le colonne non ci sono. */}
+        {view === "timeline" && row.subLabel && (
+          <span className="truncate text-[10px] text-muted-foreground">{row.subLabel}</span>
+        )}
       </div>
       {view !== "timeline" && (
         <>

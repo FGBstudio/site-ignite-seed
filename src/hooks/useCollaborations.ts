@@ -108,25 +108,32 @@ export function useAdminCollabRequests(status?: CollabStatus | "all") {
 }
 
 // ─── PM directory (for the invite picker) ───
+/**
+ * Gli altri PM, per la tendina «invita collaboratore».
+ *
+ * Passa da `fn_colleghi` e non da `profiles`: su quella tabella un PM vede solo
+ * se stesso, quindi leggeva i 13 ruoli PM e poi zero nomi — e senza nome non
+ * c'era niente da mostrare. La tendina restava vuota con «No other PMs found»,
+ * che sembrava un dato («non ce ne sono») invece di un permesso mancante.
+ *
+ * La funzione espone solo nome ed email di chi ha un ruolo operativo: il resto
+ * dell'anagrafica resta chiuso.
+ */
 export function usePMUsers() {
   const { user } = useAuth();
   return useQuery({
-    queryKey: ["pm-users"],
+    queryKey: ["colleghi", "PM"],
     queryFn: async () => {
-      const { data: roles, error } = await (supabase as any)
-        .from("user_roles")
-        .select("user_id, role")
-        .eq("role", "PM");
+      const { data, error } = await (supabase as any).rpc("fn_colleghi", { p_ruolo: "PM" });
       if (error) throw error;
-      const ids = [...new Set((roles ?? []).map((r: any) => r.user_id))].filter(
-        (id: string) => id !== user?.id,
-      );
-      if (ids.length === 0) return [] as { id: string; full_name: string | null; email: string | null }[];
-      const { data: profiles } = await (supabase as any)
-        .from("profiles")
-        .select("id, full_name, email")
-        .in("id", ids);
-      return (profiles ?? []) as { id: string; full_name: string | null; email: string | null }[];
+      return ((data ?? []) as Array<{
+        id: string;
+        full_name: string | null;
+        display_name: string | null;
+        email: string | null;
+      }>)
+        // Se stessi no: non ci si invita da soli.
+        .filter((p) => p.id !== user?.id);
     },
   });
 }

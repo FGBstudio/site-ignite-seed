@@ -337,6 +337,10 @@ export function usePMDashboard() {
           id: c.id,
           label: c.name || c.cert_type || "Unnamed",
           subLabel: c.client,
+          // Cliente e città come colonne proprie del planner, non impastati nel
+          // sottotitolo: in colonna si leggono e si ordinano, come fa l'admin.
+          client: c.client ?? null,
+          city: c.sites?.city ?? null,
           launchDate,
           designStart,
           designEnd,

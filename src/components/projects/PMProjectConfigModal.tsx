@@ -106,7 +106,22 @@ function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChan
         .eq("milestone_type", "timeline")
         .order("order_index");
       if (error) throw error;
-      return data || [];
+
+      /**
+       * Lo stesso insieme di righe che mostra la vista Timeline.
+       *
+       * Sono due viste della stessa tabella e devono raccontare la stessa cosa:
+       * qui comparivano anche i passi non applicabili al progetto — le
+       * spedizioni CLAIR e Greeny su una commessa senza monitoraggio — che di
+       * là non ci sono. Chi passava dall'una all'altra vedeva due scalette
+       * diverse e non sapeva quale fosse quella vera.
+       *
+       * Le righe di serie restano fuori per la stessa ragione: la vista le
+       * tratta a parte.
+       */
+      return (data || []).filter(
+        (m: any) => !m.not_applicable && m.series_step_order === null,
+      );
     },
   });
 
@@ -585,12 +600,20 @@ function TimelineTab({ project, onOpenChange }: { project: PMProject; onOpenChan
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Il cronoprogramma resta raggiungibile anche a timeline fatta: e' da li'
-          che si sposta l'handover quando il GC comunica date nuove. */}
-      <div className="flex justify-end">
-        <Button variant="ghost" size="sm" onClick={vaiAlCronoprogramma} className="gap-1.5 text-xs">
+      {/* Le due timeline sono due cose diverse, e confonderle costa caro: si
+          compila la scaletta del servizio, si torna alla tabella PROJECTS e la
+          riga «timeline di cantiere» e' ancora vuota — sembra che il
+          salvataggio non abbia funzionato, mentre e' un'altra timeline che non
+          e' stata toccata. Detto qui, l'equivoco non nasce. */}
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/40 px-3 py-2">
+        <p className="text-[11.5px] leading-snug text-muted-foreground">
+          Questa è la <b className="text-foreground">scaletta del servizio FGB</b>: cosa facciamo
+          noi e quando. Le date di cantiere — inizio lavori, handover — stanno nella timeline di
+          progetto, ed è da lì che si spostano quando il GC comunica date nuove.
+        </p>
+        <Button variant="outline" size="sm" onClick={vaiAlCronoprogramma} className="gap-1.5 text-xs">
           <GanttChartSquare className="h-3.5 w-3.5" />
-          PROJECT TIMELINE del sito
+          Apri la PROJECT TIMELINE
         </Button>
       </div>
 
