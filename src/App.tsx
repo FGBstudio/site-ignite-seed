@@ -20,6 +20,7 @@ import Insoluti from "./pages/payments/Insoluti";
 import DashboardPayments from "./pages/payments/Dashboard";
 import IvaPrevisionale from "./pages/payments/IvaPrevisionale";
 import TasksAlerts from "./pages/payments/TasksAlerts";
+import RegistroClienti from "./pages/payments/RegistroClienti";
 import { HUB_SECTIONS } from "@/lib/hubSections";
 import Projects from "./pages/Projects";
 import ProjectCreateWizard from "./pages/ProjectCreateWizard";
@@ -115,6 +116,7 @@ function AppRoutes() {
         <Route path="da-emettere" element={<DaEmettere />} />
         <Route path="recall" element={<Recall />} />
         <Route path="insoluti" element={<Insoluti />} />
+        <Route path="clienti" element={<RegistroClienti />} />
         <Route path="note-credito" element={<NoteCredito />} />
         <Route path="passive" element={<FatturePassive />} />
         <Route path="iva" element={<IvaPrevisionale />} />

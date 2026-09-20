@@ -485,6 +485,83 @@ export async function linkPdfPassiva(percorso: string): Promise<string> {
   return data.signedUrl;
 }
 
+/* ── Note sulla fattura ───────────────────────────────────────────────────── */
+
+/** Cosa ha detto il cliente, in ordine dal più recente. */
+export function useNoteFattura(invoiceId: string | null) {
+  return useQuery({
+    queryKey: ["payments", "note", invoiceId],
+    enabled: !!invoiceId,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("invoice_notes")
+        .select("id, date, text, created_at")
+        .eq("invoice_id", invoiceId)
+        .order("date", { ascending: false })
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        id: string;
+        date: string;
+        text: string;
+        created_at: string;
+      }>;
+    },
+  });
+}
+
+/**
+ * Annotare un aggiornamento.
+ *
+ * Si impila, non si sovrascrive: due promesse mancate raccontano una storia che
+ * una promessa sola non racconta, e quando si decide se mandare una pratica al
+ * legale è esattamente quella storia che serve.
+ */
+export function useAggiungiNota() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { invoice_id: string; text: string; date?: string }) => {
+      const utente = (await supabase.auth.getUser()).data.user;
+      const { error } = await (supabase as any).from("invoice_notes").insert({
+        invoice_id: v.invoice_id,
+        text: v.text.trim(),
+        date: v.date ?? new Date().toISOString().slice(0, 10),
+        created_by: utente?.id ?? null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ["payments", "note", v.invoice_id] });
+      qc.invalidateQueries({ queryKey: ["payments", "note-tutte"] });
+    },
+  });
+}
+
+/** Quante note ha ogni fattura: serve a segnalare dove c'è qualcosa da leggere. */
+export function useConteggioNote() {
+  return useQuery({
+    queryKey: ["payments", "note-tutte"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("invoice_notes")
+        .select("invoice_id, date, text")
+        .order("date", { ascending: false });
+      if (error) throw error;
+      const m = new Map<string, { quante: number; ultima: string; testo: string }>();
+      for (const n of (data ?? []) as any[]) {
+        const p = m.get(n.invoice_id);
+        // La prima che incontro è la più recente: l'ordine della query lo garantisce.
+        m.set(n.invoice_id, {
+          quante: (p?.quante ?? 0) + 1,
+          ultima: p?.ultima ?? n.date,
+          testo: p?.testo ?? n.text,
+        });
+      }
+      return m;
+    },
+  });
+}
+
 /* ── Note di credito ──────────────────────────────────────────────────────── */
 
 /** Tutte le note di credito. Si uniscono alle fatture già in memoria. */

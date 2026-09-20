@@ -63,100 +63,26 @@ export default function Dashboard() {
         </span>
       </div>
 
-      {/* ── Il funnel ── */}
-      <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
-        <KpiCard
-          className="flex-1"
-          etichetta="Potenziale"
-          valore={importo(funnel.potenziale)}
-          sotto={`${funnel.potenzialeQuotazioni} quotazioni inviate, non approvate`}
-        />
-        <Freccia />
-        <KpiCard
-          className="flex-1"
-          etichetta="Da contabilizzare"
-          valore={importo(funnel.daContabilizzare)}
-          sotto={
-            <>
-              {funnel.daContabilizzarePezzi} tranche non ancora fatturate
-              {funnel.dueOraPezzi > 0 && (
-                <b style={{ display: "block", color: "var(--teal-dark)" }}>
-                  di cui {funnel.dueOraPezzi} esigibili ora · {importo(funnel.dueOra)}
-                </b>
-              )}
-            </>
-          }
-          variante="accento"
-        />
-        <Freccia />
-        <KpiCard
-          className="flex-1"
-          etichetta={`Contabilizzato ${anno}`}
-          valore={importo(anno_.netto)}
-          sotto={
-            <>
-              {anno_.fatture} fatture · lordo {importo(anno_.lordo)}
-              {anno_.noteCredito > 0 && ` · note di credito −${importo(anno_.noteCredito)}`}
-            </>
-          }
-          variante="scura"
-        />
-      </div>
-
-      {/* ── I quattro numeri ── */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard
-          etichetta={`Incassato ${anno}`}
-          valore={importo(incassatoYtd)}
-          sotto={
-            anno_.netto > 0
-              ? `${Math.round((incassatoYtd / anno_.netto) * 100)}% del contabilizzato`
-              : "—"
-          }
-        />
-        <KpiCard
-          etichetta="Residuo crediti"
-          valore={importo(port.residuoCrediti)}
-          sotto="totale − incassi − note di credito"
-        />
-        <KpiCard
-          etichetta="di cui pagate parziali"
-          valore={importo(port.residuoParziali)}
-          sotto={`${port.fattureParziali} fatture con differenze non pagate`}
-          variante="ambra"
-        />
-        <KpiCard
-          etichetta="Insoluto"
-          valore={importo(port.insoluto)}
-          sotto={`${port.fattureInsolute} in recupero`}
-          variante="rossa"
-        />
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+      {/*
+        Due colonne, non una pila di card tutte uguali.
+        A sinistra il lavoro da fare — le fatture da emettere — che è la sola
+        cosa su cui si agisce da qui: tenerla grande e in alto significa che si
+        apre la pagina e si vede cosa fare. A destra i numeri, che si leggono e
+        basta: stanno stretti perché guardarli è un gesto più corto.
+      */}
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+        {/* ══ Sinistra: il lavoro ══ */}
         <div className="space-y-4">
-          {/* ── La settimana ── */}
-          <div className="grid gap-3 sm:grid-cols-2">
-            <KpiCard
-              etichetta="Fatturato questa settimana"
-              valore={importo(settimana.importo)}
-              sotto={`${settimana.fatture} fatture emesse · lun–dom`}
-            />
-            <KpiCard
-              etichetta="Da fatturare questa settimana"
-              valore={importo(funnel.dueOra)}
-              sotto={`${funnel.dueOraPezzi} tranche esigibili`}
-            />
-          </div>
-
-          {/* ── Da emettere ora ── */}
           <section className="card overflow-hidden">
             <header
-              className="flex items-center gap-2 px-4 py-3"
-              style={{ borderBottom: "1px solid var(--border)" }}
+              className="flex flex-wrap items-center gap-2 px-4 py-3"
+              style={{ borderBottom: "1px solid var(--border)", background: "var(--teal-bg)" }}
             >
-              <Send className="h-4 w-4" style={{ color: "var(--teal)" }} />
+              <Send className="h-4 w-4" style={{ color: "var(--teal-dark)" }} />
               <h2 className="titolo text-[13px]">Da emettere ora</h2>
+              <span className="num text-[13px] font-extrabold" style={{ color: "var(--teal-dark)" }}>
+                {importo(funnel.dueOra)}
+              </span>
               <Link
                 to="/payments/da-emettere"
                 className="ml-auto text-[11.5px] font-semibold"
@@ -167,15 +93,15 @@ export default function Dashboard() {
             </header>
 
             {due.length === 0 ? (
-              <p className="p-8 text-center text-[12px]" style={{ color: "var(--muted)" }}>
+              <p className="p-10 text-center text-[12px]" style={{ color: "var(--muted)" }}>
                 Niente da emettere: tutto quello che è maturato è già fatturato.
               </p>
             ) : (
               <ul>
-                {due.slice(0, 5).map((t) => (
+                {due.slice(0, 8).map((t) => (
                   <li
                     key={t.id}
-                    className="flex flex-wrap items-center gap-3 px-4 py-2.5"
+                    className="flex flex-wrap items-center gap-3 px-4 py-3"
                     style={{ borderBottom: "1px solid var(--border)" }}
                   >
                     <Pill tinta="teal">{t.name ?? "Tranche"}</Pill>
@@ -184,16 +110,25 @@ export default function Dashboard() {
                         ? `Evento atteso ${format(new Date(t.data_attesa), "d MMM", { locale: it })}`
                         : "Esigibile"}
                     </span>
-                    <span className="num text-[13px] font-bold">{importo(t.amount ?? 0)}</span>
+                    <span className="num text-[14px] font-bold">{importo(t.amount ?? 0)}</span>
                   </li>
                 ))}
               </ul>
             )}
-          </section>
-        </div>
 
-        {/* ── La colonna di destra ── */}
-        <div className="space-y-4">
+            <div
+              className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 text-[11.5px]"
+              style={{ background: "var(--ground)", color: "var(--muted)" }}
+            >
+              <span>
+                Questa settimana: emesse <b className="num text-foreground">{importo(settimana.importo)}</b>
+                {" "}({settimana.fatture}) · da emettere{" "}
+                <b className="num text-foreground">{importo(funnel.dueOra)}</b> ({funnel.dueOraPezzi})
+              </span>
+            </div>
+          </section>
+
+          {/* Le azioni richieste stanno con il lavoro, non coi numeri. */}
           <section className="card overflow-hidden">
             <header
               className="flex items-center gap-2 px-4 py-3"
@@ -201,6 +136,9 @@ export default function Dashboard() {
             >
               <Bell className="h-4 w-4" style={{ color: "var(--amber)" }} />
               <h2 className="titolo text-[13px]">Azioni richieste</h2>
+              {alert.length > 0 && (
+                <span className="num text-[11px]" style={{ color: "var(--muted)" }}>{alert.length}</span>
+              )}
             </header>
             {alert.length === 0 ? (
               <p className="p-6 text-center text-[12px]" style={{ color: "var(--muted)" }}>
@@ -232,6 +170,74 @@ export default function Dashboard() {
               </>
             )}
           </section>
+        </div>
+
+        {/* ══ Destra: i numeri ══ */}
+        <div className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+            <KpiCard
+              etichetta={`Contabilizzato ${anno}`}
+              valore={importo(anno_.netto)}
+              sotto={
+                <>
+                  {anno_.fatture} fatture · lordo {importo(anno_.lordo)}
+                  {anno_.noteCredito > 0 && ` · NC −${importo(anno_.noteCredito)}`}
+                </>
+              }
+              variante="scura"
+            />
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <KpiCard
+              etichetta="Potenziale"
+              valore={importo(funnel.potenziale)}
+              sotto={`${funnel.potenzialeQuotazioni} quotazioni aperte`}
+            />
+            <KpiCard
+              etichetta="Da contabilizzare"
+              valore={importo(funnel.daContabilizzare)}
+              sotto={`${funnel.daContabilizzarePezzi} tranche · ${funnel.dueOraPezzi} esigibili`}
+              variante="accento"
+            />
+          </div>
+
+          {/* Le percentuali: due importi affiancati costringono a fare il conto
+              a mente, e chi lo fa di fretta lo fa male. */}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <KpiCard
+              etichetta={`Incassato ${anno}`}
+              valore={importo(incassatoYtd)}
+              sotto={<Percentuale parte={incassatoYtd} tutto={anno_.netto} testo="del contabilizzato" />}
+            />
+            <KpiCard
+              etichetta="Residuo crediti"
+              valore={importo(port.residuoCrediti)}
+              sotto={<Percentuale parte={port.residuoCrediti} tutto={anno_.netto} testo="ancora da incassare" />}
+            />
+            <KpiCard
+              etichetta="di cui parziali"
+              valore={importo(port.residuoParziali)}
+              sotto={
+                <>
+                  {port.fattureParziali} fatture ·{" "}
+                  <Percentuale parte={port.residuoParziali} tutto={port.residuoCrediti} testo="del residuo" />
+                </>
+              }
+              variante="ambra"
+            />
+            <KpiCard
+              etichetta="Insoluto"
+              valore={importo(port.insoluto)}
+              sotto={
+                <>
+                  {port.fattureInsolute} in recupero ·{" "}
+                  <Percentuale parte={port.insoluto} tutto={anno_.netto} testo="del fatturato" />
+                </>
+              }
+              variante="rossa"
+            />
+          </div>
 
           <Link to="/payments/iva" className="block">
             <KpiCard
@@ -254,13 +260,27 @@ export default function Dashboard() {
   );
 }
 
-/** La freccia fra le card del funnel: sparisce in verticale, dove non serve. */
-function Freccia() {
+/**
+ * Una percentuale accanto all'importo.
+ *
+ * «€ 6.410.000 su € 7.930.000» costringe a fare una divisione a mente, e chi la
+ * fa di fretta la fa male. «80,8%» si legge e basta.
+ */
+function Percentuale({
+  parte,
+  tutto,
+  testo,
+}: {
+  parte: number;
+  tutto: number;
+  testo: string;
+}) {
+  // Senza un totale la percentuale non esiste: meglio niente che «0%», che
+  // sembra un dato e invece è l'assenza di dati.
+  if (!tutto) return <>{testo}</>;
   return (
-    <ArrowRight
-      className="mx-auto hidden h-4 w-4 shrink-0 sm:block"
-      style={{ color: "var(--faint)" }}
-      aria-hidden
-    />
+    <>
+      <b className="num text-foreground">{Math.round((parte / tutto) * 100)}%</b> {testo}
+    </>
   );
 }

@@ -297,6 +297,128 @@ export function previsioneAnno(
   return mesi;
 }
 
+/* ── Il registro clienti ──────────────────────────────────────────────────── */
+
+export interface SchedaCliente {
+  /** L'identità del cliente quando c'è; altrimenti il nome, per non perdere righe. */
+  chiave: string;
+  nome: string;
+  /** Quanto gli è stato fatturato, al lordo delle note di credito. */
+  fatturato: number;
+  noteCredito: number;
+  /** Fatturato meno note di credito: quello che gli abbiamo davvero chiesto. */
+  netto: number;
+  incassato: number;
+  /** Quanto deve ancora: è la domanda che fanno più spesso. */
+  aperto: number;
+  insoluto: number;
+  /** Quotazioni non ancora approvate: quanto potremmo fatturargli. */
+  potenziale: number;
+  fatture: InvoiceRow[];
+  progetti: string[];
+  /** L'ultima fattura emessa: dice se il cliente è ancora attivo. */
+  ultima: string | null;
+}
+
+/** Due nomi che differiscono per maiuscole o spazi sono lo stesso cliente. */
+const normalizza = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
+
+/**
+ * Tutto quello che riguarda un cliente, in una riga.
+ *
+ * Risponde alle tre domande che arrivano sempre insieme: quanto gli abbiamo
+ * fatturato, quanto deve ancora, quanto potremmo fatturargli. Tenerle separate
+ * costringerebbe a incrociare tre schermate a mano, che è il modo in cui
+ * nascono i numeri sbagliati nelle riunioni.
+ *
+ * Il potenziale arriva dalle quotazioni aperte abbinate per nome: le fatture
+ * puntano a una società in anagrafica, le quotazioni portano il nome del
+ * cliente come testo, e non esiste un legame fra le due. L'abbinamento è
+ * dichiarato approssimativo per questo.
+ */
+export function registroClienti(
+  righe: InvoiceRow[],
+  quotazioni: Quotazione[] = [],
+): SchedaCliente[] {
+  const per = new Map<string, SchedaCliente>();
+
+  for (const f of righe) {
+    const nome = f.client_name ?? "— senza cliente —";
+    const chiave = f.client_contact_id ?? normalizza(nome);
+    const s =
+      per.get(chiave) ??
+      {
+        chiave,
+        nome,
+        fatturato: 0,
+        noteCredito: 0,
+        netto: 0,
+        incassato: 0,
+        aperto: 0,
+        insoluto: 0,
+        potenziale: 0,
+        fatture: [],
+        progetti: [],
+        ultima: null,
+      };
+
+    s.fatturato += f.total_eur;
+    s.noteCredito += f.credited_amount * f.exch_rate;
+    s.incassato += f.paid_amount * f.exch_rate;
+    if (f.residual > 0 && f.lifecycle_state !== "closed") s.aperto += f.residual_eur;
+    if (f.lifecycle_state === "insoluto" && f.recovery_state !== "write_off") {
+      s.insoluto += f.residual_eur;
+    }
+    s.fatture.push(f);
+    if (f.project_name && !s.progetti.includes(f.project_name)) s.progetti.push(f.project_name);
+    if (!s.ultima || f.issue_date > s.ultima) s.ultima = f.issue_date;
+
+    per.set(chiave, s);
+  }
+
+  // Il potenziale si abbina per nome: è l'unico aggancio disponibile.
+  const perNome = new Map<string, SchedaCliente>();
+  for (const s of per.values()) perNome.set(normalizza(s.nome), s);
+
+  for (const q of quotazioni) {
+    if (!q.total_fees || !q.client) continue;
+    const s = perNome.get(normalizza(q.client));
+    if (s) {
+      s.potenziale += q.total_fees;
+    } else {
+      // Un cliente a cui non abbiamo mai fatturato ma che ha quotazioni aperte
+      // è un cliente a tutti gli effetti: nasconderlo darebbe un potenziale
+      // che non torna con quello della dashboard.
+      const chiave = normalizza(q.client);
+      const nuovo: SchedaCliente = {
+        chiave,
+        nome: q.client,
+        fatturato: 0,
+        noteCredito: 0,
+        netto: 0,
+        incassato: 0,
+        aperto: 0,
+        insoluto: 0,
+        potenziale: q.total_fees,
+        fatture: [],
+        progetti: [],
+        ultima: null,
+      };
+      per.set(chiave, nuovo);
+      perNome.set(chiave, nuovo);
+    }
+  }
+
+  for (const s of per.values()) {
+    s.netto = s.fatturato - s.noteCredito;
+    // Dalla più recente: su una scheda cliente si guarda prima cosa è successo
+    // ultimamente, non come è cominciata.
+    s.fatture.sort((a, b) => b.issue_date.localeCompare(a.issue_date));
+  }
+
+  return [...per.values()].sort((a, b) => b.netto - a.netto || b.potenziale - a.potenziale);
+}
+
 const SIMBOLO: Record<Currency, string> = {
   EUR: "€",
   GBP: "£",

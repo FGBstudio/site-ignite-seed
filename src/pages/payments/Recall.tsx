@@ -12,6 +12,7 @@ import {
 import { KpiCard, Money, Pill } from "@/components/payments/Comuni";
 import { DialogoIncasso } from "@/components/payments/DialogoIncasso";
 import { DialogoSollecito } from "@/components/payments/DialogoSollecito";
+import { NoteFattura } from "@/components/payments/NoteFattura";
 import { importo } from "@/lib/payments/aggregati";
 import { useToast } from "@/hooks/use-toast";
 import type { InvoiceRow } from "@/types/payments";
@@ -177,6 +178,13 @@ export default function Recall() {
                     ) : (
                       "mai sollecitata"
                     )}
+                  </div>
+
+                  {/* Le note stanno sulla riga e non dietro un click: se per
+                      leggerle bisogna aprire qualcosa, chi scorre l'elenco
+                      richiama il cliente senza sapere che ha già risposto. */}
+                  <div className="order-last w-full">
+                    <NoteFattura invoiceId={f.id} />
                   </div>
 
                   <div className="flex flex-wrap gap-1.5">

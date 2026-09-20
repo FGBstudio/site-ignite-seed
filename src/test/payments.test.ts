@@ -9,6 +9,7 @@ import {
   lunediDi,
   perEntita,
   previsioneAnno,
+  registroClienti,
   scadenzaIva,
 } from "@/lib/payments/aggregati";
 import type { InvoiceRow } from "@/types/payments";
@@ -283,6 +284,62 @@ describe("previsionale", () => {
   it("una tranche senza data attesa finisce a dicembre, non nel mese corrente", () => {
     const senza = previsioneAnno([], [{ ...tranche[0], data_attesa: null }], [], 2026);
     expect(senza[11].pianificato).toBe(50000);
+  });
+});
+
+describe("registro clienti", () => {
+  const righe = [
+    fattura({ client_contact_id: "c1", client_name: "PRADA", project_name: "Montenapoleone", issue_date: "2026-03-01", total: 100000, total_eur: 100000, paid_amount: 60000, residual: 40000, residual_eur: 40000, payment_status: "partial", lifecycle_state: "in_recall" }),
+    fattura({ client_contact_id: "c1", client_name: "PRADA", project_name: "Changi T2", issue_date: "2026-07-01", total: 50000, total_eur: 50000, credited_amount: 10000, paid_amount: 40000, residual: 0, residual_eur: 0, payment_status: "paid", lifecycle_state: "closed" }),
+    fattura({ client_contact_id: "c2", client_name: "FENDI", project_name: "Roma", issue_date: "2026-05-01", total: 30000, total_eur: 30000, residual: 30000, residual_eur: 30000, payment_status: "unpaid", lifecycle_state: "insoluto", recovery_state: "legale" }),
+  ];
+  const quotazioni = [
+    { id: "q1", name: null, client: "prada", status: "quotation", total_fees: 80000 },
+    { id: "q2", name: null, client: "NUOVO CLIENTE", status: "quotation", total_fees: 25000 },
+  ];
+  const reg = registroClienti(righe, quotazioni);
+  const prada = reg.find((c) => c.nome === "PRADA")!;
+  const fendi = reg.find((c) => c.nome === "FENDI")!;
+
+  it("somma il fatturato del cliente al netto delle note di credito", () => {
+    expect(prada.fatturato).toBe(150000);
+    expect(prada.noteCredito).toBe(10000);
+    expect(prada.netto).toBe(140000);
+  });
+
+  it("il debito aperto esclude le fatture chiuse", () => {
+    expect(prada.aperto).toBe(40000);
+    expect(prada.incassato).toBe(100000);
+  });
+
+  it("l'insoluto si conta a parte dall'aperto", () => {
+    expect(fendi.insoluto).toBe(30000);
+    expect(prada.insoluto).toBe(0);
+  });
+
+  it("abbina il potenziale al cliente anche se il nome è scritto diverso", () => {
+    // Le quotazioni portano il nome come testo, le fatture puntano a una
+    // società in anagrafica: «prada» e «PRADA» sono lo stesso cliente.
+    expect(prada.potenziale).toBe(80000);
+  });
+
+  it("un cliente con sole quotazioni aperte compare lo stesso", () => {
+    const nuovo = reg.find((c) => c.nome === "NUOVO CLIENTE");
+    expect(nuovo?.potenziale).toBe(25000);
+    expect(nuovo?.fatturato).toBe(0);
+  });
+
+  it("elenca i progetti del cliente senza ripeterli", () => {
+    expect(prada.progetti.sort()).toEqual(["Changi T2", "Montenapoleone"]);
+  });
+
+  it("le fatture sono dalla più recente", () => {
+    expect(prada.fatture[0].issue_date).toBe("2026-07-01");
+    expect(prada.ultima).toBe("2026-07-01");
+  });
+
+  it("i clienti escono ordinati per fatturato", () => {
+    expect(reg[0].nome).toBe("PRADA");
   });
 });
 
