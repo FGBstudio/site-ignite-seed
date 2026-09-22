@@ -117,6 +117,143 @@ export interface Supplier {
   vat_number: string | null;
 }
 
+/* ── La WBS di cassa ──────────────────────────────────────────────────────── */
+
+/**
+ * Quanto fidarsi di una data.
+ *
+ * Non è un dettaglio da nascondere in un tooltip: un incasso avvenuto e una
+ * stima dedotta da un evento non valgono uguale, e una griglia che li disegna
+ * uguali fa prendere decisioni sbagliate con la faccia sicura.
+ */
+export type Certezza = "reale" | "contrattuale" | "prevista" | "stimata";
+
+/**
+ * Da quale gradino della scala viene la data di cassa.
+ *
+ * I primi sei valori arrivano dalle tranche, gli ultimi cinque dalle uscite:
+ * due vocabolari diversi perché le due scale lo sono — un incasso si registra,
+ * un'uscita si contrattualizza.
+ */
+export type FonteData =
+  | "incasso"
+  | "scadenza_fattura"
+  | "pagamento_previsto"
+  | "fattura_emessa"
+  | "da_evento"
+  | "da_evento_stimato"
+  | "telemetria_scartata"
+  | "reale"
+  | "contratto"
+  | "evento"
+  | "stima"
+  | "senza_data";
+
+/** Quale fatto genera il pagamento. Anche qui i due lati parlano diverso. */
+export type FonteEvento =
+  | "milestone_chiusa"
+  | "ordine_hardware"
+  | "installazione"
+  | "primo_dato"
+  | "telemetria_scartata"
+  | "ordine"
+  | "spedizione"
+  | "ricezione"
+  | "stima"
+  | "senza_data";
+
+/** Una riga di `v_cash_events`: un movimento, da qualunque lato arrivi. */
+export interface CashEvent {
+  id: string;
+  verso: "entrata" | "uscita";
+  corsia: "cliente" | "fornitore" | "installatore";
+  /** La voce dentro la commessa: Ciclo attivo, Acquisto materiali, Installatori. */
+  gruppo: string;
+  /** La macro-categoria: Energy, Air, Non attribuite. */
+  categoria: string;
+  /**
+   * La data di cassa: quando il denaro si muove davvero.
+   *
+   * Nulla quando nessuna fonte ha saputo dire quando. La riga resta, in fondo.
+   */
+  data: string | null;
+  settimana: string | null;
+  /** Quando è successo il fatto che innesca il pagamento: installazione,
+   *  ricezione merce, chiusura di una milestone. */
+  data_evento: string | null;
+  /**
+   * Quando la fattura è stata emessa.
+   *
+   * È il terzo anello, e non va confuso con la cassa: una fattura emessa il
+   * 17 aprile e pagata il 30 settembre sono due momenti diversi, e sulla
+   * traccia devono restare due segni diversi.
+   */
+  data_documento: string | null;
+  /** Già in euro, già col segno: le uscite arrivano negative. */
+  importo_eur: number;
+  /**
+   * Lo stesso importo nella valuta in cui è stato pattuito, stesso segno.
+   *
+   * Sulle fatture cinesi è il numero su cui si discute: «9.325,50 RMB» è
+   * quello che sta sul documento, l'euro è una conseguenza del cambio.
+   */
+  importo_valuta: number;
+  valuta: string;
+  cambio: number;
+  certezza: Certezza | null;
+  fonte: FonteData | null;
+  fonte_evento: FonteEvento | null;
+  /** Solo `cassa` entra nelle somme. */
+  natura: "cassa" | "documento" | "quota";
+  commessa_id: string | null;
+  commessa: string;
+  certification_id: string | null;
+  progetto: string | null;
+  brand: string | null;
+  citta: string | null;
+  etichetta: string | null;
+  /** Il numero del documento: fattura fornitore, PO. Nullo sulle entrate,
+   *  dove un numero fattura non esiste ancora. */
+  riferimento: string | null;
+  stato: string | null;
+  ordine_tranche: number | null;
+  origine: "tranche" | "uscita";
+}
+
+/**
+ * Una riga di `v_progetti_tempi`: quanto dura un progetto.
+ *
+ * Non è cassa. È la striscia che va dall'acquisto dei materiali
+ * all'installazione fino all'ultimo incasso — «quanto ci mettiamo a
+ * rientrare», che è una domanda diversa da «quando esce un euro».
+ */
+export interface ProgettoTempi {
+  certification_id: string;
+  commessa_id: string | null;
+  progetto: string;
+  citta: string | null;
+  data_materiali: string | null;
+  data_installazione: string | null;
+  primo_incasso: string | null;
+  ultimo_incasso: string | null;
+  tranche_totali: number;
+  tranche_incassate: number;
+}
+
+export interface Commessa {
+  id: string;
+  nome: string;
+  servizio: string | null;
+  anno: number | null;
+  /** Dichiarato, non sommato dai progetti: lo scarto fra i due è un controllo. */
+  valore_dichiarato: number | null;
+  valuta: Currency;
+  cambio_budget: number;
+  contratto_cliente: string | null;
+  stato: "aperta" | "chiusa" | "on_hold";
+  note: string | null;
+}
+
 export interface PassiveInvoice {
   id: string;
   number: string;

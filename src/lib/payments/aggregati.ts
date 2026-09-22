@@ -435,14 +435,26 @@ const SIMBOLO: Record<Currency, string> = {
  * qualunque.
  */
 export function importo(valore: number, valuta: Currency = "EUR", decimali = 0): string {
-  const n = new Intl.NumberFormat("it-IT", {
+  return `${SIMBOLO[valuta]} ${cifre(valore, decimali)}`;
+}
+
+/**
+ * Le cifre, sempre raggruppate.
+ *
+ * In italiano `Intl` non raggruppa i numeri di quattro cifre — «5737» ma
+ * «12.345» — perché il CLDR chiede almeno due gruppi. È corretto in tipografia
+ * e pessimo in una colonna di importi: due righe vicine finiscono scritte in
+ * due modi diversi e un migliaio si legge a occhio come una cifra di troppo.
+ * `useGrouping: "always"` è l'unico valore che lo forza; `true` non basta, ed
+ * è l'errore che questa funzione aveva prima.
+ */
+export function cifre(valore: number, decimali = 0): string {
+  return new Intl.NumberFormat("it-IT", {
     minimumFractionDigits: decimali,
     maximumFractionDigits: decimali,
-    // In italiano `Intl` non raggruppa i numeri di quattro cifre: «1234,50» ma
-    // «12.345,50». È corretto in tipografia, pessimo in una colonna di importi,
-    // dove due righe vicine finirebbero scritte in due modi diversi e un
-    // migliaio si legge a occhio come una cifra di troppo.
-    useGrouping: true,
+    // `"always"` è ES2023 e i tipi di questo progetto dichiarano ancora solo
+    // il booleano. Il valore è valido a runtime su ogni browser che serviamo;
+    // il cast dice che lo sappiamo, invece di far finta che sia `true`.
+    useGrouping: "always" as unknown as boolean,
   }).format(valore);
-  return `${SIMBOLO[valuta]} ${n}`;
 }

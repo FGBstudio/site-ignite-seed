@@ -113,3 +113,413 @@
 .fgb-payments tbody tr.aperta + tr .dettaglio {
   background: var(--teal-bg);
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * WBS di cassa
+ *
+ * Non è una tabella di celle: è una traccia su cui gli elementi stanno a una
+ * posizione. La differenza è sostanziale, non di stile — una milestone porta
+ * importo e titolo scritti accanto al rombo, una barra si estende per la sua
+ * durata, e in una cella nessuna delle due cose entra.
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+.fgb-payments .wbs {
+  --wk: 104px;
+  --lbl: 300px;
+  /* L'altezza della striscia di cassa. I marker ci si agganciano sotto, quindi
+     è la stessa misura in due posti e deve stare scritta una volta sola. */
+  --striph: 17px;
+
+  /* Quattro colori in tutta la vista, e mai un quinto.
+     Il verso del denaro si legge dal colore prima ancora che dalla forma: un
+     verde solo per quello che entra, due rossi per quello che esce. Il più
+     scuro è il fornitore, perché è la voce più pesante; la terracotta è
+     l'installatore. Sono lontani abbastanza da distinguersi a colpo d'occhio,
+     vicini abbastanza da dire entrambi «esce».
+     Il grigio non è semantico: marca le durate, che sono tempo e non denaro. */
+  --in: var(--green);
+  --in-bg: var(--green-bg);
+  --in-line: #8fbfa9;
+  --out-forn: #a8253f;
+  --out-forn-bg: #f8e3e8;
+  --out-forn-line: #d99aa9;
+  --out-inst: #9c4a2a;
+  --out-inst-bg: #f3e4db;
+  --out-inst-line: #ce9f86;
+  --po: #8a8f88;
+  --po-bg: #edefea;
+  --neg: #fff;
+  --def: #be3455;
+  --def-bg: #f7e1e8;
+}
+
+.fgb-payments .wbs-scroll { overflow-x: auto; }
+.fgb-payments .wbs-grid { min-width: max-content; }
+
+.fgb-payments .wbs-row {
+  display: grid;
+  grid-template-columns: var(--lbl) calc(var(--wk) * var(--ncol));
+  border-bottom: 1px solid var(--border);
+}
+
+.fgb-payments .wbs-lbl {
+  position: sticky;
+  left: 0;
+  z-index: 6;
+  background: #fff;
+  border-right: 1px solid var(--border);
+  padding: 8px 10px;
+  font-size: 13px;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+.fgb-payments .wbs-lbl .nm { font-weight: 600; min-width: 0; }
+.fgb-payments .wbs-lbl .nm small {
+  display: block;
+  font-weight: 400;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+/* I numeri della riga non stanno in una frase: stanno a coppie, etichetta
+   piccola sopra e valore sotto, incolonnati. Una riga di testo che dice
+   «entrate X · uscite Y · saldo Z · quote W · resa K%» è completa e non si
+   legge; queste si scorrono con l'occhio senza leggerle davvero, che è come
+   si guardano i numeri. */
+.fgb-payments .wbs-lbl .nm .cifre {
+  display: flex; flex-wrap: wrap; gap: 2px 12px; margin-top: 3px;
+}
+.fgb-payments .wbs-lbl .nm .cifre > span {
+  display: inline-flex; flex-direction: column; line-height: 1.2;
+  font-size: 11px; font-weight: 600; color: var(--ink);
+}
+.fgb-payments .wbs-lbl .nm .cifre i {
+  font-style: normal; font-size: 8.5px; font-weight: 700; letter-spacing: .04em;
+  text-transform: uppercase; color: var(--faint);
+}
+.fgb-payments .wbs-row.lv-master .wbs-lbl .nm .cifre > span { color: #fff; }
+.fgb-payments .wbs-row.lv-master .wbs-lbl .nm .cifre i { color: rgba(255,255,255,.55); }
+.fgb-payments .wbs-lbl .nm .scarto { color: var(--amber); margin-top: 2px; }
+
+/* Le righe aggregate si distinguono dal peso, non dal colore: il colore sulla
+   traccia significa già corsia, e usarlo anche per il livello confonde. */
+.fgb-payments .wbs-row.lv-master .wbs-lbl { background: var(--dark); color: #fff; }
+.fgb-payments .wbs-row.lv-master .wbs-lbl .nm { font-size: 14px; font-weight: 900; letter-spacing: .6px; text-transform: uppercase; }
+.fgb-payments .wbs-row.lv-master .wbs-lbl .nm small { color: rgba(255,255,255,.7); }
+.fgb-payments .wbs-row.lv-categoria .wbs-lbl { background: var(--ground); }
+.fgb-payments .wbs-row.lv-categoria .wbs-lbl .nm { font-size: 13.5px; font-weight: 900; letter-spacing: .5px; text-transform: uppercase; }
+.fgb-payments .wbs-row.lv-commessa .wbs-lbl { background: color-mix(in srgb, var(--ground) 55%, #fff); }
+.fgb-payments .wbs-row.lv-commessa .wbs-lbl .nm { font-size: 13px; font-weight: 800; }
+.fgb-payments .wbs-row.lv-gruppo .wbs-lbl .nm { font-weight: 700; }
+
+.fgb-payments .wbs-track {
+  position: relative;
+  background: repeating-linear-gradient(
+    to right,
+    transparent 0 calc(var(--wk) - 1px),
+    var(--border) calc(var(--wk) - 1px) var(--wk)
+  );
+}
+.fgb-payments .wbs-preg {
+  position: absolute; inset: 0 auto 0 0; width: var(--wk); z-index: 0;
+  background: color-mix(in srgb, var(--ground) 60%, transparent);
+  border-right: 1px dashed var(--border);
+}
+.fgb-payments .wbs-nodate {
+  position: absolute; inset: 0 0 0 auto; width: var(--wk); z-index: 0;
+  background: color-mix(in srgb, var(--amber-bg) 45%, transparent);
+  border-left: 1px solid var(--border);
+}
+.fgb-payments .wbs-today {
+  position: absolute; top: 0; bottom: 0; width: 0; z-index: 4; pointer-events: none;
+  border-left: 1.5px solid var(--ink); opacity: .45;
+}
+
+/* Testata */
+.fgb-payments .wbs-row.wbs-hdr .wbs-lbl { background: var(--ground); font-weight: 700; }
+.fgb-payments .wbs-hdr .wbs-track { background: var(--ground); height: 46px; }
+.fgb-payments .wbs-wk { position: absolute; top: 0; bottom: 0; padding: 7px 8px; font-size: 12px; }
+.fgb-payments .wbs-wk b { display: block; font-size: 12px; }
+.fgb-payments .wbs-wk span { color: var(--faint); font-size: 10.5px; }
+.fgb-payments .wbs-wk.now b::after {
+  content: "oggi"; margin-left: 5px; font-size: 9px;
+  background: var(--red); color: #fff; border-radius: 4px; padding: 1px 5px; vertical-align: 1px;
+}
+
+/* Striscia di cassa. Bordo solo sopra e sotto: le giunzioni verticali fra
+   una cella e l altra sparirebbero comunque una dentro l altra. */
+.fgb-payments .wbs-cash {
+  position: absolute; top: 12px; height: var(--sh); z-index: 1;
+  border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+}
+
+/* Sulle righe di dettaglio il marker si aggancia a un binario sottile invece
+   che alla striscia: senza, resterebbe sospeso su niente. */
+.fgb-payments .wbs-rail {
+  position: absolute; top: 12px; left: 0; right: 0; height: var(--sh); z-index: 1;
+}
+
+/* Barre di attività */
+.fgb-payments .wbs-bar {
+  position: absolute; height: 17px; border-radius: 5px; border: 1px solid;
+  font-size: 10.5px; font-weight: 600; padding: 0 6px; line-height: 15px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; z-index: 2;
+}
+/* Le barre sono durate, non denaro: restano neutre.
+   Il rosso è riservato alle uscite — se lo prendesse anche la finestra di
+   installazione, una attività in corso sembrerebbe un esborso. */
+.fgb-payments .wbs-bar.forn,
+.fgb-payments .wbs-bar.inst,
+.fgb-payments .wbs-bar.po {
+  background: var(--po-bg); border-color: var(--po); color: var(--muted);
+}
+.fgb-payments .wbs-bar.inst {
+  background: color-mix(in srgb, var(--po) 22%, #fff);
+  border-color: color-mix(in srgb, var(--po) 75%, var(--ink));
+  color: var(--ink);
+}
+.fgb-payments .wbs-bar.stimata { border-style: dashed; }
+
+/* La banda sta in alto da sola, sopra la fila delle etichette: prima
+   occupavano la stessa fascia e il testo finiva sotto il grigio. */
+.fgb-payments .wbs-env {
+  position: absolute; height: 18px; top: 4px; border-radius: 9px; z-index: 1;
+  background: color-mix(in srgb, var(--po-bg) 75%, transparent);
+  border: 1px solid var(--po);
+}
+/* Il periodo di installazione è una durata, non un esborso: grigio neutro,
+   niente colore semantico. Se prendesse un rosso, un'attività in corso
+   sembrerebbe un pagamento. */
+.fgb-payments .wbs-env .seg {
+  position: absolute; top: 3px; height: 10px; border-radius: 5px;
+  background: color-mix(in srgb, var(--ink) 25%, transparent);
+}
+.fgb-payments .wbs-life {
+  position: absolute; height: 0; z-index: 1;
+  border-top: 2px solid color-mix(in srgb, var(--ink) 20%, transparent);
+}
+
+/* ── Marker · pattern approvato ───────────────────────────────────────────
+ *
+ * Preso alla lettera da wbs-filtro-commesse-demo.html: stesse misure, stessi
+ * offset, stessi tempi. La cosa che cambia tutto rispetto a prima è che il
+ * marker **non porta etichette sulla traccia**: importo, titolo e dettaglio
+ * stanno nella nuvoletta. È quello che tiene la griglia leggibile quando in
+ * una settimana cadono otto movimenti.
+ *
+ * `--sh` è l'altezza della striscia, e si imposta sulla traccia: 15px dove
+ * c'è una striscia di cassa, 4px sulle righe di dettaglio dove il marker si
+ * aggancia a un binario sottile.
+ * ───────────────────────────────────────────────────────────────────────── */
+
+.fgb-payments .wbs-mk {
+  position: absolute; top: 12px; width: 14px; height: 60px;
+  background: none; border: none; padding: 0; z-index: 3; cursor: pointer;
+  font: inherit; color: inherit;
+}
+.fgb-payments .wbs-mk:hover,
+.fgb-payments .wbs-mk:focus-visible,
+.fgb-payments .wbs-mk.open { z-index: 30; }
+.fgb-payments .wbs-mk:focus-visible { outline: none; }
+
+/* Le frecce di una settimana stanno una accanto all'altra, 16px l'una
+   dall'altra, tutte agganciate alla striscia alla stessa altezza: è
+   l'allineamento con la striscia a farle leggere come un unico momento nel
+   tempo. Sono al massimo tre, quindi ci stanno. */
+.fgb-payments .wbs-mk .stem {
+  position: absolute; left: 6px; top: var(--sh); width: 2px; height: 7px; border-radius: 2px;
+  box-shadow: 0 0 0 1px color-mix(in srgb, #fff 55%, transparent);
+  transition: top .22s cubic-bezier(.3, .7, .3, 1), height .22s cubic-bezier(.3, .7, .3, 1);
+}
+.fgb-payments .wbs-mk .tip {
+  position: absolute; left: 1px; top: calc(var(--sh) + 7px); width: 0; height: 0;
+  border-left: 6px solid transparent; border-right: 6px solid transparent;
+  transition: transform .22s cubic-bezier(.3, .7, .3, 1);
+}
+
+/* Il colore della corsia sta sul marker, non solo sui suoi pezzi: così
+   `currentColor` lo trova anche il tratteggio del gambo. */
+.fgb-payments .wbs-mk.in { color: var(--in); }
+.fgb-payments .wbs-mk.forn { color: var(--out-forn); }
+.fgb-payments .wbs-mk.inst { color: var(--out-inst); }
+
+.fgb-payments .wbs-mk.in .stem { background: var(--in); }
+.fgb-payments .wbs-mk.in .tip { border-bottom: 7px solid var(--in); margin-top: -1px; }
+.fgb-payments .wbs-mk.forn .stem { background: var(--out-forn); }
+.fgb-payments .wbs-mk.forn .tip { border-top: 7px solid var(--out-forn); }
+.fgb-payments .wbs-mk.inst .stem { background: var(--out-inst); }
+.fgb-payments .wbs-mk.inst .tip { border-top: 7px solid var(--out-inst); }
+
+/* Le cadenze: punta più larga, e `left: 0` perché con bordi da 7 l'asse resta
+   a 7px come per tutte le altre. */
+.fgb-payments .wbs-mk.agg .tip { border-left-width: 7px; border-right-width: 7px; left: 0; }
+
+/* L'emissione della fattura: grigio, e senza punta.
+   Una freccia vuol dire che il denaro si muove in quella direzione, e qui non
+   si muove niente — è solo il giorno da cui contano i termini. Un quadratino
+   vuoto lo dice senza mentire, e il grigio lo tiene fuori dalla lettura
+   verde/rosso che riguarda la cassa. */
+.fgb-payments .wbs-mk.po { color: var(--po); }
+.fgb-payments .wbs-mk.po .stem { background: var(--po); }
+.fgb-payments .wbs-mk.po .tip {
+  border: none; left: 3px; width: 8px; height: 8px; border-radius: 2px;
+  background: #fff; box-shadow: inset 0 0 0 1.5px var(--po);
+}
+.fgb-payments .wbs-mk.po.agg .tip { box-shadow: inset 0 0 0 2.5px var(--po); }
+
+/* L'importo accanto alla freccia. C'è sempre, ed è sempre un totale.
+ *
+ * Con al massimo tre marker per settimana il numero ci sta e va mostrato: è
+ * la risposta alla domanda che uno si fa guardando la griglia — quanto entra,
+ * quanto esce. Quello che resta fuori è *di cosa* è fatto: l'elenco dei
+ * movimenti, lo split fornitori/installatori, le prime voci. Quelli stanno
+ * nella nuvoletta, e ci si arriva passandoci sopra.
+ *
+ * Le frecce restano in fila, gli importi scendono in colonna sotto di esse:
+ * affiancare anche i numeri non si può — «− € 7.355» occupa mezza settimana —
+ * e impilare le frecce farebbe perdere loro l'allineamento con la striscia.
+ * È il colore a dire quale numero appartiene a quale freccia. */
+.fgb-payments .wbs-mk .val {
+  position: absolute;
+  font-size: 10px; font-weight: 700; line-height: 1.2; letter-spacing: -.1px;
+  white-space: nowrap; pointer-events: none;
+  max-width: calc(var(--wk) - 14px); overflow: hidden; text-overflow: clip;
+}
+.fgb-payments .wbs-mk.in .val { color: var(--in); }
+.fgb-payments .wbs-mk.forn .val { color: var(--out-forn); }
+.fgb-payments .wbs-mk.inst .val { color: var(--out-inst); }
+/* In hover la linea scende verso la nuvoletta e l'importo si toglie di mezzo:
+   quello che serve sapere è già scritto là sotto, più in grande. */
+.fgb-payments .wbs-mk:hover .val,
+.fgb-payments .wbs-mk:focus-visible .val,
+.fgb-payments .wbs-mk.open .val { opacity: 0; transition: opacity .12s ease; }
+
+/* Previsto: l'importo si attenua insieme al gambo. */
+.fgb-payments .wbs-mk.prevista .val { opacity: .8; }
+.fgb-payments .wbs-mk.stimata .val { opacity: .55; }
+
+/* Le quote: stessa forma e stesso colore, attenuati. Non sono cassa, ma non
+   sono nemmeno un'altra categoria: sbiadirle in grigio introdurrebbe un quinto
+   colore per dire una cosa che l'opacità dice già. */
+.fgb-payments .wbs-mk.quota .stem,
+.fgb-payments .wbs-mk.quota .tip { opacity: .5; }
+.fgb-payments .wbs-mk.quota .val { opacity: .6; }
+
+/* Pieno vuol dire avvenuto. Tutto il resto si tratteggia — una scadenza
+   scritta su una fattura non è un incasso finché il denaro non arriva, e
+   disegnarla piena la farebbe leggere come tale.
+   Il colore non cambia: cambia la certezza, non la natura del movimento.
+
+   Il gambo tratteggiato deve *sostituire* il colore pieno, non coprirlo: un
+   background-image dipinge sopra il background-color, e basta un gradiente
+   sbagliato perché il gambo sparisca e la punta sembri staccata.
+   Il tratteggio prende `currentColor`, che sul marker è il colore della corsia. */
+.fgb-payments .wbs-mk.attesa .stem,
+.fgb-payments .wbs-mk.prevista .stem,
+.fgb-payments .wbs-mk.stimata .stem {
+  background-color: transparent;
+  background-image: repeating-linear-gradient(
+    to bottom, currentColor 0 3px, transparent 3px 5px
+  );
+  box-shadow: none;
+}
+.fgb-payments .wbs-mk.stimata .stem,
+.fgb-payments .wbs-mk.stimata .tip { opacity: .55; }
+
+.fgb-payments .wbs-mk:hover .stem,
+.fgb-payments .wbs-mk:focus-visible .stem,
+.fgb-payments .wbs-mk.open .stem { top: 0; height: calc(var(--sh) + 34px); }
+.fgb-payments .wbs-mk:hover .tip,
+.fgb-payments .wbs-mk:focus-visible .tip,
+.fgb-payments .wbs-mk.open .tip { transform: translateY(27px); }
+.fgb-payments .wbs-mk:focus-visible .tip { filter: drop-shadow(0 0 2px var(--ink)); }
+
+/* ── La nuvoletta ─────────────────────────────────────────────────────────
+ * I figli sono <span> e non <div>, perché dentro un <button> stanno solo
+ * contenuti di frase: senza `display:block` finirebbero tutti su una riga. */
+.fgb-payments .wbs-co {
+  position: absolute; left: -9px; top: calc(var(--sh) + 46px); width: 250px; text-align: left;
+  background: #fff; border: 1px solid var(--border); border-radius: 9px;
+  box-shadow: 0 10px 28px rgba(15, 25, 20, .18);
+  padding: 10px 12px 11px; opacity: 0; transform: translateY(-6px); pointer-events: none;
+  transition: opacity .18s ease, transform .18s ease;
+  font-size: 12.5px; font-weight: 400; line-height: 1.4; color: var(--ink); cursor: default;
+}
+.fgb-payments .wbs-co > span { display: block; }
+.fgb-payments .wbs-co::before {
+  content: ""; position: absolute; left: 11px; top: -5px; width: 8px; height: 8px; background: #fff;
+  border-left: 1px solid var(--border); border-top: 1px solid var(--border); transform: rotate(45deg);
+}
+.fgb-payments .wbs-mk:hover .wbs-co,
+.fgb-payments .wbs-mk:focus-visible .wbs-co,
+.fgb-payments .wbs-mk.open .wbs-co {
+  opacity: 1; transform: translateY(0); transition-delay: .16s; pointer-events: auto;
+}
+.fgb-payments .wbs-mk.flip .wbs-co {
+  top: auto; bottom: calc(100% - var(--sh) + 4px); transform: translateY(6px);
+}
+.fgb-payments .wbs-mk.flip .wbs-co::before { top: auto; bottom: -5px; transform: rotate(225deg); }
+.fgb-payments .wbs-mk.flip:hover .wbs-co,
+.fgb-payments .wbs-mk.flip:focus-visible .wbs-co,
+.fgb-payments .wbs-mk.flip.open .wbs-co { transform: translateY(0); }
+.fgb-payments .wbs-mk.left .wbs-co { left: auto; right: -9px; }
+.fgb-payments .wbs-mk.left .wbs-co::before { left: auto; right: 11px; }
+
+.fgb-payments .wbs-co .amt { font-size: 15px; font-weight: 800; }
+.fgb-payments .wbs-mk.po .wbs-co .amt { color: var(--po); font-size: 13px; }
+.fgb-payments .wbs-mk.in .wbs-co .amt { color: var(--in); }
+.fgb-payments .wbs-mk.forn .wbs-co .amt { color: var(--out-forn); }
+.fgb-payments .wbs-mk.inst .wbs-co .amt { color: var(--out-inst); }
+.fgb-payments .wbs-co .ti { font-weight: 700; font-size: 13px; }
+.fgb-payments .wbs-co .dt { color: var(--muted); font-size: 11.5px; margin-top: 1px; }
+.fgb-payments .wbs-co .voci { margin-top: 6px; }
+.fgb-payments .wbs-co .voci > span {
+  display: flex; justify-content: space-between; gap: 10px; padding: 2px 0; font-size: 12px;
+}
+.fgb-payments .wbs-co .voci > span > span:last-child { font-weight: 600; }
+.fgb-payments .wbs-co .more { color: var(--muted); font-size: 11.5px; }
+.fgb-payments .wbs-co .path {
+  color: var(--muted); font-size: 11px; margin-top: 6px; padding-top: 6px;
+  border-top: 1px solid var(--border);
+}
+.fgb-payments .wbs-co .path b { color: var(--ink); }
+.fgb-payments .wbs-co .nota { color: var(--amber); font-size: 11px; margin-top: 5px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .fgb-payments .wbs-mk .stem,
+  .fgb-payments .wbs-mk .tip,
+  .fgb-payments .wbs-co { transition: none; }
+}
+
+/* Rendiconto: stessa griglia, allineamento verticale al pixel */
+.fgb-payments .wbs-led .wbs-track {
+  display: grid;
+  grid-template-columns: repeat(var(--ncol), var(--wk));
+  background: none;
+}
+.fgb-payments .wbs-led .wbs-track > span {
+  border-right: 1px solid var(--border);
+  padding: 8px; font-size: 12px; text-align: right; position: relative; z-index: 2;
+}
+.fgb-payments .wbs-led.forte .wbs-lbl,
+.fgb-payments .wbs-led.forte .wbs-track > span { background: var(--dark); color: #fff; }
+.fgb-payments .wbs-led.forte .wbs-track > span { border-right-color: rgba(255,255,255,.12); font-weight: 700; }
+.fgb-payments .wbs-led .pos { color: var(--green); font-weight: 600; }
+.fgb-payments .wbs-led .neg { color: var(--out-forn); }
+.fgb-payments .wbs-led .zero { color: var(--faint); }
+.fgb-payments .wbs-led.forte .pos,
+.fgb-payments .wbs-led.forte .neg,
+.fgb-payments .wbs-led.forte .zero { color: #fff; }
+.fgb-payments .wbs-led span.deficit { background: var(--def-bg) !important; color: var(--def) !important; }
+.fgb-payments .wbs-led.forte span.deficit { background: #5a1f19 !important; color: #ffc9c9 !important; }
+.fgb-payments .wbs-led span.deficit::after {
+  content: "copri"; display: block; font-size: 9px; font-weight: 700;
+  letter-spacing: .05em; opacity: .85;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .fgb-payments .wbs-mk,
+  .fgb-payments .wbs-bar { transition: left .18s ease; }
+}

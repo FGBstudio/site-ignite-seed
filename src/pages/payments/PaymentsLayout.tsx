@@ -10,10 +10,13 @@ import "./payments.css";
 /**
  * La sezione Payments.
  *
- * Nove schede su un registro solo: non sono nove elenchi, sono nove tagli degli
- * stessi dati. Le fatture si caricano qui una volta e ogni scheda filtra le
- * righe che ha già — così i conteggi sui badge e i numeri dentro le schermate
- * vengono per forza dalla stessa fonte e non possono discordare.
+ * Undici schede su un registro solo: non sono undici elenchi, sono undici tagli
+ * degli stessi dati. Le fatture si caricano qui una volta e ogni scheda filtra
+ * le righe che ha già — così i conteggi sui badge e i numeri dentro le
+ * schermate vengono per forza dalla stessa fonte e non possono discordare.
+ *
+ * La WBS di Cassa è l'eccezione: legge `v_cash_events`, che unisce incassi e
+ * uscite. Non filtra le fatture perché non parla di fatture, parla di cassa.
  *
  * Il selettore entità vive qui per lo stesso motivo: filtrare per società è una
  * decisione che vale per tutta la sezione, non una preferenza di una schermata.
@@ -38,6 +41,7 @@ export function usePaymentsCtx(): Contesto {
 
 const SCHEDE = [
   { a: "/payments", nome: "Dashboard", esatta: true },
+  { a: "/payments/wbs", nome: "WBS di Cassa" },
   { a: "/payments/registro", nome: "Registro Fatture" },
   { a: "/payments/da-emettere", nome: "Da Emettere", badge: "neutro" as const },
   { a: "/payments/recall", nome: "Recall", badge: "rosso" as const },
@@ -107,7 +111,7 @@ export default function PaymentsLayout() {
           </div>
         </div>
 
-        {/* ── Le nove schede ── */}
+        {/* ── Le schede ── */}
         <nav
           className="mb-5 flex gap-1 overflow-x-auto pb-1"
           style={{ borderBottom: "1px solid var(--border)" }}

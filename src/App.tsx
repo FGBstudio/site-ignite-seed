@@ -21,6 +21,7 @@ import DashboardPayments from "./pages/payments/Dashboard";
 import IvaPrevisionale from "./pages/payments/IvaPrevisionale";
 import TasksAlerts from "./pages/payments/TasksAlerts";
 import RegistroClienti from "./pages/payments/RegistroClienti";
+import WbsCassa from "./pages/payments/WbsCassa";
 import { HUB_SECTIONS } from "@/lib/hubSections";
 import Projects from "./pages/Projects";
 import ProjectCreateWizard from "./pages/ProjectCreateWizard";
@@ -112,6 +113,7 @@ function AppRoutes() {
           non è completa, poi sparisce insieme al suo store nel localStorage. */}
       <Route path="/payments" element={<ProtectedRoute allowedRoles={R("ADMIN")}><PaymentsLayout /></ProtectedRoute>}>
         <Route index element={<DashboardPayments />} />
+        <Route path="wbs" element={<WbsCassa />} />
         <Route path="registro" element={<RegistroFatture />} />
         <Route path="da-emettere" element={<DaEmettere />} />
         <Route path="recall" element={<Recall />} />

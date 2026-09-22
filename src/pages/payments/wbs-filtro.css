@@ -1,0 +1,243 @@
+/*
+ * Il filtro commesse della WBS.
+ *
+ * È l'unica parte della vista con un'estetica sua: il resto — KPI, toolbar,
+ * timeline, strisce, marker — resta invariato. Qui serve una superficie che
+ * galleggi sopra la griglia senza confondersi con essa, perché mentre la si
+ * usa la griglia dietro cambia a ogni spunta.
+ *
+ * Sta in un file separato da payments.css perché è l'unico blocco con regole
+ * che valgono solo qui: tenerlo distinto rende ovvio che toccarlo non muove
+ * nient'altro nella sezione.
+ */
+
+.fgb-payments .fwrap { position: relative; }
+
+.fgb-payments .fbtn {
+  display: flex; align-items: center; gap: 8px;
+  border: 1px solid var(--border); background: #fff; border-radius: 9px;
+  padding: 7px 11px 7px 10px; font-size: 13px; min-width: 250px; text-align: left;
+}
+.fgb-payments .fbtn svg { flex: none; color: var(--muted); }
+.fgb-payments .fbtn .fl { color: var(--muted); font-size: 12px; }
+.fgb-payments .fbtn .fv { font-weight: 700; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fgb-payments .fbtn.active {
+  border-color: var(--teal-dark);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--teal) 22%, transparent);
+}
+.fgb-payments .fbtn.active svg { color: var(--teal-dark); }
+
+.fgb-payments .fpop {
+  position: absolute; top: calc(100% + 8px); left: 0; z-index: 60;
+  width: 470px; max-width: calc(100vw - 32px);
+  background: color-mix(in srgb, #fff 95%, transparent);
+  backdrop-filter: blur(14px) saturate(1.15);
+  -webkit-backdrop-filter: blur(14px) saturate(1.15);
+  border: 1px solid var(--border); border-radius: 14px;
+  box-shadow: 0 24px 60px -18px rgba(15, 25, 20, .28), 0 2px 6px rgba(15, 25, 20, .06);
+  display: flex; flex-direction: column; max-height: min(580px, 76vh);
+  transform-origin: top left; animation: fpop .16s ease;
+}
+@keyframes fpop { from { opacity: 0; transform: translateY(-4px) scale(.985); } }
+@media (prefers-reduced-motion: reduce) { .fgb-payments .fpop { animation: none; } }
+@media (max-width: 640px) {
+  .fgb-payments .fpop {
+    position: fixed; left: 0; right: 0; bottom: 0; top: auto;
+    width: auto; max-width: none; border-radius: 16px 16px 0 0; max-height: 82%;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+}
+
+.fgb-payments .fsearch { padding: 12px 12px 8px; position: relative; }
+.fgb-payments .fsearch svg {
+  position: absolute; left: 24px; top: 50%; transform: translateY(-35%);
+  color: var(--muted); opacity: .7; pointer-events: none;
+}
+.fgb-payments .fsearch input {
+  width: 100%; font: inherit; font-size: 14px; color: var(--ink);
+  background: var(--ground); border: 1px solid transparent; border-radius: 9px;
+  padding: 9px 12px 9px 35px; transition: border-color .15s, background .15s;
+}
+.fgb-payments .fsearch input::placeholder { color: var(--muted); opacity: .75; }
+.fgb-payments .fsearch input:focus {
+  outline: none; background: #fff;
+  border-color: color-mix(in srgb, var(--teal-dark) 50%, transparent);
+}
+
+.fgb-payments .fquick {
+  display: flex; gap: 6px; flex-wrap: wrap;
+  padding: 0 12px 11px; border-bottom: 1px solid var(--border);
+}
+.fgb-payments .fquick button {
+  border: 1px solid var(--border); background: transparent; border-radius: 999px;
+  padding: 4px 11px; font-size: 12px; font-weight: 500; color: var(--muted);
+  transition: color .12s, border-color .12s, background .12s;
+}
+.fgb-payments .fquick button:hover {
+  color: var(--ink); background: #fff;
+  border-color: color-mix(in srgb, var(--ink) 25%, var(--border));
+}
+.fgb-payments .fquick button.primary { background: var(--dark); color: #fff; border-color: var(--dark); }
+.fgb-payments .fpop .kbd {
+  font-size: 10.5px; border: 1px solid currentColor; border-radius: 4px;
+  padding: 0 4px; opacity: .6; margin-left: 5px;
+}
+
+.fgb-payments .flist { overflow: auto; padding: 4px 6px 8px; flex: 1; }
+.fgb-payments .fgrp {
+  display: flex; align-items: center; gap: 10px; padding: 12px 10px 6px;
+  font-size: 10px; font-weight: 600; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--muted);
+}
+.fgb-payments .fgrp .n { margin-left: auto; font-weight: 500; letter-spacing: .02em; font-size: 11px; }
+
+.fgb-payments .fitem {
+  display: grid; grid-template-columns: 16px 1fr 64px 84px 48px;
+  align-items: center; gap: 12px; padding: 7px 10px; border-radius: 9px;
+  cursor: pointer; transition: background .12s;
+}
+.fgb-payments .fitem:hover,
+.fgb-payments .fitem:focus-within { background: var(--ground); }
+.fgb-payments .fitem .nm { font-size: 13.5px; font-weight: 500; line-height: 1.25; min-width: 0; }
+.fgb-payments .fitem .nm small {
+  display: block; font-weight: 400; color: var(--muted); font-size: 11.5px; margin-top: 1px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.fgb-payments .fitem.off .nm,
+.fgb-payments .fitem.off .spark,
+.fgb-payments .fitem.off .end { opacity: .4; }
+.fgb-payments .fitem mark { background: var(--amber-bg); color: inherit; border-radius: 3px; padding: 0 1px; }
+.fgb-payments .fitem .end { font-size: 12px; font-weight: 500; text-align: right; }
+.fgb-payments .fitem .solo {
+  border: none; background: none; font-size: 11.5px; font-weight: 700;
+  color: var(--teal-dark); padding: 2px 0; opacity: 0; transition: opacity .12s; text-align: right;
+}
+.fgb-payments .fitem:hover .solo,
+.fgb-payments .fitem:focus-within .solo { opacity: 1; }
+@media (hover: none) { .fgb-payments .fitem .solo { opacity: 1; } }
+
+.fgb-payments .spark {
+  display: flex; width: 64px; height: 7px; border-radius: 4px; overflow: hidden;
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.fgb-payments .spark i { flex: 1; }
+
+/* Le checkbox su misura restano dentro il popover: altrove la sezione usa
+   quelle di shadcn, e averne due stili in giro sarebbe peggio che averne uno
+   solo meno bello. */
+.fgb-payments .fpop input[type="checkbox"] {
+  appearance: none; -webkit-appearance: none; width: 16px; height: 16px; margin: 0;
+  border-radius: 5px; border: 1.5px solid color-mix(in srgb, var(--ink) 28%, var(--border));
+  background: #fff; cursor: pointer; display: grid; place-items: center; transition: all .12s;
+}
+.fgb-payments .fpop input[type="checkbox"]:checked,
+.fgb-payments .fpop input[type="checkbox"]:indeterminate {
+  background: var(--teal-dark); border-color: var(--teal-dark);
+}
+.fgb-payments .fpop input[type="checkbox"]:checked::after {
+  content: ""; width: 8px; height: 4px;
+  border-left: 1.8px solid #fff; border-bottom: 1.8px solid #fff;
+  transform: rotate(-45deg) translate(1px, -1px);
+}
+.fgb-payments .fpop input[type="checkbox"]:indeterminate::after {
+  content: ""; width: 8px; height: 1.8px; background: #fff; border-radius: 1px;
+}
+.fgb-payments .fpop input[type="checkbox"]:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--teal-dark) 60%, transparent); outline-offset: 2px;
+}
+
+.fgb-payments .fempty { padding: 22px 14px; color: var(--muted); font-size: 13px; text-align: center; }
+.fgb-payments .ffoot {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 14px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted);
+}
+.fgb-payments .ffoot button {
+  border: none; background: var(--dark); color: #fff; border-radius: 8px;
+  padding: 6px 14px; font-weight: 600; font-size: 12.5px;
+}
+
+/* La barra di stato: dice cosa è acceso e come tornare indietro. */
+.fgb-payments .fstate {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  font-size: 12.5px; color: var(--muted);
+}
+.fgb-payments .chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  border: 1px solid var(--border); background: #fff; border-radius: 999px;
+  padding: 2px 4px 2px 10px; font-size: 12px; font-weight: 600; color: var(--ink);
+}
+.fgb-payments .chip button {
+  border: none; background: var(--ground); border-radius: 999px;
+  width: 18px; height: 18px; line-height: 16px; padding: 0; font-size: 12px; color: var(--muted);
+}
+.fgb-payments .chip button:hover { color: var(--ink); }
+.fgb-payments .linkbtn {
+  background: none; border: none; padding: 0; color: var(--teal-dark);
+  font-weight: 700; font-size: 12.5px; text-decoration: underline; text-underline-offset: 2px;
+}
+
+/* Isola e Nascondi, sulla riga di commessa */
+.fgb-payments .rowacts { display: flex; gap: 2px; opacity: 0; transition: opacity .12s; }
+.fgb-payments .wbs-row:hover .rowacts,
+.fgb-payments .wbs-lbl:focus-within .rowacts { opacity: 1; }
+@media (hover: none) { .fgb-payments .rowacts { opacity: .7; } }
+.fgb-payments .rowacts button {
+  background: none; border: 1px solid transparent; border-radius: 6px;
+  width: 24px; height: 24px; padding: 0; color: var(--muted);
+  display: grid; place-items: center; flex: none;
+}
+.fgb-payments .rowacts button:hover { border-color: var(--border); background: var(--ground); color: var(--ink); }
+.fgb-payments .isolated-tag {
+  display: inline-block; margin-left: 6px; font-size: 9.5px; font-weight: 800;
+  letter-spacing: .06em; background: var(--teal); color: #fff;
+  border-radius: 4px; padding: 1px 5px; vertical-align: 2px;
+}
+
+/* ── La nuvoletta delle cadenze ───────────────────────────────────────────
+ * L'elenco delle voci principali, come nella reference. Le regole del marker
+ * stanno tutte in payments.css: averne un secondo gruppo qui, per giunta con
+ * il nome vecchio della variabile (--striph invece di --sh), faceva scollare
+ * la punta dal gambo di tredici pixel in hover. */
+.fgb-payments .wbs-co .voci { margin-top: 6px; }
+.fgb-payments .wbs-co .voci > span {
+  display: flex; justify-content: space-between; gap: 10px; padding: 2px 0; font-size: 12px;
+}
+.fgb-payments .wbs-co .voci > span > span:last-child { font-weight: 600; }
+.fgb-payments .wbs-co .more { color: var(--muted); font-size: 11.5px; }
+
+/* ── Esporta ──────────────────────────────────────────────────────────────
+ *
+ * Stesso popover del filtro, di proposito: due controlli adiacenti che si
+ * aprono in due modi diversi si devono imparare due volte. Cambia solo il
+ * contenuto — tre gruppi di scelte esclusive invece di un elenco lungo —
+ * quindi qui non serve la ricerca e la larghezza può restare stretta.
+ * ───────────────────────────────────────────────────────────────────────── */
+.fgb-payments .fpop.exp { width: 320px; }
+
+.fgb-payments .egrp { padding: 10px 14px 4px; }
+.fgb-payments .egrp + .egrp { border-top: 1px solid var(--border); }
+.fgb-payments .etit {
+  margin: 0 0 6px; font-size: 9.5px; font-weight: 800; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--faint);
+}
+
+.fgb-payments .eopt {
+  display: flex; align-items: flex-start; gap: 9px;
+  padding: 6px 8px; margin: 0 -8px 2px; border-radius: 8px; cursor: pointer;
+}
+.fgb-payments .eopt:hover { background: var(--ground); }
+.fgb-payments .eopt.on { background: var(--teal-bg); }
+.fgb-payments .eopt input { margin-top: 3px; accent-color: var(--teal); }
+.fgb-payments .eopt > span {
+  display: block; font-size: 12.5px; font-weight: 600; color: var(--ink); line-height: 1.25;
+}
+.fgb-payments .eopt small {
+  display: block; font-weight: 400; font-size: 11px; color: var(--muted); margin-top: 1px;
+}
+
+.fgb-payments .fpop.exp .ffoot button {
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.fgb-payments .fpop.exp .ffoot button:disabled { opacity: .6; }
+.fgb-payments .eopt.off { opacity: .45; cursor: not-allowed; }
+.fgb-payments .eopt.off:hover { background: none; }
