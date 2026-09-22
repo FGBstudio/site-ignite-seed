@@ -110,7 +110,7 @@ const EVENTI: CashEvent[] = [
 ];
 
 const opzioni = (p: Partial<OpzioniExport> = {}): OpzioniExport => ({
-  perimetro: "tutto", contenuto: "tutto", formato: "xlsx", ...p,
+  perimetro: "tutto", contenuto: "tutto", formato: "xlsx", valuta: "euro", ...p,
 });
 
 describe("costruisciScadenzario", () => {
@@ -309,5 +309,66 @@ describe("riepilogo per commessa", () => {
     expect(ws["E7"]?.f).toBe("C7-D7");
     expect(ws["C4"]?.f).toContain("SUM(C7:");
     expect(ws["E4"]?.f).toContain("SUM(E7:");
+  });
+});
+
+describe("valuta del contratto", () => {
+  // Due uscite FoSensor in renminbi e una Kai Cheng in euro: basta a far
+  // vedere sia il caso nativo sia quello che deve restare in euro.
+  const CINESI: CashEvent[] = [
+    ev({
+      id: "rmb-1", verso: "uscita", corsia: "fornitore", gruppo: "Acquisto materiali",
+      data: "2026-10-10", settimana: "2026-10-05",
+      importo_eur: -1180.44, importo_valuta: -9325.50, valuta: "CNY", cambio: 0.126582,
+      certezza: "stimata", fonte: "stima", brand: "FoSensor",
+      commessa_id: "k-rich", commessa: "Viale Richard 1", progetto: "Viale Richard 1",
+      etichetta: "FoSensor · Quota 260901FS02 · 40% prima della spedizione",
+      riferimento: "260901FS02", stato: "prevista", origine: "uscita",
+    }),
+    ev({
+      id: "eur-1", verso: "uscita", corsia: "installatore", gruppo: "Installatori",
+      data: "2026-10-20", settimana: "2026-10-19",
+      importo_eur: -6865.99, importo_valuta: -6865.99, valuta: "EUR", cambio: 1,
+      certezza: "contrattuale", fonte: "contratto", brand: "Kai Cheng",
+      etichetta: "Kai Cheng · Saldo 40%", riferimento: "Installazioni Fendi",
+      stato: "prevista", origine: "uscita",
+    }),
+  ];
+
+  it("il modello porta sempre tutti e due i numeri, qualunque sia il modo", () => {
+    for (const modo of ["euro", "originale"] as const) {
+      const s = costruisciScadenzario(CINESI, opzioni({ valuta: modo }), CONTESTO);
+      const r = s.righe.find((x) => x.id === "rmb-1")!;
+      expect(r.importo).toBeCloseTo(-1180.44, 2);
+      expect(r.importoValuta).toBeCloseTo(-9325.5, 2);
+      expect(r.valuta).toBe("CNY");
+    }
+  });
+
+  it("i totali restano in euro anche in originale: non si sommano valute diverse", () => {
+    const s = costruisciScadenzario(CINESI, opzioni({ valuta: "originale" }), CONTESTO);
+    expect(s.totali.daPagare).toBeCloseTo(1180.44 + 6865.99, 2);
+  });
+
+  it("nel foglio l'importo nativo resta un numero, col simbolo nel formato", async () => {
+    const XLSX = await import("xlsx");
+
+    const orig = await bufferScadenzarioExcel(
+      costruisciScadenzario(CINESI, opzioni({ valuta: "originale" }), CONTESTO),
+    );
+    const wo = XLSX.read(orig, { type: "array", cellNF: true });
+    const agendaO = wo.Sheets["Scadenzario"];
+    // Riga 12: la prima dell'agenda, cioè l'uscita cinese del 10/10.
+    expect(agendaO["D12"]?.v).toBeCloseTo(-9325.5, 2);
+    expect(String(agendaO["D12"]?.z)).toContain("RMB");
+    // L'euro non sparisce: resta sul foglio di dettaglio.
+    expect(wo.Sheets["Da pagare"]["J7"]?.v).toBeCloseTo(1180.44, 2);
+
+    const eur = await bufferScadenzarioExcel(
+      costruisciScadenzario(CINESI, opzioni({ valuta: "euro" }), CONTESTO),
+    );
+    const we = XLSX.read(eur, { type: "array", cellNF: true });
+    expect(we.Sheets["Scadenzario"]["D12"]?.v).toBeCloseTo(-1180.44, 2);
+    expect(String(we.Sheets["Scadenzario"]["D12"]?.z)).toContain("€");
   });
 });

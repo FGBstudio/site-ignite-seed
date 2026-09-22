@@ -241,3 +241,20 @@
 .fgb-payments .fpop.exp .ffoot button:disabled { opacity: .6; }
 .fgb-payments .eopt.off { opacity: .45; cursor: not-allowed; }
 .fgb-payments .eopt.off:hover { background: none; }
+
+/* ── Il selettore di valuta ───────────────────────────────────────────────
+ *
+ * Due letture degli stessi movimenti, quindi due segmenti attaccati e non due
+ * pulsanti separati: la forma dice che sono alternative, non due azioni.
+ * ───────────────────────────────────────────────────────────────────────── */
+.fgb-payments .segm {
+  display: inline-flex; border: 1px solid var(--border); border-radius: 10px;
+  overflow: hidden; background: #fff;
+}
+.fgb-payments .segm button {
+  border: none; background: none; padding: 6px 12px;
+  font-size: 11.5px; font-weight: 700; color: var(--muted); cursor: pointer;
+}
+.fgb-payments .segm button + button { border-left: 1px solid var(--border); }
+.fgb-payments .segm button[aria-pressed="true"] { background: var(--teal); color: #fff; }
+.fgb-payments .segm button[aria-pressed="false"]:hover { background: var(--ground); color: var(--ink); }

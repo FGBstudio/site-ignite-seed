@@ -28,10 +28,24 @@ export type Perimetro = "selezione" | "quattro_settimane" | "tutto";
 export type Contenuto = "da_fare" | "tutto";
 export type Formato = "xlsx" | "pdf" | "csv";
 
+/**
+ * Come si leggono gli importi.
+ *
+ * `euro` converte tutto: si somma, si confronta, si porta in banca. `originale`
+ * lascia ogni movimento nella valuta in cui è pattuito — gli incassi sono in
+ * euro comunque, le uscite cinesi in RMB, quelle americane in dollari — ed è
+ * la forma in cui il fornitore riconosce la sua fattura.
+ *
+ * I totali restano in euro in entrambi i casi, perché sommare valute diverse
+ * non dà un numero.
+ */
+export type ModoValuta = "euro" | "originale";
+
 export interface OpzioniExport {
   perimetro: Perimetro;
   contenuto: Contenuto;
   formato: Formato;
+  valuta: ModoValuta;
 }
 
 export type TipoRigaScadenza = "incasso" | "pagamento_fornitore" | "pagamento_installatore";
@@ -99,6 +113,8 @@ export interface Scadenzario {
   incassi: RigaScadenza[];
   pagamenti: RigaScadenza[];
   perCommessa: RiepilogoCommessa[];
+  /** In che valuta vanno scritti i singoli movimenti. */
+  valuta: ModoValuta;
   totali: { daIncassare: number; daPagare: number; saldo: number; senzaData: number };
   intestazione: { generatoIl: string; selezione: string; finestra: string; perimetro: string };
 }
@@ -476,6 +492,7 @@ export function costruisciScadenzario(
       saldo: somma(incassi, (r) => r.importo) - somma(pagamenti, (r) => r.daPagare),
       senzaData: somma(senzaData, (r) => r.importo),
     },
+    valuta: opzioni.valuta,
     intestazione: {
       generatoIl: itaData(iso(oggi)),
       selezione: contesto.selezione,

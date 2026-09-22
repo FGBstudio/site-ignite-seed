@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Download, Loader2 } from "lucide-react";
-import type { Contenuto, Formato, OpzioniExport, Perimetro } from "@/lib/payments/scadenzario";
+import type {
+  Contenuto,
+  Formato,
+  ModoValuta,
+  OpzioniExport,
+  Perimetro,
+} from "@/lib/payments/scadenzario";
 
 /**
  * Il pulsante Esporta della WBS di cassa.
@@ -32,6 +38,15 @@ const CONTENUTI: Array<{ id: Contenuto; nome: string; sotto: string }> = [
   { id: "tutto", nome: "Tutto incluso lo storico", sotto: "anche i movimenti già avvenuti" },
 ];
 
+const VALUTE: Array<{ id: ModoValuta; nome: string; sotto: string }> = [
+  { id: "euro", nome: "Tutto in euro", sotto: "convertito: si somma e si confronta" },
+  {
+    id: "originale",
+    nome: "Valuta del contratto",
+    sotto: "uscite in RMB o $, incassi in euro — i totali restano in euro",
+  },
+];
+
 const FORMATI: Array<{ id: Formato; nome: string; sotto: string; spento?: boolean }> = [
   { id: "xlsx", nome: "Excel", sotto: "quattro fogli, totali in formula" },
   { id: "csv", nome: "CSV", sotto: "la sola agenda, separatore punto e virgola" },
@@ -47,6 +62,7 @@ export default function EsportaScadenzario({ conteggio, onEsporta }: Props) {
     perimetro: "selezione",
     contenuto: "da_fare",
     formato: "xlsx",
+    valuta: "euro",
   });
   const box = useRef<HTMLDivElement>(null);
 
@@ -113,6 +129,18 @@ export default function EsportaScadenzario({ conteggio, onEsporta }: Props) {
                 voce={o}
                 attiva={opzioni.contenuto === o.id}
                 onScegli={() => setOpzioni((v) => ({ ...v, contenuto: o.id }))}
+              />
+            ))}
+          </Gruppo>
+
+          <Gruppo titolo="Importi">
+            {VALUTE.map((o) => (
+              <Scelta
+                key={o.id}
+                nome="valuta"
+                voce={o}
+                attiva={opzioni.valuta === o.id}
+                onScegli={() => setOpzioni((v) => ({ ...v, valuta: o.id }))}
               />
             ))}
           </Gruppo>

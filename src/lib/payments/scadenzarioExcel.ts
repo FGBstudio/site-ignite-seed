@@ -40,6 +40,29 @@ const EURO = '"€ "#,##0.00;"−€ "#,##0.00';
 const EURO_POS = '"€ "#,##0.00';
 const DATA = "dd/mm/yyyy";
 
+/**
+ * Il formato di un importo nella sua valuta.
+ *
+ * Il simbolo sta dentro il formato numerico e non nel testo: così la cella
+ * resta un numero — si somma, si filtra, si ordina — e continua a dire di che
+ * valuta è. Scriverci «RMB 12.434» come stringa la renderebbe inutilizzabile.
+ */
+const FORMATO_VALUTA: Record<string, string> = {
+  EUR: EURO,
+  CNY: '"RMB "#,##0.00;"−RMB "#,##0.00',
+  USD: '"$ "#,##0.00;"−$ "#,##0.00',
+  GBP: '"£ "#,##0.00;"−£ "#,##0.00',
+};
+
+const formatoDi = (valuta: string) => FORMATO_VALUTA[valuta] ?? EURO;
+
+/** Quale numero finisce in colonna «Importo», secondo il modo scelto. */
+function importoScelto(s: Scadenzario, r: RigaScadenza): { v: number; fmt: string } {
+  return s.valuta === "originale" && r.valuta !== "EUR"
+    ? { v: r.importoValuta, fmt: formatoDi(r.valuta) }
+    : { v: r.importo, fmt: EURO };
+}
+
 type Cella = { value: unknown; numFmt?: string; wrap?: boolean };
 
 /** Il tipo deciso in `scadenzario.ts`, tradotto in parole e in colore. */
@@ -124,7 +147,10 @@ function agenda(ws: Ws, s: Scadenzario) {
     `WBS di Cassa · Payments · esportato il ${s.intestazione.generatoIl}` +
       ` · selezione: ${s.intestazione.selezione}` +
       ` · perimetro: ${s.intestazione.perimetro}` +
-      ` · finestra: ${s.intestazione.finestra}`,
+      ` · finestra: ${s.intestazione.finestra}` +
+      (s.valuta === "originale"
+        ? " · importi nella valuta del contratto; i totali restano in euro"
+        : " · tutti gli importi in euro"),
   );
 
   // Riepilogo. I quattro numeri sono formule sui fogli di dettaglio: è il
@@ -168,11 +194,12 @@ function agenda(ws: Ws, s: Scadenzario) {
   s.righe.forEach((r, i) => {
     const y = 12 + i;
     const t = TIPO[r.tipo];
+    const imp = importoScelto(s, r);
     scriviRiga(ws, y, [
       { value: giornoExcel(r.data), numFmt: DATA },
       { value: r.settimana },
       { value: t.testo },
-      { value: r.importo, numFmt: EURO },
+      { value: imp.v, numFmt: imp.fmt },
       { value: r.controparte },
       { value: r.commessa },
       { value: r.progetto ?? "" },

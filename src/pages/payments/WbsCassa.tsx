@@ -67,10 +67,16 @@ interface DatiMarker {
   /** Solo sulle cadenze: le voci principali e quante restano fuori. */
   voci?: Array<{ titolo: string; importo: number }>;
   altri: number;
-  /** L'importo scritto accanto al gambo. Assente sulle cadenze numerose. */
+  /** L'importo scritto accanto al gambo. Assente sui documenti. */
   valore?: string;
+  /** L'importo grande dentro la nuvoletta, già scritto per esteso. */
+  amt: string;
   classi: string;
 }
+
+/** Come si leggono gli importi: tutto in euro, oppure ciascuno nella valuta in
+ *  cui è pattuito — incassi in euro, uscite cinesi in RMB, americane in $. */
+export type ModoValuta = "euro" | "originale";
 
 export default function WbsCassa() {
   const { data: eventi = [], isLoading } = useCashEvents();
@@ -85,6 +91,9 @@ export default function WbsCassa() {
   const [scelta, setScelta] = useState<string | null>(null);
   const [finestra, setFinestra] = useState({ indietro: 4, avanti: 16 });
   const [isolata, setIsolata] = useState<string | null>(null);
+  // In euro si sommano, in originale si riconoscono: «− RMB 12.434» è il
+  // numero che il fornitore ha in mano, e cercarlo in euro non lo trovi.
+  const [modoValuta, setModoValuta] = useState<ModoValuta>("euro");
 
   // La selezione vive nell'URL: una vista filtrata si può mandare a qualcuno.
   // Si salvano le *escluse* e non le incluse perché una commessa creata domani
@@ -314,6 +323,25 @@ export default function WbsCassa() {
             }}
             onEsporta={esporta}
           />
+          {/* Due letture degli stessi movimenti. I totali restano in euro in
+              entrambe, perché una somma fra valute diverse non è un numero. */}
+          <div className="segm" role="group" aria-label="Valuta degli importi">
+            <button
+              type="button"
+              aria-pressed={modoValuta === "euro"}
+              onClick={() => setModoValuta("euro")}
+            >
+              Euro
+            </button>
+            <button
+              type="button"
+              aria-pressed={modoValuta === "originale"}
+              onClick={() => setModoValuta("originale")}
+              title="Incassi in euro, uscite nella valuta del contratto"
+            >
+              Originale
+            </button>
+          </div>
           <Bottone onClick={() => setAperte(tutte(albero, true))}>Apri tutto</Bottone>
           <Bottone onClick={() => setAperte({ master: true })}>Chiudi tutto</Bottone>
         </div>
@@ -474,6 +502,7 @@ export default function WbsCassa() {
                     : undefined
                 }
                 onNascondi={r.commessa ? () => nascondi(r.commessa!) : undefined}
+                modoValuta={modoValuta}
                 onTutte={() => cambiaFiltro(new Set(), null)}
               />
             ))}
@@ -584,6 +613,7 @@ function RigaTraccia({
   onIsola,
   onNascondi,
   onTutte,
+  modoValuta,
 }: {
   riga: Riga;
   settimane: Settimana[];
@@ -599,6 +629,7 @@ function RigaTraccia({
   onIsola?: () => void;
   onNascondi?: () => void;
   onTutte: () => void;
+  modoValuta: ModoValuta;
 }) {
   const conStriscia = riga.tipo === "master" || riga.tipo === "categoria" || riga.tipo === "commessa";
   const haFigli = !!riga.figli?.length;
@@ -766,7 +797,7 @@ function RigaTraccia({
           e.tipo === "singola" ? (
             <Marker
               key={e.m.id}
-              dati={datiDiMilestone(e.m, trovaData(e.m.id))}
+              dati={datiDiMilestone(e.m, trovaData(e.m.id), modoValuta)}
               sinistra={e.m.colonna * WKPX + 12 + e.posto * PASSO_X}
               posto={e.posto}
               ancoraggio={ancoraggio}
@@ -775,7 +806,7 @@ function RigaTraccia({
           ) : (
             <Marker
               key={e.a.chiave}
-              dati={datiDiAggregato(e.a, riga.nome, settimanaDi(e.a.colonna))}
+              dati={datiDiAggregato(e.a, riga.nome, settimanaDi(e.a.colonna), modoValuta)}
               sinistra={e.a.colonna * WKPX + 12 + e.posto * PASSO_X}
               posto={e.posto}
               ancoraggio={ancoraggio}
@@ -1039,9 +1070,26 @@ const PASSO_X = 16;
  * totale serve: «+ € 3.560» si legge come una cifra di cassa, «+3560» come un
  * conteggio di qualcos'altro.
  */
-function compatto(v: number): string {
+/**
+ * Il simbolo di una valuta. RMB e non ¥, perché sul renminbi il simbolo lo
+ * condivide con lo yen e in un foglio di pagamenti cinesi l'ambiguità costa.
+ */
+const SIMBOLO: Record<string, string> = { EUR: "€", CNY: "RMB", USD: "$", GBP: "£" };
+
+const segnoDi = (v: number) => (v > 0 ? "+" : "−");
+
+/**
+ * L'importo scritto accanto alla freccia, nella valuta richiesta.
+ *
+ * In modalità originale un'uscita si legge come sta sul contratto — «− RMB
+ * 12.434» — e un incasso resta in euro, perché in euro è pattuito. Quando il
+ * marker somma valute diverse la valuta comune non esiste e si torna all'euro:
+ * è l'unico modo di scrivere un totale che sia un numero.
+ */
+function compatto(v: number, valuta = "EUR"): string {
   if (v === 0) return "";
-  return (v > 0 ? "+ € " : "− € ") + cifre(Math.round(Math.abs(v)));
+  const s = SIMBOLO[valuta] ?? valuta;
+  return `${segnoDi(v)} ${s} ${cifre(Math.round(Math.abs(v)))}`;
 }
 
 /**
@@ -1051,9 +1099,19 @@ function compatto(v: number): string {
  * contata altrove. Toglierlo è quello che impedisce di leggere «€ 0 di cassa»
  * e «− € 44.243» sulla stessa riga come una contraddizione.
  */
-function quotaVal(v: number): string {
+function quotaVal(v: number, valuta = "EUR"): string {
   if (v === 0) return "";
-  return "€ " + cifre(Math.round(Math.abs(v)));
+  return `${SIMBOLO[valuta] ?? valuta} ${cifre(Math.round(Math.abs(v)))}`;
+}
+
+/** L'importo nella valuta del contratto, con l'euro accanto: nella nuvoletta
+ *  c'è spazio per dire tutti e due, e sono due informazioni diverse. */
+function conCambio(m: { importo: number; importoValuta: number; valuta: string }): string {
+  const euro = segnato(m.importo);
+  if (m.valuta === "EUR") return euro;
+  return `${segnoDi(m.importo)} ${SIMBOLO[m.valuta] ?? m.valuta} ${cifre(
+    Math.round(Math.abs(m.importoValuta)),
+  )}  ·  ${euro}`;
 }
 
 function segnato(v: number): string {
@@ -1083,11 +1141,7 @@ function Marker({
   ancoraggio: number;
   onClick: () => void;
 }) {
-  const testoImporto = dati.documentale
-    ? `fattura ${quotaVal(dati.importo)}`
-    : dati.quota
-      ? quotaVal(dati.importo)
-      : segnato(dati.importo);
+  const testoImporto = dati.amt;
 
   // Se sotto non ci sta, la nuvoletta si apre sopra. Il limite non è solo il
   // fondo della finestra: la griglia scorre dentro un contenitore che ritaglia,
@@ -1208,7 +1262,12 @@ function briciole(percorso: string): string {
 const fuggi = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-function datiDiMilestone(m: Milestone, giorno: string | null): DatiMarker {
+function datiDiMilestone(m: Milestone, giorno: string | null, modo: ModoValuta): DatiMarker {
+  // In originale l'importo si scrive come sta sul contratto. In euro sempre
+  // euro. Gli incassi sono in euro comunque, quindi il modo non li tocca.
+  const nativa = modo === "originale" && m.valuta !== "EUR";
+  const v = nativa ? m.importoValuta : m.importo;
+  const val = nativa ? m.valuta : "EUR";
   const nota = m.documentale
     ? "Fattura emessa: qui non esce denaro, parte il conto alla rovescia dei termini."
     : m.quota
@@ -1234,7 +1293,14 @@ function datiDiMilestone(m: Milestone, giorno: string | null): DatiMarker {
     percorso: briciole(m.percorso),
     nota,
     altri: 0,
-    valore: m.documentale ? undefined : m.quota ? quotaVal(m.importo) : compatto(m.importo),
+    valore: m.documentale ? undefined : m.quota ? quotaVal(v, val) : compatto(v, val),
+    // Nella nuvoletta c'è spazio per dirle tutte e due, e sono due cose
+    // diverse: quella su cui il fornitore discute e quella che esce da conto.
+    amt: m.documentale
+      ? `fattura ${quotaVal(m.importoValuta, m.valuta)}`
+      : m.quota
+        ? quotaVal(m.importoValuta, m.valuta)
+        : conCambio(m),
     classi: classiDi(m),
   };
 }
@@ -1243,8 +1309,13 @@ function datiDiAggregato(
   a: Aggregato,
   nodo: string,
   inizioSettimana: string | null,
+  modo: ModoValuta,
 ): DatiMarker {
   const titolo = `${a.quanti} ${a.etichetta}`;
+  // Un totale si può scrivere in valuta solo se una valuta comune c'è.
+  const nativa = modo === "originale" && !!a.valuta && a.valuta !== "EUR";
+  const v = nativa ? a.importoValuta : a.importo;
+  const val = nativa ? a.valuta! : "EUR";
   return {
     colonna: a.colonna,
     lane: a.lane,
@@ -1271,7 +1342,15 @@ function datiDiAggregato(
     // Il totale si vede sempre: è la ragione per cui il marker è aggregato.
     // Quello che non si vede in griglia è *di cosa* è fatto — e sta un
     // millimetro sotto, nella nuvoletta.
-    valore: a.lane === "po" ? undefined : a.quota ? quotaVal(a.importo) : compatto(a.importo),
+    valore: a.lane === "po" ? undefined : a.quota ? quotaVal(v, val) : compatto(v, val),
+    amt:
+      a.lane === "po"
+        ? `fatture ${quotaVal(a.valuta ? a.importoValuta : a.importo, a.valuta ?? "EUR")}`
+        : a.quota
+          ? quotaVal(a.valuta ? a.importoValuta : a.importo, a.valuta ?? "EUR")
+          : a.valuta && a.valuta !== "EUR"
+            ? conCambio({ importo: a.importo, importoValuta: a.importoValuta, valuta: a.valuta })
+            : segnato(a.importo),
     // Il totale porta la certezza del suo pezzo meno certo: basta un
     // movimento previsto perché tutta la settimana resti tratteggiata.
     classi: `agg ${classiDi({

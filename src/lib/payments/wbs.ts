@@ -49,6 +49,9 @@ export interface Milestone {
   colonna: number;
   lane: Lane;
   importo: number;
+  /** Lo stesso importo com'è scritto sul contratto, e in che valuta. */
+  importoValuta: number;
+  valuta: string;
   titolo: string;
   dettaglio: string;
   stato: string;
@@ -73,6 +76,14 @@ export interface Aggregato {
   etichetta: string;
   /** Le prime voci per importo, per l'elenco dentro la nuvoletta. */
   voci: Array<{ titolo: string; importo: number }>;
+  /**
+   * La valuta comune, se ce n'è una.
+   *
+   * Nulla quando il gruppo ne mescola più d'una: la somma esiste solo in euro,
+   * perché sommare renminbi e dollari non dà un numero, dà un errore.
+   */
+  valuta: string | null;
+  importoValuta: number;
   /** Vero solo se lo sono tutti: una somma di quote non è cassa. */
   quota: boolean;
   /**
@@ -268,6 +279,8 @@ function milestoneDa(ev: CashEvent, settimane: Settimana[], percorso: string, qu
     colonna: colonnaDi(ev.settimana ?? ev.data, settimane),
     lane: LANE_DI_CORSIA[ev.corsia] ?? "forn",
     importo: ev.importo_eur,
+    importoValuta: ev.importo_valuta ?? ev.importo_eur,
+    valuta: ev.valuta ?? "EUR",
     titolo: titoloBreve(ev.etichetta, ev.gruppo),
     dettaglio: [ev.progetto ?? ev.brand, ev.data ?? "senza data"].filter(Boolean).join(" · "),
     stato: ev.stato ?? "previsto",
@@ -300,6 +313,8 @@ function documentoDa(ev: CashEvent, settimane: Settimana[], percorso: string): M
     colonna: col,
     lane: "po",
     importo: ev.importo_eur,
+    importoValuta: ev.importo_valuta ?? ev.importo_eur,
+    valuta: ev.valuta ?? "EUR",
     titolo: "Fattura emessa",
     dettaglio: [ev.etichetta, ev.data_documento].filter(Boolean).join(" · "),
     stato: "emessa",
@@ -443,6 +458,9 @@ function aggrega(lista: Milestone[], lane: Lane, col: number, prefisso: string):
     const p = peggio ? RANGO[peggio] : -1;
     return r > p ? m.certezza : peggio;
   }, null);
+  // Una valuta sola per tutti, oppure nessuna: un totale in «renminbi e
+  // dollari insieme» non e' un numero.
+  const unaSola = lista.every((m) => m.valuta === lista[0].valuta) ? lista[0].valuta : null;
   return {
     chiave: `${prefisso}:${col}:${lane}`,
     colonna: col,
@@ -451,6 +469,8 @@ function aggrega(lista: Milestone[], lane: Lane, col: number, prefisso: string):
     quanti: lista.length,
     etichetta: NOME_CORSIA[lane],
     voci: lista.slice(0, 4).map((m) => ({ titolo: m.titolo, importo: m.importo })),
+    valuta: unaSola,
+    importoValuta: unaSola ? lista.reduce((s, m) => s + m.importoValuta, 0) : 0,
     quota: lista.every((m) => m.quota),
     certezza: lista.every((m) => m.certezza === prima) ? prima : null,
   };
