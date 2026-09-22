@@ -56,8 +56,16 @@ export interface Milestone {
   dettaglio: string;
   stato: string;
   quota: boolean;
-  /** Non è cassa: è la fattura che esce, non il denaro. Grigio, nessun segno. */
+  /** Non è cassa: è la fattura, non il denaro. Grigio, nessun segno. */
   documentale: boolean;
+  /**
+   * Da che parte sta il documento.
+   *
+   * Una fattura che emettiamo e una che riceviamo sono due fatti opposti — una
+   * la decidiamo noi, l'altra ci arriva — e sulla traccia devono distinguersi
+   * senza leggere l'etichetta.
+   */
+  documento?: "emessa" | "ricevuta";
   /** La data da mostrare, quando non è quella di cassa dell'evento. */
   giorno?: string | null;
   flag?: "STIMA" | "EXTRA";
@@ -84,6 +92,8 @@ export interface Aggregato {
    */
   valuta: string | null;
   importoValuta: number;
+  /** Da che parte stanno i documenti, se stanno tutti dalla stessa. */
+  documento: "emessa" | "ricevuta" | null;
   /** Vero solo se lo sono tutti: una somma di quote non è cassa. */
   quota: boolean;
   /**
@@ -304,22 +314,28 @@ function milestoneDa(ev: CashEvent, settimane: Settimana[], percorso: string, qu
  * Esce solo se cade in una settimana diversa dalla cassa: quando coincidono,
  * un secondo marker nello stesso punto non aggiunge niente e toglie spazio.
  */
-function documentoDa(ev: CashEvent, settimane: Settimana[], percorso: string): Milestone | null {
+function documentoDa(
+  ev: CashEvent,
+  settimane: Settimana[],
+  percorso: string,
+  suffisso = "doc",
+): Milestone | null {
   if (ev.natura !== "cassa" || !ev.data_documento) return null;
   const col = colonnaDi(ev.data_documento, settimane);
   if (col === colonnaDi(ev.settimana ?? ev.data, settimane)) return null;
   return {
-    id: `${ev.id}:doc`,
+    id: `${ev.id}:${suffisso}`,
     colonna: col,
     lane: "po",
     importo: ev.importo_eur,
     importoValuta: ev.importo_valuta ?? ev.importo_eur,
     valuta: ev.valuta ?? "EUR",
-    titolo: "Fattura emessa",
+    titolo: ev.verso === "entrata" ? "Fattura emessa" : "Fattura ricevuta",
     dettaglio: [ev.etichetta, ev.data_documento].filter(Boolean).join(" · "),
     stato: "emessa",
     quota: false,
     documentale: true,
+    documento: ev.verso === "entrata" ? "emessa" : "ricevuta",
     certezza: null,
     progetto: ev.progetto,
     percorso,
@@ -397,9 +413,13 @@ export type Modo = "sintesi" | "quote" | "dettaglio";
  * contenuto e non un doppione.
  */
 export function disponi(ms: Milestone[], prefisso: string, modo: Modo): Elemento[] {
+  // I documenti passano in tutte e tre le modalità: una fattura non è né
+  // cassa né quota, è il fatto che sta prima di entrambe, e toglierla dalla
+  // riga inviluppo faceva sparire l'emissione proprio sulle commesse a
+  // progetto unico, dove l'inviluppo *è* il progetto.
   const scelti =
-    modo === "sintesi" ? ms.filter((m) => !m.quota)
-      : modo === "quote" ? ms.filter((m) => m.quota)
+    modo === "sintesi" ? ms.filter((m) => !m.quota || m.documentale)
+      : modo === "quote" ? ms.filter((m) => m.quota || m.documentale)
         : ms;
   const vivi = scelti.filter((m) => m.importo !== 0);
 
@@ -471,6 +491,9 @@ function aggrega(lista: Milestone[], lane: Lane, col: number, prefisso: string):
     voci: lista.slice(0, 4).map((m) => ({ titolo: m.titolo, importo: m.importo })),
     valuta: unaSola,
     importoValuta: unaSola ? lista.reduce((s, m) => s + m.importoValuta, 0) : 0,
+    documento: lista.every((m) => m.documento === lista[0].documento)
+      ? (lista[0].documento ?? null)
+      : null,
     quota: lista.every((m) => m.quota),
     certezza: lista.every((m) => m.certezza === prima) ? prima : null,
   };
@@ -482,7 +505,8 @@ const NOME_CORSIA: Record<string, string> = {
   in: "incassi cliente",
   forn: "uscite fornitori",
   inst: "uscite installatori",
-  po: "fatture emesse",
+  // Neutro: se emesse o ricevute lo dice il marker, che sa da che parte sta.
+  po: "fatture",
 };
 
 /**
@@ -649,6 +673,11 @@ export function costruisciAlbero(
         }
         accumula(r, ev, colonnaDi(ev.settimana ?? ev.data, settimane));
         r.milestones.push(milestoneDa(ev, settimane, `${percorsoK} › ${r.nome}`, true));
+        // Anche sul singolo sito si vede quando la fattura è uscita o
+        // arrivata: è la riga su cui si va a cercare perché un incasso
+        // tarda, e senza il documento manca proprio il primo anello.
+        const doc = documentoDa(ev, settimane, `${percorsoK} › ${r.nome}`, "doc-p");
+        if (doc) r.milestones.push(doc);
       }
       progetti.forEach((r) => {
         chiudi(r);

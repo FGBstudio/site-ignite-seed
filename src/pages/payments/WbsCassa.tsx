@@ -1235,12 +1235,14 @@ function Marker({
 function classiDi(x: {
   quota?: boolean;
   documentale?: boolean;
+  documento?: "emessa" | "ricevuta" | null;
   certezza: Certezza | null;
   stato?: string;
 }): string {
   const avvenuto = x.certezza === "reale" || x.stato === "pagata";
   return [
     x.quota && "quota",
+    x.documento === "ricevuta" && "ricevuta",
     !x.documentale && !avvenuto && "attesa",
     x.certezza === "prevista" && "prevista",
     x.certezza === "stimata" && "stimata",
@@ -1269,7 +1271,9 @@ function datiDiMilestone(m: Milestone, giorno: string | null, modo: ModoValuta):
   const v = nativa ? m.importoValuta : m.importo;
   const val = nativa ? m.valuta : "EUR";
   const nota = m.documentale
-    ? "Fattura emessa: qui non esce denaro, parte il conto alla rovescia dei termini."
+    ? m.documento === "ricevuta"
+      ? "Fattura del fornitore arrivata: qui non esce denaro, parte il conto alla rovescia dei termini."
+      : "Fattura emessa: qui non entra denaro, parte il conto alla rovescia dei termini."
     : m.quota
     ? "Quota di progetto: si vede, non entra in nessuna somma."
     : m.certezza === "prevista"
@@ -1297,7 +1301,10 @@ function datiDiMilestone(m: Milestone, giorno: string | null, modo: ModoValuta):
     // Nella nuvoletta c'è spazio per dirle tutte e due, e sono due cose
     // diverse: quella su cui il fornitore discute e quella che esce da conto.
     amt: m.documentale
-      ? `fattura ${quotaVal(m.importoValuta, m.valuta)}`
+      ? `fattura ${m.documento === "ricevuta" ? "ricevuta" : "emessa"} ${quotaVal(
+          m.importoValuta,
+          m.valuta,
+        )}`
       : m.quota
         ? quotaVal(m.importoValuta, m.valuta)
         : conCambio(m),
@@ -1327,7 +1334,9 @@ function datiDiAggregato(
     riferimento: nodo,
     percorso: null,
     nota: a.lane === "po"
-      ? "Fatture emesse: qui non esce denaro, parte il conto alla rovescia dei termini."
+      ? a.documento === "ricevuta"
+        ? "Fatture dei fornitori arrivate: qui non esce denaro, parte il conto alla rovescia dei termini."
+        : "Fatture emesse: qui non si muove denaro, parte il conto alla rovescia dei termini."
       : a.quota
       ? "Quote di progetto: si vedono, non entrano in nessuna somma."
       : a.certezza === "stimata"
@@ -1345,7 +1354,10 @@ function datiDiAggregato(
     valore: a.lane === "po" ? undefined : a.quota ? quotaVal(v, val) : compatto(v, val),
     amt:
       a.lane === "po"
-        ? `fatture ${quotaVal(a.valuta ? a.importoValuta : a.importo, a.valuta ?? "EUR")}`
+        ? `${a.quanti} fatture ${a.documento === "ricevuta" ? "ricevute" : "emesse"} · ${quotaVal(
+            a.valuta ? a.importoValuta : a.importo,
+            a.valuta ?? "EUR",
+          )}`
         : a.quota
           ? quotaVal(a.valuta ? a.importoValuta : a.importo, a.valuta ?? "EUR")
           : a.valuta && a.valuta !== "EUR"
@@ -1356,6 +1368,7 @@ function datiDiAggregato(
     classi: `agg ${classiDi({
       quota: a.quota,
       documentale: a.lane === "po",
+      documento: a.documento,
       certezza: a.certezza,
     })}`.trim(),
   };
@@ -1407,21 +1420,17 @@ function Legenda() {
       <span className="inline-flex items-center gap-1.5">
         <Punta entra lane="in" pallida />Quota di progetto, non sommata
       </span>
-      {/* I tre momenti di una fattura, nell'ordine in cui succedono. */}
+      {/* I tre momenti di una fattura, nell'ordine in cui succedono. Il
+          documento è grigio da tutte e due le parti — non è cassa — e a
+          distinguerlo è la forma: quadrato quello che emettiamo, tondo
+          quello che ci arriva. */}
       <span className="inline-flex items-center gap-1.5">
-        <span aria-hidden className="inline-flex flex-col items-center" style={{ lineHeight: 0 }}>
-          <span style={{ width: 2, height: 7, background: "var(--po)" }} />
-          <span
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: 2,
-              background: "#fff",
-              boxShadow: "inset 0 0 0 1.5px var(--po)",
-            }}
-          />
-        </span>
-        Grigio: fattura emessa, nessun denaro si muove
+        <Documento />
+        Fattura emessa da noi
+      </span>
+      <span className="inline-flex items-center gap-1.5">
+        <Documento tondo />
+        Fattura del fornitore ricevuta
       </span>
       <span className="inline-flex items-center gap-1.5">
         <span aria-hidden className="inline-flex flex-col items-center" style={{ lineHeight: 0 }}>
@@ -1481,6 +1490,25 @@ function Punta({
       {entra && <Triangolo su colore={colore} />}
       <span style={{ width: 2, height: 7, background: colore, borderRadius: 1 }} />
       {!entra && <Triangolo colore={colore} />}
+    </span>
+  );
+}
+
+/** Il segno del documento: gambo grigio e una forma vuota. Nessuna punta,
+ *  perché il denaro non si muove. */
+function Documento({ tondo = false }: { tondo?: boolean }) {
+  return (
+    <span aria-hidden className="inline-flex flex-col items-center" style={{ lineHeight: 0 }}>
+      <span style={{ width: 2, height: 7, background: "var(--po)" }} />
+      <span
+        style={{
+          width: 8,
+          height: 8,
+          borderRadius: tondo ? "50%" : 2,
+          background: "#fff",
+          boxShadow: "inset 0 0 0 1.5px var(--po)",
+        }}
+      />
     </span>
   );
 }

@@ -367,6 +367,11 @@
   border: none; left: 3px; width: 8px; height: 8px; border-radius: 2px;
   background: #fff; box-shadow: inset 0 0 0 1.5px var(--po);
 }
+/* Emessa e ricevuta sono due fatti opposti — una la decidiamo noi, l'altra ci
+   arriva — e si distinguono dalla forma, non dal colore: sono documenti
+   tutti e due, e il grigio deve restare grigio.
+   Quadrato quello che esce da noi, tondo quello che arriva. */
+.fgb-payments .wbs-mk.po.ricevuta .tip { border-radius: 50%; }
 .fgb-payments .wbs-mk.po.agg .tip { box-shadow: inset 0 0 0 2.5px var(--po); }
 
 /* L'importo accanto alla freccia. C'è sempre, ed è sempre un totale.
