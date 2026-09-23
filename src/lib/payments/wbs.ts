@@ -425,13 +425,22 @@ export function disponi(ms: Milestone[], prefisso: string, modo: Modo): Elemento
         : ms;
   const vivi = scelti.filter((m) => m.importo !== 0);
 
-  const perColonna = new Map<number, Map<Lane, Milestone[]>>();
+  // Cassa e quote non finiscono mai nello stesso marker.
+  //
+  // Sono due grandezze diverse — una è denaro che si muove, l'altra la fetta
+  // di una spesa già contata altrove — e sommarle dà un numero che non esiste
+  // da nessuna parte. È così che «Acquisto materiali», con 27.520 di cassa e
+  // 17.459 di quote, mostrava una freccia da 44.979: un totale che la riga
+  // accanto dichiarava esplicitamente di non fare.
+  //
+  // I documenti restano coi loro simili: una fattura non è né cassa né quota.
+  const perColonna = new Map<number, Map<string, Milestone[]>>();
   for (const m of vivi) {
     if (!perColonna.has(m.colonna)) perColonna.set(m.colonna, new Map());
     const file = perColonna.get(m.colonna)!;
-    const d = direzione(m);
-    if (!file.has(d)) file.set(d, []);
-    file.get(d)!.push(m);
+    const chiave = `${direzione(m)}|${m.quota && !m.documentale ? "q" : "c"}`;
+    if (!file.has(chiave)) file.set(chiave, []);
+    file.get(chiave)!.push(m);
   }
 
   const out: Elemento[] = [];
@@ -440,23 +449,27 @@ export function disponi(ms: Milestone[], prefisso: string, modo: Modo): Elemento
     // Il documento non conta verso la soglia: sta nella sua fila e non
     // toglie spazio alle frecce, quindi non è lui a farle collassare.
     const quanti = [...file.entries()].reduce(
-      (s, [lane, l]) => s + (lane === "po" ? 0 : l.length),
+      (s, [chiave, l]) => s + (chiave.startsWith("po|") ? 0 : l.length),
       0,
     );
     const singoli = modo === "dettaglio" && col !== 0 && quanti <= MAX_MARKER;
     let posto = 0;
 
+    // La cassa precede le quote dentro la stessa corsia: prima il denaro che
+    // si muove, poi la sua ripartizione.
     for (const lane of ORDINE_LANE) {
-      const lista = file.get(lane);
-      if (!lista?.length) continue;
-      lista.sort((a, b) => Math.abs(b.importo) - Math.abs(a.importo));
+      for (const genere of ["c", "q"] as const) {
+        const lista = file.get(`${lane}|${genere}`);
+        if (!lista?.length) continue;
+        lista.sort((a, b) => Math.abs(b.importo) - Math.abs(a.importo));
 
-      // Raggruppare un movimento solo non nasconde niente e costa il suo
-      // titolo: sotto quella soglia il marker resta il movimento.
-      if (singoli || lista.length === 1) {
-        lista.forEach((m) => out.push({ tipo: "singola", posto: posto++, m }));
-      } else {
-        out.push({ tipo: "gruppo", posto: posto++, a: aggrega(lista, lane, col, prefisso) });
+        // Raggruppare un movimento solo non nasconde niente e costa il suo
+        // titolo: sotto quella soglia il marker resta il movimento.
+        if (singoli || lista.length === 1) {
+          lista.forEach((m) => out.push({ tipo: "singola", posto: posto++, m }));
+        } else {
+          out.push({ tipo: "gruppo", posto: posto++, a: aggrega(lista, lane, col, prefisso) });
+        }
       }
     }
   }
@@ -483,8 +496,11 @@ function aggrega(lista: Milestone[], lane: Lane, col: number, prefisso: string):
   // Una valuta sola per tutti, oppure nessuna: un totale in «renminbi e
   // dollari insieme» non e' un numero.
   const unaSola = lista.every((m) => m.valuta === lista[0].valuta) ? lista[0].valuta : null;
+  // Cassa e quote della stessa corsia sono due marker distinti nella stessa
+  // colonna: senza il genere nella chiave si sovrascriverebbero a vicenda.
+  const soloQuote = lista.every((m) => m.quota);
   return {
-    chiave: `${prefisso}:${col}:${lane}`,
+    chiave: `${prefisso}:${col}:${lane}:${soloQuote ? "q" : "c"}`,
     colonna: col,
     lane,
     importo: lista.reduce((s, m) => s + m.importo, 0),
@@ -496,7 +512,7 @@ function aggrega(lista: Milestone[], lane: Lane, col: number, prefisso: string):
     documento: lista.every((m) => m.documento === lista[0].documento)
       ? (lista[0].documento ?? null)
       : null,
-    quota: lista.every((m) => m.quota),
+    quota: soloQuote,
     certezza: lista.every((m) => m.certezza === prima) ? prima : null,
   };
 }
