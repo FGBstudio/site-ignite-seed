@@ -13,6 +13,7 @@ import {
   useCommesseFatturabili,
   useEmettiFattura,
   useEntita,
+  useTerminiDiCommessa,
   useTrancheDue,
 } from "@/hooks/usePayments";
 import { importo } from "@/lib/payments/aggregati";
@@ -31,9 +32,21 @@ import type { Currency } from "@/types/payments";
 export function DialogoEmissione({
   aperto,
   onChiudi,
+  certIniziale,
+  trancheIniziale,
 }: {
   aperto: boolean;
   onChiudi: () => void;
+  /**
+   * La commessa e la tranche che l'avviso indicava.
+   *
+   * L'avviso dice «emetti questa fattura»: se poi il dialogo si apre vuoto,
+   * chi lo riceve deve ritrovare da solo, fra tutte le commesse aperte, quella
+   * di cui parlava. Il lavoro che l'automazione ha risparmiato torna indietro
+   * tutto in una volta.
+   */
+  certIniziale?: string | null;
+  trancheIniziale?: string | null;
 }) {
   const { toast } = useToast();
   const emetti = useEmettiFattura();
@@ -57,13 +70,14 @@ export function DialogoEmissione({
   const brandId = commessa?.sites?.brand_id ?? null;
   const { data: clienti = [] } = useClientiDelBrand(brandId);
   const { data: tranche = [] } = useTrancheDue(certId || null);
+  const { data: termini } = useTerminiDiCommessa(certId || null);
 
   useEffect(() => {
     if (!aperto) return;
     setEmittenteId(entita.length === 1 ? entita[0].id : "");
-    setCertId("");
+    setCertId(certIniziale ?? "");
     setClienteId("");
-    setTrancheId("");
+    setTrancheId(trancheIniziale ?? "");
     setValuta("EUR");
     setTasso("1");
     setTotale("");
@@ -71,7 +85,7 @@ export function DialogoEmissione({
     setDataEmissione(new Date().toISOString().slice(0, 10));
     setGiorni("30");
     setNumeroEsterno("");
-  }, [aperto, entita]);
+  }, [aperto, entita, certIniziale, trancheIniziale]);
 
   // Scelta la commessa, si portano dietro le cose che gia' si sanno.
   useEffect(() => {
@@ -80,6 +94,18 @@ export function DialogoEmissione({
     if (commessa.currency) setValuta(commessa.currency as Currency);
     setTotale(commessa.total_fees ? String(commessa.total_fees) : "");
   }, [commessa]);
+
+  /**
+   * I termini di pagamento arrivano dalla commessa, non da un 30 scritto qui.
+   *
+   * Erano stati negoziati in offerta e vivono su `commesse.termini_giorni`:
+   * ridigitarli a ogni fattura vorrebbe dire avere due versioni dello stesso
+   * accordo, e prima o poi discordano. Restano modificabili — l'amministrazione
+   * puo' concordare una scadenza diversa su una singola fattura.
+   */
+  useEffect(() => {
+    if (termini != null) setGiorni(String(termini));
+  }, [termini]);
 
   // Scelta la tranche, l'importo e' il suo: e' quello il pezzo da fatturare.
   useEffect(() => {

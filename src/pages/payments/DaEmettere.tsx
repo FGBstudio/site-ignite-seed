@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import { FileText, Send } from "lucide-react";
@@ -28,6 +29,41 @@ export default function DaEmettere() {
   const { data: tranche = [], isLoading } = useTrancheAperte();
   const { data: alert = [] } = useAlertPayments();
   const [emissione, setEmissione] = useState(false);
+
+  /**
+   * Arrivare qui da un avviso apre già il dialogo sulla tranche giusta.
+   *
+   * L'avviso dice «emetti questa fattura» e porta con sé commessa e tranche
+   * nella rotta: aprire il dialogo vuoto vorrebbe dire restituire a chi
+   * fattura il lavoro di ricerca che l'automazione aveva appena tolto.
+   */
+  const [params, setParams] = useSearchParams();
+  const certDaAvviso = params.get("cert");
+  const trancheDaAvviso = params.get("tranche");
+
+  useEffect(() => {
+    if (certDaAvviso) setEmissione(true);
+  }, [certDaAvviso]);
+
+  /** Emettere da una riga apre il dialogo su quella riga, non su niente. */
+  const [scelta, setScelta] = useState<{ cert: string | null; tranche: string | null } | null>(null);
+  const apriSuTranche = (r: { id: string; certification_id: string | null }) => {
+    setScelta({ cert: r.certification_id, tranche: r.id });
+    setEmissione(true);
+  };
+
+  const chiudiEmissione = () => {
+    setScelta(null);
+    setEmissione(false);
+    // La rotta torna pulita: ricaricare la pagina non deve riaprire un dialogo
+    // su una fattura appena emessa.
+    if (certDaAvviso || trancheDaAvviso) {
+      const p = new URLSearchParams(params);
+      p.delete("cert");
+      p.delete("tranche");
+      setParams(p, { replace: true });
+    }
+  };
 
   const due = useMemo(() => tranche.filter((t) => t.tranche_state === "due"), [tranche]);
   const previste = useMemo(() => tranche.filter((t) => t.tranche_state === "pending"), [tranche]);
@@ -82,7 +118,7 @@ export default function DaEmettere() {
         righe={due}
         causa={causa}
         evidenzia
-        onEmetti={() => setEmissione(true)}
+        onEmetti={(r) => apriSuTranche(r)}
       />
 
       <Elenco
@@ -92,7 +128,12 @@ export default function DaEmettere() {
         causa={causa}
       />
 
-      <DialogoEmissione aperto={emissione} onChiudi={() => setEmissione(false)} />
+      <DialogoEmissione
+        aperto={emissione}
+        onChiudi={chiudiEmissione}
+        certIniziale={scelta?.cert ?? certDaAvviso}
+        trancheIniziale={scelta?.tranche ?? trancheDaAvviso}
+      />
 
       {(isLoading || caricamento) && (
         <p className="text-center text-[12px]" style={{ color: "var(--muted)" }}>
@@ -122,7 +163,7 @@ function Elenco({
   }>;
   causa: Map<string, string>;
   evidenzia?: boolean;
-  onEmetti?: () => void;
+  onEmetti?: (riga: { id: string; certification_id: string | null }) => void;
 }) {
   return (
     <section className="card overflow-hidden">
@@ -167,7 +208,7 @@ function Elenco({
               {evidenzia && onEmetti && (
                 <button
                   type="button"
-                  onClick={onEmetti}
+                  onClick={() => onEmetti(t)}
                   className="rounded-[10px] px-3 py-1.5 text-[11.5px] font-semibold text-white"
                   style={{ background: "var(--teal)" }}
                 >

@@ -127,6 +127,31 @@ export function useCommesseFatturabili() {
 }
 
 /** Le tranche gia' esigibili di una commessa: sono il «da emettere». */
+/**
+ * I termini di pagamento concordati sulla commessa a cui il progetto appartiene.
+ *
+ * Nascono in offerta e vivono su `commesse.termini_giorni`. La fattura li
+ * eredita invece di ripartire da un default: un accordo scritto due volte
+ * prima o poi discorda, e qui a discordare sarebbe una scadenza.
+ */
+export function useTerminiDiCommessa(certId: string | null) {
+  return useQuery({
+    queryKey: ["payments", "termini-commessa", certId],
+    enabled: !!certId,
+    queryFn: async (): Promise<number | null> => {
+      const { data, error } = await (supabase as any)
+        .from("commessa_progetti")
+        .select("commesse ( termini_giorni )")
+        .eq("certification_id", certId)
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      const t = (data as { commesse?: { termini_giorni?: number | null } } | null)?.commesse;
+      return t?.termini_giorni ?? null;
+    },
+  });
+}
+
 export function useTrancheDue(certId: string | null) {
   return useQuery({
     queryKey: ["payments", "tranche-due", certId],
