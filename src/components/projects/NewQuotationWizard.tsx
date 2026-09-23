@@ -5,6 +5,7 @@ import { useHoldings, useBrands, useSites } from "@/hooks/useProjectDetails";
 import { useAuth } from "@/contexts/AuthContext";
 import { NewHoldingButton, NewBrandButton } from "@/components/projects/BrandHoldingCreator";
 import { useCertCatalog } from "@/hooks/useCertCatalog";
+import { passoPrecedente, prossimoPasso } from "@/lib/passiWizard";
 import {
   agganciodaValore,
   A_SCADENZA,
@@ -642,6 +643,13 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
 
   const needsStrategy = () => !isPotential && services.certifications.length > 1;
 
+  /** Il contesto di navigazione: quanti passi ci sono e se la Strategia serve. */
+  const passaggio = () => ({
+    ultimo: STEPS[STEPS.length - 1].n,
+    saltaStrategia: !needsStrategy(),
+    passoStrategia: 3,
+  });
+
   const goNext = () => {
     if (step === 1 && !validateStep1()) return;
     if (step === 2 && !validateStep2()) return;
@@ -654,20 +662,12 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
     // Un potenziale non ha ancora un prezzo, quindi non ha una scaletta da
     // validare: il passo si attraversa e basta.
     if (step === 4 && !isPotential && !validateStepPagamenti()) return;
-    setStep((s) => {
-      let next = (s + 1) as StepNum;
-      // Skip Strategy step (3) when only one cert is selected
-      if (next === 3 && !needsStrategy()) next = 4;
-      return next > 4 ? s : next;
-    });
+    // Il tetto viene dall'elenco dei passi, non da un numero battuto qui:
+    // scritto due volte, prima o poi diverge — ed è già successo.
+    setStep((s) => prossimoPasso(s, passaggio()) as StepNum);
   };
 
-  const goBack = () =>
-    setStep((s) => {
-      let prev = (s - 1) as StepNum;
-      if (prev === 3 && !needsStrategy()) prev = 2;
-      return prev < 1 ? s : prev;
-    });
+  const goBack = () => setStep((s) => passoPrecedente(s, passaggio()) as StepNum);
 
   const handleClose = () => {
     onOpenChange(false);
