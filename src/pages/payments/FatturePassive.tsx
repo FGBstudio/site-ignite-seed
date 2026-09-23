@@ -10,6 +10,7 @@ import {
 } from "@/hooks/usePayments";
 import { KpiCard, Pill } from "@/components/payments/Comuni";
 import { PannelloFatturaPassiva } from "@/components/payments/PannelloFatturaPassiva";
+import { AbbinaOrdine } from "@/components/payments/AbbinaOrdine";
 import { importo } from "@/lib/payments/aggregati";
 import { useToast } from "@/hooks/use-toast";
 import type { Currency, PassiveInvoice, Supplier } from "@/types/payments";
@@ -35,6 +36,7 @@ export default function FatturePassive() {
   const { toast } = useToast();
 
   const [nuova, setNuova] = useState(false);
+  const [abbina, setAbbina] = useState<PassiveInvoice | null>(null);
   const [filtroFornitore, setFiltroFornitore] = useState("tutti");
   const [filtroStato, setFiltroStato] = useState("tutti");
   const [filtroValuta, setFiltroValuta] = useState("tutte");
@@ -216,6 +218,7 @@ export default function FatturePassive() {
                       <th className="text-right">Tassa</th>
                       <th className="text-right">Totale</th>
                       <th>PDF</th>
+                      <th>Ordine</th>
                       <th>Stato</th>
                       <th />
                     </tr>
@@ -263,6 +266,28 @@ export default function FatturePassive() {
                                 <FileWarning className="h-3 w-3" /> manca
                               </span>
                             )}
+                          </td>
+                          {/* L'aggancio all'ordine non è un dettaglio
+                              amministrativo: finché manca, la spesa non sa a
+                              quale progetto appartiene e resta fuori dai conti
+                              di commessa. */}
+                          <td>
+                            <button
+                              type="button"
+                              onClick={() => setAbbina(r)}
+                              className="text-left"
+                              aria-label={`Abbina ${r.number} a un ordine`}
+                            >
+                              {!r.po_condizione_id ? (
+                                <Pill tinta="amber">da abbinare</Pill>
+                              ) : r.stato_verifica === "verificata" ? (
+                                <Pill tinta="green" pallino>
+                                  verificata
+                                </Pill>
+                              ) : (
+                                <Pill tinta="neutro">da verificare</Pill>
+                              )}
+                            </button>
                           </td>
                           <td>
                             <Pill
@@ -321,6 +346,16 @@ export default function FatturePassive() {
         onChiudi={() => setNuova(false)}
         fornitori={fornitori}
       />
+
+      {abbina && (
+        <AbbinaOrdine
+          // La chiave rilegge la riga aggiornata dopo l'abbinamento: senza,
+          // il pannello mostrerebbe ancora la fattura senza rata.
+          key={`${abbina.id}:${abbina.po_condizione_id ?? ""}`}
+          fattura={fatture.find((f) => f.id === abbina.id) ?? abbina}
+          onChiudi={() => setAbbina(null)}
+        />
+      )}
     </div>
   );
 }

@@ -1246,6 +1246,9 @@ function classiDi(x: {
     !x.documentale && !avvenuto && "attesa",
     x.certezza === "prevista" && "prevista",
     x.certezza === "stimata" && "stimata",
+    // La fattura è arrivata ed è stata approvata: la data non è più dedotta.
+    // Resta tratteggiata perché il denaro non si è mosso, ma si distingue.
+    x.stato === "approvata" && !avvenuto && "dovuta",
     avvenuto && "pagata",
     x.stato === "congelata" && "congelata",
   ]
@@ -1276,6 +1279,8 @@ function datiDiMilestone(m: Milestone, giorno: string | null, modo: ModoValuta):
       : "Fattura emessa: qui non entra denaro, parte il conto alla rovescia dei termini."
     : m.quota
     ? "Quota di progetto: si vede, non entra in nessuna somma."
+    : m.stato === "approvata"
+      ? "Fattura ricevuta e verificata: la scadenza è quella del documento, non una deduzione."
     : m.certezza === "prevista"
       ? "Data dedotta: evento avvenuto più i termini di pagamento."
       : m.certezza === "stimata"
@@ -1444,7 +1449,24 @@ function Legenda() {
           />
           <Triangolo colore="var(--out-forn)" />
         </span>
-        Tratteggiato: uscita prevista
+        Tratteggiato rado: uscita prevista, data dedotta
+      </span>
+      {/* Fra la previsione e il bonifico c'è uno stato intermedio che vale la
+          pena distinguere: la fattura è in casa e verificata, quindi la data
+          non si muoverà più, ma il denaro non è ancora uscito. */}
+      <span className="inline-flex items-center gap-1.5">
+        <span aria-hidden className="inline-flex flex-col items-center" style={{ lineHeight: 0 }}>
+          <span
+            style={{
+              width: 2,
+              height: 7,
+              backgroundImage:
+                "repeating-linear-gradient(to bottom, var(--out-forn) 0 5px, transparent 5px 7px)",
+            }}
+          />
+          <Triangolo colore="var(--out-forn)" />
+        </span>
+        Tratteggiato fitto: da pagare, scadenza da fattura
       </span>
       <span className="inline-flex items-center gap-1.5">
         <Punta lane="forn" />Pieno: uscita confermata, il denaro è uscito

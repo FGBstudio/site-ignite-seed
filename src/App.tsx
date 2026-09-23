@@ -22,6 +22,7 @@ import IvaPrevisionale from "./pages/payments/IvaPrevisionale";
 import TasksAlerts from "./pages/payments/TasksAlerts";
 import RegistroClienti from "./pages/payments/RegistroClienti";
 import WbsCassa from "./pages/payments/WbsCassa";
+import RichiesteFornitura from "./pages/payments/RichiesteFornitura";
 import { HUB_SECTIONS } from "@/lib/hubSections";
 import Projects from "./pages/Projects";
 import ProjectCreateWizard from "./pages/ProjectCreateWizard";
@@ -120,6 +121,7 @@ function AppRoutes() {
         <Route path="insoluti" element={<Insoluti />} />
         <Route path="clienti" element={<RegistroClienti />} />
         <Route path="note-credito" element={<NoteCredito />} />
+        <Route path="fornitura" element={<RichiesteFornitura />} />
         <Route path="passive" element={<FatturePassive />} />
         <Route path="iva" element={<IvaPrevisionale />} />
         <Route path="alerts" element={<TasksAlerts />} />

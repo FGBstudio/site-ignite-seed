@@ -433,6 +433,18 @@
 .fgb-payments .wbs-mk.stimata .stem,
 .fgb-payments .wbs-mk.stimata .tip { opacity: .55; }
 
+/* «Da pagare»: la fattura del fornitore è arrivata, verificata e approvata.
+   Resta tratteggiata — pieno vuol dire avvenuto, e un debito con scadenza non
+   è ancora un bonifico — ma il tratto si stringe: non è più una deduzione,
+   è una data scritta su un documento che abbiamo in casa. */
+.fgb-payments .wbs-mk.dovuta .stem {
+  background-image: repeating-linear-gradient(
+    to bottom, currentColor 0 5px, transparent 5px 7px
+  );
+  opacity: 1;
+}
+.fgb-payments .wbs-mk.dovuta .tip { opacity: 1; }
+
 .fgb-payments .wbs-mk:hover .stem,
 .fgb-payments .wbs-mk:focus-visible .stem,
 .fgb-payments .wbs-mk.open .stem { top: 0; height: calc(var(--sh) + 34px); }

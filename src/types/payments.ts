@@ -270,4 +270,136 @@ export interface PassiveInvoice {
   state: "to_pay" | "paid" | "overdue";
   paid_date: string | null;
   pdf_path: string | null;
+  /* ── L'aggancio all'ordine (Fase 7) ── */
+  po_id: string | null;
+  po_condizione_id: string | null;
+  stato_verifica: "da_verificare" | "verificata" | "contestata";
+  verificata_il: string | null;
+  note_verifica: string | null;
+  descrizione: string | null;
+}
+
+/* ── Richiesta di Fornitura ───────────────────────────────────────────────── */
+
+/**
+ * Il ciclo della richiesta, distinto da `status` che è la logistica.
+ *
+ * Sono due storie parallele sullo stesso ordine: una dice a che punto è
+ * l'autorizzazione a spendere, l'altra dove sta la merce. Tenerle nella stessa
+ * colonna vorrebbe dire non poter avere un ordine approvato e non ancora
+ * spedito, che è lo stato in cui gli ordini passano più tempo.
+ */
+export type StatoRichiesta = "bozza" | "inviata" | "approvata" | "rifiutata";
+
+/** La corsia di cassa della spesa. Stesso vocabolario di `uscite_previste`. */
+export type CorsiaUscita = "merce" | "installazione" | "servizi";
+
+/**
+ * L'evento da cui una rata conta i suoi giorni.
+ *
+ * `ordine` e `ricezione` non sono sinonimi di date: sono gradini di una catena
+ * che il motore percorre — ordine, fine produzione, spedizione, ricezione —
+ * e spostare la data dell'ordine sposta tutti i gradini a valle.
+ */
+export type EventoCondizione =
+  | "ordine"
+  | "fine_produzione"
+  | "spedizione"
+  | "ricezione"
+  | "installazione"
+  | "collaudo"
+  | "manuale";
+
+export interface RichiestaFornitura {
+  id: string;
+  po_number: string | null;
+  supplier: string | null;
+  supplier_id: string | null;
+  commessa_id: string | null;
+  certification_id: string | null;
+  corsia: CorsiaUscita;
+  descrizione: string | null;
+  po_cost: number | null;
+  currency: Currency;
+  cambio: number;
+  /** Generata: costo per cambio. Non si scrive. */
+  importo_eur: number | null;
+  category: string | null;
+  status: string | null;
+  data_ordine: string | null;
+  po_issued_date: string | null;
+  consegna_prevista: string | null;
+  lead_time_giorni: number | null;
+  stato_richiesta: StatoRichiesta;
+  richiesta_il: string | null;
+  approvata_il: string | null;
+  note_condizioni: string | null;
+  /** Il nome con cui `site_energy_records.po_number` chiama questo ordine. */
+  po_monitoring: string | null;
+}
+
+/** Una rata delle condizioni negoziate col fornitore. */
+export interface CondizionePO {
+  id: string;
+  po_id: string;
+  ordine: number;
+  nome: string;
+  /** L'una o l'altro: la percentuale sul totale, oppure l'importo secco. */
+  pct: number | null;
+  importo: number | null;
+  evento: EventoCondizione;
+  giorni: number;
+  /** Falso per R&D, stampi, call-out: costi dell'ordine, non della fornitura. */
+  ripartita: boolean;
+  /** Falso sulle rate ricostruite dal pregresso: il generatore non le tocca. */
+  rigenerabile: boolean;
+  note: string | null;
+}
+
+/** A quale progetto va quale fetta dell'ordine. */
+export interface AllocazionePO {
+  id: string;
+  po_id: string;
+  certification_id: string | null;
+  etichetta: string | null;
+  pct: number | null;
+  importo: number | null;
+  note: string | null;
+}
+
+/** Una riga del controllo «pay when paid». */
+export interface EsitoPayWhenPaid {
+  uscita_id: string;
+  descrizione: string | null;
+  data_uscita: string;
+  importo_eur: number;
+  primo_incasso: string | null;
+  incassato_a_quella_data: number;
+  uscito_a_quella_data: number;
+  saldo: number;
+  esito:
+    | "ok"
+    | "paghiamo prima di incassare"
+    | "cassa in rosso a quella data"
+    | "nessun incasso atteso";
+}
+
+/** Una proposta di abbinamento fra una fattura ricevuta e una rata d'ordine. */
+export interface PropostaAbbinamento {
+  po_id: string;
+  po_number: string | null;
+  condizione_id: string;
+  rata: string;
+  atteso: number;
+  valuta: Currency;
+  scarto: number;
+  gia_coperta: boolean;
+  confidenza: string;
+}
+
+/** Un controllo di congruenza fra fattura e ordine. */
+export interface ControlloCongruenza {
+  controllo: string;
+  esito: "ok" | "tollerato" | "discorde" | "assente";
+  dettaglio: string;
 }

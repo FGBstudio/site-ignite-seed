@@ -48,6 +48,7 @@ const SCHEDE = [
   { a: "/payments/insoluti", nome: "Insoluti", badge: "rosso" as const },
   { a: "/payments/clienti", nome: "Clienti" },
   { a: "/payments/note-credito", nome: "Note di Credito" },
+  { a: "/payments/fornitura", nome: "Richieste di Fornitura" },
   { a: "/payments/passive", nome: "Fatture Passive" },
   { a: "/payments/iva", nome: "IVA & Previsionale" },
   { a: "/payments/alerts", nome: "Tasks & Alerts", badge: "rosso" as const },
