@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { chiaveTimeline, proponiPasso, type PassoTimeline } from "./useTimelineServizio";
+import {
+  agganciodaValore,
+  A_SCADENZA,
+  ALL_APPROVAZIONE,
+  chiaveTimeline,
+  proponiPasso,
+  valoreAggancio,
+  type PassoTimeline,
+} from "./useTimelineServizio";
 import type { CatalogEntry } from "./useCertCatalog";
 
 /**
@@ -130,14 +138,6 @@ describe("proponiPasso", () => {
     expect(proponiPasso(LEED_BDC, "sottomissione")).toBe(12);
   });
 
-  it("sulle certificazioni la firma è il primo passo", () => {
-    expect(proponiPasso(LEED_BDC, "firma")).toBe(1);
-  });
-
-  it("sulle forniture la firma è l'ordine hardware, che è l'impegno vero", () => {
-    expect(proponiPasso(ENERGY, "firma")).toBe(4);
-  });
-
   it("su Energy la fine lavori è il primo dato: non c'è cantiere, c'è la trasmissione", () => {
     // È il punto su cui l'utente è stato esplicito: la seconda tranche
     // matura quando il sistema è installato e trasmette.
@@ -165,7 +165,6 @@ describe("proponiPasso", () => {
       passo(8, "Consegna accessi dashboard al cliente"),
       passo(9, "Report di avvio (baseline)"),
     ];
-    expect(proponiPasso(air, "firma")).toBe(3);
     expect(proponiPasso(air, "costruzione")).toBe(7);
   });
 
@@ -176,14 +175,44 @@ describe("proponiPasso", () => {
   });
 
   it("propone sempre qualcosa quando la timeline esiste", () => {
-    for (const m of ["firma", "design", "costruzione", "sottomissione"] as const) {
+    for (const m of ["design", "costruzione", "sottomissione"] as const) {
       expect(proponiPasso(ENERGY, m)).not.toBeNull();
       expect(proponiPasso(LEED_BDC, m)).not.toBeNull();
     }
   });
 
   it("su una timeline vuota non propone niente", () => {
-    expect(proponiPasso([], "firma")).toBeNull();
+    expect(proponiPasso([], "design")).toBeNull();
     expect(proponiPasso([], "costruzione")).toBeNull();
+  });
+});
+
+describe("aggancio della tranche", () => {
+  it("l'anticipo matura all'approvazione, non a una milestone", () => {
+    // È la specifica: «Mark as approved» porta la prima tranche a Due
+    // «senza attendere altre azioni». Legarla al kick-off la farebbe
+    // aspettare un incontro che avviene settimane dopo la firma.
+    const anticipo = agganciodaValore(ALL_APPROVAZIONE);
+    expect(anticipo.trigger).toBe("quotation_signed");
+    expect(anticipo.stepOrder).toBeNull();
+  });
+
+  it("distingue l'anticipo dalla tranche a scadenza, che hanno lo stesso stepOrder", () => {
+    const anticipo = { trigger: "quotation_signed" as const, stepOrder: null };
+    const scadenza = { trigger: "manual_sal" as const, stepOrder: null };
+    expect(valoreAggancio(anticipo)).toBe(ALL_APPROVAZIONE);
+    expect(valoreAggancio(scadenza)).toBe(A_SCADENZA);
+    expect(valoreAggancio(anticipo)).not.toBe(valoreAggancio(scadenza));
+  });
+
+  it("una milestone scelta vince su qualunque trigger", () => {
+    expect(valoreAggancio({ trigger: "quotation_signed", stepOrder: 8 })).toBe("8");
+    expect(agganciodaValore("8").stepOrder).toBe(8);
+  });
+
+  it("il giro di andata e ritorno non perde niente", () => {
+    for (const v of [ALL_APPROVAZIONE, A_SCADENZA, "1", "9", "13"]) {
+      expect(valoreAggancio(agganciodaValore(v))).toBe(v);
+    }
   });
 });

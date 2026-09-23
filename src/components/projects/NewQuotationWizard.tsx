@@ -6,9 +6,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import { NewHoldingButton, NewBrandButton } from "@/components/projects/BrandHoldingCreator";
 import { useCertCatalog } from "@/hooks/useCertCatalog";
 import {
+  agganciodaValore,
+  A_SCADENZA,
+  ALL_APPROVAZIONE,
   chiaveTimeline,
   proponiPasso,
   usePassiTimeline,
+  valoreAggancio,
   type PassoTimeline,
 } from "@/hooks/useTimelineServizio";
 import { useEmittenti } from "@/hooks/useOfferta";
@@ -207,14 +211,21 @@ function tranchesDaSchema(scheme: PaymentSchemeId): TrancheDraft[] {
   }));
 }
 
-/** L'intenzione dello schema, tradotta nel momento che `proponiPasso` capisce. */
-const MOMENTO_DI: Record<TriggerEvent, "firma" | "design" | "costruzione" | "sottomissione" | null> = {
-  quotation_signed: "firma",
+/**
+ * L'intenzione dello schema, tradotta nel momento che `proponiPasso` capisce.
+ *
+ * `quotation_signed` non ha un momento: l'anticipo non aspetta una milestone,
+ * lo sblocca il «Mark as approved» dell'offerta. Resta senza passo, ed è così
+ * che il trigger del database lo riconosce.
+ */
+const MOMENTO_DI: Record<TriggerEvent, "design" | "costruzione" | "sottomissione" | null> = {
+  quotation_signed: null,
   design_end: "design",
   construction_end: "costruzione",
   submission: "sottomissione",
   manual_sal: null,
 };
+
 
 function emptyFlags(): MonitoringFlags {
   return { iaq: false, energy: false, water: false, hardwareRedirect: false };
@@ -1620,32 +1631,28 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
                         comparisse un'attività che nella sua timeline non
                         esiste la fattura non partirebbe mai. */}
                     <Select
-                      value={t.stepOrder === null ? "manuale" : String(t.stepOrder)}
+                      value={valoreAggancio(t)}
                       onValueChange={(v) =>
-                        aggiornaTranche(cert.cert_type, i, {
-                          stepOrder: v === "manuale" ? null : Number(v),
-                        })
+                        aggiornaTranche(cert.cert_type, i, agganciodaValore(v))
                       }
                     >
-                      <SelectTrigger
-                        className={cn("w-[280px]", t.stepOrder === null && "text-muted-foreground")}
-                      >
-                        <SelectValue placeholder="Choose the activity" />
+                      <SelectTrigger className="w-[300px]">
+                        <SelectValue placeholder="When does it fall due?" />
                       </SelectTrigger>
                       <SelectContent>
-                        {passi.length === 0 && (
-                          <SelectItem value="manuale">
-                            No timeline for this service — on a date
-                          </SelectItem>
-                        )}
+                        {/* L'anticipo non aspetta nessuna attività: lo sblocca
+                            l'approvazione dell'offerta. Sta in cima perché è
+                            il caso più frequente e perché è di natura diversa
+                            da tutti gli altri. */}
+                        <SelectItem value={ALL_APPROVAZIONE}>
+                          On quotation approval
+                        </SelectItem>
                         {passi.map((p) => (
                           <SelectItem key={p.id} value={String(p.order_index)}>
                             {p.order_index}. {p.requirement}
                           </SelectItem>
                         ))}
-                        {passi.length > 0 && (
-                          <SelectItem value="manuale">On a date — no activity</SelectItem>
-                        )}
+                        <SelectItem value={A_SCADENZA}>On a date — no activity</SelectItem>
                       </SelectContent>
                     </Select>
                     <span className="w-[110px] text-right text-sm tabular-nums text-muted-foreground">
@@ -1671,12 +1678,20 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
                   <Plus className="h-4 w-4" /> Add tranche
                 </Button>
                 <div className="flex items-center gap-3">
-                  {/* Una tranche senza attività non è un errore — si fattura a
-                      scadenza — ma è l'unica che nessun avanzamento potrà
-                      sbloccare, e chi compila deve saperlo adesso. */}
-                  {passi.length > 0 && cert.tranches.some((t) => t.stepOrder === null) && (
+                  {/* «A scadenza» è una scelta legittima, ma è l'unica che
+                      nessun avanzamento potrà sbloccare: né l'approvazione né
+                      una milestone. Chi compila deve saperlo adesso, non
+                      scoprirlo quando la fattura non parte. */}
+                  {cert.tranches.some(
+                    (t) => t.stepOrder === null && t.trigger !== "quotation_signed",
+                  ) && (
                     <span className="text-xs text-amber-600">
-                      {cert.tranches.filter((t) => t.stepOrder === null).length} on a date only
+                      {
+                        cert.tranches.filter(
+                          (t) => t.stepOrder === null && t.trigger !== "quotation_signed",
+                        ).length
+                      }{" "}
+                      on a date only
                     </span>
                   )}
                   <span className={cn("text-sm font-medium", quadra ? "text-emerald-600" : "text-destructive")}>

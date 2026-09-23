@@ -101,11 +101,17 @@ export function usePassiTimeline(chiavi: string[]) {
 /**
  * Il passo che uno schema preimpostato propone, sulla timeline che c'è.
  *
- * Gli schemi parlano una lingua generica — firma, fine design, fine
- * costruzione, sottomissione — e ogni servizio la traduce a modo suo. Una
- * fornitura hardware non ha una fine cantiere, ma ha il momento in cui i
- * sensori cominciano a trasmettere, e quello è il suo equivalente: il lavoro
- * è consegnato.
+ * Gli schemi parlano una lingua generica — fine design, fine costruzione,
+ * sottomissione — e ogni servizio la traduce a modo suo. Una fornitura
+ * hardware non ha una fine cantiere, ma ha il momento in cui i sensori
+ * cominciano a trasmettere, e quello è il suo equivalente: il lavoro è
+ * consegnato.
+ *
+ * L'anticipo «alla firma» non passa di qui, e non è una dimenticanza: non è
+ * una milestone. È il «Mark as approved» dell'offerta, e la tranche che gli
+ * corrisponde nasce senza passo — se la sblocca l'approvazione stessa.
+ * Agganciarla al primo passo della timeline vorrebbe dire far aspettare
+ * l'anticipo a un kick-off che magari avviene settimane dopo la firma.
  *
  * Su una timeline non vuota **propone sempre**. Lasciare la tranche scoperta
  * perché il nome non combacia vorrebbe dire decidere al posto di chi quota che
@@ -115,7 +121,7 @@ export function usePassiTimeline(chiavi: string[]) {
  */
 export function proponiPasso(
   passi: PassoTimeline[],
-  momento: "firma" | "design" | "costruzione" | "sottomissione",
+  momento: "design" | "costruzione" | "sottomissione",
 ): number | null {
   if (passi.length === 0) return null;
 
@@ -142,15 +148,13 @@ export function proponiPasso(
     cerca(/installazion|installation/i) ??
     ultimo;
 
-  // La firma non è un passo della timeline: è il momento in cui la timeline
-  // comincia. Su una fornitura però l'impegno vero è l'ordine dell'hardware,
-  // ed è lì che la prima tranche matura.
+  // L'avvio del lavoro fatturabile. Non è «la firma» — quella non è una
+  // milestone, è il «Mark as approved» dell'offerta e sblocca l'anticipo da
+  // sé — ma il primo passo che vale come impegno, da cui misurare la rata di
+  // mezzo. Su una fornitura è l'ordine dell'hardware.
   const avvio = cerca(/ordine hardware|hardware order|conferma d'ordine/i) ?? primo;
 
   switch (momento) {
-    case "firma":
-      return avvio;
-
     case "design":
       return (
         cerca(/design guidelines|design review|design phase|fine design/i) ??
@@ -166,6 +170,39 @@ export function proponiPasso(
     case "sottomissione":
       return cerca(/submission|sottomissione|deposito/i) ?? consegna;
   }
+}
+
+/* ── L'aggancio di una tranche, e le tre risposte possibili ───────────────── */
+
+/**
+ * Quando matura una tranche. Tre risposte, non due.
+ *
+ *  · all'approvazione dell'offerta — l'anticipo, che non aspetta lavoro;
+ *  · a una milestone della timeline — il caso normale;
+ *  · a una data — legittimo, ma è l'unico che nessun avanzamento sblocca.
+ *
+ * Le prime due si distinguono per `trigger`, non per `stepOrder`: l'anticipo
+ * ha `stepOrder` nullo come la data, e confonderli vorrebbe dire che
+ * l'anticipo smette di essere riconosciuto dal trigger di approvazione.
+ */
+export const ALL_APPROVAZIONE = "approvazione";
+export const A_SCADENZA = "scadenza";
+
+export interface AggancioTranche {
+  trigger: "quotation_signed" | "design_end" | "construction_end" | "submission" | "manual_sal";
+  stepOrder: number | null;
+}
+
+export function valoreAggancio(t: AggancioTranche): string {
+  if (t.stepOrder !== null) return String(t.stepOrder);
+  return t.trigger === "quotation_signed" ? ALL_APPROVAZIONE : A_SCADENZA;
+}
+
+/** Dalla scelta nel menu ai due campi che la rappresentano. */
+export function agganciodaValore(v: string): AggancioTranche {
+  if (v === ALL_APPROVAZIONE) return { trigger: "quotation_signed", stepOrder: null };
+  if (v === A_SCADENZA) return { trigger: "manual_sal", stepOrder: null };
+  return { trigger: "manual_sal", stepOrder: Number(v) };
 }
 
 /**
