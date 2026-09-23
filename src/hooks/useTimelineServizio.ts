@@ -99,31 +99,85 @@ export function usePassiTimeline(chiavi: string[]) {
 }
 
 /**
- * Il passo che un incasso «alla firma» dovrebbe agganciare.
+ * Il passo che uno schema preimpostato propone, sulla timeline che c'è.
  *
- * Gli schemi preimpostati parlano una lingua generica — firma, fine design,
- * fine costruzione, sottomissione — e ogni timeline la scrive a modo suo.
- * Qui si prova a indovinare, e quando non si riesce si lascia vuoto: una
- * tranche senza passo si vede e si corregge, una agganciata al passo sbagliato
- * no.
+ * Gli schemi parlano una lingua generica — firma, fine design, fine
+ * costruzione, sottomissione — e ogni servizio la traduce a modo suo. Una
+ * fornitura hardware non ha una fine cantiere, ma ha il momento in cui i
+ * sensori cominciano a trasmettere, e quello è il suo equivalente: il lavoro
+ * è consegnato.
+ *
+ * Su una timeline non vuota **propone sempre**. Lasciare la tranche scoperta
+ * perché il nome non combacia vorrebbe dire decidere al posto di chi quota che
+ * quel momento non esiste, quando invece esiste e si chiama diversamente. La
+ * proposta è un punto di partenza: chi quota conferma o sposta, e ha davanti
+ * tutti i passi.
  */
 export function proponiPasso(
   passi: PassoTimeline[],
   momento: "firma" | "design" | "costruzione" | "sottomissione",
 ): number | null {
-  const cerca = (re: RegExp) =>
-    passi.find((p) => re.test(p.requirement))?.order_index ?? null;
+  if (passi.length === 0) return null;
+
+  const cerca = (re: RegExp) => passi.find((p) => re.test(p.requirement))?.order_index ?? null;
+  const primo = passi[0].order_index;
+  const ultimo = passi[passi.length - 1].order_index;
+
+  /**
+   * Il momento in cui il lavoro è consegnato, comunque si chiami.
+   *
+   * Nelle certificazioni è la consegna del cantiere; nelle forniture di
+   * monitoraggio è il primo dato che arriva, che è quando il servizio comincia
+   * davvero a esistere per il cliente.
+   */
+  // L'ordine delle alternative conta. Su Energy il passo 7 si chiama
+  // «Configurazione bridge e messa in rete» e precede il passo 8 «Primo dato
+  // ricevuto»: cercare prima «messa in rete» pescherebbe la configurazione,
+  // che è lavoro nostro, non il dato che arriva — ed è il dato che il cliente
+  // paga.
+  const consegna =
+    cerca(/construction end|handover|fine costruzione/i) ??
+    cerca(/primo dato|first data/i) ??
+    cerca(/messa in rete/i) ??
+    cerca(/installazion|installation/i) ??
+    ultimo;
+
+  // La firma non è un passo della timeline: è il momento in cui la timeline
+  // comincia. Su una fornitura però l'impegno vero è l'ordine dell'hardware,
+  // ed è lì che la prima tranche matura.
+  const avvio = cerca(/ordine hardware|hardware order|conferma d'ordine/i) ?? primo;
 
   switch (momento) {
-    // La firma non è un passo della timeline: è il momento in cui la timeline
-    // comincia. Il primo passo è il suo sostituto onesto.
     case "firma":
-      return passi[0]?.order_index ?? null;
+      return avvio;
+
     case "design":
-      return cerca(/design guidelines|design review|design phase|fine design/i);
+      return (
+        cerca(/design guidelines|design review|design phase|fine design/i) ??
+        // Senza una fase di design, il momento a metà strada fra l'avvio e la
+        // consegna: su Energy cade sull'installazione elettrica, che è
+        // esattamente dove una rata di mezzo ha senso.
+        intermedio(passi, avvio, consegna)
+      );
+
     case "costruzione":
-      return cerca(/construction end|handover|fine costruzione/i);
+      return consegna;
+
     case "sottomissione":
-      return cerca(/submission|sottomissione|deposito/i);
+      return cerca(/submission|sottomissione|deposito/i) ?? consegna;
   }
+}
+
+/**
+ * Il passo a metà strada fra l'avvio e la consegna.
+ *
+ * Si misura dall'avvio, non dall'inizio della timeline: i passi che precedono
+ * l'impegno — sopralluoghi, definizione dei circuiti — non sono lavoro da
+ * fatturare a stato avanzamento, e contarli sposterebbe la rata di mezzo
+ * indietro, verso cose che al cliente non sono ancora costate niente.
+ */
+function intermedio(passi: PassoTimeline[], avvio: number, consegna: number): number {
+  const dentro = passi.filter((p) => p.order_index >= avvio && p.order_index <= consegna);
+  const lista = dentro.length > 1 ? dentro : passi;
+  return lista[Math.floor((lista.length - 1) / 2)].order_index;
 }

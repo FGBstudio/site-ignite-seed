@@ -400,10 +400,11 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
   /**
    * Appena la timeline è nota, gli schemi preimpostati propongono il loro passo.
    *
-   * Propongono, non impongono: dove il nome non combacia — «fine design» in una
-   * timeline che di design non parla — la tranche resta senza aggancio e lo
-   * dice. Una tranche scoperta si vede e si corregge; una agganciata al passo
-   * sbagliato no.
+   * Una proposta, non una decisione: chi quota vede il passo già scelto e ha
+   * davanti tutti gli altri per cambiarlo. Dove la lingua dello schema non
+   * combacia con quella del servizio, la proposta traduce invece di arrendersi:
+   * una fornitura non ha una fine cantiere, ma ha il momento in cui i sensori
+   * cominciano a trasmettere, ed è quello il suo equivalente.
    */
   useEffect(() => {
     if (!passiPerChiave) return;
