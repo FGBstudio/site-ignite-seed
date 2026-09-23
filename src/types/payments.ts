@@ -218,6 +218,15 @@ export interface CashEvent {
   stato: string | null;
   ordine_tranche: number | null;
   origine: "tranche" | "uscita";
+  /**
+   * Una lavorazione distinta dentro la stessa commessa.
+   *
+   * La riconfigurazione Schneider sta dentro Fendi Energy 2024 — stesso
+   * contratto, stessi totali — ma è un lavoro suo, con hardware suo. Nella
+   * WBS diventa una sezione in coda all'elenco progetti invece di disperdersi
+   * fra gli altri cinquantadue siti.
+   */
+  sottogruppo: string | null;
 }
 
 /**

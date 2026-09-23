@@ -34,7 +34,7 @@ const base: CashEvent = {
   fonte_evento: null, natura: "cassa", commessa_id: "k-fendi", commessa: "Fendi Energy 2024",
   certification_id: null, progetto: null, brand: "FENDI", citta: null,
   etichetta: null, riferimento: null, stato: null, ordine_tranche: null,
-  origine: "tranche",
+  origine: "tranche", sottogruppo: null,
 };
 
 const ev = (p: Partial<CashEvent>): CashEvent => ({ ...base, ...p });

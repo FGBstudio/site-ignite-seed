@@ -657,8 +657,11 @@ export function costruisciAlbero(
 
       // ── Elenco progetti ──
       const progetti = new Map<string, Riga>();
+      // Quale lavorazione distinta serve ciascun progetto, se ne serve una.
+      const sottoDi = new Map<string, string>();
       for (const ev of lista) {
         if (!ev.certification_id) continue;
+        if (ev.sottogruppo) sottoDi.set(ev.certification_id, ev.sottogruppo);
         let r = progetti.get(ev.certification_id);
         if (!r) {
           r = nuovaRiga(`k:${nomeCommessa}:p:${ev.certification_id}`, ev.progetto ?? "—", 4, "progetto", n, ev.citta ?? undefined);
@@ -703,14 +706,46 @@ export function costruisciAlbero(
         "gruppo",
         n,
       );
-      const siti = [...progetti.values()].sort((a, b) => a.nome.localeCompare(b.nome));
+      const ordinati = [...progetti.entries()].sort((a, b) => a[1].nome.localeCompare(b[1].nome));
+      const siti = ordinati.map(([, r]) => r);
+
+      // Una lavorazione distinta dentro la stessa commessa — la
+      // riconfigurazione Schneider dentro Fendi Energy 2024 — si legge in
+      // coda, raccolta. Sparsa in ordine alfabetico fra gli altri cinquanta
+      // siti non si riconoscerebbe come lavoro a sé, che è l'unica ragione
+      // per cui ha un nome.
+      const principali = ordinati.filter(([id]) => !sottoDi.has(id)).map(([, r]) => r);
+      const sezioni = new Map<string, Riga[]>();
+      for (const [id, r] of ordinati) {
+        const s = sottoDi.get(id);
+        if (s) sezioni.set(s, [...(sezioni.get(s) ?? []), r]);
+      }
+      const contenitori = [...sezioni.entries()]
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([nomeSezione, figli]) => {
+          const c = nuovaRiga(`k:${nomeCommessa}:sotto:${nomeSezione}`, nomeSezione, 4, "gruppo", n);
+          figli.forEach((f) => {
+            f.livello = 5;
+            somma(c, f);
+          });
+          c.figli = figli;
+          c.sotto = `${figli.length} progetti · lavorazione distinta`;
+          chiudi(c);
+          c.milestones = figli.flatMap((f) => f.milestones);
+          c.elementi = disponi(c.milestones, c.chiave, "quote");
+          c.altezza = altezzaPerPila(c.elementi, false);
+          return c;
+        });
+
       // I figli si mostrano solo quando sono più d'uno; i conti si fanno
       // comunque su tutti, altrimenti la commessa a progetto unico perderebbe
       // la sua banda di installazione e i suoi marker.
-      elenco.figli = soloUno ? [] : siti;
+      elenco.figli = soloUno ? [] : [...principali, ...contenitori];
       elenco.sotto = soloUno
         ? (siti[0].sotto ?? "installazioni e quote del sito")
-        : `${siti.length} siti · installazioni e quote`;
+        : contenitori.length
+          ? `${siti.length} siti · di cui ${contenitori.map((c) => c.nome.toLowerCase()).join(", ")}`
+          : `${siti.length} siti · installazioni e quote`;
       siti.forEach((p) => somma(elenco, p));
       chiudi(elenco);
 
