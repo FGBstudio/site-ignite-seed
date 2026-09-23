@@ -23,7 +23,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import {
   CalendarIcon, Plus, Loader2, CheckCircle2, Building2, Award,
-  ChevronRight, ChevronLeft, X, Calculator,
+  ChevronRight, ChevronLeft, X, Calculator, Receipt, Trash2,
 } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { QuotationBudgetBuilder } from "@/components/projects/QuotationBudgetBuilder";
@@ -84,13 +84,14 @@ const CERT_LEVELS: Record<CertType, string[]> = {
 };
 
 type QuotationStrategy = "single" | "split" | null;
-type StepNum = 1 | 2 | 3 | 4;
+type StepNum = 1 | 2 | 3 | 4 | 5;
 
 const STEPS = [
   { n: 1 as const, label: "Site & Project", icon: Building2 },
   { n: 2 as const, label: "Services & Quote", icon: Award },
   { n: 3 as const, label: "Strategy", icon: Calculator },
-  { n: 4 as const, label: "Review", icon: CheckCircle2 },
+  { n: 4 as const, label: "Payments", icon: Receipt },
+  { n: 5 as const, label: "Review", icon: CheckCircle2 },
 ];
 
 // ─── State Shapes ───────────────────────────────────────────────────────────
@@ -152,6 +153,29 @@ interface CertConfig {
   quote_mode: "direct" | "builder";
   builder: BudgetBuilderState;
   builder_applied: boolean;
+  /**
+   * How this certification gets invoiced.
+   *
+   * Per certification and not per quotation: one offer can carry a hardware
+   * supply paid in full at signing next to a LEED paid in three steps, and
+   * they hang from different milestones because they are different jobs.
+   */
+  paymentScheme: PaymentSchemeId;
+  /** The tranches themselves — seeded from the scheme, then editable. */
+  tranches: TrancheDraft[];
+}
+
+interface TrancheDraft {
+  name: string;
+  pct: string;
+  trigger: TriggerEvent;
+}
+
+/** A scheme's own tranches, turned into editable rows. */
+function tranchesDaSchema(scheme: PaymentSchemeId): TrancheDraft[] {
+  const def = PAYMENT_SCHEMES[scheme];
+  if (def.isCustom) return [{ name: "SAL 1", pct: "100", trigger: "manual_sal" }];
+  return def.tranches.map((t) => ({ name: t.name, pct: String(t.pct), trigger: t.trigger }));
 }
 
 function emptyFlags(): MonitoringFlags {
@@ -212,6 +236,12 @@ function emptyCertConfig(type: CertType): CertConfig {
     quote_mode: "direct",
     builder: emptyBuilder(),
     builder_applied: false,
+    // La fornitura hardware si paga tutta alla firma; tutto il resto parte
+    // dallo schema piu' comune e si cambia in un clic.
+    paymentScheme: type === "Energy" || type === "Air" ? "signature_100" : "quotation_construction_50_50",
+    tranches: tranchesDaSchema(
+      type === "Energy" || type === "Air" ? "signature_100" : "quotation_construction_50_50",
+    ),
   };
 }
 
@@ -420,6 +450,61 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
     return Object.keys(errs).length === 0;
   };
 
+  // ── Lo schema di pagamento ────────────────────────────────────────────────
+
+  const mappaCert = (type: CertType, f: (c: CertConfig) => CertConfig) =>
+    setServices((s) => ({
+      ...s,
+      certifications: s.certifications.map((c) => (c.cert_type === type ? f(c) : c)),
+    }));
+
+  /** Cambiare schema riscrive le righe: sono l'espressione di quello schema,
+   *  e tenerle da uno vecchio darebbe una scaletta che non esiste. */
+  const aggiornaSchema = (type: CertType, scheme: PaymentSchemeId) =>
+    mappaCert(type, (c) => ({ ...c, paymentScheme: scheme, tranches: tranchesDaSchema(scheme) }));
+
+  /** Toccare una riga di uno schema preimpostato lo rende, di fatto, su
+   *  misura: lo diciamo invece di lasciare un'etichetta che mente. */
+  const aggiornaTranche = (type: CertType, i: number, patch: Partial<TrancheDraft>) =>
+    mappaCert(type, (c) => ({
+      ...c,
+      paymentScheme: PAYMENT_SCHEMES[c.paymentScheme].isCustom ? c.paymentScheme : "bdc_sal_custom",
+      tranches: c.tranches.map((t, k) => (k === i ? { ...t, ...patch } : t)),
+    }));
+
+  const aggiungiTranche = (type: CertType) =>
+    mappaCert(type, (c) => ({
+      ...c,
+      paymentScheme: "bdc_sal_custom",
+      tranches: [
+        ...c.tranches,
+        { name: `SAL ${c.tranches.length + 1}`, pct: "0", trigger: "manual_sal" as TriggerEvent },
+      ],
+    }));
+
+  const rimuoviTranche = (type: CertType, i: number) =>
+    mappaCert(type, (c) => ({
+      ...c,
+      paymentScheme: "bdc_sal_custom",
+      tranches: c.tranches.filter((_, k) => k !== i),
+    }));
+
+  /** Ogni certificazione deve fatturare il cento per cento del suo valore. */
+  const validateStepPagamenti = (): boolean => {
+    const rotta = services.certifications.find(
+      (c) => !validateCustomTranches(c.tranches.map((t) => ({ pct: Number(t.pct) || 0 }))).valid,
+    );
+    if (!rotta) {
+      setErrors((e) => { const { tranches, ...resto } = e; return resto; });
+      return true;
+    }
+    setErrors((e) => ({
+      ...e,
+      tranches: `${CERT_DISPLAY_LABELS[rotta.cert_type] ?? rotta.cert_type}: the tranches must add up to 100%`,
+    }));
+    return false;
+  };
+
   // ── Navigation ────────────────────────────────────────────────────────────
 
   const needsStrategy = () => !isPotential && services.certifications.length > 1;
@@ -433,6 +518,9 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
         return;
       }
     }
+    // Un potenziale non ha ancora un prezzo, quindi non ha una scaletta da
+    // validare: il passo si attraversa e basta.
+    if (step === 4 && !isPotential && !validateStepPagamenti()) return;
     setStep((s) => {
       let next = (s + 1) as StepNum;
       // Skip Strategy step (3) when only one cert is selected
@@ -648,6 +736,30 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
           .single();
         if (certErr) throw certErr;
 
+
+        // ── La scaletta di fatturazione ─────────────────────────────────────
+        // Nascono qui e nascono «Pending»: all'approvazione il trigger
+        // promuove l'anticipo, e le altre le sbloccherà la milestone a cui
+        // sono agganciate. Senza queste righe l'approvazione non avrebbe
+        // niente da promuovere — ed è esattamente com'era finora.
+        const totaleCert = cert.total_fees ? Number(cert.total_fees) : 0;
+        if (insertedCert && totaleCert > 0 && cert.tranches.length > 0) {
+          const righe = cert.tranches.map((t, i) => ({
+            certification_id: insertedCert.id,
+            name: t.name || `Tranche ${i + 1}`,
+            amount: Math.round(totaleCert * (Number(t.pct) || 0)) / 100,
+            status: "Pending",
+            tranche_state: "pending",
+            payment_scheme: cert.paymentScheme,
+            tranche_pct: Number(t.pct) || 0,
+            tranche_order: i + 1,
+            trigger_event: t.trigger,
+          }));
+          const { error: trErr } = await supabase
+            .from("cert_payment_milestones")
+            .insert(righe as never);
+          if (trErr) throw trErr;
+        }
 
         if (useBuilder && builderComputation && insertedCert) {
           await supabase.from("quotation_budget_history" as never).insert({
@@ -1242,6 +1354,128 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
 
   // ── Step 4: Review ────────────────────────────────────────────────────────
 
+  /**
+   * Lo schema di fatturazione, una certificazione per volta.
+   *
+   * Le quattro opzioni preimpostate sono un punto di partenza, non una gabbia:
+   * ogni riga si rinomina, si ripesa e si riaggancia a un altro momento. La
+   * somma deve fare cento — non per pedanteria, ma perché una quotazione che
+   * fattura il 90% del suo valore è un errore che si scopre mesi dopo.
+   */
+  const renderStepPagamenti = () => (
+    <div className="space-y-5">
+      <div>
+        <h3 className="text-sm font-semibold">Payment schedule</h3>
+        <p className="text-sm text-muted-foreground mt-0.5">
+          Each certification is invoiced on its own schedule. Tranches unlock when the
+          milestone they hang from is closed by the PM.
+        </p>
+      </div>
+
+      {services.certifications.length === 0 && (
+        <p className="text-sm text-muted-foreground">
+          No certification selected: go back to <strong>Services &amp; Quote</strong> first.
+        </p>
+      )}
+
+      {services.certifications.map((cert) => {
+        const totale = Number(cert.total_fees) || 0;
+        const somma = cert.tranches.reduce((s, t) => s + (Number(t.pct) || 0), 0);
+        const quadra = Math.abs(somma - 100) < 0.01;
+
+        return (
+          <Card key={cert.cert_type}>
+            <CardContent className="p-4 space-y-3">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary">
+                    {CERT_DISPLAY_LABELS[cert.cert_type] ?? cert.cert_type}
+                  </Badge>
+                  <span className="text-sm text-muted-foreground">
+                    {totale > 0 ? formatMoney(totale, currency) : "no amount yet"}
+                  </span>
+                </div>
+                <Select
+                  value={cert.paymentScheme}
+                  onValueChange={(v) => aggiornaSchema(cert.cert_type, v as PaymentSchemeId)}
+                >
+                  <SelectTrigger className="w-[320px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {Object.values(PAYMENT_SCHEMES).map((sc) => (
+                      <SelectItem key={sc.id} value={sc.id}>{sc.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <p className="text-xs text-muted-foreground">
+                {PAYMENT_SCHEMES[cert.paymentScheme].description}
+              </p>
+
+              <Separator />
+
+              <div className="space-y-2">
+                {cert.tranches.map((t, i) => (
+                  <div key={i} className="flex items-center gap-2 flex-wrap">
+                    <Input
+                      value={t.name}
+                      onChange={(e) => aggiornaTranche(cert.cert_type, i, { name: e.target.value })}
+                      className="flex-1 min-w-[180px]"
+                      placeholder="Tranche name"
+                    />
+                    <Input
+                      value={t.pct}
+                      onChange={(e) => aggiornaTranche(cert.cert_type, i, { pct: e.target.value })}
+                      className="w-[84px]"
+                      inputMode="decimal"
+                      placeholder="%"
+                    />
+                    <Select
+                      value={t.trigger}
+                      onValueChange={(v) => aggiornaTranche(cert.cert_type, i, { trigger: v as TriggerEvent })}
+                    >
+                      <SelectTrigger className="w-[210px]"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {(Object.keys(TRIGGER_LABELS) as TriggerEvent[]).map((k) => (
+                          <SelectItem key={k} value={k}>{TRIGGER_LABELS[k]}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <span className="w-[110px] text-right text-sm tabular-nums text-muted-foreground">
+                      {totale > 0
+                        ? formatMoney(Math.round(totale * (Number(t.pct) || 0)) / 100, currency)
+                        : "—"}
+                    </span>
+                    <Button
+                      type="button" variant="ghost" size="icon"
+                      aria-label="Remove tranche"
+                      disabled={cert.tranches.length <= 1}
+                      onClick={() => rimuoviTranche(cert.cert_type, i)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <Button type="button" variant="outline" size="sm" className="gap-1.5"
+                        onClick={() => aggiungiTranche(cert.cert_type)}>
+                  <Plus className="h-4 w-4" /> Add tranche
+                </Button>
+                <span className={cn("text-sm font-medium", quadra ? "text-emerald-600" : "text-destructive")}>
+                  {somma.toFixed(0)}% {quadra ? "— balanced" : "— must add up to 100%"}
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })}
+
+      {errors.tranches && <p className="text-sm text-destructive">{errors.tranches}</p>}
+    </div>
+  );
+
   const renderStep4 = () => (
     <div className="space-y-4">
       <div>
@@ -1387,7 +1621,8 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
             {step === 1 && renderStep1()}
             {step === 2 && renderStep2()}
             {step === 3 && renderStep3()}
-            {step === 4 && renderStep4()}
+            {step === 4 && renderStepPagamenti()}
+            {step === 5 && renderStep4()}
           </div>
 
           {/* Footer */}
@@ -1414,7 +1649,7 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
                     Save as Potential
                   </Button>
                 )}
-                {step < 4 ? (
+                {step < 5 ? (
                   <Button type="button" onClick={goNext} className="gap-1.5">
                     Continue <ChevronRight className="h-4 w-4" />
                   </Button>

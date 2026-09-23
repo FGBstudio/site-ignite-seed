@@ -4,14 +4,23 @@
  */
 
 export type PaymentSchemeId =
+  | "signature_100"
   | "quotation_construction_50_50"
+  | "om_quotation_submission_50_50"
   | "quotation_design_construction_30_40_30"
   | "bdc_sal_custom";
 
+/**
+ * The moments a tranche can hang from.
+ *
+ * `submission` exists for O+M, where there is no construction phase: the only
+ * milestone left after kick-off is handing the project to the certifying body.
+ */
 export type TriggerEvent =
   | "quotation_signed"
   | "design_end"
   | "construction_end"
+  | "submission"
   | "manual_sal";
 
 export interface SchemeTrancheTemplate {
@@ -30,6 +39,13 @@ export interface PaymentSchemeDef {
 }
 
 export const PAYMENT_SCHEMES: Record<PaymentSchemeId, PaymentSchemeDef> = {
+  signature_100: {
+    id: "signature_100",
+    label: "100% on Quotation Signature",
+    shortLabel: "100%",
+    description: "One tranche at signing. Usually hardware supply, where there is no later milestone to wait for.",
+    tranches: [{ pct: 100, trigger: "quotation_signed", name: "100% on Quotation Signature" }],
+  },
   quotation_construction_50_50: {
     id: "quotation_construction_50_50",
     label: "50% Quotation Signature / 50% Construction End",
@@ -38,6 +54,16 @@ export const PAYMENT_SCHEMES: Record<PaymentSchemeId, PaymentSchemeDef> = {
     tranches: [
       { pct: 50, trigger: "quotation_signed", name: "50% on Quotation Signature" },
       { pct: 50, trigger: "construction_end", name: "50% on Construction End" },
+    ],
+  },
+  om_quotation_submission_50_50: {
+    id: "om_quotation_submission_50_50",
+    label: "O+M — 50% Quotation Signature / 50% Submission",
+    shortLabel: "O+M 50/50",
+    description: "For O+M, where there is no construction phase: the second tranche hangs from project submission.",
+    tranches: [
+      { pct: 50, trigger: "quotation_signed", name: "50% on Quotation Signature" },
+      { pct: 50, trigger: "submission", name: "50% on Project Submission" },
     ],
   },
   quotation_design_construction_30_40_30: {
@@ -65,6 +91,7 @@ export const TRIGGER_LABELS: Record<TriggerEvent, string> = {
   quotation_signed: "Quotation Signature",
   design_end: "Design End",
   construction_end: "Construction End",
+  submission: "Project Submission",
   manual_sal: "Manual / SAL",
 };
 
