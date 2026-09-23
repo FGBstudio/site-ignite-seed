@@ -3,11 +3,14 @@
 // derived from sites + brands + certifications, never from cached record columns.
 
 import { supabase } from "@/integrations/supabase/client";
+import { nomeCanonico } from "@/lib/nomeProgetto";
 
 export interface MonitorIdentity {
   client: string | null;      // brands.name
   city: string | null;        // sites.city
   project: string | null;     // certifications.name ?? sites.name
+  /** CLIENTE CITTÀ Progetto — il nome con cui il progetto si chiama ovunque. */
+  canonical: string | null;
   region: string | null;
   country: string | null;
   brand_id: string | null;
@@ -60,10 +63,17 @@ export async function loadIdentityMaps(
 
   const identityForSite = (siteId: string | null, certName?: string | null): MonitorIdentity => {
     const s = siteId ? sitesById.get(siteId) : undefined;
+    const client = s?.brand_id ? brandNameById.get(s.brand_id) ?? null : null;
+    const city = s?.city ?? null;
+    const project = certName || s?.name || null;
     return {
-      client: s?.brand_id ? brandNameById.get(s.brand_id) ?? null : null,
-      city: s?.city ?? null,
-      project: certName || s?.name || null,
+      client,
+      city,
+      project,
+      // Le tre colonne del Monitor restano tre. Ma altrove il progetto compare
+      // come etichetta singola, e lì deve chiamarsi allo stesso modo: stesse
+      // fonti, un nome solo.
+      canonical: nomeCanonico(client, city, project),
       region: s?.region ?? null,
       country: s?.country ?? null,
       brand_id: s?.brand_id ?? null,

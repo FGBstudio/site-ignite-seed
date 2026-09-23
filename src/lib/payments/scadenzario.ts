@@ -206,7 +206,7 @@ function causale(ev: CashEvent): string {
   if (!ev.commessa_id) {
     const ripiego = ev.commessa?.startsWith("Non attribuite · ")
       ? ev.commessa.slice("Non attribuite · ".length)
-      : (ev.progetto ?? ev.commessa);
+      : (ev.progetto_canonico ?? ev.progetto ?? ev.commessa);
     if (ripiego) parti.push(ripiego);
   }
   if (ev.certezza === "stimata") parti.push("data stimata");
@@ -396,13 +396,17 @@ export function costruisciScadenzario(
       // falso in un foglio dove la colonna si chiama «Commessa» e qualcuno la
       // userà per sommare. Il ripiego è finito nella causale.
       commessa: ev.commessa_id ? (ev.commessa ?? "") : "",
-      progetto: ev.progetto,
+      // Il nome canonico — CLIENTE CITTÀ Progetto — è quello con cui il
+      // progetto si chiama ovunque: in un foglio che finisce sul tavolo del
+      // cliente non può avere un nome diverso da quello del monitoraggio.
+      progetto: ev.progetto_canonico ?? ev.progetto,
       categoria: ev.categoria ?? "Non attribuite",
       // Chi non ha una commessa si raggruppa lo stesso, sotto il progetto:
       // lasciarlo in un unico mucchio «non attribuito» nasconderebbe proprio
       // le voci da attribuire, che sono quelle da guardare.
       afferenza:
         (ev.commessa_id ? ev.commessa : null) ??
+        ev.progetto_canonico ??
         ev.progetto ??
         (ev.commessa?.startsWith("Non attribuite · ")
           ? ev.commessa.slice("Non attribuite · ".length)

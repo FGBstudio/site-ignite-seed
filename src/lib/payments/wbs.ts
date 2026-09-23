@@ -292,13 +292,15 @@ function milestoneDa(ev: CashEvent, settimane: Settimana[], percorso: string, qu
     importoValuta: ev.importo_valuta ?? ev.importo_eur,
     valuta: ev.valuta ?? "EUR",
     titolo: titoloBreve(ev.etichetta, ev.gruppo),
-    dettaglio: [ev.progetto ?? ev.brand, ev.data ?? "senza data"].filter(Boolean).join(" · "),
+    dettaglio: [ev.progetto_canonico ?? ev.progetto ?? ev.brand, ev.data ?? "senza data"]
+      .filter(Boolean)
+      .join(" · "),
     stato: ev.stato ?? "previsto",
     quota: quota || ev.natura === "quota",
     documentale: false,
     flag: ev.certezza === "stimata" ? "STIMA" : undefined,
     certezza: ev.certezza,
-    progetto: ev.progetto,
+    progetto: ev.progetto_canonico ?? ev.progetto,
     percorso,
   };
 }
@@ -337,7 +339,7 @@ function documentoDa(
     documentale: true,
     documento: ev.verso === "entrata" ? "emessa" : "ricevuta",
     certezza: null,
-    progetto: ev.progetto,
+    progetto: ev.progetto_canonico ?? ev.progetto,
     percorso,
     giorno: ev.data_documento,
   };
@@ -664,7 +666,9 @@ export function costruisciAlbero(
         if (ev.sottogruppo) sottoDi.set(ev.certification_id, ev.sottogruppo);
         let r = progetti.get(ev.certification_id);
         if (!r) {
-          r = nuovaRiga(`k:${nomeCommessa}:p:${ev.certification_id}`, ev.progetto ?? "—", 4, "progetto", n, ev.citta ?? undefined);
+          // Il nome è quello canonico — CLIENTE CITTÀ Progetto — così la riga
+          // si chiama qui come si chiama in monitoraggio e negli export.
+          r = nuovaRiga(`k:${nomeCommessa}:p:${ev.certification_id}`, ev.progetto_canonico ?? ev.progetto ?? "—", 4, "progetto", n, ev.citta ?? undefined);
           const t = tempiPerCert.get(ev.certification_id);
           if (t?.data_materiali) {
             r.barre.push({ colonna: colonnaDi(t.data_materiali, settimane), durata: 1, lane: "po", testo: "Merce", dettaglio: `Acquisto materiali · ${t.data_materiali}`, stimata: false });

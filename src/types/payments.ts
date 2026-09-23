@@ -227,6 +227,14 @@ export interface CashEvent {
    * fra gli altri cinquantadue siti.
    */
   sottogruppo: string | null;
+  /**
+   * Il nome univoco del progetto: CLIENTE CITTÀ Progetto.
+   *
+   * Derivato dalla vista, non memorizzato. `progetto` resta il nome grezzo
+   * della certificazione, che serve ancora per gli abbinamenti; questo è
+   * quello che si legge, ed è lo stesso ovunque nel sistema.
+   */
+  progetto_canonico: string | null;
 }
 
 /**
