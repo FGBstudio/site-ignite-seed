@@ -26,6 +26,15 @@ export interface CatalogEntry {
   outcome_model: OutcomeModel;
   score_unit: "points" | "percent" | null;
   timeline_key: string | null;
+  /**
+   * Come si chiamano le fee dell'ente certificatore per questo schema.
+   *
+   * «GBCI fees» solo per il LEED, perché il GBCI è il suo ente; «Third entity
+   * fees» per gli altri schemi certificati. Nullo dove un ente non c'è —
+   * monitoraggio, diagnosi, servizi di supporto — e lì il campo non si mostra
+   * invece di restare vuoto a chiedere un numero che non esiste.
+   */
+  third_party_fee_label: string | null;
   is_sellable: boolean;
   order_index: number;
 }
@@ -156,6 +165,25 @@ export function useCertCatalog() {
       return Array.from(seen.values()).sort((a, b) => a.order_index - b.order_index);
     };
 
+    /**
+     * Che natura ha uno schema: se ha un esito da raggiungere, e se c'è un
+     * ente a cui si versano delle fee.
+     *
+     * Serve a non chiedere in offerta cose che per quel servizio non esistono:
+     * un Target Level a Greeny, che non certifica niente, o le «GBCI fees» a
+     * un WELL, che di GBCI non ne ha.
+     */
+    const naturaDi = (scheme: string) => {
+      const prima = rows.find((r) => r.scheme === scheme);
+      return {
+        outcome: prima?.outcome_model ?? "none",
+        /** Nullo quando il servizio non ha fee di terzi: il campo non si mostra. */
+        etichettaFeeTerzi: prima?.third_party_fee_label ?? null,
+        /** Senza un esito non c'è un livello da puntare. */
+        haTargetLevel: (prima?.outcome_model ?? "none") !== "none",
+      };
+    };
+
     return {
       isLoading: entries.isLoading || levels.isLoading,
       error: entries.error ?? levels.error,
@@ -166,6 +194,7 @@ export function useCertCatalog() {
       typologiesOf,
       versionsOf,
       levelsOf,
+      naturaDi,
       find,
     };
   }, [rows, levelRows, entries.isLoading, levels.isLoading, entries.error, levels.error]);

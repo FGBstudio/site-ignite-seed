@@ -29,6 +29,7 @@ const voce = (p: Partial<CatalogEntry> & { scheme: string }): CatalogEntry => ({
   outcome_model: "none",
   score_unit: null,
   timeline_key: null,
+  third_party_fee_label: null,
   is_sellable: true,
   order_index: 0,
   ...p,

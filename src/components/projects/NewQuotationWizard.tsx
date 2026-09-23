@@ -155,6 +155,8 @@ interface CertConfig {
   cert_type: CertType;
   cert_rating: string;
   cert_level: string;
+  /** starting = la quotazione che apre il progetto; extra = lavoro aggiuntivo. */
+  quotation_kind: string;
   project_subtype: string;
   flags: MonitoringFlags;
   quantities: MonitoringQuantities;
@@ -277,6 +279,7 @@ function emptyCertConfig(type: CertType): CertConfig {
     cert_type: type,
     cert_rating: "",
     cert_level: "",
+    quotation_kind: "",
     project_subtype: "",
     flags: emptyFlags(),
     quantities: emptyQuantities(),
@@ -836,6 +839,7 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
             cert_type: cert.cert_type,
             cert_rating: cert.cert_rating || null,
             cert_level: cert.cert_level || null,
+            quotation_kind: cert.quotation_kind || null,
             project_subtype: cert.project_subtype || null,
             level: cert.cert_rating || null,
             score: 0,
@@ -1213,6 +1217,7 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
             const ratings = catalog.ratingsOf(cert.cert_type);
             const subtypes = catalog.typologiesOf(cert.cert_type, cert.cert_rating || null);
             const levels = catalog.levelsOf(cert.cert_type, cert.cert_rating || null, cert.project_subtype || null);
+            const natura = catalog.naturaDi(cert.cert_type);
             return (
               <Card key={cert.cert_type} className="border-primary/20">
                 <CardContent className="pt-4">
@@ -1228,13 +1233,35 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
                         <SelectContent>{ratings.map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Target Level</Label>
-                      <Select value={cert.cert_level} onValueChange={(v) => updateCert(cert.cert_type, "cert_level", v)} disabled={levels.length === 0}>
-                        <SelectTrigger className="h-8 text-sm"><SelectValue placeholder={levels.length === 0 ? "N/A" : "Select"} /></SelectTrigger>
-                        <SelectContent>{levels.map((l) => <SelectItem key={l.level} value={l.level}>{l.level}</SelectItem>)}</SelectContent>
-                      </Select>
-                    </div>
+                    {/* Un servizio senza esito da raggiungere non ha un Target
+                        Level, e quello che compariva a Greeny — «Pending»,
+                        «Online» — erano stati di trasmissione travestiti da
+                        obiettivo. Nello stesso posto va una domanda che invece
+                        serve: se questa è la quotazione che apre il progetto o
+                        un extra su uno già avviato. */}
+                    {natura.haTargetLevel ? (
+                      <div className="space-y-1">
+                        <Label className="text-xs">Target Level</Label>
+                        <Select value={cert.cert_level} onValueChange={(v) => updateCert(cert.cert_type, "cert_level", v)} disabled={levels.length === 0}>
+                          <SelectTrigger className="h-8 text-sm"><SelectValue placeholder={levels.length === 0 ? "N/A" : "Select"} /></SelectTrigger>
+                          <SelectContent>{levels.map((l) => <SelectItem key={l.level} value={l.level}>{l.level}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                    ) : (
+                      <div className="space-y-1">
+                        <Label className="text-xs">Quotation type</Label>
+                        <Select
+                          value={cert.quotation_kind}
+                          onValueChange={(v) => patchCert(cert.cert_type, { quotation_kind: v })}
+                        >
+                          <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Select" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="starting">Starting quotation</SelectItem>
+                            <SelectItem value="extra">Extra quotation</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                     <div className="space-y-1">
                       <Label className="text-xs">Subtype</Label>
                       <Select value={cert.project_subtype} onValueChange={(v) => updateCert(cert.cert_type, "project_subtype", v)} disabled={subtypes.length === 0}>
@@ -1302,19 +1329,28 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
                   <div className="mt-4 pt-3 border-t border-border/50 space-y-3">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Quotation value · {CERT_DISPLAY_LABELS[cert.cert_type] ?? cert.cert_type}</p>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* Le fee di terzi esistono solo dove c'è un ente che le
+                        incassa, e si chiamano col suo nome: «GBCI fees» è del
+                        LEED. Dove l'ente non c'è — monitoraggio, diagnosi,
+                        servizi di supporto — il campo non si mostra, invece di
+                        restare vuoto a chiedere un numero che non esiste. */}
+                    <div className={cn("grid grid-cols-1 gap-3", natura.etichettaFeeTerzi && "sm:grid-cols-2")}>
                       <div className="space-y-1">
                         <Label className="text-xs">Services Fees ({currencySymbol(currency)})</Label>
                         <Input type="number" className="h-8 text-sm" placeholder="e.g. 15,000"
                           value={cert.services_fees}
                           onChange={(e) => patchCert(cert.cert_type, { services_fees: e.target.value })} />
                       </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">GBCI / IWBI Fees ({currencySymbol(currency)})</Label>
-                        <Input type="number" className="h-8 text-sm" placeholder="e.g. 5,000"
-                          value={cert.gbci_fees}
-                          onChange={(e) => patchCert(cert.cert_type, { gbci_fees: e.target.value })} />
-                      </div>
+                      {natura.etichettaFeeTerzi && (
+                        <div className="space-y-1">
+                          <Label className="text-xs">
+                            {natura.etichettaFeeTerzi} ({currencySymbol(currency)})
+                          </Label>
+                          <Input type="number" className="h-8 text-sm" placeholder="e.g. 5,000"
+                            value={cert.gbci_fees}
+                            onChange={(e) => patchCert(cert.cert_type, { gbci_fees: e.target.value })} />
+                        </div>
+                      )}
                     </div>
 
                     <RadioGroup
