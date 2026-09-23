@@ -48,7 +48,7 @@ const VALUTE: Array<{ id: ModoValuta; nome: string; sotto: string }> = [
 ];
 
 const FORMATI: Array<{ id: Formato; nome: string; sotto: string; spento?: boolean }> = [
-  { id: "xlsx", nome: "Excel", sotto: "quattro fogli, totali in formula" },
+  { id: "xlsx", nome: "Excel", sotto: "timeline più quattro fogli di dettaglio" },
   { id: "csv", nome: "CSV", sotto: "la sola agenda, separatore punto e virgola" },
   // Offrire una scelta che non fa niente è peggio che non offrirla: resta
   // visibile, spenta, e dice quando arriva.

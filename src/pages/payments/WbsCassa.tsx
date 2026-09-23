@@ -274,7 +274,20 @@ export default function WbsCassa() {
       );
       return;
     }
-    await esportaScadenzarioExcel(s, nome);
+    // La griglia entra nel file come primo foglio: è la vista da cui si parte,
+    // e l'agenda è il dettaglio che la spiega. Si esporta l'albero intero e non
+    // le righe aperte — un file che dipende da quali nodi erano espansi non si
+    // rifà uguale due volte.
+    await esportaScadenzarioExcel(s, nome, {
+      albero,
+      settimane,
+      contesto: {
+        titolo: titoloMaster,
+        etichettaFinestra: contestoExport.etichettaFinestra,
+        selezione: contestoExport.selezione,
+        oggi: contestoExport.oggi,
+      },
+    });
   };
 
   const idxOggi = settimane.findIndex((s) => s.corrente);

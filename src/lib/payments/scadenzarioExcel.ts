@@ -1,4 +1,6 @@
 import type { RigaScadenza, Scadenzario } from "./scadenzario";
+import type { Riga, Settimana } from "./wbs";
+import { aggiungiFoglioTimeline, type ContestoTimeline } from "./timelineExcel";
 
 /**
  * Lo scadenzario su un foglio Excel.
@@ -23,38 +25,29 @@ import type { RigaScadenza, Scadenzario } from "./scadenzario";
  *     deficit: il deficit è già detto in «Da eseguire?», dove è azionabile.
  */
 
-const INK = "FF18201C";
-const MUTO = "FF6B746E";
-const VERDE = "FF1F7A56";
-const ROSSO = "FFC0392B";
-const RUGGINE = "FFB4632C";
-const AMBRA = "FFB07A26";
-const FASCIA = "FF16201C";
-const TEAL_TENUE = "FFE4F1ED";
+// La palette e i formati stanno in `excelStile`: li condivide con il foglio
+// della timeline, e due copie della stessa codifica divergerebbero.
+import {
+  AMBRA,
+  caricaExcelJS,
+  DATA,
+  EURO,
+  EURO_POS,
+  FASCIA,
+  formatoDi,
+  INK,
+  MUTO,
+  ROSSO,
+  RUGGINE,
+  scarica,
+  TEAL_TENUE,
+  VERDE,
+} from "./excelStile";
 
-// Coi centesimi. Il file di riferimento arrotondava all'euro, ma su una
-// ripartizione per progetto i centesimi sono il punto: «1.650,00 RMB
-// (208,86 €)» e «€ 209» non sono lo stesso numero, e il secondo non si
-// riconcilia con la fattura del fornitore.
-const EURO = '"€ "#,##0.00;"−€ "#,##0.00';
-const EURO_POS = '"€ "#,##0.00';
-const DATA = "dd/mm/yyyy";
-
-/**
- * Il formato di un importo nella sua valuta.
- *
- * Il simbolo sta dentro il formato numerico e non nel testo: così la cella
- * resta un numero — si somma, si filtra, si ordina — e continua a dire di che
- * valuta è. Scriverci «RMB 12.434» come stringa la renderebbe inutilizzabile.
- */
-const FORMATO_VALUTA: Record<string, string> = {
-  EUR: EURO,
-  CNY: '"RMB "#,##0.00;"−RMB "#,##0.00',
-  USD: '"$ "#,##0.00;"−$ "#,##0.00',
-  GBP: '"£ "#,##0.00;"−£ "#,##0.00',
-};
-
-const formatoDi = (valuta: string) => FORMATO_VALUTA[valuta] ?? EURO;
+// Chi esporta il CSV chiama `scarica` da qui: era definita in questo modulo
+// prima che la palette si separasse, e spostarla senza riesportarla avrebbe
+// rotto quel punto per una ragione che col CSV non c'entra.
+export { scarica };
 
 /** Quale numero finisce in colonna «Importo», secondo il modo scelto. */
 function importoScelto(s: Scadenzario, r: RigaScadenza): { v: number; fmt: string } {
@@ -78,25 +71,42 @@ const giornoExcel = (iso: string | null) =>
 export async function esportaScadenzarioExcel(
   s: Scadenzario,
   nomeFile: string,
+  timeline?: DatiTimeline,
 ): Promise<void> {
   scarica(
-    new Blob([await bufferScadenzarioExcel(s)], {
+    new Blob([await bufferScadenzarioExcel(s, timeline)], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     }),
     nomeFile,
   );
 }
 
+/**
+ * La griglia, quando chi esporta la sta guardando.
+ *
+ * È facoltativa perché lo scadenzario ha senso anche da solo — lo si genera
+ * da altre schermate — ma quando c'è finisce in cima al file: è la vista da
+ * cui si parte, e l'agenda è il dettaglio che la spiega.
+ */
+export interface DatiTimeline {
+  albero: Riga[];
+  settimane: Settimana[];
+  contesto: ContestoTimeline;
+}
+
 /** Il foglio, senza il download: separato perché è la parte verificabile. */
-export async function bufferScadenzarioExcel(s: Scadenzario): Promise<ArrayBuffer> {
-  const mod = await import("exceljs");
-  // ExcelJS esporta di default in CJS e come namespace in ESM: il bundler può
-  // consegnare l'uno o l'altro, e sbagliare qui fallisce a runtime e non in
-  // compilazione.
-  const ExcelJS = ((mod as unknown as { default?: unknown }).default ?? mod) as typeof import("exceljs");
+export async function bufferScadenzarioExcel(
+  s: Scadenzario,
+  timeline?: DatiTimeline,
+): Promise<ArrayBuffer> {
+  const ExcelJS = await caricaExcelJS();
 
   const wb = new ExcelJS.Workbook();
   wb.creator = "FGB Engine Room";
+
+  if (timeline) {
+    aggiungiFoglioTimeline(wb, timeline.albero, timeline.settimane, timeline.contesto);
+  }
 
   // I fogli si creano nell'ordine in cui vanno letti — l'agenda per prima,
   // perché è quella che si apre — e si riempiono dopo: i nomi sono costanti,
@@ -568,11 +578,3 @@ function scriviRiga(ws: Ws, riga: number, celle: Cella[]) {
   });
 }
 
-export function scarica(blob: Blob, nome: string) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = nome;
-  a.click();
-  URL.revokeObjectURL(url);
-}
