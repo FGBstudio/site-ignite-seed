@@ -1,13 +1,20 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useHoldings, useBrands, useSites } from "@/hooks/useProjectDetails";
 import { useAuth } from "@/contexts/AuthContext";
 import { NewHoldingButton, NewBrandButton } from "@/components/projects/BrandHoldingCreator";
 import { useCertCatalog } from "@/hooks/useCertCatalog";
+import {
+  chiaveTimeline,
+  proponiPasso,
+  usePassiTimeline,
+  type PassoTimeline,
+} from "@/hooks/useTimelineServizio";
+import { useEmittenti } from "@/hooks/useOfferta";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { PAYMENT_SCHEMES, TRIGGER_LABELS, generateTranches, validateCustomTranches, type PaymentSchemeId, type TriggerEvent } from "@/lib/paymentSchemes";
+import { PAYMENT_SCHEMES, generateTranches, validateCustomTranches, type PaymentSchemeId, type TriggerEvent } from "@/lib/paymentSchemes";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -168,15 +175,46 @@ interface CertConfig {
 interface TrancheDraft {
   name: string;
   pct: string;
+  /**
+   * L'intenzione dichiarata dallo schema: firma, fine design, fine costruzione.
+   *
+   * Serve solo a proporre il passo giusto quando la timeline del servizio si
+   * carica. Non è l'aggancio: l'aggancio è `stepOrder`.
+   */
   trigger: TriggerEvent;
+  /**
+   * Il passo della timeline del servizio a cui la tranche è appesa.
+   *
+   * È questo che diventa `cert_payment_milestones.step_id`, ed è l'unica cosa
+   * che permetta al sistema di sbloccare la fattura quando il PM chiude
+   * l'attività. Nullo vuol dire «a scadenza, non legata a un'attività»: una
+   * scelta legittima, ma esplicita.
+   */
+  stepOrder: number | null;
 }
 
 /** A scheme's own tranches, turned into editable rows. */
 function tranchesDaSchema(scheme: PaymentSchemeId): TrancheDraft[] {
   const def = PAYMENT_SCHEMES[scheme];
-  if (def.isCustom) return [{ name: "SAL 1", pct: "100", trigger: "manual_sal" }];
-  return def.tranches.map((t) => ({ name: t.name, pct: String(t.pct), trigger: t.trigger }));
+  if (def.isCustom) return [{ name: "SAL 1", pct: "100", trigger: "manual_sal", stepOrder: null }];
+  return def.tranches.map((t) => ({
+    name: t.name,
+    pct: String(t.pct),
+    trigger: t.trigger,
+    // Il passo si propone quando la timeline è nota, non qui: qui il servizio
+    // può non essere ancora stato scelto.
+    stepOrder: null,
+  }));
 }
+
+/** L'intenzione dello schema, tradotta nel momento che `proponiPasso` capisce. */
+const MOMENTO_DI: Record<TriggerEvent, "firma" | "design" | "costruzione" | "sottomissione" | null> = {
+  quotation_signed: "firma",
+  design_end: "design",
+  construction_end: "costruzione",
+  submission: "sottomissione",
+  manual_sal: null,
+};
 
 function emptyFlags(): MonitoringFlags {
   return { iaq: false, energy: false, water: false, hardwareRedirect: false };
@@ -316,6 +354,84 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
   const currencyRateToEur = fxRates.find((r) => r.code === currency)?.rateToEur ?? 1;
   const [isPotential, setIsPotential] = useState(false);
   const [projectNameTouched, setProjectNameTouched] = useState(false);
+
+  /**
+   * Chi emette l'offerta.
+   *
+   * Decide l'intestazione del Word e le coordinate bancarie in fondo: UK,
+   * Italia o Cina non sono varianti grafiche, sono tre società con tre partite
+   * IVA e tre conti. Sceglierlo qui e non a valle evita che il documento parta
+   * con l'anagrafica di default e vada corretto a mano dopo.
+   */
+  const { data: emittenti = [] } = useEmittenti();
+  const [emittenteId, setEmittenteId] = useState<string>("");
+
+  /**
+   * La timeline di ciascun servizio quotato, e i suoi passi.
+   *
+   * È l'anello che mancava: senza, le tranche si agganciavano a un elenco
+   * generico di momenti che in nessuna timeline esistono, e nessuna milestone
+   * chiusa dal PM poteva sbloccarle.
+   */
+  const chiaviTimeline = useMemo(
+    () =>
+      services.certifications
+        .map((c) =>
+          chiaveTimeline(catalog.rows, {
+            scheme: c.cert_type,
+            rating: c.cert_rating,
+            typology: c.project_subtype,
+          }),
+        )
+        .filter((k): k is string => !!k),
+    [services.certifications, catalog.rows],
+  );
+  const { data: passiPerChiave } = usePassiTimeline(chiaviTimeline);
+
+  const passiDi = (c: CertConfig): PassoTimeline[] => {
+    const k = chiaveTimeline(catalog.rows, {
+      scheme: c.cert_type,
+      rating: c.cert_rating,
+      typology: c.project_subtype,
+    });
+    return (k && passiPerChiave?.get(k)) || [];
+  };
+
+  /**
+   * Appena la timeline è nota, gli schemi preimpostati propongono il loro passo.
+   *
+   * Propongono, non impongono: dove il nome non combacia — «fine design» in una
+   * timeline che di design non parla — la tranche resta senza aggancio e lo
+   * dice. Una tranche scoperta si vede e si corregge; una agganciata al passo
+   * sbagliato no.
+   */
+  useEffect(() => {
+    if (!passiPerChiave) return;
+    setServices((s) => {
+      let cambiato = false;
+      const certificazioni = s.certifications.map((c) => {
+        const k = chiaveTimeline(catalog.rows, {
+          scheme: c.cert_type,
+          rating: c.cert_rating,
+          typology: c.project_subtype,
+        });
+        const passi = (k && passiPerChiave.get(k)) || [];
+        if (!passi.length) return c;
+
+        const tranches = c.tranches.map((t) => {
+          if (t.stepOrder !== null) return t;
+          const momento = MOMENTO_DI[t.trigger];
+          if (!momento) return t;
+          const proposto = proponiPasso(passi, momento);
+          if (proposto === null) return t;
+          cambiato = true;
+          return { ...t, stepOrder: proposto };
+        });
+        return cambiato ? { ...c, tranches } : c;
+      });
+      return cambiato ? { ...s, certifications: certificazioni } : s;
+    });
+  }, [passiPerChiave, catalog.rows]);
   const [clientTouched, setClientTouched] = useState(false);
 
   // Per-cert quotation patch helper
@@ -478,7 +594,12 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
       paymentScheme: "bdc_sal_custom",
       tranches: [
         ...c.tranches,
-        { name: `SAL ${c.tranches.length + 1}`, pct: "0", trigger: "manual_sal" as TriggerEvent },
+        {
+          name: `SAL ${c.tranches.length + 1}`,
+          pct: "0",
+          trigger: "manual_sal" as TriggerEvent,
+          stepOrder: null,
+        },
       ],
     }));
 
@@ -731,6 +852,10 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
               : null,
             quotation_notes: services.notes || null,
             quotation_group_id: groupId,
+            // Chi emette: decide intestazione, partita IVA e IBAN del Word.
+            // Vuoto vuol dire «quella di default», che è una risposta legittima
+            // solo finché di società ce n'è una.
+            issuer_contact_id: emittenteId || null,
           } as any)
           .select("id")
           .single();
@@ -744,6 +869,11 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
         // niente da promuovere — ed è esattamente com'era finora.
         const totaleCert = cert.total_fees ? Number(cert.total_fees) : 0;
         if (insertedCert && totaleCert > 0 && cert.tranches.length > 0) {
+          // `step_id` è il punto in cui la fatturazione tocca l'avanzamento
+          // dei lavori. Senza, la tranche nasce orfana: nessuna milestone
+          // chiusa dal PM può sbloccarla, e l'avviso di fatturazione non parte
+          // mai. Era esattamente il difetto della prima versione.
+          const passiCert = passiDi(cert);
           const righe = cert.tranches.map((t, i) => ({
             certification_id: insertedCert.id,
             name: t.name || `Tranche ${i + 1}`,
@@ -754,6 +884,10 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
             tranche_pct: Number(t.pct) || 0,
             tranche_order: i + 1,
             trigger_event: t.trigger,
+            step_id:
+              t.stepOrder === null
+                ? null
+                : passiCert.find((p) => p.order_index === t.stepOrder)?.id ?? null,
           }));
           const { error: trErr } = await supabase
             .from("cert_payment_milestones")
@@ -1028,6 +1162,34 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
           <p className="text-[11px] text-muted-foreground">
             Tutti gli importi dell'offerta sono in questa valuta. Il calcolo FTE e
             l'hardware restano in euro: sono costi nostri.
+          </p>
+        </div>
+      )}
+
+      {/*
+        Chi emette l'offerta. Sta accanto alla valuta perché è la stessa
+        specie di scelta: vale per tutto il documento e va fatta prima di
+        scrivere gli importi. UK, Italia e Cina non sono tre intestazioni
+        grafiche, sono tre società con tre partite IVA e tre conti correnti.
+      */}
+      {services.certifications.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border/60 bg-muted/30 px-3 py-2">
+          <Label className="text-xs font-medium">Issuing company</Label>
+          <Select value={emittenteId} onValueChange={setEmittenteId}>
+            <SelectTrigger className="h-8 w-[280px]">
+              <SelectValue placeholder="Choose who issues the offer" />
+            </SelectTrigger>
+            <SelectContent>
+              {emittenti.map((e) => (
+                <SelectItem key={e.id} value={e.id}>
+                  {e.company_name}
+                  {e.country ? ` · ${e.country}` : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-[11px] text-muted-foreground">
+            Decide intestazione, partita IVA e coordinate bancarie del Word.
           </p>
         </div>
       )}
@@ -1382,6 +1544,12 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
         const totale = Number(cert.total_fees) || 0;
         const somma = cert.tranches.reduce((s, t) => s + (Number(t.pct) || 0), 0);
         const quadra = Math.abs(somma - 100) < 0.01;
+        const passi = passiDi(cert);
+        const chiave = chiaveTimeline(catalog.rows, {
+          scheme: cert.cert_type,
+          rating: cert.cert_rating,
+          typology: cert.project_subtype,
+        });
 
         return (
           <Card key={cert.cert_type}>
@@ -1411,6 +1579,21 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
               <p className="text-xs text-muted-foreground">
                 {PAYMENT_SCHEMES[cert.paymentScheme].description}
               </p>
+              {/* Dire quale timeline si sta usando è metà del controllo: se
+                  qui compare la timeline sbagliata, le tranche finiranno su
+                  attività che il PM non vedrà mai. */}
+              <p className="text-xs text-muted-foreground">
+                {chiave ? (
+                  <>
+                    Activities from the <strong>{chiave}</strong> timeline
+                    {passi.length > 0 && ` · ${passi.length} steps`}
+                  </>
+                ) : (
+                  <span className="text-amber-600">
+                    No timeline for this service yet: tranches can only be set on a date.
+                  </span>
+                )}
+              </p>
 
               <Separator />
 
@@ -1430,15 +1613,38 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
                       inputMode="decimal"
                       placeholder="%"
                     />
+                    {/* Le attività da cui la tranche si sblocca sono quelle
+                        della timeline del servizio quotato, non un elenco
+                        generico: è il PM che chiuderà quel passo, e se qui
+                        comparisse un'attività che nella sua timeline non
+                        esiste la fattura non partirebbe mai. */}
                     <Select
-                      value={t.trigger}
-                      onValueChange={(v) => aggiornaTranche(cert.cert_type, i, { trigger: v as TriggerEvent })}
+                      value={t.stepOrder === null ? "manuale" : String(t.stepOrder)}
+                      onValueChange={(v) =>
+                        aggiornaTranche(cert.cert_type, i, {
+                          stepOrder: v === "manuale" ? null : Number(v),
+                        })
+                      }
                     >
-                      <SelectTrigger className="w-[210px]"><SelectValue /></SelectTrigger>
+                      <SelectTrigger
+                        className={cn("w-[280px]", t.stepOrder === null && "text-muted-foreground")}
+                      >
+                        <SelectValue placeholder="Choose the activity" />
+                      </SelectTrigger>
                       <SelectContent>
-                        {(Object.keys(TRIGGER_LABELS) as TriggerEvent[]).map((k) => (
-                          <SelectItem key={k} value={k}>{TRIGGER_LABELS[k]}</SelectItem>
+                        {passi.length === 0 && (
+                          <SelectItem value="manuale">
+                            No timeline for this service — on a date
+                          </SelectItem>
+                        )}
+                        {passi.map((p) => (
+                          <SelectItem key={p.id} value={String(p.order_index)}>
+                            {p.order_index}. {p.requirement}
+                          </SelectItem>
                         ))}
+                        {passi.length > 0 && (
+                          <SelectItem value="manuale">On a date — no activity</SelectItem>
+                        )}
                       </SelectContent>
                     </Select>
                     <span className="w-[110px] text-right text-sm tabular-nums text-muted-foreground">
@@ -1463,9 +1669,19 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
                         onClick={() => aggiungiTranche(cert.cert_type)}>
                   <Plus className="h-4 w-4" /> Add tranche
                 </Button>
-                <span className={cn("text-sm font-medium", quadra ? "text-emerald-600" : "text-destructive")}>
-                  {somma.toFixed(0)}% {quadra ? "— balanced" : "— must add up to 100%"}
-                </span>
+                <div className="flex items-center gap-3">
+                  {/* Una tranche senza attività non è un errore — si fattura a
+                      scadenza — ma è l'unica che nessun avanzamento potrà
+                      sbloccare, e chi compila deve saperlo adesso. */}
+                  {passi.length > 0 && cert.tranches.some((t) => t.stepOrder === null) && (
+                    <span className="text-xs text-amber-600">
+                      {cert.tranches.filter((t) => t.stepOrder === null).length} on a date only
+                    </span>
+                  )}
+                  <span className={cn("text-sm font-medium", quadra ? "text-emerald-600" : "text-destructive")}>
+                    {somma.toFixed(0)}% {quadra ? "— balanced" : "— must add up to 100%"}
+                  </span>
+                </div>
               </div>
             </CardContent>
           </Card>
