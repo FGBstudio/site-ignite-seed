@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { AlertTriangle, ChevronDown, ChevronRight, EyeOff, RotateCcw, Target, X } from "lucide-react";
 import FiltroCommesse, { type VoceCommessa } from "@/components/payments/FiltroCommesse";
 import EsportaScadenzario from "@/components/payments/EsportaScadenzario";
+import EsportaPlanning from "@/components/payments/EsportaPlanning";
 import {
   costruisciScadenzario,
   csvScadenzario,
@@ -290,6 +291,34 @@ export default function WbsCassa() {
     });
   };
 
+  /**
+   * Il planning settimanale, sugli stessi eventi e la stessa finestra.
+   *
+   * Nessuna opzione da scegliere: il perimetro è quello che si sta guardando,
+   * come per lo scadenzario. Il titolo dell'inviluppo nomina la selezione,
+   * perché un foglio che non dice su cosa è stato costruito è indistinguibile
+   * da uno fatto su un altro filtro.
+   */
+  const esportaPlanning = async () => {
+    const { costruisciPlanning } = await import("@/lib/payments/planning");
+    const { esportaPlanningExcel } = await import("@/lib/payments/planningExcel");
+    const categorie = [...new Set(accese.map((k) => k.categoria).filter(Boolean))];
+    const inviluppo =
+      escluse.size === 0
+        ? "Totale commesse (inviluppo)"
+        : categorie.length === 1
+          ? `Totale commesse ${String(categorie[0]).toLowerCase()} (inviluppo)`
+          : `Totale selezione (inviluppo)`;
+    const p = costruisciPlanning(visibili, tempi, settimane, inviluppo);
+    const giorno = contestoExport.oggi.toISOString().slice(0, 10);
+    await esportaPlanningExcel(p, `planning-settimanale-${giorno}.xlsx`, {
+      titolo: inviluppo,
+      inizioPeriodo: settimane[1]?.inizio ?? null,
+      selezione: contestoExport.selezione,
+      oggi: contestoExport.oggi,
+    });
+  };
+
   const idxOggi = settimane.findIndex((s) => s.corrente);
   const primoDeficit = conti
     ? conti.netto.findIndex((v, i) => v < 0 && i >= idxOggi && i < settimane.length - 1)
@@ -336,6 +365,7 @@ export default function WbsCassa() {
             }}
             onEsporta={esporta}
           />
+          <EsportaPlanning onEsporta={esportaPlanning} />
           {/* Due letture degli stessi movimenti. I totali restano in euro in
               entrambe, perché una somma fra valute diverse non è un numero. */}
           <div className="segm" role="group" aria-label="Valuta degli importi">

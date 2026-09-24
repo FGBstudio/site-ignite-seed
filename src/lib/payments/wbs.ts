@@ -177,7 +177,7 @@ export function lunedi(d: Date): Date {
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 
-function numeroSettimana(d: Date): number {
+export function numeroSettimana(d: Date): number {
   const x = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
   x.setUTCDate(x.getUTCDate() + 4 - ((x.getUTCDay() + 6) % 7));
   const capodanno = new Date(Date.UTC(x.getUTCFullYear(), 0, 1));

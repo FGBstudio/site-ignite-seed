@@ -14,6 +14,14 @@
 export const INK = "FF18201C";
 export const MUTO = "FF6B746E";
 export const VERDE = "FF1F7A56";
+/**
+ * Il verde di quello che non è ancora arrivato.
+ *
+ * Serve al planning, dove avvenuto e previsto sono due righe adiacenti: con lo
+ * stesso verde si leggerebbero come una cosa sola, e la somma di un incasso e
+ * di una speranza è il numero che manda fuori strada un previsionale.
+ */
+export const VERDE_TENUE = "FF7FA894";
 export const ROSSO = "FFC0392B";
 export const RUGGINE = "FFB4632C";
 export const AMBRA = "FFB07A26";
