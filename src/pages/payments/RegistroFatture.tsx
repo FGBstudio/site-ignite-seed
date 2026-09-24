@@ -7,7 +7,7 @@ import { useIncassi, useNoteCredito } from "@/hooks/usePayments";
 import { Money, PillCiclo, PillPagamento } from "@/components/payments/Comuni";
 import { DialogoEmissione } from "@/components/payments/DialogoEmissione";
 import { DialogoIncasso } from "@/components/payments/DialogoIncasso";
-import { importo } from "@/lib/payments/aggregati";
+import { decimaliUtili, importo } from "@/lib/payments/aggregati";
 import type { InvoiceRow, LifecycleState, PaymentStatus } from "@/types/payments";
 import { cn } from "@/lib/utils";
 
@@ -61,7 +61,7 @@ export default function RegistroFatture() {
       if (pagamento !== "tutti" && f.payment_status !== pagamento) return false;
       if (anno !== "tutti" && !f.issue_date.startsWith(anno)) return false;
       if (!q) return true;
-      return `${f.number} ${f.external_number ?? ""} ${f.client_name ?? ""} ${f.project_name ?? ""}`
+      return `${f.number} ${f.external_number ?? ""} ${f.client_name ?? ""} ${f.commessa ?? ""} ${f.project_name ?? ""}`
         .toLowerCase()
         .includes(q);
     });
@@ -70,14 +70,16 @@ export default function RegistroFatture() {
   /** L'esportazione porta via quello che si vede, non tutto il database. */
   const esporta = () => {
     const testa = [
-      "Numero", "Numero esterno", "Cliente", "Progetto", "Entità", "Emissione",
-      "Scadenza", "Valuta", "Totale", "Incassato", "Note di credito", "Residuo",
+      "Numero", "Numero esterno", "Cliente", "Commessa di riferimento", "Progetto",
+      "Entità", "Emissione", "Scadenza", "Valuta", "Totale", "Incassato",
+      "Note di credito", "Residuo", "di cui ammanco da riversare",
       "Pagamento", "Stato",
     ];
     const corpo = righe.map((f) => [
-      f.number, f.external_number ?? "", f.client_name ?? "", f.project_name ?? "",
+      f.number, f.external_number ?? "", f.client_name ?? "", f.commessa ?? "",
+      f.project_name ?? "",
       f.entity_code ?? "", f.issue_date, f.due_date, f.currency,
-      f.total, f.paid_amount, f.credited_amount, f.residual,
+      f.total, f.paid_amount, f.credited_amount, f.residual, f.ammanco_da_recuperare,
       f.payment_status, f.lifecycle_state,
     ]);
     const csv = [testa, ...corpo]
@@ -158,7 +160,7 @@ export default function RegistroFatture() {
           <input
             value={cerca}
             onChange={(e) => setCerca(e.target.value)}
-            placeholder="Cerca numero, cliente, progetto…"
+            placeholder="Cerca numero, cliente, commessa, progetto…"
             aria-label="Cerca nel registro"
             className="h-8 w-64 rounded-[10px] pl-8 pr-3 text-[12px] outline-none"
             style={{ border: "1px solid var(--border)", background: "#fff" }}
@@ -204,6 +206,7 @@ export default function RegistroFatture() {
                 <th style={{ width: 28 }} />
                 <th>N° Fattura</th>
                 <th>Cliente</th>
+                <th>Commessa di riferimento</th>
                 <th>Progetto</th>
                 <th>Entità</th>
                 <th>Emissione</th>
@@ -219,7 +222,7 @@ export default function RegistroFatture() {
             <tbody>
               {caricamento && (
                 <tr>
-                  <td colSpan={13} className="p-10 text-center text-[12px]" style={{ color: "var(--muted)" }}>
+                  <td colSpan={14} className="p-10 text-center text-[12px]" style={{ color: "var(--muted)" }}>
                     Caricamento…
                   </td>
                 </tr>
@@ -227,7 +230,7 @@ export default function RegistroFatture() {
 
               {!caricamento && righe.length === 0 && (
                 <tr>
-                  <td colSpan={13} className="p-10 text-center text-[12px]" style={{ color: "var(--muted)" }}>
+                  <td colSpan={14} className="p-10 text-center text-[12px]" style={{ color: "var(--muted)" }}>
                     {fatture.length === 0
                       ? "Nessuna fattura registrata. Le prime arriveranno emettendole da qui."
                       : "Nessuna fattura con questi filtri."}
@@ -258,8 +261,10 @@ export default function RegistroFatture() {
             {righe.length !== fatture.length && ` su ${fatture.length}`}
           </span>
           <span>
-            <b>Residuo</b> = Totale − Incassi − Note di credito · calcolato, mai inserito a
-            mano · alla scadenza la fattura passa da sola in Recall
+            <b>Residuo</b> = Totale − Incassi − Note di credito · calcolato, mai inserito a mano ·
+            alla scadenza la fattura passa da sola in Recall · un residuo{" "}
+            <b style={{ color: "var(--amber)" }}>in ambra</b> è un ammanco trattenuto dalla banca,
+            non un cliente che non paga: va riversato sulla prossima fattura dello stesso progetto
           </span>
         </div>
       </div>
@@ -285,14 +290,25 @@ function RigaFattura({
   const { data: incassi = [] } = useIncassi(aperta ? f.id : null);
   const { data: nc = [] } = useNoteCredito(aperta ? f.id : null);
 
+  /**
+   * Il residuo è tutto un ammanco classificato: una trattenuta bancaria, non un
+   * cliente che non paga. Resta nel residuo — quei soldi non sono arrivati — ma
+   * in ambra e non in rosso, perché ha già una destinazione: la prossima
+   * fattura del progetto. Dipingerlo rosso accanto a un insoluto vero direbbe
+   * che sono lo stesso problema.
+   */
+  const soloAmmanco = f.residual > 0 && f.ammanco_da_recuperare >= f.residual - 0.005;
+
   const tintaResiduo =
     f.residual <= 0
       ? "var(--green)"
-      : f.days_late > 0
-        ? "var(--red)"
-        : f.payment_status === "partial"
-          ? "var(--amber)"
-          : "var(--ink)";
+      : soloAmmanco
+        ? "var(--amber)"
+        : f.days_late > 0
+          ? "var(--red)"
+          : f.payment_status === "partial"
+            ? "var(--amber)"
+            : "var(--ink)";
 
   return (
     <>
@@ -315,6 +331,7 @@ function RigaFattura({
           )}
         </td>
         <td className="font-semibold">{f.client_name ?? "—"}</td>
+        <td style={{ color: "var(--muted)" }}>{f.commessa ?? "—"}</td>
         <td style={{ color: "var(--muted)" }}>{f.project_name ?? "—"}</td>
         <td className="uppercase" style={{ color: "var(--muted)" }}>
           {f.entity_code ?? "—"}
@@ -324,23 +341,57 @@ function RigaFattura({
           {d(f.due_date)}
           {f.days_late > 0 && <span className="ml-1">+{f.days_late}gg</span>}
         </td>
-        <td className="text-right"><Money valore={f.total} valuta={f.currency} /></td>
+        {/* I centesimi si mostrano solo dove ci sono: una colonna di importi
+            tondi si legge meglio senza, ma «4.961» al posto di «4.960,50» fa
+            sparire proprio la cifra da cui nasce l'ammanco. */}
+        <td className="text-right">
+          <Money valore={f.total} valuta={f.currency} decimali={decimaliUtili(f.total)} />
+        </td>
         <td className="text-right">
           {f.paid_amount > 0 ? (
-            <Money valore={f.paid_amount} valuta={f.currency} className="text-[var(--green)]" />
+            <Money
+              valore={f.paid_amount}
+              valuta={f.currency}
+              decimali={decimaliUtili(f.paid_amount)}
+              className="text-[var(--green)]"
+            />
           ) : (
             <span style={{ color: "var(--faint)" }}>—</span>
           )}
         </td>
         <td className="text-right">
           {f.credited_amount > 0 ? (
-            <Money valore={f.credited_amount} valuta={f.currency} className="text-[var(--purple)]" />
+            <Money
+              valore={f.credited_amount}
+              valuta={f.currency}
+              decimali={decimaliUtili(f.credited_amount)}
+              className="text-[var(--purple)]"
+            />
           ) : (
             <span style={{ color: "var(--faint)" }}>—</span>
           )}
         </td>
+        {/* L'ammanco sta nel residuo, coi suoi centesimi, e porta la nota che
+            dice dove finirà: un segnale che richiede un clic è un segnale che
+            nessuno vede, e diciannove euro e cinquanta arrotondati a venti non
+            tornerebbero più con la fattura che li recupera. */}
         <td className="text-right font-bold" style={{ color: tintaResiduo }}>
-          <Money valore={f.residual} valuta={f.currency} />
+          <Money
+            valore={f.residual}
+            valuta={f.currency}
+            decimali={decimaliUtili(f.residual)}
+          />
+          {f.ammanco_da_recuperare > 0 && (
+            <div
+              className="mt-0.5 text-[10px] font-semibold leading-tight"
+              style={{ color: "var(--amber)" }}
+              title="Trattenuta dalla banca del cliente: va riversata sulla prossima fattura dello stesso progetto a compensazione"
+            >
+              ammanco da riversare
+              <br />
+              sulla prossima fattura
+            </div>
+          )}
         </td>
         <td><PillPagamento stato={f.payment_status} /></td>
         <td>
@@ -350,7 +401,7 @@ function RigaFattura({
 
       {aperta && (
         <tr>
-          <td colSpan={13} className="dettaglio p-0">
+          <td colSpan={14} className="dettaglio p-0">
             <div className="grid gap-4 p-4 sm:grid-cols-2">
               <div>
                 <p className="label">Incassi registrati</p>
@@ -405,10 +456,30 @@ function RigaFattura({
                 className="num sm:col-span-2 rounded-[10px] px-3 py-2 text-[12px]"
                 style={{ background: "#fff", border: "1px solid var(--border)" }}
               >
-                {importo(f.total, f.currency)} − {importo(f.paid_amount, f.currency)} −{" "}
-                {importo(f.credited_amount, f.currency)} ={" "}
-                <b style={{ color: tintaResiduo }}>{importo(f.residual, f.currency)}</b>
-                {f.payment_status === "partial" && f.lifecycle_state === "in_recall" && (
+                {importo(f.total, f.currency, decimaliUtili(f.total))} −{" "}
+                {importo(f.paid_amount, f.currency, decimaliUtili(f.paid_amount))} −{" "}
+                {importo(f.credited_amount, f.currency, decimaliUtili(f.credited_amount))} ={" "}
+                <b style={{ color: tintaResiduo }}>
+                  {importo(f.residual, f.currency, decimaliUtili(f.residual))}
+                </b>
+                {/* L'ammanco non entra nella formula: non è un quarto termine da
+                    sottrarre, è una riga che dice cos'è già dentro il residuo. */}
+                {f.ammanco_da_recuperare > 0 && (
+                  <div className="mt-1" style={{ color: "var(--amber)" }}>
+                    di cui{" "}
+                    <b>
+                      {importo(
+                        f.ammanco_da_recuperare,
+                        f.currency,
+                        decimaliUtili(f.ammanco_da_recuperare),
+                      )}
+                    </b>{" "}
+                    trattenuti dalla banca del cliente: ammanco da riversare sulla prossima
+                    fattura di {f.project_name ?? "questo progetto"} a compensazione
+                  </div>
+                )}
+                {f.payment_status === "partial" && f.lifecycle_state === "in_recall"
+                  && !soloAmmanco && (
                   <span style={{ color: "var(--muted)" }}> · resta in Recall solo per la differenza</span>
                 )}
               </div>

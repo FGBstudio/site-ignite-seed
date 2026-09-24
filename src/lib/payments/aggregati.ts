@@ -439,6 +439,19 @@ export function importo(valore: number, valuta: Currency = "EUR", decimali = 0):
 }
 
 /**
+ * Quanti decimali serve mostrare: nessuno se non ce ne sono, due se ci sono.
+ *
+ * Una colonna di importi tondi si legge meglio senza i centesimi. Ma se un
+ * residuo vale 19,50 e lo si arrotonda, quel numero diventa 20 o 19 — e sono
+ * i centesimi il punto: nascono da una trattenuta bancaria e devono tornare al
+ * centesimo con la fattura che li recupera. Meglio due decimali su una riga
+ * che un numero falso su tutte.
+ */
+export function decimaliUtili(valore: number): 0 | 2 {
+  return Number.isInteger(Math.round(valore * 100) / 100) ? 0 : 2;
+}
+
+/**
  * Le cifre, sempre raggruppate.
  *
  * In italiano `Intl` non raggruppa i numeri di quattro cifre — «5737» ma

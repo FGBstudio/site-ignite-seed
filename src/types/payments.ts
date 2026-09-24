@@ -69,12 +69,31 @@ export interface InvoiceRow {
   // ── I derivati. Nessuno di questi e' una colonna scrivibile ────────────────
   paid_amount: number;
   credited_amount: number;
+  /**
+   * Quanto, su questa fattura, non è arrivato.
+   *
+   * Non è un incasso — quei soldi non sono entrati in banca — e non è una nota
+   * di credito: il cliente ha pagato tutto, a trattenerne un pezzo è stato un
+   * terzo. Riduce il residuo come le altre due, e va tenuto distinto da
+   * entrambe o prima o poi finisce sommato a `paid_amount`.
+   */
+  decurtato_amount: number;
+  /**
+   * La parte del decurtato che è ancora un credito vivo.
+   *
+   * Va riversata sulla prossima fattura dello stesso progetto a compensazione.
+   * È il numero che impedisce a «Chiusa» di essere l'ultima parola: il
+   * documento è saldato, il credito no.
+   */
+  ammanco_da_recuperare: number;
   residual: number;
   payment_status: PaymentStatus;
   /** Zero se la fattura e' chiusa: una saldata in ritardo non e' in ritardo. */
   days_late: number;
   total_eur: number;
   residual_eur: number;
+  /** La commessa del progetto fatturato, quando il progetto ne ha una. */
+  commessa: string | null;
 }
 
 export interface InvoicePayment {

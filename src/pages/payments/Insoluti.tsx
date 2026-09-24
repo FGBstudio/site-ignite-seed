@@ -43,8 +43,19 @@ export default function Insoluti() {
   // Le fatture che si stanno ancora inseguendo da tanto: sono le candidate a
   // diventare insoluti, e averle sott'occhio è il motivo per cui questa pagina
   // non è solo un archivio.
+  //
+  // Fuori quelle il cui residuo è tutto un ammanco trattenuto dalla banca: sono
+  // scadute da altrettanto, ma non si inseguono — si riversano sulla prossima
+  // fattura. Chiamarle «candidate al recupero» accanto ai 5.775 di Taipei
+  // direbbe che c'è qualcuno da chiamare, e non c'è.
   const inRecallDaTanto = useMemo(
-    () => fatture.filter((f) => f.lifecycle_state === "in_recall" && f.days_late > 90),
+    () =>
+      fatture.filter(
+        (f) =>
+          f.lifecycle_state === "in_recall" &&
+          f.days_late > 90 &&
+          f.ammanco_da_recuperare < f.residual - 0.005,
+      ),
     [fatture],
   );
 

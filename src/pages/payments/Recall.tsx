@@ -13,7 +13,7 @@ import { KpiCard, Money, Pill } from "@/components/payments/Comuni";
 import { DialogoIncasso } from "@/components/payments/DialogoIncasso";
 import { DialogoSollecito } from "@/components/payments/DialogoSollecito";
 import { NoteFattura } from "@/components/payments/NoteFattura";
-import { importo } from "@/lib/payments/aggregati";
+import { decimaliUtili, importo } from "@/lib/payments/aggregati";
 import { useToast } from "@/hooks/use-toast";
 import type { InvoiceRow } from "@/types/payments";
 
@@ -118,6 +118,11 @@ export default function Recall() {
               const restano = giallo && f.yellow_until
                 ? differenceInCalendarDays(parseISO(f.yellow_until), new Date())
                 : null;
+              // Tutto il residuo è un ammanco trattenuto dalla banca: scaduto sì,
+              // ma non c'è niente da sollecitare — si riversa sulla prossima
+              // fattura. In rosso accanto a un insoluto vero direbbe che sono lo
+              // stesso problema, e si sollecita un cliente che ha già pagato.
+              const ammanco = f.ammanco_da_recuperare >= f.residual - 0.005 && f.residual > 0;
 
               return (
                 <li
@@ -127,7 +132,7 @@ export default function Recall() {
                     borderBottom: "1px solid var(--border)",
                     // Il giallo ha uno sfondo caldo: si vede da lontano che su
                     // quella riga c'è una promessa in corso, non un silenzio.
-                    background: giallo ? "var(--amber-bg)" : undefined,
+                    background: giallo || ammanco ? "var(--amber-bg)" : undefined,
                   }}
                 >
                   <div className="min-w-[200px] flex-1">
@@ -147,6 +152,10 @@ export default function Recall() {
                       Bonifico disposto
                       {restano !== null && ` · torna rosso fra ${Math.max(restano, 0)} gg`}
                     </Pill>
+                  ) : ammanco ? (
+                    <Pill tinta="amber" contorno>
+                      Ammanco · non si sollecita
+                    </Pill>
                   ) : (
                     <Pill tinta="red" pallino>
                       +{f.days_late} gg
@@ -154,16 +163,23 @@ export default function Recall() {
                   )}
 
                   <div className="text-right">
-                    <p className="num text-[14px] font-bold" style={{ color: giallo ? "var(--amber)" : "var(--red)" }}>
-                      {importo(f.residual, f.currency)}
+                    <p
+                      className="num text-[14px] font-bold"
+                      style={{ color: giallo || ammanco ? "var(--amber)" : "var(--red)" }}
+                    >
+                      {importo(f.residual, f.currency, decimaliUtili(f.residual))}
                     </p>
                     {/* Dire che è un residuo parziale evita di leggerlo come
                         l'importo della fattura, che è un altro numero. */}
-                    {f.payment_status === "partial" && (
+                    {ammanco ? (
+                      <p className="text-[10.5px]" style={{ color: "var(--amber)" }}>
+                        da riversare sulla prossima fattura
+                      </p>
+                    ) : f.payment_status === "partial" ? (
                       <p className="text-[10.5px]" style={{ color: "var(--muted)" }}>
                         {f.credited_amount > 0 ? "(parziale, netto NC)" : "(parziale)"}
                       </p>
-                    )}
+                    ) : null}
                   </div>
 
                   <div className="min-w-[140px] text-[11px]" style={{ color: "var(--muted)" }}>

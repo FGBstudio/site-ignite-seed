@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Plus } from "lucide-react";
 import { ContactFormDialog } from "@/components/contacts/ContactFormDialog";
 import {
+  useAmmanchiAperti,
   useClientiDelBrand,
   useCommesseFatturabili,
   useEmettiFattura,
@@ -113,7 +114,21 @@ export function DialogoEmissione({
     if (t?.amount) setTotale(String(t.amount));
   }, [trancheId, tranche]);
 
+  /**
+   * Gli ammanchi lasciati aperti dalle fatture precedenti dello stesso progetto.
+   *
+   * Non li sommo da solo all'importo: chi emette deve *decidere* di metterceli,
+   * perche' un importo che cresce da se' mentre si compila e' un importo che
+   * nessuno riconosce piu'. Li propongo con un pulsante, e finche' non lo preme
+   * la riga resta li' a dire che c'e' un credito da riportare.
+   */
+  const { data: ammanchi = [] } = useAmmanchiAperti(aperto && certId ? certId : null);
+  const ammancoAperto = ammanchi.reduce((s, a) => s + Number(a.importo ?? 0), 0);
+
   const valoreTotale = Number(String(totale).replace(",", "."));
+  const ammancoIncluso = ammancoAperto > 0 && valoreTotale > 0
+    && tranche.some((t) => t.id === trancheId
+      && Math.abs(valoreTotale - (Number(t.amount) + ammancoAperto)) < 0.005);
   const pronta =
     !!emittenteId && Number.isFinite(valoreTotale) && valoreTotale > 0 && !!dataEmissione;
 
@@ -305,6 +320,48 @@ export function DialogoEmissione({
                 />
               </div>
             </div>
+
+            {/* ── L'ammanco lasciato aperto ──────────────────────────────────
+                Sta qui, sotto l'importo, perché è dell'importo che parla. E
+                non si somma da solo: chi emette deve decidere di riportarlo,
+                altrimenti è un numero cresciuto da sé che poi nessuno
+                riconosce quando il cliente chiede perché. */}
+            {ammancoAperto > 0 && (
+              <div
+                className={`rounded-lg border p-2.5 text-xs ${
+                  ammancoIncluso
+                    ? "border-emerald-300 bg-emerald-50 text-emerald-900"
+                    : "border-amber-300 bg-amber-50 text-amber-900"
+                }`}
+              >
+                {ammancoIncluso ? (
+                  <>
+                    <b>Ammanco riportato.</b> Il totale comprende i{" "}
+                    {ammancoAperto.toLocaleString("it-IT", { minimumFractionDigits: 2 })} € trattenuti
+                    sulle fatture {ammanchi.map((a) => a.fatture).filter(Boolean).join(", ")}.
+                  </>
+                ) : (
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span>
+                      Su questo progetto restano{" "}
+                      <b>
+                        {ammancoAperto.toLocaleString("it-IT", { minimumFractionDigits: 2 })} €
+                      </b>{" "}
+                      di ammanco dalle fatture{" "}
+                      {ammanchi.map((a) => a.fatture).filter(Boolean).join(", ")}: vanno riversati
+                      qui a compensazione.
+                    </span>
+                    <button
+                      type="button"
+                      className="shrink-0 rounded-md border border-amber-400 bg-white px-2 py-1 font-semibold"
+                      onClick={() => setTotale(String(Math.round((valoreTotale + ammancoAperto) * 100) / 100))}
+                    >
+                      Aggiungi al totale
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* ── Quando ── */}
             <div className="grid gap-3 sm:grid-cols-3">

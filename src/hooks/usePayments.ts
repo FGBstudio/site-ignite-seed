@@ -793,3 +793,81 @@ export function useRegistraIncasso() {
     },
   });
 }
+
+export interface AmmancoAperto {
+  certification_id: string;
+  progetto: string | null;
+  commessa: string | null;
+  importo: number;
+  quanti: number;
+  /** I numeri delle fatture su cui l'ammanco è nato. */
+  fatture: string | null;
+  dal: string | null;
+}
+
+/**
+ * Gli ammanchi ancora da recuperare su un progetto.
+ *
+ * Serve a chi emette la fattura successiva: l'ammanco è già dentro il residuo
+ * delle tranche, ma nessuno lo aggiungerebbe all'importo se non gli venisse
+ * detto — e diciannove euro e cinquanta, per quanto piccoli, non si perdono
+ * perché nessuno li ha ricordati.
+ */
+export function useAmmanchiAperti(certId: string | null) {
+  return useQuery({
+    queryKey: ["payments", "ammanchi", certId],
+    enabled: !!certId,
+    queryFn: async (): Promise<AmmancoAperto[]> => {
+      const { data, error } = await (supabase as any)
+        .from("v_ammanchi_aperti")
+        .select("*")
+        .eq("certification_id", certId);
+      if (error) throw error;
+      return (data ?? []) as AmmancoAperto[];
+    },
+  });
+}
+
+/** Le causali ammesse, nell'ordine in cui capitano. */
+export const CAUSALI_DECURTAZIONE = [
+  { valore: "spese_bancarie", etichetta: "Spese bancarie" },
+  { valore: "ritenuta_fiscale", etichetta: "Ritenuta fiscale" },
+  { valore: "differenza_cambio", etichetta: "Differenza cambio" },
+  { valore: "arrotondamento", etichetta: "Arrotondamento" },
+  { valore: "altro", etichetta: "Altro (spiega nella nota)" },
+] as const;
+
+/**
+ * Registrare una decurtazione: quello che non arriverà.
+ *
+ * Distinta dall'incasso perché non è denaro entrato, e dalla nota di credito
+ * perché non è un credito a cui rinunciamo — il cliente ha pagato tutto, a
+ * trattenerne un pezzo è stato un terzo. Riduce il residuo, e quando il residuo
+ * finisce la fattura si chiude come si chiuderebbe con un incasso: esce dal
+ * recall, i solleciti si spengono.
+ */
+export function useRegistraDecurtazione() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: {
+      invoice_id: string;
+      date: string;
+      amount: number;
+      causale: string;
+      note?: string | null;
+      /** Se non lo si dice, si recupera: un default che perde denaro è sbagliato. */
+      destino?: "da_recuperare" | "assorbito";
+    }) => {
+      const utente = (await supabase.auth.getUser()).data.user;
+      const { error } = await (supabase as any).from("invoice_decurtazioni").insert({
+        ...v,
+        created_by: utente?.id ?? null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ["payments"] });
+      qc.invalidateQueries({ queryKey: ["payments", "incassi", v.invoice_id] });
+    },
+  });
+}
