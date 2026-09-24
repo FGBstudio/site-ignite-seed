@@ -218,7 +218,7 @@ function EnergyTable() {
     if (sortedFiltered.length === 0) return;
     const cols: (keyof MonitorRow)[] = [
       "project_name", "brand_name", "region", "country", "city", "status",
-      "frequency", "free_software_year", "installation_date", "contracted",
+      "frequency", "free_software_year", "installation_date_planned", "installation_date", "contracted",
       "pm_name", "handover_date", "category", "installer", "package_type",
       "additional_sensors", "additional_bridge", "no_pan10", "no_pan12", "no_pan14",
       "no_ct", "no_mango", "total_sensors", "total_bridges",
@@ -235,7 +235,7 @@ function EnergyTable() {
     URL.revokeObjectURL(url);
   };
 
-  const COL_SITE = 15;
+  const COL_SITE = 16;
   const COL_HW = 9;
   const COL_COST = 9;
   const COL_FIN = 9;
@@ -304,6 +304,7 @@ function EnergyTable() {
                   <Th tone={SEC.site.head}>Status</Th>
                   <Th tone={SEC.site.head}>Frequency</Th>
                   <Th tone={SEC.site.head}>Free SW yr</Th>
+                  <Th tone={SEC.site.head}>Planned</Th>
                   <Th tone={SEC.site.head}>Installation</Th>
                   <Th tone={SEC.site.head}>Contracted</Th>
                   <Th tone={SEC.site.head}>PM</Th>
@@ -467,6 +468,12 @@ function Row({ r, idx, isAdmin, showNetwork, onUpdate }: RowProps) {
         onChange={(v) => setField("frequency", v ? Number(v) : null)} render={(v) => <span>{v ? `${v} Hz` : "—"}</span>} />
       <EditCell editing={editing} value={cur("free_software_year") != null ? String(cur("free_software_year")) : ""} type="number"
         onChange={(v) => setField("free_software_year", v ? Number(v) : null)} />
+      {/* Prevista e avvenuta sono due fatti diversi: la prima resta anche dopo
+          la seconda, ed è quella che alimenta il planning delle settimane a
+          venire e l'avviso di fattura in Payments. */}
+      <EditCell editing={editing} value={cur("installation_date_planned") as string | null} type="date"
+        onChange={(v) => setField("installation_date_planned", v || null)}
+        render={(v) => <span className="text-muted-foreground italic">{fmtDate(v)}</span>} />
       <EditCell editing={editing} value={cur("installation_date") as string | null} type="date"
         onChange={(v) => setField("installation_date", v || null)} render={(v) => <span>{fmtDate(v)}</span>} />
       <EditCell editing={editing} value={(cur("contracted") as string | null) ?? "Pending"} options={["yes", "no", "To Verify", "Pending"]}

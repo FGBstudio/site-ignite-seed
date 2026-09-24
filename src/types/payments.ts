@@ -250,7 +250,15 @@ export interface ProgettoTempi {
   progetto: string;
   citta: string | null;
   data_materiali: string | null;
+  /** L'installazione avvenuta. Vuota finché non è avvenuta. */
   data_installazione: string | null;
+  /**
+   * L'installazione pianificata.
+   *
+   * Tenuta separata da quella avvenuta perché è da questa distinzione che
+   * dipende se l'incasso che ne segue è esigibile o soltanto sperato.
+   */
+  installazione_prevista: string | null;
   primo_incasso: string | null;
   ultimo_incasso: string | null;
   tranche_totali: number;

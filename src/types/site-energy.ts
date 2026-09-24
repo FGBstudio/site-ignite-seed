@@ -18,6 +18,8 @@ export interface SiteEnergyRecord {
   frequency: number | null;
   free_software_year: number | null;
   installation_date: string | null;
+  /** Data pianificata. `installation_date` resta l'installazione avvenuta. */
+  installation_date_planned: string | null;
   contracted: string | null;
   handover_date: string | null;
   category: string | null;
