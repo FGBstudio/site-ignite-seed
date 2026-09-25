@@ -12,7 +12,7 @@ import { ScanLine, QrCode, Download, Printer, PenLine } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   useGiornate, useHrProfiles, useHrQrTokens, useRotateQrToken,
-  useAggiungiLetture, type HrProfile,
+  useAggiungiLetture, useLettureDelGiorno, type HrProfile,
 } from "@/hooks/useHr";
 import { format } from "date-fns";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -64,6 +64,8 @@ export default function HrAttendance() {
   }, [isAdmin, userFilter, user, from, to]);
 
   const { data: giornate = [] } = useGiornate(filters);
+  /** La giornata di cui si stanno guardando le letture grezze. */
+  const [lettureAperte, setLettureAperte] = useState<{ userId: string; giorno: string } | null>(null);
   const nameOf = (uid: string) => {
     const p = profiles.find((x) => x.id === uid);
     return p ? nomePersona(p) : uid.slice(0, 8);
@@ -155,14 +157,74 @@ export default function HrAttendance() {
                 <td className="px-4 py-2 text-right tabular-nums">{durata(g.minuti_lavorati)}</td>
                 <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">{durata(g.minuti_pausa)}</td>
                 <td className="px-4 py-2">
-                  <Badge variant="secondary" className="text-[10px]">{g.letture}</Badge>
+                  {/* Le ore qui sopra sono dedotte: chi deve correggerle deve
+                      poter vedere da cosa. */}
+                  <button onClick={() => setLettureAperte({ userId: g.user_id, giorno: g.giorno })}>
+                    <Badge variant="secondary" className="text-[10px] hover:bg-muted cursor-pointer">
+                      {g.letture}
+                    </Badge>
+                  </button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </Card>
+
+      <LettureDialog
+        chiave={lettureAperte}
+        nome={lettureAperte ? nameOf(lettureAperte.userId) : ""}
+        onChiudi={() => setLettureAperte(null)}
+      />
     </MainLayout>
+  );
+}
+
+/**
+ * Le letture grezze di una giornata.
+ *
+ * La riga del registro e' una deduzione; qui sotto c'e' quello su cui si
+ * regge. Chi deve correggere una giornata storta deve poter vedere se la
+ * lettura delle 13:02 c'e' e non e' stata interpretata, o se non c'e' proprio.
+ */
+function LettureDialog({
+  chiave, nome, onChiudi,
+}: {
+  chiave: { userId: string; giorno: string } | null;
+  nome: string;
+  onChiudi: () => void;
+}) {
+  const { data: letture = [], isLoading } = useLettureDelGiorno(chiave?.userId ?? null, chiave?.giorno ?? null);
+
+  return (
+    <Dialog open={!!chiave} onOpenChange={(o) => !o && onChiudi()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>
+            {nome} · {chiave ? format(new Date(chiave.giorno + "T12:00:00"), "dd MMM yyyy") : ""}
+          </DialogTitle>
+        </DialogHeader>
+        {isLoading ? (
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        ) : (
+          <ol className="space-y-2">
+            {letture.map((l, i) => (
+              <li key={l.id} className="flex items-center gap-3 text-sm">
+                <span className="w-5 text-muted-foreground tabular-nums">{i + 1}</span>
+                <span className="font-medium tabular-nums">{format(new Date(l.ts), "HH:mm")}</span>
+                <Badge variant={l.origine === "qr" ? "default" : "secondary"} className="text-[10px]">
+                  {l.origine === "qr" ? "badge" : "by hand"}
+                </Badge>
+                {l.note && <span className="text-xs text-muted-foreground truncate">{l.note}</span>}
+              </li>
+            ))}
+          </ol>
+        )}
+        <p className="text-xs text-muted-foreground">
+          In, break, back and out are not stored anywhere: they are the order of these readings.
+        </p>
+      </DialogContent>
+    </Dialog>
   );
 }
 
