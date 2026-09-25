@@ -8,7 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { ScanLine, QrCode, Printer, PenLine } from "lucide-react";
+import { ScanLine, QrCode, PenLine } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   useGiornate, useHrProfiles, useHrQrTokens, useRotateQrToken,
@@ -16,8 +16,6 @@ import {
 } from "@/hooks/useHr";
 import { format } from "date-fns";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import QRCode from "qrcode";
-import { useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 
 /** L'ora di una lettura, o un trattino se quella lettura non c'e' mai stata. */
@@ -243,10 +241,12 @@ function PresenzaManualeDialog({ profili }: { profili: HrProfile[] }) {
   const [aperto, setAperto] = useState(false);
   const [chi, setChi] = useState("");
   const [giorno, setGiorno] = useState(() => format(new Date(), "yyyy-MM-dd"));
-  const [orari, setOrari] = useState<string[]>(["09:00", "", "", "18:00"]);
+  const [orari, setOrari] = useState<string[]>(["09:00", "18:00"]);
   const [nota, setNota] = useState("");
 
   const cambia = (i: number, v: string) => setOrari((o) => o.map((x, j) => (j === i ? v : x)));
+  const aggiungiRiga = () => setOrari((o) => [...o, ""]);
+  const togliRiga = (i: number) => setOrari((o) => (o.length > 1 ? o.filter((_, j) => j !== i) : o));
 
   const salva = async () => {
     // Si scrivono le letture che mancano, non la giornata: che poi siano
@@ -298,22 +298,43 @@ function PresenzaManualeDialog({ profili }: { profili: HrProfile[] }) {
             <label className="text-xs text-muted-foreground">Day</label>
             <Input type="date" value={giorno} onChange={(e) => setGiorno(e.target.value)} />
           </div>
-          <div className="grid grid-cols-4 gap-2">
-            {["In", "Break", "Back", "Out"].map((etichetta, i) => (
-              <div key={etichetta}>
-                <label className="text-xs text-muted-foreground">{etichetta}</label>
-                <Input type="time" value={orari[i]} onChange={(e) => cambia(i, e.target.value)} />
-              </div>
-            ))}
+          <div>
+            {/* Nessuna etichetta: si scrivono le ore in cui e' passato, e
+                quale sia l'ingresso e quale l'uscita lo decide l'ordine — lo
+                stesso ordine che conta le letture del varco. Chiederlo qui
+                sarebbe l'unico punto del sistema in cui qualcuno lo sceglie a
+                mano, e sceglierebbe anche sbagliato. */}
+            <label className="text-xs text-muted-foreground">Times he or she went through</label>
+            <div className="space-y-2 mt-1">
+              {orari.map((o, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <span className="w-4 text-xs text-muted-foreground tabular-nums">{i + 1}</span>
+                  <Input type="time" value={o} onChange={(e) => cambia(i, e.target.value)} className="flex-1" />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => togliRiga(i)}
+                    disabled={orari.length === 1}
+                    className="px-2 text-muted-foreground"
+                  >
+                    ×
+                  </Button>
+                </div>
+              ))}
+            </div>
+            <Button type="button" size="sm" variant="ghost" onClick={aggiungiRiga} className="mt-1 px-2 text-xs">
+              + one more
+            </Button>
           </div>
           <div>
             <label className="text-xs text-muted-foreground">Why it was not scanned</label>
             <Input value={nota} onChange={(e) => setNota(e.target.value)} placeholder="Badge left at home, straight to site…" />
           </div>
           <p className="text-xs text-muted-foreground">
-            Leave empty what did not happen — a day with no break is just two readings. They are
-            saved as manual, with your name against them, so the register keeps apart what a badge
-            read and what a person decided.
+            Two times is a day with no break, four is a day with one. In, break, back and out are
+            not chosen here: they come out of the order, exactly as they do for the kiosk readings.
+            Saved as manual, with your name against them.
           </p>
         </div>
         <DialogFooter>
@@ -344,7 +365,12 @@ function QrTokensDialog() {
         <Button variant="outline"><QrCode className="w-4 h-4 mr-2" /> Manage QR Codes</Button>
       </DialogTrigger>
       <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
-        <DialogHeader><DialogTitle>Badges — issue, print, hand over</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>Badges — issue and revoke</DialogTitle></DialogHeader>
+
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          Badges are not handed out any more: each person finds theirs under their own name, in
+          My Badge, where the code renews every minute. Here you issue them and take them back.
+        </p>
 
         <div className="flex flex-wrap items-center gap-2 border-b pb-3">
           <Button
@@ -364,24 +390,15 @@ function QrTokensDialog() {
                   break;
                 }
               }
-              if (fatti) toast({ title: `${fatti} badge issued`, description: "Now print them and hand them over." });
+              if (fatti) {
+                toast({
+                  title: `${fatti} badge issued`,
+                  description: "Nothing to print: they show up in each person's My Badge.",
+                });
+              }
             }}
           >
             Issue the {senzaBadge.length} missing
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={tokens.length === 0}
-            onClick={() =>
-              stampaBadge(
-                profiles
-                  .map((p) => ({ nome: nomePersona(p), token: tokenFor(p.id)?.token }))
-                  .filter((b): b is { nome: string; token: string } => !!b.token)
-              )
-            }
-          >
-            <Printer className="w-3.5 h-3.5 mr-1.5" /> Print all
           </Button>
           <label className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
             <input
@@ -399,7 +416,14 @@ function QrTokensDialog() {
             return (
               <Card key={p.id} className="p-3 flex flex-col items-center gap-2">
                 <div className="text-xs font-medium text-center truncate w-full">{nomePersona(p)}</div>
-                {t ? <QrPreview value={t.token} /> : <div className="w-32 h-32 bg-muted rounded" />}
+                {/* Nessuna anteprima del codice: quello vero cambia ogni
+                    minuto e lo produce il telefono di chi lo porta. Un QR
+                    disegnato qui sarebbe un codice che non funziona. */}
+                <div className={`text-[11px] ${t ? "text-emerald-600" : "text-muted-foreground"}`}>
+                  {t
+                    ? `Active${t.rotated_at ? ` · since ${format(new Date(t.rotated_at), "dd MMM")}` : ""}`
+                    : "No badge yet"}
+                </div>
                 <div className="flex w-full">
                   <Button
                     size="sm"
@@ -414,7 +438,7 @@ function QrTokensDialog() {
                         toast({
                           title: t ? "New badge issued" : "Badge issued",
                           description: t
-                            ? `The previous badge of ${nomePersona(p)} no longer works. Print and hand over the new one.`
+                            ? `The old badge of ${nomePersona(p)} stops working now. They will find the new one in My Badge.`
                             : `The badge of ${nomePersona(p)} is ready: they find it under their own name, in My Badge.`,
                         });
                       } catch (e: any) {
@@ -432,53 +456,4 @@ function QrTokensDialog() {
       </DialogContent>
     </Dialog>
   );
-}
-
-/**
- * Il foglio da consegnare: tutti i badge, sei per pagina, da ritagliare.
- *
- * Aprire venti download uno per uno e poi stamparli a mano e' il genere di
- * lavoro che si fa una volta e poi non si rifa' piu' — e i badge nuovi restano
- * nel browser di chi li ha generati.
- */
-async function stampaBadge(badge: { nome: string; token: string }[]) {
-  const disegnati = await Promise.all(
-    badge.map(async (b) => {
-      const c = document.createElement("canvas");
-      await QRCode.toCanvas(c, b.token, { width: 320, margin: 0 });
-      return { nome: b.nome, png: c.toDataURL("image/png") };
-    })
-  );
-
-  const finestra = window.open("", "_blank");
-  if (!finestra) return;
-  finestra.document.write(`<!doctype html><html><head><title>FGB Studio · badges</title><style>
-    @page { size: A4; margin: 12mm; }
-    body { font-family: 'DM Sans', system-ui, sans-serif; margin: 0; }
-    .griglia { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10mm; }
-    .badge { border: 1px dashed #bbb; border-radius: 6px; padding: 8mm 4mm; text-align: center; break-inside: avoid; }
-    .badge img { width: 58mm; height: 58mm; }
-    .nome { font-size: 13pt; font-weight: 600; margin-top: 4mm; }
-    .piede { font-size: 8pt; color: #777; margin-top: 1mm; letter-spacing: .06em; text-transform: uppercase; }
-  </style></head><body><div class="griglia">${disegnati
-    .map(
-      (b) =>
-        `<div class="badge"><img src="${b.png}" alt=""><div class="nome">${b.nome.replace(/[<>&]/g, "")}</div><div class="piede">FGB Studio · attendance badge</div></div>`
-    )
-    .join("")}</div></body></html>`);
-  finestra.document.close();
-  // La stampa parte quando le immagini ci sono: chiamarla subito stampa
-  // riquadri vuoti.
-  finestra.onload = () => finestra.print();
-}
-
-/** L'anteprima nel pannello: si guarda, non si porta via. */
-function QrPreview({ value }: { value: string }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  useEffect(() => {
-    if (canvasRef.current) {
-      QRCode.toCanvas(canvasRef.current, value, { width: 128, margin: 1 });
-    }
-  }, [value]);
-  return <canvas ref={canvasRef} className="rounded select-none" onContextMenu={(e) => e.preventDefault()} />;
 }

@@ -217,10 +217,13 @@ function Esito({ passata }: { passata: Passata | null }) {
     );
   }
 
-  const guasti: Record<"non_badge" | "sconosciuto" | "revocato" | "non_leggibile", { titolo: string; spiega: string }> = {
+  const guasti: Record<
+    "non_badge" | "sconosciuto" | "revocato" | "scaduto" | "firma_non_valida" | "non_leggibile",
+    { titolo: string; spiega: string }
+  > = {
     non_badge: {
       titolo: "Not a badge",
-      spiega: "This QR does not come from HR. Personal badges are issued in HR · Attendance · Manage QR Codes.",
+      spiega: "This QR does not come from HR. Open My Badge on your phone and show the live code.",
     },
     sconosciuto: {
       titolo: "Badge not recognised",
@@ -229,6 +232,16 @@ function Esito({ passata }: { passata: Passata | null }) {
     revocato: {
       titolo: "Badge revoked",
       spiega: "This badge has been deactivated. A new one has to be issued before it can be used.",
+    },
+    scaduto: {
+      // Il caso piu' comune, e per questo detto senza allarme: uno screenshot,
+      // o una pagina rimasta aperta da ieri.
+      titolo: "Code expired",
+      spiega: "Codes last one minute. Reopen My Badge so it renews, then show it again.",
+    },
+    firma_non_valida: {
+      titolo: "Code not valid",
+      spiega: "This code was not produced by that badge. Reopen My Badge and show the live one.",
     },
     non_leggibile: {
       titolo: "Could not record",

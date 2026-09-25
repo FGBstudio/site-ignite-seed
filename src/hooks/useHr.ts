@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { nomePersona } from "@/lib/nomePersona";
 import { supabase } from "@/integrations/supabase/client";
+import { FORMA_BADGE } from "@/lib/badgeFirma";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 export type AvailabilityStatus =
@@ -340,7 +341,9 @@ export function useMioBadge() {
     queryFn: async () => {
       const { data, error } = await (supabase as any).rpc("hr_mio_badge");
       if (error) throw error;
-      return data as string;
+      // L'identificativo si puo' mostrare, il segreto no: resta qui dentro e
+      // serve solo a firmare il minuto.
+      return data as { id: string; segreto: string };
     },
     staleTime: Infinity,
   });
@@ -445,10 +448,15 @@ export type EsitoQr =
   | { esito: "sconosciuto" }
   /** Il badge c'e' ma e' stato revocato. */
   | { esito: "revocato" }
+  /** La firma era di un altro minuto: tipicamente lo screenshot di qualcuno. */
+  | { esito: "scaduto" }
+  /** Il minuto e' giusto ma la firma no: non l'ha prodotta quel badge. */
+  | { esito: "firma_non_valida" }
   | { esito: "non_leggibile"; messaggio: string };
 
-/** La forma di un badge emesso da qui: `hr_` piu' sedici byte in esadecimale. */
-const FORMA_BADGE = /^hr_[0-9a-f]{32}$/;
+// Il calcolo della firma vive in lib/badgeFirma: e' la meta' cliente di un
+// accordo col database, e da sola si puo' mettere alla prova.
+export { minutoCorrente, firmaBadge, codiceBadge } from "@/lib/badgeFirma";
 
 /**
  * Timbra con il badge appena letto.
@@ -460,14 +468,14 @@ const FORMA_BADGE = /^hr_[0-9a-f]{32}$/;
  * che badge non e', e tradurre la risposta.
  */
 export async function timbraConBadge(
-  token: string,
+  payload: string,
   contesto: { location?: { lat: number; lng: number } | null; device?: string | null } = {},
 ): Promise<EsitoQr> {
-  const pulito = token.trim();
+  const pulito = payload.trim();
   if (!FORMA_BADGE.test(pulito)) return { esito: "non_badge" };
 
   const { data, error } = await (supabase as any).rpc("hr_timbra", {
-    p_token: pulito,
+    p_payload: pulito,
     p_lat: contesto.location?.lat ?? null,
     p_lng: contesto.location?.lng ?? null,
     p_device: contesto.device ?? null,
