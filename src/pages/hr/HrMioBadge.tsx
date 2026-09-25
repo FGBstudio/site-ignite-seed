@@ -3,17 +3,20 @@ import QRCode from "qrcode";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Download, Loader2, AlertCircle, Maximize2, X } from "lucide-react";
+import { Loader2, AlertCircle, Maximize2, X } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useMioBadge } from "@/hooks/useHr";
 
 /**
  * Il mio badge.
  *
- * Il QR deve poter vivere sul telefono di chi lo usa: chi lo salva nelle foto
- * la mattina non deve aprire niente, e chi non l'ha salvato lo ritrova qui.
- * Per questo la pagina e' aperta a chiunque abbia un accesso, non solo a chi
- * governa HR: il badge di una persona riguarda quella persona.
+ * Il QR si mostra e non si porta via: niente file da scaricare, niente
+ * immagine da inoltrare. Un badge che diventa un file e' un badge che si puo'
+ * mandare a un collega, e da quel momento il registro degli ingressi non dice
+ * piu' chi era in ufficio — dice chi aveva la foto giusta sul telefono.
+ *
+ * La pagina e' aperta a chiunque abbia un accesso, non solo a chi governa HR:
+ * il badge di una persona riguarda quella persona.
  */
 export default function HrMioBadge() {
   const { user, profile } = useAuth();
@@ -28,16 +31,6 @@ export default function HrMioBadge() {
     if (!token || !canvasRef.current) return;
     QRCode.toCanvas(canvasRef.current, token, { width: 240, margin: 1 }).then(() => setPronto(true));
   }, [token]);
-
-  const scarica = () => {
-    if (!token) return;
-    disegnaBadge(nome, token).then((dataUrl) => {
-      const link = document.createElement("a");
-      link.href = dataUrl;
-      link.download = `badge-${nome.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.png`;
-      link.click();
-    });
-  };
 
   return (
     <MainLayout title="My Badge" subtitle="Your personal QR. Hold it up to the kiosk camera.">
@@ -56,30 +49,33 @@ export default function HrMioBadge() {
             <>
               {/* Il QR sta qui dentro, non e' un link a qualcos'altro: la
                   pagina serve proprio a mostrarlo al lettore. */}
-              <canvas ref={canvasRef} className="rounded-lg" />
+              <canvas
+                ref={canvasRef}
+                className="rounded-lg select-none"
+                onContextMenu={(e) => e.preventDefault()}
+              />
               <div>
                 <div className="font-medium">{nome}</div>
                 <p className="text-xs text-muted-foreground mt-1">FGB Studio · attendance badge</p>
               </div>
 
-              <div className="flex w-full gap-2">
-                <Button onClick={() => setASchermoPieno(true)} disabled={!pronto} className="flex-1">
-                  <Maximize2 className="w-4 h-4 mr-2" /> Show to the reader
-                </Button>
-                <Button onClick={scarica} disabled={!pronto} variant="outline" className="flex-1">
-                  <Download className="w-4 h-4 mr-2" /> Save image
-                </Button>
-              </div>
+              <Button onClick={() => setASchermoPieno(true)} disabled={!pronto} className="w-full">
+                <Maximize2 className="w-4 h-4 mr-2" /> Show to the reader
+              </Button>
 
               <p className="text-xs text-muted-foreground leading-relaxed">
                 <strong>Show to the reader</strong> fills the screen and keeps it awake, which is
-                what the camera needs. <strong>Save image</strong> puts it in your photos, so in the
-                morning you do not have to open anything at all.
+                what the camera needs.
               </p>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                This code identifies you and nothing else — no name, no personal data travels in it.
-                If you lose your phone, ask HR for a new one: the old code stops working the moment
-                they issue it.
+                The badge cannot be saved or sent: it lives on this page, behind your login. That is
+                the point — a code that travels as a file is a code someone else can use to clock you
+                in. Open this page when you get to the door.
+              </p>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                It identifies you and nothing else — no name, no personal data travels in it. If you
+                lose your phone, ask HR for a new one: the old code stops working the moment they
+                issue it.
               </p>
             </>
           )}
@@ -128,7 +124,11 @@ function BadgeGrande({ token, nome, onChiudi }: { token: string; nome: string; o
       className="fixed inset-0 z-[60] bg-white flex flex-col items-center justify-center gap-6 p-6"
       onClick={onChiudi}
     >
-      <canvas ref={canvasRef} className="w-[min(78vw,78vh)] h-[min(78vw,78vh)]" />
+      <canvas
+        ref={canvasRef}
+        className="w-[min(78vw,78vh)] h-[min(78vw,78vh)] select-none"
+        onContextMenu={(e) => e.preventDefault()}
+      />
       <div className="text-center">
         <div className="text-xl font-medium text-black">{nome}</div>
         <p className="text-xs text-neutral-500 mt-1 uppercase tracking-widest">
@@ -145,29 +145,4 @@ function BadgeGrande({ token, nome, onChiudi }: { token: string; nome: string; o
       <p className="absolute bottom-6 text-[11px] text-neutral-400">Tap anywhere to close</p>
     </div>
   );
-}
-
-/** Il PNG da tenere nelle foto: il QR, e sotto il nome di chi lo porta. */
-async function disegnaBadge(nome: string, token: string): Promise<string> {
-  const LATO = 720;
-  const MARGINE = 60;
-  const codice = document.createElement("canvas");
-  await QRCode.toCanvas(codice, token, { width: LATO - MARGINE * 2, margin: 0 });
-
-  const foglio = document.createElement("canvas");
-  foglio.width = LATO;
-  foglio.height = LATO + 110;
-  const ctx = foglio.getContext("2d");
-  if (!ctx) return "";
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, foglio.width, foglio.height);
-  ctx.drawImage(codice, MARGINE, MARGINE);
-  ctx.fillStyle = "#111111";
-  ctx.textAlign = "center";
-  ctx.font = "600 40px 'DM Sans', system-ui, sans-serif";
-  ctx.fillText(nome, foglio.width / 2, LATO + 10);
-  ctx.fillStyle = "#777777";
-  ctx.font = "24px 'DM Sans', system-ui, sans-serif";
-  ctx.fillText("FGB Studio · attendance badge", foglio.width / 2, LATO + 55);
-  return foglio.toDataURL("image/png");
 }

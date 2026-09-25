@@ -8,7 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { ScanLine, QrCode, Download, Printer, PenLine } from "lucide-react";
+import { ScanLine, QrCode, Printer, PenLine } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   useGiornate, useHrProfiles, useHrQrTokens, useRotateQrToken,
@@ -400,7 +400,7 @@ function QrTokensDialog() {
               <Card key={p.id} className="p-3 flex flex-col items-center gap-2">
                 <div className="text-xs font-medium text-center truncate w-full">{nomePersona(p)}</div>
                 {t ? <QrPreview value={t.token} /> : <div className="w-32 h-32 bg-muted rounded" />}
-                <div className="flex w-full gap-2">
+                <div className="flex w-full">
                   <Button
                     size="sm"
                     variant="outline"
@@ -415,7 +415,7 @@ function QrTokensDialog() {
                           title: t ? "New badge issued" : "Badge issued",
                           description: t
                             ? `The previous badge of ${nomePersona(p)} no longer works. Print and hand over the new one.`
-                            : `Download the badge and hand it to ${nomePersona(p)}.`,
+                            : `The badge of ${nomePersona(p)} is ready: they find it under their own name, in My Badge.`,
                         });
                       } catch (e: any) {
                         toast({ title: "Error", description: e.message, variant: "destructive" });
@@ -423,15 +423,6 @@ function QrTokensDialog() {
                     }}
                   >
                     {t ? "Rotate" : "Generate"}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="flex-1"
-                    disabled={!t}
-                    onClick={() => t && scaricaBadge(nomePersona(p), t.token)}
-                  >
-                    <Download className="w-3.5 h-3.5 mr-1.5" /> Badge
                   </Button>
                 </div>
               </Card>
@@ -481,41 +472,7 @@ async function stampaBadge(badge: { nome: string; token: string }[]) {
   finestra.onload = () => finestra.print();
 }
 
-/**
- * Il badge stampabile singolo: il QR, e sotto il nome di chi lo porta.
- *
- * Senza il nome stampato sopra, un foglio caduto per terra e' un quadrato nero
- * che non si sa a chi restituire — e il token da solo non lo dice a nessuno.
- */
-async function scaricaBadge(nome: string, token: string) {
-  const LATO = 720;
-  const MARGINE = 60;
-  const codice = document.createElement("canvas");
-  await QRCode.toCanvas(codice, token, { width: LATO - MARGINE * 2, margin: 0 });
-
-  const foglio = document.createElement("canvas");
-  foglio.width = LATO;
-  foglio.height = LATO + 110;
-  const ctx = foglio.getContext("2d");
-  if (!ctx) return;
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, foglio.width, foglio.height);
-  ctx.drawImage(codice, MARGINE, MARGINE);
-
-  ctx.fillStyle = "#111111";
-  ctx.textAlign = "center";
-  ctx.font = "600 40px 'DM Sans', system-ui, sans-serif";
-  ctx.fillText(nome, foglio.width / 2, LATO + 10);
-  ctx.fillStyle = "#777777";
-  ctx.font = "24px 'DM Sans', system-ui, sans-serif";
-  ctx.fillText("FGB Studio · attendance badge", foglio.width / 2, LATO + 55);
-
-  const link = document.createElement("a");
-  link.href = foglio.toDataURL("image/png");
-  link.download = `badge-${nome.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.png`;
-  link.click();
-}
-
+/** L'anteprima nel pannello: si guarda, non si porta via. */
 function QrPreview({ value }: { value: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
@@ -523,5 +480,5 @@ function QrPreview({ value }: { value: string }) {
       QRCode.toCanvas(canvasRef.current, value, { width: 128, margin: 1 });
     }
   }, [value]);
-  return <canvas ref={canvasRef} className="rounded" />;
+  return <canvas ref={canvasRef} className="rounded select-none" onContextMenu={(e) => e.preventDefault()} />;
 }
