@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { BrowserMultiFormatReader, IScannerControls } from "@zxing/browser";
 import { X, LogIn, LogOut, AlertCircle, Clock } from "lucide-react";
 import { timbraConBadge, type EsitoQr } from "@/hooks/useHr";
+import { useAuth } from "@/contexts/AuthContext";
 
 /**
  * Il varco.
@@ -44,6 +45,9 @@ function etichettaLettura(ordinale: number, verso: "in" | "out") {
 
 export default function HrScanner() {
   const navigate = useNavigate();
+  // Serve solo a sapere se c'e' una via d'uscita da mostrare: il varco
+  // funziona identico con o senza sessione.
+  const { user } = useAuth();
   const videoRef = useRef<HTMLVideoElement>(null);
   const controlsRef = useRef<IScannerControls | null>(null);
   const lockRef = useRef<{ token: string; ts: number } | null>(null);
@@ -113,9 +117,15 @@ export default function HrScanner() {
           <div className="text-sm uppercase tracking-widest opacity-70">HR Kiosk</div>
           <div className="text-lg font-medium">Scan your badge</div>
         </div>
-        <Button variant="ghost" onClick={() => navigate("/hr/attendance")} className="text-white hover:bg-white/10">
-          <X className="w-4 h-4" />
-        </Button>
+        {/* La via d'uscita esiste solo per chi e' entrato da dentro: sul
+            tablet dell'ingresso non c'e' nessuna sessione, e un bottone che
+            porta alla schermata di login e' solo un modo di far uscire il
+            varco da se' stesso. */}
+        {user && (
+          <Button variant="ghost" onClick={() => navigate("/hr/attendance")} className="text-white hover:bg-white/10">
+            <X className="w-4 h-4" />
+          </Button>
+        )}
       </div>
 
       <div className="flex-1 grid md:grid-cols-2 gap-6 p-6 min-h-0">

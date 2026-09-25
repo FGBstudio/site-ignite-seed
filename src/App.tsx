@@ -107,13 +107,20 @@ function AppRoutes() {
       {/* Il badge di ciascuno riguarda ciascuno: nessun ruolo da chiedere. */}
       <Route path="/hr/badge" element={<ProtectedRoute><HrMioBadge /></ProtectedRoute>} />
       {/*
-        Il varco lo apre chiunque sia dentro la piattaforma, non solo un
-        amministratore: il tablet appeso all'ingresso deve poter stare loggato
-        con l'account piu' povero che esista. La pagina non mostra dati e non
-        scrive niente da sola — tutto passa da `hr_timbra`, che risponde al
-        badge e non a chi tiene il tablet.
+        Il varco sta fuori dal login, ed e' una scelta.
+
+        Un tablet appeso al muro che tiene aperta una sessione ha tre modi di
+        tradirti: scade di notte e la mattina nessuno timbra, ha una password
+        da custodire, e chi se lo porta via si porta via un accesso. Da quando
+        il codice del badge si firma e scade in un minuto, quella sessione non
+        proteggeva piu' niente: la chiave non e' piu' l'essere loggati, e' il
+        codice.
+
+        La pagina non mostra dati e non ne ha: apre la telecamera e aspetta. Il
+        solo potere che ha e' `hr_timbra`, che senza una firma viva non
+        registra niente.
       */}
-      <Route path="/hr/scanner" element={<ProtectedRoute><HrScanner /></ProtectedRoute>} />
+      <Route path="/hr/scanner" element={<HrScanner />} />
 
       <Route path="/monitor" element={<ProtectedRoute allowedRoles={R("ADMIN", "PM")}><Monitor /></ProtectedRoute>} />
       <Route path="/monitor/report" element={<ProtectedRoute allowedRoles={R("ADMIN", "PM")}><MonitorReport /></ProtectedRoute>} />
