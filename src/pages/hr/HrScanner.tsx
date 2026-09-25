@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { BrowserMultiFormatReader, IScannerControls } from "@zxing/browser";
+import type { Result } from "@zxing/library";
 import { X, LogIn, LogOut, AlertCircle, Clock, RefreshCw } from "lucide-react";
 import { timbraConBadge, type EsitoQr } from "@/hooks/useHr";
 import { useAuth } from "@/contexts/AuthContext";
@@ -67,28 +68,26 @@ export default function HrScanner() {
   /** Vera quando la telecamera e' partita: prima di allora il browser non dice
    *  nemmeno quante ne ha, ne' come si chiamano. */
   const [accesa, setAccesa] = useState(false);
+  /** Aumenta a ogni «riprova»: e' quello che fa ripartire l'accensione. */
+  const [tentativo, setTentativo] = useState(0);
 
   /**
-   * Quale telecamera accendere per prima.
+   * L'elenco delle telecamere, per il bottone che le cicla.
    *
-   * Lasciata scegliere al browser prende quasi sempre la posteriore, che su un
-   * tablet appeso al muro inquadra il muro. Chi timbra sta davanti allo
-   * schermo, quindi si parte da quella frontale quando si riesce a
-   * riconoscerla — e il bottone resta li' per quando non si riesce.
+   * Si chiede solo a telecamera gia' accesa, e per due motivi: prima del
+   * permesso il browser non dice nemmeno come si chiamano, e soprattutto qui
+   * non si sceglie niente. Sceglierla da soli voleva dire farne partire una
+   * mentre il browser ne stava ancora accendendo un'altra, e una telecamera
+   * si apre una alla volta: da li' «Could not start the video source». La
+   * prima la sceglie il browser, la seconda la sceglie chi appende il tablet —
+   * una volta, e il tablet se la ricorda.
    */
   useEffect(() => {
+    if (!accesa) return;
     let vivo = true;
     BrowserMultiFormatReader.listVideoInputDevices()
-      .then((elenco) => {
-        if (!vivo || elenco.length === 0) return;
-        setTelecamere(elenco);
-        const frontale = elenco.find((d) => /front|user|frontale|facetime/i.test(d.label));
-        setTelecamera((scelta) => scelta ?? (frontale ?? elenco[0]).deviceId);
-      })
-      .catch(() => {
-        // Senza permesso l'elenco non c'e' e le etichette nemmeno: si va con
-        // la scelta del browser, e si riprova appena la telecamera e' accesa.
-      });
+      .then((elenco) => { if (vivo) setTelecamere(elenco); })
+      .catch(() => { /* senza elenco resta la telecamera che sta gia' andando */ });
     return () => { vivo = false; };
   }, [accesa]);
 
@@ -112,56 +111,89 @@ export default function HrScanner() {
   useEffect(() => {
     const reader = new BrowserMultiFormatReader();
     let fermato = false;
+    // Si tiene il nodo, non il riferimento: alla chiusura dell'effetto
+    // `videoRef.current` potrebbe gia' puntare altrove, e le tracce da
+    // spegnere sono quelle di questo video qui.
+    const video = videoRef.current;
 
     (async () => {
-      try {
-        if (!videoRef.current) return;
-        const controls = await reader.decodeFromVideoDevice(telecamera, videoRef.current, async (result) => {
-          if (!result || fermato) return;
-          const token = result.getText();
-          // La telecamera legge lo stesso codice molte volte al secondo: una
-          // sola passata per badge ogni tre secondi.
-          if (lockRef.current && lockRef.current.token === token && Date.now() - lockRef.current.ts < 3000) return;
-          lockRef.current = { token, ts: Date.now() };
+      if (!video) return;
 
-          // La posizione e' un di piu': se il permesso non c'e' o tarda, si
-          // timbra lo stesso. Nessuno resta fuori perche' il GPS non risponde.
-          const location = await new Promise<{ lat: number; lng: number } | null>((resolve) => {
-            if (!navigator.geolocation) return resolve(null);
-            navigator.geolocation.getCurrentPosition(
-              (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-              () => resolve(null),
-              { timeout: 2000 },
-            );
-          });
+      const lettura = async (result: Result | undefined) => {
+        if (!result || fermato) return;
+        const token = result.getText();
+        // La telecamera legge lo stesso codice molte volte al secondo: una
+        // sola passata per badge ogni tre secondi.
+        if (lockRef.current && lockRef.current.token === token && Date.now() - lockRef.current.ts < 3000) return;
+        lockRef.current = { token, ts: Date.now() };
 
-          const esito = await timbraConBadge(token, {
-            location,
-            device: navigator.userAgent.slice(0, 80),
-          });
-          if (fermato) return;
-          const p: Passata = { chiave: Date.now(), esito };
-          setPassata(p);
-          if (esito.esito === "ok") setStorico((s) => [p, ...s].slice(0, 6));
+        // La posizione e' un di piu': se il permesso non c'e' o tarda, si
+        // timbra lo stesso. Nessuno resta fuori perche' il GPS non risponde.
+        const location = await new Promise<{ lat: number; lng: number } | null>((resolve) => {
+          if (!navigator.geolocation) return resolve(null);
+          navigator.geolocation.getCurrentPosition(
+            (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+            () => resolve(null),
+            { timeout: 2000 },
+          );
         });
+
+        const esito = await timbraConBadge(token, {
+          location,
+          device: navigator.userAgent.slice(0, 80),
+        });
+        if (fermato) return;
+        const p: Passata = { chiave: Date.now(), esito };
+        setPassata(p);
+        if (esito.esito === "ok") setStorico((s) => [p, ...s].slice(0, 6));
+      };
+
+      const accendi = async (quale?: string) => {
+        const controls = await reader.decodeFromVideoDevice(quale, video, lettura);
         // Se nel frattempo si e' cambiata telecamera, questa qui e' gia'
         // vecchia: spegnerla subito, o resta accesa a vuoto.
         if (fermato) { controls.stop(); return; }
         controlsRef.current = controls;
         setAccesa(true);
         setError(null);
+      };
+
+      try {
+        await accendi(telecamera);
       } catch (e: any) {
-        setError(e.message || "Camera not available");
+        if (fermato) return;
+        // La telecamera ricordata puo' non esserci piu': tablet diverso,
+        // browser che ha rimescolato gli identificativi, periferica staccata.
+        // Meglio dimenticarla e ripartire da quella che sceglie il browser,
+        // che lasciare il varco cieco per una preferenza vecchia.
+        if (telecamera) {
+          localStorage.removeItem(TELECAMERA_SCELTA);
+          try {
+            await accendi(undefined);
+            setTelecamera(undefined);
+            return;
+          } catch { /* niente da fare: sotto si dice perche' */ }
+        }
+        if (!fermato) setError(e?.message || "Camera not available");
       }
     })();
 
     return () => {
       fermato = true;
       controlsRef.current?.stop();
+      controlsRef.current = null;
+      // La telecamera si libera davvero solo quando si fermano le sue tracce:
+      // se ne resta una viva, quella dopo non si accende e il browser dice
+      // soltanto «Could not start the video source».
+      if (video?.srcObject) {
+        (video.srcObject as MediaStream).getTracks().forEach((t) => t.stop());
+        video.srcObject = null;
+      }
     };
     // Cambiare telecamera vuol dire spegnere quella di prima e riaccendere
-    // l'altra: e' esattamente quello che fa il rientro di questo effetto.
-  }, [telecamera]);
+    // l'altra: e' esattamente quello che fa il rientro di questo effetto. E
+    // «riprova» e' la stessa cosa, sulla stessa telecamera.
+  }, [telecamera, tentativo]);
 
   return (
     <div className="fixed inset-0 z-50 bg-black text-white flex flex-col">
@@ -201,9 +233,26 @@ export default function HrScanner() {
             </button>
           )}
           {error && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-rose-300 text-center px-6">
-              <AlertCircle className="w-8 h-8 mb-2" />
-              {error}
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-rose-300 text-center px-6 gap-3 bg-black/80">
+              <AlertCircle className="w-8 h-8" />
+              <div className="text-sm">{error}</div>
+              {/* Il messaggio del browser e' sempre lo stesso e non dice mai
+                  la causa: quasi sempre e' un'altra scheda o un'altra app che
+                  tiene la telecamera. Dirlo qui evita una chiamata. */}
+              <p className="text-xs text-white/60 max-w-xs leading-relaxed">
+                Another app or browser tab may be using the camera. Close it, then try again.
+              </p>
+              <button
+                onClick={() => { setError(null); setTentativo((n) => n + 1); }}
+                className="mt-1 flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-xs text-white hover:bg-white/20"
+              >
+                <RefreshCw className="w-3.5 h-3.5" /> Try again
+              </button>
+              {telecamere.length > 1 && (
+                <button onClick={cambiaTelecamera} className="text-xs text-white/60 underline">
+                  or switch camera
+                </button>
+              )}
             </div>
           )}
         </div>
