@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { BrowserMultiFormatReader, IScannerControls } from "@zxing/browser";
-import { X, LogIn, LogOut, AlertCircle, Clock } from "lucide-react";
+import { X, LogIn, LogOut, AlertCircle, Clock, RefreshCw } from "lucide-react";
 import { timbraConBadge, type EsitoQr } from "@/hooks/useHr";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -18,6 +18,9 @@ import { useAuth } from "@/contexts/AuthContext";
 
 /** Quanto resta a schermo l'esito, prima di tornare in attesa. */
 const DURATA_ESITO = 6000;
+
+/** Dove il tablet si ricorda quale telecamera gli hanno scelto. */
+const TELECAMERA_SCELTA = "hr-varco-telecamera";
 
 interface Passata {
   chiave: number;
@@ -54,6 +57,49 @@ export default function HrScanner() {
   const [passata, setPassata] = useState<Passata | null>(null);
   const [storico, setStorico] = useState<Passata[]>([]);
   const [error, setError] = useState<string | null>(null);
+  /** Le telecamere del dispositivo, e quella in uso. */
+  const [telecamere, setTelecamere] = useState<MediaDeviceInfo[]>([]);
+  // La scelta sopravvive al riavvio: un tablet che dopo un blackout torna a
+  // inquadrare il muro e' un tablet che qualcuno deve risistemare a mano.
+  const [telecamera, setTelecamera] = useState<string | undefined>(
+    () => localStorage.getItem(TELECAMERA_SCELTA) ?? undefined,
+  );
+  /** Vera quando la telecamera e' partita: prima di allora il browser non dice
+   *  nemmeno quante ne ha, ne' come si chiamano. */
+  const [accesa, setAccesa] = useState(false);
+
+  /**
+   * Quale telecamera accendere per prima.
+   *
+   * Lasciata scegliere al browser prende quasi sempre la posteriore, che su un
+   * tablet appeso al muro inquadra il muro. Chi timbra sta davanti allo
+   * schermo, quindi si parte da quella frontale quando si riesce a
+   * riconoscerla — e il bottone resta li' per quando non si riesce.
+   */
+  useEffect(() => {
+    let vivo = true;
+    BrowserMultiFormatReader.listVideoInputDevices()
+      .then((elenco) => {
+        if (!vivo || elenco.length === 0) return;
+        setTelecamere(elenco);
+        const frontale = elenco.find((d) => /front|user|frontale|facetime/i.test(d.label));
+        setTelecamera((scelta) => scelta ?? (frontale ?? elenco[0]).deviceId);
+      })
+      .catch(() => {
+        // Senza permesso l'elenco non c'e' e le etichette nemmeno: si va con
+        // la scelta del browser, e si riprova appena la telecamera e' accesa.
+      });
+    return () => { vivo = false; };
+  }, [accesa]);
+
+  /** Passa alla telecamera successiva, in tondo. */
+  const cambiaTelecamera = () => {
+    if (telecamere.length < 2) return;
+    const i = telecamere.findIndex((d) => d.deviceId === telecamera);
+    const prossima = telecamere[(i + 1) % telecamere.length].deviceId;
+    localStorage.setItem(TELECAMERA_SCELTA, prossima);
+    setTelecamera(prossima);
+  };
 
   // L'esito sbiadisce da solo: chi arriva dopo non deve vedere il nome di chi
   // l'ha preceduto e credere di aver timbrato lui.
@@ -70,7 +116,7 @@ export default function HrScanner() {
     (async () => {
       try {
         if (!videoRef.current) return;
-        const controls = await reader.decodeFromVideoDevice(undefined, videoRef.current, async (result) => {
+        const controls = await reader.decodeFromVideoDevice(telecamera, videoRef.current, async (result) => {
           if (!result || fermato) return;
           const token = result.getText();
           // La telecamera legge lo stesso codice molte volte al secondo: una
@@ -98,7 +144,12 @@ export default function HrScanner() {
           setPassata(p);
           if (esito.esito === "ok") setStorico((s) => [p, ...s].slice(0, 6));
         });
+        // Se nel frattempo si e' cambiata telecamera, questa qui e' gia'
+        // vecchia: spegnerla subito, o resta accesa a vuoto.
+        if (fermato) { controls.stop(); return; }
         controlsRef.current = controls;
+        setAccesa(true);
+        setError(null);
       } catch (e: any) {
         setError(e.message || "Camera not available");
       }
@@ -108,7 +159,9 @@ export default function HrScanner() {
       fermato = true;
       controlsRef.current?.stop();
     };
-  }, []);
+    // Cambiare telecamera vuol dire spegnere quella di prima e riaccendere
+    // l'altra: e' esattamente quello che fa il rientro di questo effetto.
+  }, [telecamera]);
 
   return (
     <div className="fixed inset-0 z-50 bg-black text-white flex flex-col">
@@ -132,6 +185,21 @@ export default function HrScanner() {
         <div className="relative rounded-xl overflow-hidden bg-black border border-white/10">
           <video ref={videoRef} className="w-full h-full object-cover" muted playsInline />
           <div className="absolute inset-0 pointer-events-none border-[3px] border-emerald-400/40 m-12 rounded-lg" />
+
+          {/* Il cambio telecamera sta qui e non in un menu di sistema: chi
+              appende il tablet deve poterlo girare sul posto, e chi lo trova
+              rivolto al muro non deve sapere dove cercare. Compare solo se una
+              seconda telecamera c'e' davvero. */}
+          {telecamere.length > 1 && (
+            <button
+              onClick={cambiaTelecamera}
+              className="absolute top-3 right-3 flex items-center gap-2 rounded-full bg-black/60 px-3 py-2 text-xs text-white backdrop-blur hover:bg-black/80"
+              aria-label="Switch camera"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Switch camera
+            </button>
+          )}
           {error && (
             <div className="absolute inset-0 flex flex-col items-center justify-center text-rose-300 text-center px-6">
               <AlertCircle className="w-8 h-8 mb-2" />
