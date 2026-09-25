@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { isInProjectsSection, getSectionForPath } from "@/lib/hubSections";
@@ -316,6 +316,19 @@ export function TopNavbar() {
                     <p className="text-[11px] text-muted-foreground truncate">{profile.email}</p>
                   </div>
                 )}
+                {/*
+                  Il badge sta qui e non solo dentro HR: la sezione HR la
+                  aprono ADMIN e PM, ma il badge serve a chiunque timbri, e
+                  chi lo cerca dal telefono lo cerca sotto il proprio nome.
+                */}
+                <Link
+                  to="/hr/badge"
+                  onClick={() => setUserMenuOpen(false)}
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-[11px] text-foreground transition-colors hover:bg-muted"
+                  style={FUTURA}
+                >
+                  Il mio badge / My Badge
+                </Link>
                 <button
                   onClick={() => { setUserMenuOpen(false); signOut(); }}
                   className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-[11px] text-destructive transition-colors hover:bg-destructive/10"

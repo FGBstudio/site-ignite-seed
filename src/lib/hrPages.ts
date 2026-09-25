@@ -1,4 +1,4 @@
-import { Building2, Calendar, ClipboardList, ScanLine, QrCode, type LucideIcon } from "lucide-react";
+import { Building2, Calendar, ClipboardList, ScanLine, QrCode, BadgeCheck, type LucideIcon } from "lucide-react";
 
 /**
  * Le pagine della sezione HR, in un posto solo.
@@ -50,6 +50,14 @@ export const HR_PAGES: HrPage[] = [
     icon: Building2,
     route: "/hr/uffici",
     adminOnly: true,
+  },
+  {
+    id: "badge",
+    title: "My Badge",
+    desc: "Your QR for the entrance kiosk",
+    icon: BadgeCheck,
+    route: "/hr/badge",
+    adminOnly: false,
   },
   {
     id: "scanner",

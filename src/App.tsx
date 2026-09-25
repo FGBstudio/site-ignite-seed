@@ -49,6 +49,7 @@ import HrAvailability from "./pages/hr/HrAvailability";
 import HrRequests from "./pages/hr/HrRequests";
 import HrAttendance from "./pages/hr/HrAttendance";
 import HrScanner from "./pages/hr/HrScanner";
+import HrMioBadge from "./pages/hr/HrMioBadge";
 import HrUffici from "./pages/hr/HrUffici";
 import Quotations from "./pages/Quotations";
 import TimelineVista from "./pages/TimelineVista";
@@ -103,7 +104,16 @@ function AppRoutes() {
       <Route path="/hr/requests" element={<ProtectedRoute allowedRoles={R("ADMIN", "PM")}><HrRequests /></ProtectedRoute>} />
       <Route path="/hr/attendance" element={<ProtectedRoute allowedRoles={R("ADMIN", "PM")}><HrAttendance /></ProtectedRoute>} />
       <Route path="/hr/uffici" element={<ProtectedRoute allowedRoles={R("ADMIN")}><HrUffici /></ProtectedRoute>} />
-      <Route path="/hr/scanner" element={<ProtectedRoute allowedRoles={R("ADMIN")}><HrScanner /></ProtectedRoute>} />
+      {/* Il badge di ciascuno riguarda ciascuno: nessun ruolo da chiedere. */}
+      <Route path="/hr/badge" element={<ProtectedRoute><HrMioBadge /></ProtectedRoute>} />
+      {/*
+        Il varco lo apre chiunque sia dentro la piattaforma, non solo un
+        amministratore: il tablet appeso all'ingresso deve poter stare loggato
+        con l'account piu' povero che esista. La pagina non mostra dati e non
+        scrive niente da sola — tutto passa da `hr_timbra`, che risponde al
+        badge e non a chi tiene il tablet.
+      */}
+      <Route path="/hr/scanner" element={<ProtectedRoute><HrScanner /></ProtectedRoute>} />
 
       <Route path="/monitor" element={<ProtectedRoute allowedRoles={R("ADMIN", "PM")}><Monitor /></ProtectedRoute>} />
       <Route path="/monitor/report" element={<ProtectedRoute allowedRoles={R("ADMIN", "PM")}><MonitorReport /></ProtectedRoute>} />

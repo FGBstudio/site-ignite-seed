@@ -103,14 +103,20 @@ export interface HrProfile {
 const INTERNAL_EMAIL_DOMAIN = "@fgb-studio.com";
 
 // ── Profiles (people displayed in HR module) ──────────────────────────────
-export function useHrProfiles() {
+/**
+ * @param tutti Include anche chi ha un indirizzo fuori dal dominio. Serve per
+ *   i badge: qualcuno di casa ha una mail sua — la titolare, per esempio — e il
+ *   filtro sul dominio la lascerebbe senza modo di timbrare.
+ */
+export function useHrProfiles(tutti = false) {
   return useQuery({
-    queryKey: ["hr", "profiles", "internal"],
+    queryKey: ["hr", "profiles", tutti ? "all" : "internal"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let q = supabase
         .from("profiles")
-        .select("id, full_name, display_name, email, avatar_url, office_id")
-        .ilike("email", `%${INTERNAL_EMAIL_DOMAIN}`);
+        .select("id, full_name, display_name, email, avatar_url, office_id");
+      if (!tutti) q = q.ilike("email", `%${INTERNAL_EMAIL_DOMAIN}`);
+      const { data, error } = await q;
       if (error) throw error;
 
       // L'ordinamento non lo fa piu' il database su `full_name`: per meta'
@@ -259,70 +265,121 @@ export function useDeleteRequest() {
   });
 }
 
-// ── Attendance ────────────────────────────────────────────────────────────
-export function useHrAttendance(filters: { userId?: string; fromISO?: string; toISO?: string }) {
+// ── Presenze ──────────────────────────────────────────────────────────────
+
+/**
+ * La giornata di una persona, come esce dalle sue letture.
+ *
+ * Non e' una riga scritta da qualcuno: e' `v_hr_giornate`, che ogni volta
+ * rilegge le timbrature e ne ricava la forma. Aggiungere a mano una lettura
+ * dimenticata la rimette a posto senza toccare nient'altro.
+ */
+export interface GiornataHr {
+  user_id: string;
+  /** La data secondo il fuso di Roma, non secondo UTC. */
+  giorno: string;
+  letture: number;
+  ingresso: string | null;
+  pausa: string | null;
+  ripresa: string | null;
+  uscita: string | null;
+  /** Numero dispari di letture: la persona non ha ancora timbrato l'uscita. */
+  ancora_dentro: boolean;
+  minuti_lavorati: number | null;
+  minuti_pausa: number | null;
+}
+
+export function useGiornate(filters: { userId?: string; dal?: string; al?: string }) {
   return useQuery({
-    queryKey: ["hr", "attendance", filters],
+    queryKey: ["hr", "giornate", filters],
     queryFn: async () => {
-      let q = (supabase as any).from("hr_attendance").select("*").order("timestamp_in", { ascending: false });
+      let q = (supabase as any)
+        .from("v_hr_giornate")
+        .select("*")
+        .order("giorno", { ascending: false });
       if (filters.userId) q = q.eq("user_id", filters.userId);
-      if (filters.fromISO) q = q.gte("timestamp_in", filters.fromISO);
-      if (filters.toISO) q = q.lte("timestamp_in", filters.toISO);
+      if (filters.dal) q = q.gte("giorno", filters.dal);
+      if (filters.al) q = q.lte("giorno", filters.al);
       const { data, error } = await q;
       if (error) throw error;
-      return (data ?? []) as HrAttendance[];
+      return (data ?? []) as GiornataHr[];
     },
   });
 }
 
-export function useRegisterAttendance() {
+/** Le letture grezze di una giornata: quello che il varco ha visto davvero. */
+export function useLettureDelGiorno(userId: string | null, giorno: string | null) {
+  return useQuery({
+    enabled: !!userId && !!giorno,
+    queryKey: ["hr", "letture", userId, giorno],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("hr_timbrature")
+        .select("id, ts, origine, note, device_label")
+        .eq("user_id", userId)
+        // Il giorno e' quello di Roma: si chiede dalla mezzanotte locale alla
+        // successiva, non da quella UTC.
+        .gte("ts", new Date(`${giorno}T00:00:00`).toISOString())
+        .lt("ts", new Date(`${giorno}T23:59:59.999`).toISOString())
+        .order("ts");
+      if (error) throw error;
+      return (data ?? []) as { id: string; ts: string; origine: string; note: string | null; device_label: string | null }[];
+    },
+  });
+}
+
+/**
+ * Il badge di chi sta guardando.
+ *
+ * Se non ne ha ancora uno glielo crea: e' il modo in cui il QR arriva sul
+ * telefono di ciascuno senza che nessuno debba generarlo e spedirlo.
+ */
+export function useMioBadge() {
+  return useQuery({
+    queryKey: ["hr", "mio-badge"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("hr_mio_badge");
+      if (error) throw error;
+      return data as string;
+    },
+    staleTime: Infinity,
+  });
+}
+
+/**
+ * Le letture scritte a mano.
+ *
+ * Chi ha dimenticato il badge, chi e' andato dritto in cantiere, chi ieri sera
+ * e' uscito senza passare al varco: si scrivono gli orari mancanti, e la
+ * giornata si ricompone da se'. Restano marcate `manuale`, con chi le ha
+ * inserite: una presenza decisa da una persona non deve somigliare a una letta
+ * da un badge.
+ */
+export function useAggiungiLetture() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: {
       user_id: string;
-      mode: "in" | "out";
-      location?: { lat: number; lng: number } | null;
-      device_label?: string | null;
-      status?: AttendanceStatus;
+      /** ISO completi, gia' risolti sul giorno scelto. */
+      istanti: string[];
+      note?: string | null;
+      inserita_da?: string | null;
     }) => {
-      const status = input.status ?? "auto_qr";
-      if (input.mode === "in") {
-        const { data, error } = await (supabase as any)
-          .from("hr_attendance")
-          .insert({
-            user_id: input.user_id,
-            timestamp_in: new Date().toISOString(),
-            location_lat: input.location?.lat ?? null,
-            location_lng: input.location?.lng ?? null,
-            status,
-            device_label: input.device_label ?? null,
-          })
-          .select("*")
-          .single();
-        if (error) throw error;
-        return { row: data as HrAttendance, action: "in" as const };
-      }
-      // OUT → find latest open record for that user
-      const { data: openRows, error: findErr } = await (supabase as any)
-        .from("hr_attendance")
-        .select("*")
-        .eq("user_id", input.user_id)
-        .is("timestamp_out", null)
-        .order("timestamp_in", { ascending: false })
-        .limit(1);
-      if (findErr) throw findErr;
-      const open = (openRows ?? [])[0];
-      if (!open) throw new Error("No open check-in found for this user");
-      const { data, error } = await (supabase as any)
-        .from("hr_attendance")
-        .update({ timestamp_out: new Date().toISOString() })
-        .eq("id", open.id)
-        .select("*")
-        .single();
+      const righe = input.istanti.map((ts) => ({
+        user_id: input.user_id,
+        ts,
+        origine: "manuale",
+        note: input.note ?? null,
+        inserita_da: input.inserita_da ?? null,
+      }));
+      const { error } = await (supabase as any).from("hr_timbrature").insert(righe);
       if (error) throw error;
-      return { row: data as HrAttendance, action: "out" as const };
+      return righe.length;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["hr", "attendance"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["hr", "giornate"] });
+      qc.invalidateQueries({ queryKey: ["hr", "letture"] });
+    },
   });
 }
 
@@ -364,13 +421,57 @@ export function useRotateQrToken() {
   });
 }
 
-export async function resolveQrToken(token: string): Promise<string | null> {
-  const { data, error } = await (supabase as any)
-    .from("hr_qr_tokens")
-    .select("user_id, active")
-    .eq("token", token)
-    .maybeSingle();
-  if (error) return null;
-  if (!data || !data.active) return null;
-  return data.user_id as string;
+/**
+ * Cosa ha letto la telecamera.
+ *
+ * Un solo «no» non basta: chi sta al varco deve sapere se ha davanti il QR
+ * sbagliato, un badge revocato o un problema di lettura, perche' le tre cose si
+ * risolvono in tre modi diversi — e finche' erano tutte «Unknown QR» nessuna si
+ * risolveva.
+ */
+export type EsitoQr =
+  /**
+   * Lettura registrata: chi, quando, e che numero e' nella giornata. Se sia
+   * ingresso, pausa, ripresa o uscita qui non si dice — si vede a fine
+   * giornata, e lo dice `v_hr_giornate`. Il verso e' solo la parita': dispari
+   * si entra, pari si esce.
+   */
+  | { esito: "ok"; nome: string; quando: string; ordinale: number; verso: "in" | "out" }
+  /** Lo stesso badge ripassato entro un minuto e mezzo: non si legge due volte. */
+  | { esito: "ripetuto"; nome: string; quando: string; ordinale: number }
+  /** Un QR qualunque: non e' un badge di questo sistema. */
+  | { esito: "non_badge" }
+  /** Ha la forma giusta ma nessun badge attivo corrisponde. */
+  | { esito: "sconosciuto" }
+  /** Il badge c'e' ma e' stato revocato. */
+  | { esito: "revocato" }
+  | { esito: "non_leggibile"; messaggio: string };
+
+/** La forma di un badge emesso da qui: `hr_` piu' sedici byte in esadecimale. */
+const FORMA_BADGE = /^hr_[0-9a-f]{32}$/;
+
+/**
+ * Timbra con il badge appena letto.
+ *
+ * La decisione — entrata o uscita, doppia passata, giornata rimasta aperta —
+ * sta tutta nella funzione `hr_timbra` del database, e per un motivo: al varco
+ * la sessione non ha il diritto ne' di leggere i badge ne' di scrivere le
+ * presenze, e non deve averlo. Qui resta il minimo: riconoscere a vista un QR
+ * che badge non e', e tradurre la risposta.
+ */
+export async function timbraConBadge(
+  token: string,
+  contesto: { location?: { lat: number; lng: number } | null; device?: string | null } = {},
+): Promise<EsitoQr> {
+  const pulito = token.trim();
+  if (!FORMA_BADGE.test(pulito)) return { esito: "non_badge" };
+
+  const { data, error } = await (supabase as any).rpc("hr_timbra", {
+    p_token: pulito,
+    p_lat: contesto.location?.lat ?? null,
+    p_lng: contesto.location?.lng ?? null,
+    p_device: contesto.device ?? null,
+  });
+  if (error) return { esito: "non_leggibile", messaggio: error.message };
+  return data as EsitoQr;
 }
