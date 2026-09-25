@@ -50,6 +50,95 @@ export interface CatalogLevel {
 const dedupe = (values: Array<string | null>): string[] =>
   Array.from(new Set(values.filter((v): v is string => !!v)));
 
+/**
+ * La voce di catalogo esatta.
+ *
+ * Fuori dal hook perché è la regola che decide quali medaglie si possono
+ * promettere in offerta, e una regola del genere va provata senza montare un
+ * componente.
+ *
+ * `version` è opzionale perché non tutti i chiamanti la conoscono, ma quando la
+ * conoscono deve contare: su (LEED, BD+C, Core & Shell) ci sono due righe —
+ * v4.0 e v4.1 — e senza la versione si prendeva la prima per ordine di
+ * caricamento.
+ */
+export function trovaVoce(
+  rows: CatalogEntry[],
+  scheme: string,
+  rating?: string | null,
+  typology?: string | null,
+  context?: string | null,
+  version?: string | null,
+): CatalogEntry | null {
+  return (
+    rows.find(
+      (r) =>
+        r.scheme === scheme &&
+        (r.rating_system ?? null) === (rating || null) &&
+        (r.typology ?? null) === (typology || null) &&
+        (r.delivery_context ?? null) === (context || null) &&
+        (!version || (r.version ?? null) === version),
+    ) ?? null
+  );
+}
+
+/**
+ * Le medaglie ammesse da una combinazione.
+ *
+ * Dipendono dalla voce, non dallo schema: il Bronze di WELL esiste solo sul v2
+ * Pilot, e WiredScore Home ha il solo Certified. Senza una combinazione precisa
+ * si mostra l'unione dei livelli dello schema, così la tendina non resta vuota
+ * mentre l'utente sta ancora scegliendo.
+ */
+export function livelliDi(
+  rows: CatalogEntry[],
+  levelRows: CatalogLevel[],
+  scheme: string,
+  rating?: string | null,
+  typology?: string | null,
+  context?: string | null,
+  version?: string | null,
+): CatalogLevel[] {
+  const entry = trovaVoce(rows, scheme, rating, typology, context, version);
+  if (entry) {
+    return levelRows
+      .filter((l) => l.catalog_id === entry.id)
+      .sort((a, b) => a.order_index - b.order_index);
+  }
+  const ids = new Set(rows.filter((r) => r.scheme === scheme).map((r) => r.id));
+  const seen = new Map<string, CatalogLevel>();
+  for (const l of levelRows) {
+    if (ids.has(l.catalog_id) && !seen.has(l.level)) seen.set(l.level, l);
+  }
+  return Array.from(seen.values()).sort((a, b) => a.order_index - b.order_index);
+}
+
+/**
+ * Le versioni disponibili per una combinazione.
+ *
+ * Non sono informative: sono una dimensione del catalogo. LEED esiste in v4.0 e
+ * v4.1, BREEAM in 2015, 2016, 2021 e v6, WELL in v2 e v2 Pilot — voci distinte,
+ * con medaglie proprie. Ignorarle vuol dire far scegliere fra due righe
+ * indistinguibili e prenderne una a caso.
+ */
+export function versioniDi(
+  rows: CatalogEntry[],
+  scheme: string,
+  rating?: string | null,
+  typology?: string | null,
+): string[] {
+  return dedupe(
+    rows
+      .filter(
+        (r) =>
+          r.scheme === scheme &&
+          (!rating || r.rating_system === rating) &&
+          (!typology || r.typology === typology),
+      )
+      .map((r) => r.version),
+  );
+}
+
 export function useCertCatalog() {
   const entries = useQuery({
     queryKey: ["cert-catalog"],
@@ -111,32 +200,16 @@ export function useCertCatalog() {
           .map((r) => r.typology),
       );
 
-    /** Le versioni disponibili. Informative: non cambiano timeline né scorecard. */
     const versionsOf = (scheme: string, rating?: string | null, typology?: string | null) =>
-      dedupe(
-        rows
-          .filter(
-            (r) =>
-              r.scheme === scheme &&
-              (!rating || r.rating_system === rating) &&
-              (!typology || r.typology === typology),
-          )
-          .map((r) => r.version),
-      );
+      versioniDi(rows, scheme, rating, typology);
 
     const find = (
       scheme: string,
       rating?: string | null,
       typology?: string | null,
       context?: string | null,
-    ) =>
-      rows.find(
-        (r) =>
-          r.scheme === scheme &&
-          (r.rating_system ?? null) === (rating || null) &&
-          (r.typology ?? null) === (typology || null) &&
-          (r.delivery_context ?? null) === (context || null),
-      ) ?? null;
+      version?: string | null,
+    ) => trovaVoce(rows, scheme, rating, typology, context, version);
 
     /**
      * Le medaglie ammesse. Dipendono dalla combinazione, non dallo schema: il
@@ -148,8 +221,9 @@ export function useCertCatalog() {
       rating?: string | null,
       typology?: string | null,
       context?: string | null,
+      version?: string | null,
     ): CatalogLevel[] => {
-      const entry = find(scheme, rating, typology, context);
+      const entry = find(scheme, rating, typology, context, version);
       if (entry) {
         return levelRows
           .filter((l) => l.catalog_id === entry.id)

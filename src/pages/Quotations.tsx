@@ -15,7 +15,6 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { NewQuotationWizard } from "@/components/projects/NewQuotationWizard";
-import { ProjectFormModal } from "@/components/projects/ProjectFormModal";
 import { Money } from "@/components/common/Money";
 import { formatMoney } from "@/lib/currency";
 import { Plus, Search, FileText, CheckCircle2, Loader2, ArrowRight, XCircle, Ban, Sparkles, RotateCcw, ChevronDown, ChevronRight as ChevronRightIcon, Save, Pencil, FilePlus2, FileDown } from "lucide-react";
@@ -100,6 +99,8 @@ export default function Quotations() {
   const [search, setSearch] = useState("");
   const [wizardOpen, setWizardOpen] = useState(false);
   const [resumeCertId, setResumeCertId] = useState<string | undefined>(undefined);
+  /** L'offerta che si sta modificando: il wizard si riapre sui suoi dati. */
+  const [modificaCertId, setModificaCertId] = useState<string | undefined>(undefined);
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [cancelingId, setCancelingId] = useState<string | null>(null);
   const [expandedCanceled, setExpandedCanceled] = useState<Record<string, boolean>>({});
@@ -107,11 +108,8 @@ export default function Quotations() {
   const [savingNote, setSavingNote] = useState<string | null>(null);
   const [resumeDialog, setResumeDialog] = useState<QuotationRow | null>(null);
   const [resumingId, setResumingId] = useState<string | null>(null);
-  const [editOpen, setEditOpen] = useState(false);
-  const [editProject, setEditProject] = useState<any>(null);
   /** La quotazione per cui si sta emettendo l'offerta. */
   const [offertaId, setOffertaId] = useState<string | null>(null);
-  const [editAllocations, setEditAllocations] = useState<any[]>([]);
   const [openingEditId, setOpeningEditId] = useState<string | null>(null);
   const [completeRow, setCompleteRow] = useState<QuotationRow | null>(null);
   const [completePoDate, setCompletePoDate] = useState("");
@@ -268,22 +266,19 @@ export default function Quotations() {
    * qui, insieme alle allocazioni hardware gia' richieste, che altrimenti la
    * modale salverebbe come "nessuna" cancellandole.
    */
-  const openEdit = async (id: string) => {
-    setOpeningEditId(id);
-    try {
-      const { data: cert, error } = await supabase
-        .from("certifications").select("*").eq("id", id).single();
-      if (error) throw error;
-      const { data: allocs } = await supabase
-        .from("project_allocations").select("*").eq("certification_id", id);
-      setEditProject(cert);
-      setEditAllocations((allocs || []) as any[]);
-      setEditOpen(true);
-    } catch (err) {
-      toast({ title: "Cannot open the quotation", description: readableError(err), variant: "destructive" });
-    } finally {
-      setOpeningEditId(null);
-    }
+  /**
+   * Modifica un'offerta: si riapre il wizard con cui è stata scritta.
+   *
+   * Prima si apriva un form diverso — «Review & Config» — che nel tempo si era
+   * allontanato: non aveva la versione dello standard, né il tipo di
+   * quotazione, né lo schema di pagamento con le sue tranche, e chiamava le
+   * stesse cose con altri nomi. Chi tornava a correggere un nome sbagliato si
+   * trovava in un posto che non riconosceva, e metà di quello che aveva
+   * compilato non era più raggiungibile.
+   */
+  const openEdit = (id: string) => {
+    setModificaCertId(id);
+    setWizardOpen(true);
   };
 
   /**
@@ -632,21 +627,13 @@ export default function Quotations() {
 
       <NewQuotationWizard
         open={wizardOpen}
-        onOpenChange={(o) => { setWizardOpen(o); if (!o) setResumeCertId(undefined); }}
-        resumeCertId={resumeCertId}
-        onSaved={() => {
-          qc.invalidateQueries({ queryKey: ["quotations-list"] });
-          qc.invalidateQueries({ queryKey: ["admin-planner-all-certifications"] });
+        onOpenChange={(o) => {
+          setWizardOpen(o);
+          if (!o) { setResumeCertId(undefined); setModificaCertId(undefined); }
         }}
-      />
-
-      <ProjectFormModal
-        open={editOpen}
-        onOpenChange={(o) => { setEditOpen(o); if (!o) { setEditProject(null); setEditAllocations([]); } }}
-        project={editProject}
-        existingAllocations={editAllocations}
+        resumeCertId={resumeCertId}
+        modificaCertId={modificaCertId}
         onSaved={() => {
-          setEditOpen(false);
           qc.invalidateQueries({ queryKey: ["quotations-list"] });
           qc.invalidateQueries({ queryKey: ["admin-planner-all-certifications"] });
         }}

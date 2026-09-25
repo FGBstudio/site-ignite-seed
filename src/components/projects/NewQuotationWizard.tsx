@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useHoldings, useBrands, useSites } from "@/hooks/useProjectDetails";
@@ -158,6 +158,16 @@ interface CertConfig {
   /** starting = la quotazione che apre il progetto; extra = lavoro aggiuntivo. */
   quotation_kind: string;
   project_subtype: string;
+  /**
+   * La versione dello standard: LEED v4.0 o v4.1, BREEAM 2021 o v6, WELL v2 o
+   * v2 Pilot.
+   *
+   * Non è un dettaglio da desumere: sono voci di catalogo distinte, con crediti
+   * e medaglie propri, e due versioni dello stesso schema non si quotano allo
+   * stesso prezzo. Senza, la certificazione nasce senza sapere sotto quale
+   * regolamento viene portata.
+   */
+  cert_version: string;
   flags: MonitoringFlags;
   quantities: MonitoringQuantities;
   // Quotation fields per certification
@@ -281,6 +291,7 @@ function emptyCertConfig(type: CertType): CertConfig {
     cert_level: "",
     quotation_kind: "",
     project_subtype: "",
+    cert_version: "",
     flags: emptyFlags(),
     quantities: emptyQuantities(),
     services_fees: "",
@@ -344,9 +355,22 @@ interface Props {
    *  from the existing certification row, forces isPotential=false, and on save
    *  deletes the old potential row and re-creates one row per selected cert. */
   resumeCertId?: string;
+  /**
+   * Modifica di un'offerta già salvata.
+   *
+   * Si passa l'id di una qualsiasi delle sue certificazioni: il wizard risale al
+   * gruppo e ricarica l'offerta intera — sito, nomi, servizi, tariffe, schema di
+   * pagamento e tranche — negli stessi campi in cui è stata compilata.
+   *
+   * È lo stesso form, non una seconda interfaccia: un nome scritto male, una
+   * proposta di pagamento da cambiare o una medaglia sbagliata si correggono
+   * dove sono stati scritti, senza dover imparare un secondo posto in cui
+   * vivono le stesse cose con altri nomi.
+   */
+  modificaCertId?: string;
 }
 
-export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }: Props) {
+export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId, modificaCertId }: Props) {
   const { toast } = useToast();
   const { isAdmin } = useAuth();
   const catalog = useCertCatalog();
@@ -683,6 +707,8 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
       setQuotationStrategy(null);
       setProjectNameTouched(false);
       setClientTouched(false);
+      setIdsInModifica([]);
+      caricataRef.current = null;
     }, 300);
   };
 
@@ -724,6 +750,180 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
     return () => { cancelled = true; };
   }, [open, resumeCertId]);
 
+  /**
+   * Gli id delle certificazioni che compongono l'offerta in modifica.
+   *
+   * Servono al salvataggio per sapere cosa sostituire. Tenuti in uno stato
+   * perché il gruppo si scopre leggendo, e al momento del salvataggio la riga
+   * da cui si è partiti potrebbe non bastare più: se l'offerta ne aveva tre e
+   * se ne toglie una, vanno tolte tutte e tre e riscritte le due rimaste.
+   */
+  const [idsInModifica, setIdsInModifica] = useState<string[]>([]);
+
+  /**
+   * L'offerta già caricata in questa apertura.
+   *
+   * Il caricamento va fatto una volta sola: rifarlo riscriverebbe sopra quello
+   * che si sta modificando: si cambia un importo, l'effetto rigira, e l'importo
+   * torna com'era. Il riferimento si azzera alla chiusura.
+   */
+  const caricataRef = useRef<string | null>(null);
+
+  // ── Ricarica di un'offerta esistente ──────────────────────────────────────
+  useEffect(() => {
+    if (!open || !modificaCertId) return;
+    if (caricataRef.current === modificaCertId) return;
+    caricataRef.current = modificaCertId;
+    let annullato = false;
+    (async () => {
+      // 1. La riga di partenza, per risalire al gruppo e al sito.
+      const { data: capo, error: erroreCapo } = await supabase
+        .from("certifications")
+        .select("id, quotation_group_id, site_id, sites(id, brand_id, brands(id, holding_id))")
+        .eq("id", modificaCertId)
+        .maybeSingle();
+      if (annullato) return;
+      // Un caricamento fallito non deve somigliare a un'offerta vuota: chi
+      // apre la modifica riempirebbe di nuovo tutto a mano, e al salvataggio
+      // quello che c'era verrebbe sostituito da quello che ha appena riscritto.
+      if (erroreCapo || !capo) {
+        caricataRef.current = null;
+        toast({
+          title: "Quotation not loaded",
+          description: erroreCapo?.message || "This quotation could not be read. Close and try again.",
+          variant: "destructive",
+        });
+        onOpenChange(false);
+        return;
+      }
+
+      // 2. L'offerta intera: le righe del gruppo, o la sola riga se gruppo non
+      //    ce n'è. Le annullate restano fuori — sono una decisione presa, non
+      //    qualcosa da rimettere in modifica.
+      const gruppo = (capo as any).quotation_group_id as string | null;
+      const q = supabase.from("certifications").select("*");
+      const { data: righe, error: erroreRighe } = gruppo
+        ? await q.eq("quotation_group_id", gruppo)
+        : await q.eq("id", modificaCertId);
+      if (annullato) return;
+      const certs = (righe ?? []).filter(
+        (c: any) => String(c.status ?? "").toLowerCase() !== "canceled",
+      );
+      if (erroreRighe || !certs.length) {
+        caricataRef.current = null;
+        toast({
+          title: "Quotation not loaded",
+          description: erroreRighe?.message || "This quotation has no active service left to edit.",
+          variant: "destructive",
+        });
+        onOpenChange(false);
+        return;
+      }
+
+      // 3. Le tranche di tutte, in un colpo solo.
+      const { data: tranche } = await supabase
+        .from("cert_payment_milestones")
+        .select("certification_id, name, tranche_pct, tranche_order, trigger_event, step_id, payment_scheme")
+        .in("certification_id", certs.map((c: any) => c.id));
+
+      // Dallo `step_id` salvato si torna al numero di passo, che è quello che
+      // il form maneggia. I passi si chiedono al database per id, non alla
+      // cache della timeline: quella si popola dalle certificazioni già nel
+      // form, e qui il form è ancora vuoto — è proprio quello che stiamo per
+      // riempire.
+      const idsPasso = Array.from(
+        new Set((tranche ?? []).map((t: any) => t.step_id).filter(Boolean)),
+      ) as string[];
+      const passiPerId = new Map<string, number | null>();
+      if (idsPasso.length) {
+        const { data: passi } = await supabase
+          .from("cert_timeline_steps")
+          .select("id, order_index")
+          .in("id", idsPasso);
+        for (const p of passi ?? []) passiPerId.set((p as any).id, (p as any).order_index);
+      }
+
+      const primo: any = certs[0];
+      const s: any = (capo as any).sites || {};
+
+      setIdsInModifica(certs.map((c: any) => c.id));
+      setIsPotential(false);
+      // Si parte dal primo passo, come quando si compila: anche il nome del
+      // progetto e la data di consegna sono cose che si tornano a correggere.
+      setStep(1);
+      setCurrency(String(primo.currency || "EUR").toUpperCase());
+      setEmittenteId(primo.issuer_contact_id || "");
+      setSite({
+        holdingId: s.brands?.holding_id || "",
+        brandId: s.brand_id || "",
+        siteId: (capo as any).site_id || "",
+        isNew: false, newName: "", newAddress: "", newCity: "", newCountry: "",
+      });
+
+      const configurazioni: CertConfig[] = certs.map((c: any) => {
+        const base = emptyCertConfig(c.cert_type as CertType);
+        const mie = (tranche ?? [])
+          .filter((t: any) => t.certification_id === c.id)
+          .sort((a: any, b: any) => (a.tranche_order ?? 0) - (b.tranche_order ?? 0));
+        return {
+          ...base,
+          cert_rating: c.cert_rating || "",
+          cert_level: c.cert_level || "",
+          quotation_kind: c.quotation_kind || "",
+          project_subtype: c.project_subtype || "",
+          cert_version: c.cert_version || "",
+          flags: {
+            ...base.flags,
+            iaq: !!c.has_iaq_monitoring,
+            energy: !!c.has_energy_monitoring,
+            water: !!c.has_water_monitoring,
+            hardwareRedirect: !!c.has_hardware_redirection,
+          },
+          quantities: {
+            ...base.quantities,
+            iaq: c.quoted_iaq_quantity != null ? String(c.quoted_iaq_quantity) : "",
+            energy: c.quoted_energy_quantity != null ? String(c.quoted_energy_quantity) : "",
+            water: c.quoted_water_quantity != null ? String(c.quoted_water_quantity) : "",
+          },
+          services_fees: c.services_fees != null ? String(c.services_fees) : "",
+          gbci_fees: c.gbci_fees != null ? String(c.gbci_fees) : "",
+          total_fees: c.total_fees != null ? String(c.total_fees) : "",
+          // Lo schema è quello scritto sulle tranche: se nessuna lo porta,
+          // resta quello di partenza dello schema del servizio.
+          paymentScheme: (mie[0]?.payment_scheme as PaymentSchemeId) || base.paymentScheme,
+          // Le tranche salvate vincono sulla proposta dello schema: sono la
+          // scelta di chi ha compilato, e riproporle dallo schema
+          // cancellerebbe proprio la modifica che si sta tornando a fare.
+          tranches: mie.length
+            ? mie.map((t: any) => ({
+                name: t.name || "",
+                pct: t.tranche_pct != null ? String(t.tranche_pct) : "",
+                trigger: (t.trigger_event ?? "manual_sal") as TriggerEvent,
+                stepOrder: t.step_id ? passiPerId.get(t.step_id) ?? null : null,
+              }))
+            : base.tranches,
+        };
+      });
+
+      setServices((prev) => ({
+        ...prev,
+        projectName: primo.name || "",
+        client: primo.client || "",
+        region: primo.region || "Europe",
+        handoverDate: primo.handover_date ? new Date(primo.handover_date) : undefined,
+        sqm: primo.sqm != null ? String(primo.sqm) : "",
+        quotationSentDate: primo.quotation_sent_date
+          ? new Date(primo.quotation_sent_date)
+          : undefined,
+        notes: primo.quotation_notes || "",
+        certifications: configurazioni,
+      }));
+      setProjectNameTouched(true);
+      setClientTouched(true);
+    })();
+    return () => { annullato = true; };
+  }, [open, modificaCertId]);
+
   // ── Save ──────────────────────────────────────────────────────────────────
 
   const handleSave = async () => {
@@ -750,6 +950,20 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
       // If Resume mode, delete the old potential row so we can insert fresh cert rows.
       if (resumeCertId) {
         await supabase.from("certifications").delete().eq("id", resumeCertId);
+      }
+
+      // In modifica si sostituisce l'offerta intera. Le righe vecchie se ne
+      // vanno con le loro tranche — la cascata le porta via — e al loro posto
+      // entrano quelle appena compilate. È lo stesso gesto della ripresa di una
+      // potenziale, che questo wizard fa da sempre: una certificazione ancora in
+      // offerta non ha dietro né fatture né lavoro svolto, e riscriverla da capo
+      // costa meno che inseguire quali dei venti campi sono cambiati.
+      if (idsInModifica.length) {
+        const { error: delErr } = await supabase
+          .from("certifications")
+          .delete()
+          .in("id", idsInModifica);
+        if (delErr) throw delErr;
       }
 
       const targetStatus = isPotential ? "potential" : "quotation";
@@ -841,6 +1055,10 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
             cert_level: cert.cert_level || null,
             quotation_kind: cert.quotation_kind || null,
             project_subtype: cert.project_subtype || null,
+            // Sotto quale regolamento si certifica. Il catalogo distingue le
+            // versioni; finora la certificazione nasceva senza dirlo, e a
+            // dirlo restavano solo quelle importate da fuori.
+            cert_version: cert.cert_version || null,
             level: cert.cert_rating || null,
             score: 0,
             sqm: services.sqm ? Number(services.sqm) : null,
@@ -1216,7 +1434,22 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
           {services.certifications.map((cert) => {
             const ratings = catalog.ratingsOf(cert.cert_type);
             const subtypes = catalog.typologiesOf(cert.cert_type, cert.cert_rating || null);
-            const levels = catalog.levelsOf(cert.cert_type, cert.cert_rating || null, cert.project_subtype || null);
+            const versions = catalog.versionsOf(
+              cert.cert_type,
+              cert.cert_rating || null,
+              cert.project_subtype || null,
+            );
+            // Le medaglie dipendono anche dalla versione: il Bronze di WELL
+            // esiste solo sul v2 Pilot. Passarla evita che la tendina offra una
+            // medaglia che quella versione non prevede — e che il database, che
+            // valida la coppia, poi rifiuti al salvataggio.
+            const levels = catalog.levelsOf(
+              cert.cert_type,
+              cert.cert_rating || null,
+              cert.project_subtype || null,
+              null,
+              cert.cert_version || null,
+            );
             const natura = catalog.naturaDi(cert.cert_type);
             return (
               <Card key={cert.cert_type} className="border-primary/20">
@@ -1225,12 +1458,55 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
                     <Badge variant="secondary" className="font-bold">{CERT_DISPLAY_LABELS[cert.cert_type] ?? cert.cert_type}</Badge>
                     <span className="text-xs text-muted-foreground">Configure this certification</span>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {/* L'ordine segue la dipendenza: il rating restringe le
+                      tipologie, la tipologia le versioni, e la versione decide
+                      quali medaglie esistono. Il Target Level stava prima del
+                      Subtype pur dipendendo da esso, e chiedeva una scelta prima
+                      di sapere fra cosa scegliere. */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     <div className="space-y-1">
                       <Label className="text-xs">Rating System</Label>
                       <Select value={cert.cert_rating} onValueChange={(v) => updateCert(cert.cert_type, "cert_rating", v)} disabled={ratings.length === 0}>
                         <SelectTrigger className="h-8 text-sm"><SelectValue placeholder={ratings.length === 0 ? "N/A" : "Select"} /></SelectTrigger>
                         <SelectContent>{ratings.map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Subtype</Label>
+                      <Select value={cert.project_subtype} onValueChange={(v) => updateCert(cert.cert_type, "project_subtype", v)} disabled={subtypes.length === 0}>
+                        <SelectTrigger className="h-8 text-sm"><SelectValue placeholder={subtypes.length === 0 ? "Select rating first" : "Select"} /></SelectTrigger>
+                        <SelectContent>{subtypes.map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                    {/* La versione dello standard. Cambiandola, una medaglia già
+                        scelta che quella versione non prevede si cancella invece
+                        di restare a fondo tendina: il database valida la coppia e
+                        la rifiuterebbe al salvataggio, a offerta già compilata. */}
+                    <div className="space-y-1">
+                      <Label className="text-xs">Version</Label>
+                      <Select
+                        value={cert.cert_version}
+                        onValueChange={(v) => {
+                          const ammesse = catalog.levelsOf(
+                            cert.cert_type,
+                            cert.cert_rating || null,
+                            cert.project_subtype || null,
+                            null,
+                            v,
+                          );
+                          patchCert(cert.cert_type, {
+                            cert_version: v,
+                            ...(cert.cert_level && !ammesse.some((l) => l.level === cert.cert_level)
+                              ? { cert_level: "" }
+                              : {}),
+                          });
+                        }}
+                        disabled={versions.length === 0}
+                      >
+                        <SelectTrigger className="h-8 text-sm">
+                          <SelectValue placeholder={versions.length === 0 ? "N/A" : "Select"} />
+                        </SelectTrigger>
+                        <SelectContent>{versions.map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent>
                       </Select>
                     </div>
                     {/* Un servizio senza esito da raggiungere non ha un Target
@@ -1262,13 +1538,6 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
                         </Select>
                       </div>
                     )}
-                    <div className="space-y-1">
-                      <Label className="text-xs">Subtype</Label>
-                      <Select value={cert.project_subtype} onValueChange={(v) => updateCert(cert.cert_type, "project_subtype", v)} disabled={subtypes.length === 0}>
-                        <SelectTrigger className="h-8 text-sm"><SelectValue placeholder={subtypes.length === 0 ? "Select rating first" : "Select"} /></SelectTrigger>
-                        <SelectContent>{subtypes.map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent>
-                      </Select>
-                    </div>
                   </div>
 
                   {/* Monitoring services */}
@@ -1876,9 +2145,13 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-xl">New Quotation</DialogTitle>
+          <DialogTitle className="text-xl">
+            {modificaCertId ? "Edit Quotation" : "New Quotation"}
+          </DialogTitle>
           <DialogDescription>
-            Create a site and define the certification services to quote. A PM will be assigned after confirmation.
+            {modificaCertId
+              ? "Every field of the quotation as it was filled in. Change what needs changing and save."
+              : "Create a site and define the certification services to quote. A PM will be assigned after confirmation."}
           </DialogDescription>
         </DialogHeader>
 
@@ -1929,7 +2202,13 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId }
                     className={cn("gap-1.5 px-6", isPotential ? "bg-slate-700 hover:bg-slate-800" : "bg-emerald-600 hover:bg-emerald-700")}
                   >
                     {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                    {isPotential ? "Save as Potential" : (resumeCertId ? "Confirm Quotation" : "Save Quotation")}
+                    {isPotential
+                      ? "Save as Potential"
+                      : modificaCertId
+                        ? "Update Quotation"
+                        : resumeCertId
+                          ? "Confirm Quotation"
+                          : "Save Quotation"}
                   </Button>
                 )}
               </div>

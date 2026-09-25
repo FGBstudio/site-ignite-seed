@@ -88,6 +88,20 @@ const LEGACY_MEDAL_SHAPES: Record<string, string[]> = {
   BREEAM: ["Pass", "Good", "Very Good", "Excellent", "Outstanding"],
 };
 
+/**
+ * La data di consegna, quando c'è.
+ *
+ * `new Date(null)` è il primo gennaio 1970, e il form lo mostrava come se
+ * qualcuno avesse davvero consegnato quel giorno. Una data che manca è una
+ * domanda aperta: meglio il campo vuoto, che si vede, di una data falsa, che
+ * si crede.
+ */
+const dataConsegna = (v: string | null | undefined): Date | undefined => {
+  if (!v) return undefined;
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? undefined : d;
+};
+
 const formSchema = z.object({
   name: z.string().min(2, "Name required"),
   client: z.string().min(2, "Client required"),
@@ -142,9 +156,23 @@ interface Props {
   existingAllocations?: ProjectAllocation[];
   onSaved: () => void;
   mode?: ProjectFormMode;
+  /**
+   * Fin dove arriva la modifica.
+   *
+   * `site` — il comportamento storico: si aprono tutte le certificazioni del
+   * sito, perché da Operations «il progetto» è il sito con tutto quello che ci
+   * sta sopra.
+   *
+   * `quotazione` — solo le certificazioni di QUESTA offerta, cioè quelle che
+   * condividono il suo `quotation_group_id`, o la sola certificazione quando un
+   * gruppo non c'è. Da Quotations il resto del sito non è in modifica: aprirlo
+   * mostrava certificazioni di altre offerte come se fossero di questa — e,
+   * peggio, le metteva alla portata della cancellazione al salvataggio.
+   */
+  ambito?: "site" | "quotazione";
 }
 
-export function ProjectFormModal({ open, onOpenChange, project, existingAllocations = [], onSaved, mode = "edit" }: Props) {
+export function ProjectFormModal({ open, onOpenChange, project, existingAllocations = [], onSaved, mode = "edit", ambito = "site" }: Props) {
   const { user, isAdmin } = useAuth();
   const { toast } = useToast();
   const [products, setProducts] = useState<Product[]>([]);
@@ -226,7 +254,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
           const existingHours = (project as any).allocated_hours != null ? Number((project as any).allocated_hours) : undefined;
           form.reset({
             name: project.name, client: project.client, region: project.region as any,
-            handover_date: new Date(project.handover_date), status: project.status || "Design",
+            handover_date: dataConsegna(project.handover_date), status: project.status || "Design",
             site_id: project.site_id || "",
             allocations: [], certifications: [],
             confirm_pm_id: "",
@@ -255,10 +283,27 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
             });
         } else {
           // Edit mode
-          const { data: existingCerts, error: certErr } = await supabase
-            .from("certifications")
-            .select("*")
-            .eq("site_id", project.site_id);
+          // Quali certificazioni sono «questa cosa che sto modificando».
+          //
+          // Da Quotations è l'offerta: le righe del suo gruppo, o la sola riga
+          // se un gruppo non c'è. Caricare tutto il sito faceva comparire nello
+          // stesso form la LEED e la WELL del progetto accanto alle prove
+          // lasciate da altre offerte — su Offices HQ erano sei blocchi, quattro
+          // dei quali MEP_Commissioning con due già annullate.
+          //
+          // Le annullate restano fuori in ogni caso: sono la traccia di una
+          // decisione presa, non qualcosa da rimettere in modifica.
+          const gruppo = (project as any).quotation_group_id as string | null | undefined;
+          let q = supabase.from("certifications").select("*");
+          if (ambito === "quotazione") {
+            q = gruppo ? q.eq("quotation_group_id", gruppo) : q.eq("id", project.id);
+          } else {
+            q = q.eq("site_id", project.site_id);
+          }
+          const { data: caricate, error: certErr } = await q;
+          const existingCerts = (caricate ?? []).filter(
+            (c: any) => String(c.status ?? "").toLowerCase() !== "canceled",
+          );
 
           if (certErr) console.error("Error loading certifications:", certErr);
 
@@ -295,7 +340,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
 
           form.reset({
             name: baseName, client: project.client, region: project.region as any,
-            handover_date: new Date(project.handover_date), status: project.status,
+            handover_date: dataConsegna(project.handover_date), status: project.status,
             site_id: project.site_id || "",
             allocations: existingAllocations.map((a) => ({ id: a.id, product_id: a.product_id, quantity: a.quantity, status: a.status })),
             certifications: mappedCerts as any,
