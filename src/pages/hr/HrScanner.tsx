@@ -127,19 +127,10 @@ export default function HrScanner() {
         if (lockRef.current && lockRef.current.token === token && Date.now() - lockRef.current.ts < 3000) return;
         lockRef.current = { token, ts: Date.now() };
 
-        // La posizione e' un di piu': se il permesso non c'e' o tarda, si
-        // timbra lo stesso. Nessuno resta fuori perche' il GPS non risponde.
-        const location = await new Promise<{ lat: number; lng: number } | null>((resolve) => {
-          if (!navigator.geolocation) return resolve(null);
-          navigator.geolocation.getCurrentPosition(
-            (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-            () => resolve(null),
-            { timeout: 2000 },
-          );
-        });
-
+        // Nessuna posizione: il varco e' inchiodato a un muro, la sua la
+        // sappiamo gia', e chiederla a ogni passaggio sarebbe raccogliere un
+        // dato personale che non dice niente a nessuno.
         const esito = await timbraConBadge(token, {
-          location,
           device: navigator.userAgent.slice(0, 80),
         });
         if (fermato) return;

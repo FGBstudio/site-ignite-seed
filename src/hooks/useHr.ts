@@ -469,15 +469,13 @@ export { minutoCorrente, firmaBadge, codiceBadge } from "@/lib/badgeFirma";
  */
 export async function timbraConBadge(
   payload: string,
-  contesto: { location?: { lat: number; lng: number } | null; device?: string | null } = {},
+  contesto: { device?: string | null } = {},
 ): Promise<EsitoQr> {
   const pulito = payload.trim();
   if (!FORMA_BADGE.test(pulito)) return { esito: "non_badge" };
 
   const { data, error } = await (supabase as any).rpc("hr_timbra", {
     p_payload: pulito,
-    p_lat: contesto.location?.lat ?? null,
-    p_lng: contesto.location?.lng ?? null,
     p_device: contesto.device ?? null,
   });
   if (error) return { esito: "non_leggibile", messaggio: error.message };
