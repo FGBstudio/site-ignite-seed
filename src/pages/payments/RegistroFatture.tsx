@@ -1,12 +1,13 @@
 import { useMemo, useState } from "react";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
-import { ChevronDown, ChevronRight, Download, Plus, Search } from "lucide-react";
+import { ChevronDown, ChevronRight, Download, FileUp, Plus, Search } from "lucide-react";
 import { usePaymentsCtx } from "./PaymentsLayout";
 import { useIncassi, useNoteCredito } from "@/hooks/usePayments";
 import { Money, PillCiclo, PillPagamento } from "@/components/payments/Comuni";
 import { DialogoEmissione } from "@/components/payments/DialogoEmissione";
 import { DialogoIncasso } from "@/components/payments/DialogoIncasso";
+import { DialogoImportaFattura } from "@/components/payments/DialogoImportaFattura";
 import { decimaliUtili, importo } from "@/lib/payments/aggregati";
 import type { InvoiceRow, LifecycleState, PaymentStatus } from "@/types/payments";
 import { cn } from "@/lib/utils";
@@ -39,6 +40,8 @@ export default function RegistroFatture() {
   const [cerca, setCerca] = useState("");
   const [aperta, setAperta] = useState<string | null>(null);
   const [emissione, setEmissione] = useState(false);
+  /** L'importazione di una fattura emessa prima del registro. */
+  const [importa, setImporta] = useState(false);
   /** La fattura su cui si sta registrando un incasso. */
   const [incasso, setIncasso] = useState<InvoiceRow | null>(null);
 
@@ -114,6 +117,16 @@ export default function RegistroFatture() {
             style={{ border: "1px solid var(--border)", background: "#fff", color: "var(--muted)" }}
           >
             <Download className="h-3.5 w-3.5" /> Esporta CSV
+          </button>
+          {/* Importare non e' emettere: la vecchia porta il numero che aveva
+              gia' ed entra chiusa. Sono due gesti diversi, e due bottoni. */}
+          <button
+            type="button"
+            onClick={() => setImporta(true)}
+            className="inline-flex items-center gap-1.5 rounded-[10px] px-3 py-2 text-[12px] font-semibold"
+            style={{ border: "1px solid var(--border)", background: "#fff", color: "var(--muted)" }}
+          >
+            <FileUp className="h-3.5 w-3.5" /> Importa già emessa
           </button>
           <button
             type="button"
@@ -271,6 +284,7 @@ export default function RegistroFatture() {
 
       <DialogoEmissione aperto={emissione} onChiudi={() => setEmissione(false)} />
       <DialogoIncasso fattura={incasso} aperto={!!incasso} onChiudi={() => setIncasso(null)} />
+      <DialogoImportaFattura aperto={importa} onChiudi={() => setImporta(false)} />
     </div>
   );
 }

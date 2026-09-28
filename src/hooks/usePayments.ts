@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { LetturaFattura, ContattoNoto, contattoDaLettura } from "@/lib/payments/letturaFattura";
 import type {
   CreditNote,
   Currency,
@@ -868,6 +869,158 @@ export function useRegistraDecurtazione() {
     onSuccess: (_d, v) => {
       qc.invalidateQueries({ queryKey: ["payments"] });
       qc.invalidateQueries({ queryKey: ["payments", "incassi", v.invoice_id] });
+    },
+  });
+}
+
+/* ── Le fatture di prima ──────────────────────────────────────────────────── */
+
+/**
+ * Legge un PDF gia' emesso e ne restituisce i dati, senza salvare niente.
+ *
+ * La chiave del modello vive nei segreti di Supabase, non nel bundle: passa
+ * dalla edge function `leggi-fattura`, che verifica anche che a chiedere sia
+ * l'amministrazione.
+ */
+export async function leggiFattura(file: File): Promise<LetturaFattura> {
+  const base64 = await new Promise<string>((risolvi, rifiuta) => {
+    const lettore = new FileReader();
+    lettore.onload = () => {
+      const s = String(lettore.result ?? "");
+      // `data:...;base64,xxx` → solo la coda: il prefisso lo rimette la
+      // funzione, che deve sapere anche il tipo del file.
+      risolvi(s.slice(s.indexOf(",") + 1));
+    };
+    lettore.onerror = () => rifiuta(new Error("File non leggibile"));
+    lettore.readAsDataURL(file);
+  });
+
+  const { data, error } = await supabase.functions.invoke("leggi-fattura", {
+    body: { base64, mime: file.type || "application/pdf", nomeFile: file.name },
+  });
+  if (error) {
+    // Il corpo della risposta porta il motivo vero; `error.message` dice solo
+    // che la funzione ha risposto male, e chi rivede non saprebbe che fare.
+    const dettaglio = await leggiErroreFunzione(error);
+    throw new Error(dettaglio);
+  }
+  return data as LetturaFattura;
+}
+
+async function leggiErroreFunzione(error: unknown): Promise<string> {
+  if (error && typeof error === "object" && "context" in error) {
+    const ctx = (error as { context?: unknown }).context;
+    if (ctx instanceof Response) {
+      try {
+        const corpo = await ctx.clone().json();
+        if (typeof corpo?.errore === "string") return corpo.errore;
+      } catch {
+        /* sotto, il messaggio generico */
+      }
+    }
+  }
+  return error instanceof Error ? error.message : "Lettura non riuscita";
+}
+
+/** Il PDF originale nell'archivio: e' il documento che vale. */
+export async function caricaPdfStorico(file: File, numero: string): Promise<string> {
+  const pulito = numero.replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase() || "senza-numero";
+  const percorso = `${new Date().getFullYear()}/${pulito}-${Date.now()}-${file.name}`;
+  const { error } = await supabase.storage.from("fatture-storiche").upload(percorso, file);
+  if (error) throw error;
+  return percorso;
+}
+
+/** Un link temporaneo per rivedere il PDF importato: il bucket è privato. */
+export async function linkPdfStorico(percorso: string): Promise<string> {
+  const { data, error } = await supabase.storage
+    .from("fatture-storiche")
+    .createSignedUrl(percorso, 300);
+  if (error) throw error;
+  return data.signedUrl;
+}
+
+/** Fa entrare nel registro una fattura emessa prima del registro. */
+export function useImportaFatturaStorica() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: {
+      number: string;
+      issuer_contact_id: string;
+      issue_date: string;
+      total: number;
+      client_contact_id?: string | null;
+      currency?: string;
+      vat_amount?: number;
+      payment_terms_days?: number;
+      notes?: string | null;
+      documento_path?: string | null;
+      estrazione?: unknown;
+      incassata?: boolean;
+      data_incasso?: string | null;
+    }) => {
+      const { data, error } = await (supabase as any).rpc("fn_importa_fattura_storica", {
+        p_number: v.number,
+        p_issuer_contact_id: v.issuer_contact_id,
+        p_issue_date: v.issue_date,
+        p_total: v.total,
+        p_client_contact_id: v.client_contact_id ?? null,
+        p_currency: v.currency ?? "EUR",
+        p_exch_rate: 1,
+        p_vat_amount: v.vat_amount ?? 0,
+        p_payment_terms_days: v.payment_terms_days ?? 30,
+        p_notes: v.notes ?? null,
+        p_documento_path: v.documento_path ?? null,
+        p_estrazione: v.estrazione ?? null,
+        p_incassata: v.incassata ?? true,
+        p_data_incasso: v.data_incasso ?? null,
+      });
+      if (error) throw error;
+      return data as InvoiceRow;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["payments"] }),
+  });
+}
+
+/** Tutte le anagrafiche, per abbinare quella letta sul documento. */
+export function useAnagrafiche(kind: "client" | "issuer") {
+  return useQuery({
+    queryKey: ["contacts", "per-abbinamento", kind],
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("contacts")
+        .select("id, company_name, vat_number")
+        .eq("kind", kind)
+        .order("company_name");
+      if (error) throw error;
+      return (data ?? []) as ContattoNoto[];
+    },
+  });
+}
+
+/**
+ * Crea l'anagrafica che la fattura ha rivelato.
+ *
+ * Non si fa di nascosto durante l'importazione: la conferma una persona,
+ * perche' questi campi finiranno sull'intestazione delle fatture future e un
+ * indirizzo letto male diventa un documento sbagliato mandato a un cliente.
+ */
+export function useCreaAnagrafica() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: ReturnType<typeof contattoDaLettura>) => {
+      if (!v.company_name.trim()) throw new Error("Serve la ragione sociale");
+      const { data, error } = await (supabase as any)
+        .from("contacts")
+        .insert(v)
+        .select("id, company_name, vat_number")
+        .single();
+      if (error) throw error;
+      return data as ContattoNoto;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["contacts"] });
     },
   });
 }
