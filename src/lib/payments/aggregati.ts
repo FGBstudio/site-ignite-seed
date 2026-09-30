@@ -119,6 +119,8 @@ export interface Tranche {
   name: string | null;
   amount: number | null;
   tranche_state: "pending" | "due" | "invoiced";
+  /** La quota della tranche: serve a comporre «50% LEED ID+C Gold consultancy». */
+  tranche_pct?: number | null;
   /** La data attesa dell'evento che la rende esigibile, quando si sa. */
   data_attesa?: string | null;
 

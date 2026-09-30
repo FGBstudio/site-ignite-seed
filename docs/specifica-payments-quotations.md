@@ -65,7 +65,7 @@ recall · 7 parziali · 14 clienti fatturati.
 | R8 | Vista per cliente | **fatta** |
 | R9 | Credito del cliente da progetto cancellato | **fatta** |
 | R10 | Emettere una fattura: dalle tranche o da zero | **fatta** — R10+R11 unite, 57 fatture travasate sulle righe |
-| R12 | Generare il documento — in Word | riscritta sul tuo template e sulle 166 fatture |
+| R12 | Generare il documento — in Word | **fatta da questa parte** — manca il template .docx su Render |
 | R13 | Dashboard quotazioni | **fatta** — 14 giorni al primo sollecito, 60 per dirla ferma |
 | R14 | Quotazioni storiche di Marco | **approvata** — si fa da qui, niente pagina |
 | R15 | Le tre società che emettono | **fatta** — anagrafiche caricate dai master |
@@ -1294,6 +1294,50 @@ e il registro passerebbe da 69 fatture a tutto il 2026. Dimmi se lo facciamo.
 
 *Nuovo schema*: `cert_catalog.dicitura_fattura` e una tabella corta di diciture
 ricorrenti. *Servizio*: il template .docx da caricare su Render.
+
+---
+
+### Cosa è stato fatto, e la cosa che resta a te
+
+**Le diciture ci sono.** `cert_catalog.dicitura_fattura` è stata aggiunta e
+riempita per tutte le 24 combinazioni schema/rating: non l'ho inventata, l'ho
+derivata dal modo in cui l'archivio le scrive — «LEED ID+C {medaglia}
+consultancy», dove il segnaposto viene sostituito con la medaglia di *quel*
+progetto. La medaglia non sta nel catalogo, perché è il risultato di un progetto
+e non una proprietà dello schema: le unisce la vista `v_dicitura_progetto`, che
+richiude anche gli spazi doppi quando la medaglia manca — «LEED ID+C
+consultancy», non «LEED ID+C  consultancy».
+
+`diciture_fattura` porta le nove voci ricorrenti, con la **frequenza** che avevano
+nell'archivio come ordine di proposta. Le forme scelte sono le più usate, non le
+più belle: sono già la vostra lingua, e cambiarla ora vorrebbe dire che le
+fatture nuove non somigliano alle vecchie. Ho tenute **entrambe** le varianti
+«#Reimbursement for Bank & GBCI Fees» e «#Reimbursement for GBCI & Bank Fees»,
+con una nota che dice che sono la stessa cosa a parole invertite: sceglierne una
+è una tua decisione, non mia.
+
+**Il dialogo di emissione le usa.** Una riga da tranche nasce già «50% LEED ID+C
+Gold consultancy» invece di «60% all'ordine hardware» — che dice *quando* si
+fattura, non *cosa*. Le righe libere hanno l'elenco delle diciture ricorrenti
+come suggerimento, e il campo resta scrivibile: una dicitura è un punto di
+partenza, non una gabbia.
+
+**La funzione `genera-fattura` c'è**, e fa una cosa in più di `genera-offerta`:
+riceve solo `invoice_id` e **legge il contenuto dal database**. Una fattura è un
+documento contabile — quello che c'è scritto deve essere quello che è registrato,
+e un payload composto nel browser è un payload che si può modificare per strada.
+Compone la data come il template («February 27th, 2026»), gli importi con la
+valuta per esteso («8.750,00 Euro» — come in 304 righe su 305), e stampa la riga
+dell'IVA solo quando c'è: «IVA 0,00 Euro» su una fattura UK fa sembrare che ci si
+sia dimenticati di metterla.
+
+**Quello che manca è sul servizio, non qui.** Su Render serve l'endpoint
+`/fattura` con il template .docx della fattura. Finché non c'è, la funzione
+risponde con un messaggio che lo dice — «il servizio risponde ma non ha
+l'endpoint /fattura» — invece di un 404 che manderebbe a cercare nel codice
+sbagliato. Il pulsante **Scarica Word** è già nel registro, dentro il dettaglio
+della fattura, e compare solo quando ci sono righe: senza dettaglio il documento
+uscirebbe col corpo vuoto, e le 69 fatture storiche non le hanno.
 
 ---
 

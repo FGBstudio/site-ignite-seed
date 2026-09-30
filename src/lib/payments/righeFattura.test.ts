@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  componiDescrizione,
   giorniFineMese,
   imponibile,
   numero,
@@ -214,5 +215,41 @@ describe("progettoFatturabile", () => {
   it("senza stato si mostra: nascondere qualcosa che non si sa è peggio", () => {
     expect(progettoFatturabile(null)).toBe(true);
     expect(progettoFatturabile(undefined)).toBe(true);
+  });
+});
+
+describe("componiDescrizione", () => {
+  it("percentuale più servizio: com'è scritto sulle fatture vere", () => {
+    expect(componiDescrizione(50, "LEED ID+C Gold consultancy")).toBe(
+      "50% LEED ID+C Gold consultancy",
+    );
+  });
+
+  it("non scrive la percentuale due volte", () => {
+    // Successo davvero: «60% 60% all'ordine hardware».
+    expect(componiDescrizione(60, "60% all'ordine hardware")).toBe("60% all'ordine hardware");
+  });
+
+  it("riconosce la percentuale anche staccata o con decimali", () => {
+    expect(componiDescrizione(40, "40 % al primo dato")).toBe("40 % al primo dato");
+    expect(componiDescrizione(33.5, "33,5% alla firma")).toBe("33,5% alla firma");
+  });
+
+  it("senza percentuale resta il servizio: non tutte le righe sono una quota", () => {
+    expect(componiDescrizione(null, "EU Taxonomy")).toBe("EU Taxonomy");
+    expect(componiDescrizione(0, "EU Taxonomy")).toBe("EU Taxonomy");
+  });
+
+  it("le percentuali intere non prendono decimali", () => {
+    expect(componiDescrizione(50.0, "Energy Model")).toBe("50% Energy Model");
+  });
+
+  it("i decimali si scrivono con la virgola", () => {
+    expect(componiDescrizione(33.5, "Energy Model")).toBe("33,5% Energy Model");
+  });
+
+  it("senza dicitura non inventa una descrizione", () => {
+    expect(componiDescrizione(50, null)).toBe("");
+    expect(componiDescrizione(50, "   ")).toBe("");
   });
 });

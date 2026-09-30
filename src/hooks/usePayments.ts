@@ -200,6 +200,114 @@ export function useClientiDelBrand(brandId: string | null | undefined) {
 }
 
 /**
+ * Genera il documento della fattura — il .docx.
+ *
+ * Non il PDF: il Word è quello che l'amministrazione deve poter ritoccare prima
+ * di mandarlo, e il servizio che lo produce sa già convertire se un giorno
+ * servirà anche l'altro.
+ *
+ * Alla funzione va solo l'id: il contenuto lo legge dal database. Comporlo qui e
+ * spedirlo vorrebbe dire che un documento contabile passa da un payload che si
+ * può modificare per strada.
+ *
+ * Si guarda il tipo di contenuto della risposta, perché trattare un JSON di
+ * errore come un .docx produce un file che si scarica e non si apre — e nessuno
+ * capisce perché.
+ */
+export function useGeneraFatturaWord() {
+  return useMutation({
+    mutationFn: async (invoiceId: string) => {
+      const { data: sessione } = await supabase.auth.getSession();
+      const token = sessione.session?.access_token;
+      if (!token) throw new Error("Sessione scaduta: rientra e riprova.");
+
+      const url = `${(supabase as any).supabaseUrl}/functions/v1/genera-fattura`;
+      const risposta = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ invoice_id: invoiceId }),
+      });
+
+      const tipo = risposta.headers.get("Content-Type") ?? "";
+      if (!risposta.ok || !tipo.includes("wordprocessingml")) {
+        let messaggio = `Generazione fallita (${risposta.status})`;
+        try {
+          const j = await risposta.json();
+          messaggio = j.errore ?? messaggio;
+        } catch {
+          /* la risposta non era JSON: resta il messaggio generico */
+        }
+        throw new Error(messaggio);
+      }
+
+      const blob = await risposta.blob();
+      const nome =
+        risposta.headers.get("Content-Disposition")?.match(/filename="?([^"]+)"?/)?.[1] ??
+        "Invoice.docx";
+      return { blob, nome };
+    },
+  });
+}
+
+/**
+ * Le diciture ricorrenti delle righe libere.
+ *
+ * Nelle 166 fatture dell'archivio la stessa cosa era scritta in cinque modi —
+ * «#Reimbursement for GBCI Fees», «#Reimbursement for Bank & GBCI Fees»,
+ * «100% Reimbursement GBCI fees», e una con lo spazio mancante, «forGBCI», finita
+ * su una fattura vera tre volte. Scegliere da un elenco non impedisce di
+ * correggere la riga: impedisce di ricordarsi a memoria come si scriveva.
+ */
+export function useDicitureRicorrenti() {
+  return useQuery({
+    queryKey: ["payments", "diciture"],
+    staleTime: 10 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("diciture_fattura")
+        .select("id, testo, categoria, frequenza")
+        .eq("attiva", true)
+        .order("categoria")
+        .order("frequenza", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        id: string;
+        testo: string;
+        categoria: "rimborso" | "extra" | "canone" | "altro";
+        frequenza: number;
+      }>;
+    },
+  });
+}
+
+/**
+ * Come il servizio di un progetto si chiama su una fattura.
+ *
+ * «LEED ID+C Gold consultancy», non «LEED BD+C · Core & Shell»: il nome interno
+ * e quello che va sul documento sono due cose, e finora esisteva solo il primo.
+ */
+export function useDicitureProgetti(certIds: string[]) {
+  const chiavi = [...new Set(certIds)].sort();
+  return useQuery({
+    queryKey: ["payments", "diciture-progetti", chiavi.join(",")],
+    enabled: chiavi.length > 0,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("v_dicitura_progetto")
+        .select("certification_id, dicitura, dicitura_fee_terzi")
+        .in("certification_id", chiavi);
+      if (error) throw error;
+      const m = new Map<string, { dicitura: string; fee: string | null }>();
+      for (const r of (data ?? []) as any[]) {
+        m.set(r.certification_id, { dicitura: r.dicitura, fee: r.dicitura_fee_terzi });
+      }
+      return m;
+    },
+  });
+}
+
+/**
  * Tutte le società clienti in anagrafica.
  *
  * La tendina per brand non basta più: una fattura può portare righe di progetti
@@ -372,7 +480,7 @@ export function useTrancheAperte() {
         (supabase as any)
           .from("cert_payment_milestones")
           .select(
-            `id, certification_id, name, amount, tranche_state, due_date, step_id,
+            `id, certification_id, name, amount, tranche_state, due_date, step_id, tranche_pct,
              certifications ( name, client, currency, billing_contact_id, status )`,
           )
           .neq("tranche_state", "invoiced"),

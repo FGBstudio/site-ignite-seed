@@ -1,9 +1,11 @@
 import { useMemo, useState } from "react";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
-import { ChevronDown, ChevronRight, Download, FileUp, Plus, Search } from "lucide-react";
+import { ChevronDown, ChevronRight, Download, FileDown, FileUp, Plus, Search } from "lucide-react";
 import { usePaymentsCtx } from "./PaymentsLayout";
-import { useIncassi, useNoteCredito, useRigheFattura } from "@/hooks/usePayments";
+import { useGeneraFatturaWord, useIncassi, useNoteCredito, useRigheFattura } from "@/hooks/usePayments";
+import { scarica } from "@/hooks/useOfferta";
+import { useToast } from "@/hooks/use-toast";
 import { Money, PillCiclo, PillPagamento } from "@/components/payments/Comuni";
 import { DialogoEmissione } from "@/components/payments/DialogoEmissione";
 import { DialogoIncasso } from "@/components/payments/DialogoIncasso";
@@ -376,6 +378,8 @@ function RigaFattura({
   const { data: incassi = [] } = useIncassi(aperta ? f.id : null);
   const { data: nc = [] } = useNoteCredito(aperta ? f.id : null);
   const { data: righe = [] } = useRigheFattura(aperta ? f.id : null);
+  const word = useGeneraFatturaWord();
+  const { toast } = useToast();
 
   /**
    * Il residuo è tutto un ammanco classificato: una trattenuta bancaria, non un
@@ -506,14 +510,43 @@ function RigaFattura({
                   esistevano e la risposta era il nome del progetto: che dice
                   di chi è la fattura, non cosa contiene. */}
               <div className="sm:col-span-3">
-                <p className="label">
-                  Righe
-                  {f.po_riferimento && (
-                    <span className="ml-2 font-normal" style={{ color: "var(--muted)" }}>
-                      · rif. ordine {f.po_riferimento}
-                    </span>
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <p className="label">
+                    Righe
+                    {f.po_riferimento && (
+                      <span className="ml-2 font-normal" style={{ color: "var(--muted)" }}>
+                        · rif. ordine {f.po_riferimento}
+                      </span>
+                    )}
+                  </p>
+                  {/* Il documento in Word, non in PDF: è quello che si ritocca
+                      prima di mandarlo. Compare solo quando ci sono righe —
+                      senza dettaglio il documento uscirebbe col corpo vuoto. */}
+                  {righe.length > 0 && (
+                    <button
+                      type="button"
+                      disabled={word.isPending}
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        try {
+                          const { blob, nome } = await word.mutateAsync(f.id);
+                          scarica(blob, nome);
+                        } catch (err: any) {
+                          toast({
+                            variant: "destructive",
+                            title: "Documento non generato",
+                            description: err.message,
+                          });
+                        }
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-[10px] px-2.5 py-1 text-[11px] font-semibold disabled:opacity-50"
+                      style={{ border: "1px solid var(--border)", background: "#fff", color: "var(--muted)" }}
+                    >
+                      <FileDown className="h-3.5 w-3.5" />
+                      {word.isPending ? "Genero…" : "Scarica Word"}
+                    </button>
                   )}
-                </p>
+                </div>
                 {righe.length === 0 ? (
                   <p className="mt-1.5 text-[12px]" style={{ color: "var(--muted)" }}>
                     Nessuna riga registrata: la fattura è arrivata da un import, che portava il

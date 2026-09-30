@@ -14,11 +14,14 @@ import {
   useCommesseFatturabili,
   useEmettiFattura,
   useEntita,
+  useDicitureProgetti,
+  useDicitureRicorrenti,
   useTerminiDiCommessa,
   useTrancheAperte,
 } from "@/hooks/usePayments";
 import { importo } from "@/lib/payments/aggregati";
 import {
+  componiDescrizione,
   imponibile as sommaRighe,
   numero,
   righeEmettibili,
@@ -111,6 +114,20 @@ export function DialogoEmissione({
   const [po, setPo] = useState("");
   const [nuovoCliente, setNuovoCliente] = useState(false);
 
+  /**
+   * Le diciture dei progetti di cui si sta fatturando qualcosa.
+   *
+   * Servono a proporre «50% LEED ID+C Gold consultancy» invece del nome interno
+   * della tranche — «60% all'ordine hardware» — che dice *quando* si fattura,
+   * non *cosa*. Sulle fatture vere c'è il servizio.
+   */
+  const progettiInGioco = useMemo(
+    () => [...new Set(tutteLeTranche.map((t) => t.certification_id).filter(Boolean) as string[])],
+    [tutteLeTranche],
+  );
+  const { data: diciture } = useDicitureProgetti(progettiInGioco);
+  const { data: ricorrenti = [] } = useDicitureRicorrenti();
+
   /** Le tranche esigibili, indicizzate: servono per costruire le righe iniziali. */
   const perId = useMemo(
     () => new Map(tutteLeTranche.map((t) => [t.id, t])),
@@ -130,6 +147,18 @@ export function DialogoEmissione({
       ),
     [righe, perId],
   );
+
+  /**
+   * Come si chiama la riga che fattura questa tranche.
+   *
+   * Il servizio quando il catalogo lo sa, il nome della tranche quando no: una
+   * riga senza descrizione non si può emettere, e un elenco vuoto non è meglio
+   * di un nome interno.
+   */
+  const descrizionePerTranche = (t: { id: string; certification_id: string | null; name: string | null; tranche_pct?: number | null }) => {
+    const servizio = t.certification_id ? diciture?.get(t.certification_id)?.dicitura : null;
+    return componiDescrizione(t.tranche_pct, servizio) || t.name || "Tranche";
+  };
 
   const certId = certDelleRighe ?? certLibera ?? "";
   const commessa = useMemo(() => commesse.find((c) => c.id === certId) ?? null, [commesse, certId]);
@@ -157,6 +186,11 @@ export function DialogoEmissione({
     const chiavi = trancheIniziali ?? [];
     const trovate = chiavi.map((id) => perId.get(id)).filter(Boolean);
     if (chiavi.length > 0 && trovate.length < chiavi.length) return;
+    // E si aspettano anche le diciture, per la stessa ragione: compilate un
+    // istante prima, le righe porterebbero il nome interno della tranche — «60%
+    // all'ordine hardware» invece di «60% LEED ID+C Gold consultancy» — e nessuno
+    // le riscriverebbe.
+    if (progettiInGioco.length > 0 && !diciture) return;
     if (firmaApplicata === firma) return;
 
     setFirmaApplicata(firma);
@@ -179,13 +213,16 @@ export function DialogoEmissione({
       trovate.length > 0
         ? trovate.map((t) => ({
             tranche_id: t!.id,
-            descrizione: t!.name ?? "Tranche",
+            descrizione: descrizionePerTranche(t!),
             importo: t!.amount ?? 0,
             progetto: t!.progetto ?? null,
           }))
         : [{ tranche_id: null, descrizione: "", importo: "" }],
     );
-  }, [aperto, firma, firmaApplicata, entita, certIniziale, trancheIniziali, perId]);
+  // `descrizionePerTranche` non sta fra le dipendenze: è una funzione ricreata a
+  // ogni render, e quello che le serve — `diciture` — c'è.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aperto, firma, firmaApplicata, entita, certIniziale, trancheIniziali, perId, diciture, progettiInGioco.length]);
 
   /**
    * Quello che si sa già del progetto si porta dietro, invece di richiederlo.
@@ -423,15 +460,30 @@ export function DialogoEmissione({
                 </span>
               </div>
 
+              {/* Le diciture ricorrenti, una volta per tutto il dialogo: il
+                  browser le suggerisce su ogni riga libera. */}
+              <datalist id="diciture-ricorrenti">
+                {ricorrenti.map((d) => (
+                  <option key={d.id} value={d.testo} />
+                ))}
+              </datalist>
+
               <div className="mt-1 divide-y rounded-md border">
                 {righe.map((r, i) => (
                   <div key={i} className="flex items-start gap-2 p-2">
                     <div className="flex-1">
+                      {/* ── La descrizione, scritta o scelta ──────────────────
+                          Il campo resta libero — una dicitura è un punto di
+                          partenza, non una gabbia — ma le forme ricorrenti si
+                          suggeriscono mentre si scrive. Nell'archivio c'erano
+                          156 diciture distinte per una quindicina di concetti, e
+                          una aveva anche lo spazio mancante: «forGBCI». */}
                       <Input
                         value={r.descrizione}
                         onChange={(e) => cambia(i, { descrizione: e.target.value })}
                         placeholder="Cosa si sta fatturando"
                         className="h-9"
+                        list={r.tranche_id ? undefined : "diciture-ricorrenti"}
                       />
                       {/* Il motivo sta sotto la riga che lo riguarda: un pulsante
                           spento senza spiegazione lascia a indovinare quale
@@ -495,7 +547,7 @@ export function DialogoEmissione({
                         ...x,
                         {
                           tranche_id: t.id,
-                          descrizione: t.name ?? "Tranche",
+                          descrizione: descrizionePerTranche(t),
                           importo: t.amount ?? 0,
                           progetto: t.progetto ?? null,
                         },

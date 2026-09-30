@@ -102,6 +102,34 @@ export function trancheRipetute(righe: RigaInCorso[]): string[] {
 }
 
 /**
+ * La descrizione di una riga che fattura una tranche.
+ *
+ * Sulle fatture vere si legge «50% LEED ID+C GOLD»: la percentuale della tranche,
+ * poi il servizio. Comporla invece di scriverla è il motivo per cui nell'archivio
+ * c'erano 156 diciture distinte per una quindicina di concetti — «50% LEED GOLD»,
+ * «50% LEED ID + C GOLD», «50% LEED GOLD Consultancy» sono la stessa cosa.
+ *
+ * La percentuale non si scrive due volte: molti nomi di tranche ce l'hanno già
+ * dentro («60% all'ordine hardware»), e prependerla produceva «60% 60% all'ordine
+ * hardware» — che è successo davvero.
+ */
+export function componiDescrizione(
+  pct: number | null | undefined,
+  dicitura: string | null | undefined,
+): string {
+  const testo = (dicitura ?? "").trim();
+  if (!testo) return "";
+  const p = Number(pct);
+  if (!Number.isFinite(p) || p <= 0) return testo;
+  // Se comincia già con una percentuale, quella è la sua: non se ne aggiunge una
+  // seconda.
+  if (/^\d+([.,]\d+)?\s*%/.test(testo)) return testo;
+  // Le percentuali intere si scrivono senza decimali: «50%», non «50,0%».
+  const scritta = Number.isInteger(p) ? String(p) : String(p).replace(".", ",");
+  return `${scritta}% ${testo}`;
+}
+
+/**
  * Su quali progetti si può fatturare.
  *
  * Non basta che una tranche sia esigibile: deve esserlo il progetto. Due casi
