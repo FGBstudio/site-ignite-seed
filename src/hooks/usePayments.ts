@@ -945,6 +945,39 @@ export function useRegistraDecurtazione() {
   });
 }
 
+/* ── Il lavoro giornaliero ────────────────────────────────────────────────── */
+
+/** Dove il browser si ricorda di averlo già fatto girare oggi. */
+const GIRO_FATTO = "payments-giro-giornaliero";
+
+/**
+ * Il giro delle regole: preavvisi, solleciti, promesse scadute.
+ *
+ * Gira quando qualcuno apre Payments, una volta al giorno. Non è un cron — il
+ * progetto non ne ha uno — ed è una scelta difendibile per una ragione: le
+ * regole servono a chi guarda i pagamenti, e chi guarda i pagamenti apre questa
+ * sezione tutti i giorni. Se nessuno la apre per una settimana, al primo
+ * ingresso il giro recupera tutto lo stesso, perché guarda le date e non
+ * «quanti giorni sono passati dall'ultima volta».
+ *
+ * È idempotente: farlo girare dieci volte nello stesso giorno non produce
+ * dieci avvisi. Il guardiano nel browser serve solo a non spendere una
+ * chiamata a ogni cambio di scheda.
+ */
+export async function giroGiornaliero(): Promise<boolean> {
+  const oggi = new Date().toISOString().slice(0, 10);
+  if (localStorage.getItem(GIRO_FATTO) === oggi) return false;
+  const { error } = await (supabase as any).rpc("fn_payments_job_giornaliero");
+  // Un errore non si mostra: il giro è manutenzione, non un gesto dell'utente.
+  // Ma non si segna come fatto, così il prossimo ingresso riprova.
+  if (error) {
+    console.error("giro giornaliero dei pagamenti:", error.message);
+    return false;
+  }
+  localStorage.setItem(GIRO_FATTO, oggi);
+  return true;
+}
+
 /* ── Le fatture di prima ──────────────────────────────────────────────────── */
 
 /**

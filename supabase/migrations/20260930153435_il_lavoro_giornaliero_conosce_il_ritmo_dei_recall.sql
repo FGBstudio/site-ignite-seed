@@ -1,0 +1,18 @@
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Il lavoro giornaliero conosce il ritmo dei recall
+--
+-- `fn_payments_job_giornaliero` faceva gia' meta' di quello che serve: portava
+-- in recall le scadute e riportava a rosso i gialli scaduti. Qui impara le tre
+-- regole intere — il preavviso a sette giorni, il primo recall il giorno dopo
+-- la scadenza, e la cadenza del lunedi' e del mercoledi' — e smette di
+-- inseguire quando il pagamento arriva.
+--
+-- Il preavviso e' la parte che oggi manca del tutto, ed e' quella che vale di
+-- piu': serve a EVITARE il sollecito, non a farlo.
+--
+-- NOTA: questa versione lascia rosse anche le fatture pagate in parte. La
+-- migrazione 20260930153606 corregge quel punto — un residuo dopo un pagamento
+-- non e' un insoluto — ed e' quella in vigore.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- (definizione sostituita da 20260930153606)

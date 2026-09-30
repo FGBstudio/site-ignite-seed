@@ -1,8 +1,9 @@
-import { createContext, useContext, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { cn } from "@/lib/utils";
-import { useFatture } from "@/hooks/usePayments";
+import { useQueryClient } from "@tanstack/react-query";
+import { giroGiornaliero, useFatture } from "@/hooks/usePayments";
 import type { EntityCode, InvoiceRow } from "@/types/payments";
 import { perEntita } from "@/lib/payments/aggregati";
 import "./payments.css";
@@ -65,6 +66,24 @@ const ENTITA: Array<{ codice: EntityCode | null; nome: string }> = [
 export default function PaymentsLayout() {
   const [entita, setEntita] = useState<EntityCode | null>(null);
   const { data: tutte = [], isLoading } = useFatture();
+  const qc = useQueryClient();
+
+  /**
+   * Il giro delle regole, una volta al giorno.
+   *
+   * Preavvisi a sette giorni, solleciti del lunedì e del mercoledì, promesse
+   * scadute che tornano rosse: sono regole che devono girare anche quando
+   * nessuno le chiede. Qui girano all'apertura della sezione, che è il momento
+   * in cui qualcuno sta per guardare proprio quei numeri — e se ne nascono di
+   * nuovi, l'elenco si aggiorna da solo.
+   */
+  useEffect(() => {
+    let vivo = true;
+    giroGiornaliero().then((fatto) => {
+      if (fatto && vivo) qc.invalidateQueries({ queryKey: ["payments"] });
+    });
+    return () => { vivo = false; };
+  }, [qc]);
 
   const fatture = useMemo(() => perEntita(tutte, entita), [tutte, entita]);
 
