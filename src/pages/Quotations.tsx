@@ -17,8 +17,9 @@ import { useToast } from "@/hooks/use-toast";
 import { NewQuotationWizard } from "@/components/projects/NewQuotationWizard";
 import { Money } from "@/components/common/Money";
 import { formatMoney } from "@/lib/currency";
-import { Plus, Search, FileText, CheckCircle2, Loader2, ArrowRight, XCircle, Ban, Sparkles, RotateCcw, ChevronDown, ChevronRight as ChevronRightIcon, Save, Pencil, FilePlus2, FileDown } from "lucide-react";
+import { Plus, Search, FileText, CheckCircle2, Loader2, ArrowRight, XCircle, Ban, Sparkles, RotateCcw, ChevronDown, ChevronRight as ChevronRightIcon, Save, Pencil, FilePlus2, FileDown, LayoutDashboard } from "lucide-react";
 import { OffertaDialog } from "@/components/quotations/OffertaDialog";
+import { DashboardQuotazioni } from "@/components/quotations/DashboardQuotazioni";
 
 interface QuotationRow {
   id: string;
@@ -95,7 +96,7 @@ export default function Quotations() {
   const qc = useQueryClient();
   const { data: rows = [], isLoading } = useQuotations();
 
-  const [tab, setTab] = useState<"potential" | "pending" | "approved" | "canceled">("pending");
+  const [tab, setTab] = useState<"dashboard" | "potential" | "pending" | "approved" | "canceled">("dashboard");
   const [search, setSearch] = useState("");
   const [wizardOpen, setWizardOpen] = useState(false);
   const [resumeCertId, setResumeCertId] = useState<string | undefined>(undefined);
@@ -123,6 +124,24 @@ export default function Quotations() {
     [rows]
   );
   const canceled = useMemo(() => rows.filter((r) => r.status === "canceled"), [rows]);
+
+  /**
+   * Le offerte ancora in attesa di risposta: pendenti e potenziali, senza
+   * approvazione. Sono le stesse righe delle altre schede — la dashboard non
+   * ha una query propria, le guarda da un'altra angolazione.
+   */
+  const inAttesa = useMemo(
+    () => [...pending, ...potential].filter((r) => !r.quotation_approved_at),
+    [pending, potential],
+  );
+
+  /** Approvate dal primo del mese: quante ne sono diventate progetti. */
+  const approvateQuestoMese = useMemo(() => {
+    const inizioMese = new Date().toISOString().slice(0, 7) + "-01";
+    return rows.filter(
+      (r) => r.quotation_approved_at && r.quotation_approved_at.slice(0, 10) >= inizioMese,
+    ).length;
+  }, [rows]);
 
   const filterFn = (r: QuotationRow) => {
     if (!search.trim()) return true;
@@ -607,12 +626,27 @@ export default function Quotations() {
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
         <TabsList>
+          <TabsTrigger value="dashboard" className="gap-2"><LayoutDashboard className="h-4 w-4" /> Dashboard</TabsTrigger>
           <TabsTrigger value="potential" className="gap-2"><Sparkles className="h-4 w-4" /> Potential ({potential.length})</TabsTrigger>
           <TabsTrigger value="pending" className="gap-2"><FileText className="h-4 w-4" /> Pending ({pending.length})</TabsTrigger>
           <TabsTrigger value="approved" className="gap-2"><ArrowRight className="h-4 w-4" /> Approved ({approved.length})</TabsTrigger>
           <TabsTrigger value="canceled" className="gap-2"><Ban className="h-4 w-4" /> Canceled ({canceled.length})</TabsTrigger>
         </TabsList>
 
+        <TabsContent value="dashboard" className="mt-4">
+          <DashboardQuotazioni
+            offerte={inAttesa}
+            approvateQuestoMese={approvateQuestoMese}
+            onApri={(id) => {
+              // Aprire dalla dashboard porta sulla scheda dove quella riga vive,
+              // con la ricerca già puntata: altrimenti si torna a cercarla a mano
+              // fra trentatré.
+              const riga = rows.find((r) => r.id === id);
+              setTab(riga?.status === "potential" ? "potential" : "pending");
+              setSearch(riga?.name ?? "");
+            }}
+          />
+        </TabsContent>
         <TabsContent value="potential" className="mt-4">{renderPotential()}</TabsContent>
         <TabsContent value="pending" className="mt-4">{renderTable(pending, "pending")}</TabsContent>
         <TabsContent value="approved" className="mt-4">{renderTable(approved, "approved")}</TabsContent>

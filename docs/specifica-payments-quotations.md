@@ -66,7 +66,7 @@ recall · 7 parziali · 14 clienti fatturati.
 | R9 | Credito del cliente da progetto cancellato | **fatta** |
 | R10 | Emettere una fattura: dalle tranche o da zero | **fatta** — R10+R11 unite, 57 fatture travasate sulle righe |
 | R12 | Generare il documento — in Word | riscritta sul tuo template e sulle 166 fatture |
-| R13 | Dashboard quotazioni | **approvata** |
+| R13 | Dashboard quotazioni | **fatta** — 14 giorni al primo sollecito, 60 per dirla ferma |
 | R14 | Quotazioni storiche di Marco | **approvata** — si fa da qui, niente pagina |
 | R15 | Le tre società che emettono | **fatta** — anagrafiche caricate dai master |
 
@@ -1333,6 +1333,32 @@ Crediti dei clienti da tenere a mente
 *Nuovo schema*: niente, oltre alla regola dei giorni.
 
 **Da concordare**: dopo quanti giorni dall'invio?
+
+---
+
+### Cosa è stato fatto, e la quarta fascia che non avevo previsto
+
+La dashboard è la **prima scheda** di Quotations: è la domanda con cui si entra.
+Quattro numeri in cima, poi gli elenchi.
+
+**La regola dei giorni l'ho decisa io, e sono due costanti in un file**:
+`GIORNI_PRIMO_SOLLECITO = 14` — il tempo in cui un cliente che voleva rispondere
+ha risposto, e prima del quale telefonare è mettere fretta — e `GIORNI_FERMA = 60`,
+oltre i quali un'offerta non è in attesa: è persa e nessuno l'ha chiusa. Cambiarle
+è una riga. Se preferisci altri numeri, dimmeli.
+
+**La quarta fascia viene dai dati.** Delle 33 offerte pendenti, **17 non hanno una
+data di invio**: non si sollecitano — si guarda se sono uscite. Metterle insieme
+alle altre avrebbe voluto dire telefonare a un cliente che non ha mai visto
+l'offerta. Le altre 16 si dividono in 1 fresca, 10 da sollecitare e 5 ferme da più
+di due mesi.
+
+**E una cosa sul valore aperto.** Sono 417.000 €, ma **9 delle 33 offerte non hanno
+un importo**: il riquadro lo dice accanto alla cifra, perché «417.000 su 33
+offerte» e «417.000 su 24, 9 senza importo» sono due frasi diverse e solo la
+seconda è vera. Le offerte in valuta estera senza cambio registrato contano zero e
+finiscono in quel conteggio: sommare 10.000 dollari come fossero euro gonfierebbe
+il totale del 9% senza dirlo.
 
 ---
 
