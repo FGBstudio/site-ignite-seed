@@ -24,6 +24,39 @@ import { cn } from "@/lib/utils";
 
 const d = (iso: string | null) => (iso ? format(parseISO(iso), "dd MMM", { locale: it }) : "—");
 
+/**
+ * Le scorciatoie in cima: le due domande che si fanno tutti i giorni.
+ *
+ * Non aprono niente di nuovo — applicano un filtro che c'è già. Ma «quanto
+ * devo ancora incassare» è la prima cosa che si chiede entrando, e comporla
+ * ogni volta con due tendine è il motivo per cui qualcuno si tiene un Excel.
+ */
+const SCORCIATOIE: Array<{
+  id: string;
+  nome: string;
+  sotto: string;
+  tinta: string;
+  pagamento: PaymentStatus;
+  quali: (f: InvoiceRow) => boolean;
+}> = [
+  {
+    id: "da-incassare",
+    nome: "Da incassare",
+    sotto: "nessun incasso registrato",
+    tinta: "var(--red)",
+    pagamento: "unpaid",
+    quali: (f) => f.payment_status === "unpaid" && f.residual > 0,
+  },
+  {
+    id: "parziali",
+    nome: "Parziali",
+    sotto: "pagate in parte",
+    tinta: "var(--amber)",
+    pagamento: "partial",
+    quali: (f) => f.payment_status === "partial",
+  },
+];
+
 const CHIP: Array<{ id: LifecycleState | "tutte"; nome: string }> = [
   { id: "tutte", nome: "Tutte" },
   { id: "issued", nome: "Emessa" },
@@ -138,6 +171,44 @@ export default function RegistroFatture() {
             <Plus className="h-3.5 w-3.5" /> Nuova fattura
           </button>
         </div>
+      </div>
+
+      {/* ── Le due scorciatoie ──
+          Non è una pagina nuova e non è un calcolo nuovo: sono i numeri che il
+          registro ha già in fondo, portati in cima dove si guardano. Chi deve
+          registrare gli incassi entra e li ha davanti, invece di comporre due
+          filtri. */}
+      <div className="grid gap-3 sm:grid-cols-2">
+        {SCORCIATOIE.map((s) => {
+          const set = fatture.filter(s.quali);
+          const scoperto = set.reduce((t, f) => t + f.residual_eur, 0);
+          const attiva = pagamento === s.pagamento && stato === "tutte";
+          return (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => {
+                setStato("tutte");
+                setAnno("tutti");
+                setPagamento(attiva ? "tutti" : s.pagamento);
+              }}
+              className="rounded-[12px] px-3.5 py-3 text-left transition-colors"
+              style={{
+                background: "#fff",
+                border: `1px solid ${attiva ? s.tinta : "var(--border)"}`,
+                boxShadow: attiva ? `inset 0 0 0 1px ${s.tinta}` : undefined,
+              }}
+            >
+              <div className="label">{s.nome}</div>
+              <div className="num mt-1 text-[18px] font-bold" style={{ color: s.tinta }}>
+                {importo(scoperto)}
+              </div>
+              <div className="text-[11px]" style={{ color: "var(--muted)" }}>
+                {set.length} fattur{set.length === 1 ? "a" : "e"} · {s.sotto}
+              </div>
+            </button>
+          );
+        })}
       </div>
 
       {/* ── Chip di stato, con i conteggi ── */}

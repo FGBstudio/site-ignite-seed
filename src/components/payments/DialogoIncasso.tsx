@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { format, parseISO } from "date-fns";
+import { it } from "date-fns/locale";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -159,6 +161,15 @@ export function DialogoIncasso({
                 onChange={(e) => setData(e.target.value)}
                 className="mt-1 h-9"
               />
+              {/* Quello che il cliente aveva detto, scritto accanto alla data
+                  vera: chi registra vede subito se è arrivato in ritardo
+                  rispetto alla promessa, e può annotarlo mentre ci pensa. */}
+              {fattura.data_incasso_attesa && (
+                <p className="mt-1 text-[10.5px] text-muted-foreground">
+                  Il cliente aveva detto{" "}
+                  {format(parseISO(fattura.data_incasso_attesa), "d MMM", { locale: it })}
+                </p>
+              )}
             </div>
             <div>
               <Label className="text-xs">Incassato ({fattura.currency})</Label>

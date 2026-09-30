@@ -3,6 +3,7 @@ import { differenceInCalendarDays, format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import { Ban, BellRing, HandCoins, Lock, Unlock } from "lucide-react";
 import { usePaymentsCtx } from "./PaymentsLayout";
+import { dividiRecall, oltreLAnno, scopertoTotale } from "@/lib/payments/recall";
 import {
   useBloccaProgetto,
   useBonificoDisposto,
@@ -40,18 +41,21 @@ export default function Recall() {
   const blocca = useBloccaProgetto();
   const sblocca = useSbloccaProgetto();
 
-  const inSollecito = useMemo(
-    () => fatture.filter((f) => f.lifecycle_state === "in_recall" && f.residual > 0),
-    [fatture],
-  );
-  const fattureBloccate = useMemo(
-    () => fatture.filter((f) => f.lifecycle_state === "blocked"),
+  /**
+   * Tre insiemi, non uno.
+   *
+   * Chi non ha pagato niente si insegue; chi ha pagato quasi tutto si bilancia
+   * a fine progetto. Mescolarli farebbe sembrare un problema quello che è
+   * un'operazione di chiusura — e chi scorre l'elenco finirebbe per telefonare
+   * a un cliente che ha già pagato.
+   */
+  const { daInseguire, daBilanciare, bloccate: fattureBloccate } = useMemo(
+    () => dividiRecall(fatture),
     [fatture],
   );
 
-  const totale = inSollecito.reduce((t, f) => t + f.residual_eur, 0);
-  const parziali = inSollecito.filter((f) => f.payment_status === "partial");
-  const totaleParziali = parziali.reduce((t, f) => t + f.residual_eur, 0);
+  const totale = scopertoTotale(daInseguire);
+  const totaleParziali = scopertoTotale(daBilanciare);
 
   const azione = async (p: Promise<unknown>, titolo: string) => {
     try {
@@ -77,13 +81,13 @@ export default function Recall() {
         <KpiCard
           etichetta="Insoluto in recall"
           valore={importo(totale)}
-          sotto={`${inSollecito.length} fattur${inSollecito.length === 1 ? "a" : "e"} da inseguire`}
+          sotto={`${daInseguire.length} fattur${daInseguire.length === 1 ? "a" : "e"} da inseguire`}
           variante="rossa"
         />
         <KpiCard
           etichetta="di cui residui parziali"
           valore={importo(totaleParziali)}
-          sotto={`${parziali.length} già pagate in parte`}
+          sotto={`${daBilanciare.length} già pagate in parte`}
           variante="ambra"
         />
         <KpiCard
@@ -99,7 +103,7 @@ export default function Recall() {
           <BellRing className="h-4 w-4" style={{ color: "var(--red)" }} />
           <h2 className="titolo text-[13px]">In sollecito</h2>
           <span className="num text-[11px]" style={{ color: "var(--muted)" }}>
-            {inSollecito.length}
+            {daInseguire.length}
           </span>
         </header>
 
@@ -107,13 +111,13 @@ export default function Recall() {
           <p className="p-8 text-center text-[12px]" style={{ color: "var(--muted)" }}>
             Caricamento…
           </p>
-        ) : inSollecito.length === 0 ? (
+        ) : daInseguire.length === 0 ? (
           <p className="p-8 text-center text-[12px]" style={{ color: "var(--muted)" }}>
             Nessun credito scaduto. È il risultato migliore che questa schermata possa dare.
           </p>
         ) : (
           <ul>
-            {inSollecito.map((f) => {
+            {daInseguire.map((f) => {
               const giallo = f.recall_status === "yellow";
               const restano = giallo && f.data_incasso_attesa
                 ? differenceInCalendarDays(parseISO(f.data_incasso_attesa), new Date())
@@ -245,6 +249,80 @@ export default function Recall() {
           </ul>
         )}
       </section>
+
+      {/* ── Da bilanciare ──
+          Non è un sottoinsieme dei solleciti: è un'altra cosa. Il cliente ha
+          pagato, la banca ha trattenuto le spese, e mancano trenta euro. Si
+          riversano sulla fattura dopo — «li mandiamo con le cose di fine anno
+          quando mancano le cifrette piccole». Nessuno telefona per trenta euro,
+          e nessuno se li dimentica. */}
+      {daBilanciare.length > 0 && (
+        <section className="card overflow-hidden">
+          <header
+            className="flex items-center gap-2 px-4 py-3"
+            style={{ borderBottom: "1px solid var(--border)" }}
+          >
+            <HandCoins className="h-4 w-4" style={{ color: "var(--amber)" }} />
+            <h2 className="titolo text-[13px]">Da bilanciare a fine progetto</h2>
+            <span className="num text-[11px]" style={{ color: "var(--muted)" }}>
+              {daBilanciare.length}
+            </span>
+            <span className="ml-auto text-[11px]" style={{ color: "var(--muted)" }}>
+              pagate, ma manca ancora qualcosa — non si sollecita
+            </span>
+          </header>
+
+          <ul>
+            {daBilanciare.map((f) => {
+              const vecchia = oltreLAnno(f);
+              return (
+                <li
+                  key={f.id}
+                  className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3"
+                  style={{ borderBottom: "1px solid var(--border)" }}
+                >
+                  <div className="min-w-[200px] flex-1">
+                    <p className="num text-[13px] font-semibold">
+                      {f.number}
+                      <span className="ml-2 font-normal" style={{ color: "var(--muted)" }}>
+                        {f.client_name ?? "—"}
+                      </span>
+                    </p>
+                    <p className="text-[11px]" style={{ color: "var(--muted)" }}>
+                      {f.project_name ?? "—"} · scad. {d(f.due_date)} · incassati{" "}
+                      {importo(f.paid_amount, f.currency, decimaliUtili(f.paid_amount))} su{" "}
+                      {importo(f.total, f.currency, decimaliUtili(f.total))}
+                    </p>
+                  </div>
+
+                  {/* Trascina da più di un anno: non cambia niente di come si
+                      comporta, ma è quella del giro di fine anno. */}
+                  {vecchia && (
+                    <Pill tinta="amber" contorno>
+                      oltre l&apos;anno
+                    </Pill>
+                  )}
+
+                  <div className="text-right">
+                    <p className="num text-[14px] font-bold" style={{ color: "var(--amber)" }}>
+                      mancano {importo(f.residual, f.currency, decimaliUtili(f.residual))}
+                    </p>
+                    {f.ammanco_da_recuperare > 0 && (
+                      <p className="text-[10.5px]" style={{ color: "var(--amber)" }}>
+                        da riversare sulla prossima fattura del progetto
+                      </p>
+                    )}
+                  </div>
+
+                  <Bottone onClick={() => setIncasso(f)} tinta="green">
+                    Registra incasso
+                  </Bottone>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
 
       {/* ── Progetti fermi ── */}
       <section className="card overflow-hidden">
