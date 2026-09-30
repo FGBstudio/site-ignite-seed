@@ -8,6 +8,7 @@ import { Money, PillCiclo, PillPagamento } from "@/components/payments/Comuni";
 import { DialogoEmissione } from "@/components/payments/DialogoEmissione";
 import { DialogoIncasso } from "@/components/payments/DialogoIncasso";
 import { DialogoImportaFattura } from "@/components/payments/DialogoImportaFattura";
+import { NoteFattura } from "@/components/payments/NoteFattura";
 import { decimaliUtili, importo } from "@/lib/payments/aggregati";
 import type { InvoiceRow, LifecycleState, PaymentStatus } from "@/types/payments";
 import { cn } from "@/lib/utils";
@@ -64,7 +65,7 @@ export default function RegistroFatture() {
       if (pagamento !== "tutti" && f.payment_status !== pagamento) return false;
       if (anno !== "tutti" && !f.issue_date.startsWith(anno)) return false;
       if (!q) return true;
-      return `${f.number} ${f.external_number ?? ""} ${f.client_name ?? ""} ${f.commessa ?? ""} ${f.project_name ?? ""}`
+      return `${f.number} ${f.external_number ?? ""} ${f.client_name ?? ""} ${f.commessa ?? ""} ${f.project_name ?? ""} ${f.ultima_nota ?? ""}`
         .toLowerCase()
         .includes(q);
     });
@@ -335,6 +336,16 @@ function RigaFattura({
           )}
         </td>
         <td className="num font-semibold">
+          {/* Il pallino dice che là sotto c'è qualcosa da leggere. Senza, per
+              sapere se il cliente ha già risposto bisognerebbe aprire una riga
+              per volta — e chi scorre l'elenco richiama chi ha già risposto. */}
+          {f.quante_note > 0 && (
+            <span
+              className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full align-middle"
+              style={{ background: "var(--amber)" }}
+              title={f.ultima_nota ?? undefined}
+            />
+          )}
           {f.number}
           {/* Il numero del commercialista, quando c'è: la stessa fattura ha due
               nomi e chi cerca può usare l'uno o l'altro. */}
@@ -416,7 +427,7 @@ function RigaFattura({
       {aperta && (
         <tr>
           <td colSpan={14} className="dettaglio p-0">
-            <div className="grid gap-4 p-4 sm:grid-cols-2">
+            <div className="grid gap-4 p-4 sm:grid-cols-3">
               <div>
                 <p className="label">Incassi registrati</p>
                 {incassi.length === 0 ? (
@@ -464,10 +475,15 @@ function RigaFattura({
                 )}
               </div>
 
+              {/* Le note stanno qui e non dietro un altro click: questa riga
+                  esiste per rispondere a «come si è arrivati a questo residuo»,
+                  e cosa ha detto il cliente è parte della stessa risposta. */}
+              <NoteFattura invoiceId={f.id} />
+
               {/* La formula scritta per esteso: il residuo non è un numero da
                   credere sulla parola, è una sottrazione che si può rifare. */}
               <div
-                className="num sm:col-span-2 rounded-[10px] px-3 py-2 text-[12px]"
+                className="num sm:col-span-3 rounded-[10px] px-3 py-2 text-[12px]"
                 style={{ background: "#fff", border: "1px solid var(--border)" }}
               >
                 {importo(f.total, f.currency, decimaliUtili(f.total))} −{" "}

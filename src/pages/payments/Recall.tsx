@@ -115,8 +115,8 @@ export default function Recall() {
           <ul>
             {inSollecito.map((f) => {
               const giallo = f.recall_status === "yellow";
-              const restano = giallo && f.yellow_until
-                ? differenceInCalendarDays(parseISO(f.yellow_until), new Date())
+              const restano = giallo && f.data_incasso_attesa
+                ? differenceInCalendarDays(parseISO(f.data_incasso_attesa), new Date())
                 : null;
               // Tutto il residuo è un ammanco trattenuto dalla banca: scaduto sì,
               // ma non c'è niente da sollecitare — si riversa sulla prossima

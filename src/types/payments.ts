@@ -23,6 +23,26 @@ export type LifecycleState = "issued" | "in_recall" | "blocked" | "insoluto" | "
 /** Lo stato di PAGAMENTO: calcolato, mai scritto. */
 export type PaymentStatus = "unpaid" | "partial" | "paid" | "credited";
 
+/** Chi ha detto quando arrivano i soldi: il cliente, il suo bonifico, o una stima nostra. */
+export type FonteAttesa = "cliente" | "bonifico_disposto" | "stima";
+
+/**
+ * Che specie di notizia è una nota.
+ *
+ * Le prime due sono promesse e portano una data; le altre sono notizie, utili
+ * nel diario ma mute sul quando. Il tipo non si ricava dal testo — una nota si
+ * può sempre scrivere a mano — e serve a rispondere alla domanda che conta
+ * quando si decide se mandare una pratica al legale: quante volte questo
+ * cliente ha promesso senza pagare.
+ */
+export type TipoNota =
+  | "pagamento_predisposto"
+  | "bonifico_disposto"
+  | "quietanza_richiesta"
+  | "fattura_ricevuta"
+  | "sollecito"
+  | "libera";
+
 /** Rosso: scaduta. Giallo: bonifico disposto, vale 30 giorni. */
 export type RecallStatus = "red" | "yellow";
 
@@ -58,7 +78,16 @@ export interface InvoiceRow {
 
   lifecycle_state: LifecycleState;
   recall_status: RecallStatus | null;
-  yellow_until: string | null;
+  /**
+   * Quando il cliente ha detto che pagherà.
+   *
+   * Non è la scadenza: quella dice quando doveva. Questa la scrive un esito —
+   * «pagamento predisposto», «bonifico disposto» — e decide in quale mese la
+   * fattura cade nel previsionale. Nulla quando nessuno ha promesso niente, ed
+   * è giusto così: una cassa che nessuno ha promesso non si annuncia.
+   */
+  data_incasso_attesa: string | null;
+  data_incasso_attesa_fonte: FonteAttesa | null;
   reminders_count: number;
   last_reminder_date: string | null;
   next_reminder_date: string | null;
@@ -94,6 +123,18 @@ export interface InvoiceRow {
   residual_eur: number;
   /** La commessa del progetto fatturato, quando il progetto ne ha una. */
   commessa: string | null;
+
+  /**
+   * L'ultima cosa che ha detto il cliente, già sulla riga.
+   *
+   * Arriva dalla vista e non da una chiamata per fattura: il pallino nel
+   * registro deve accendersi mentre l'elenco si disegna, non dopo settanta
+   * richieste al database.
+   */
+  ultima_nota: string | null;
+  ultima_nota_il: string | null;
+  ultima_nota_tipo: TipoNota | null;
+  quante_note: number;
 }
 
 export interface InvoicePayment {

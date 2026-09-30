@@ -9,6 +9,7 @@ import type {
   InvoiceRow,
   PassiveInvoice,
   Supplier,
+  TipoNota,
 } from "@/types/payments";
 import type { Quotazione, Tranche } from "@/lib/payments/aggregati";
 
@@ -513,25 +514,96 @@ export async function linkPdfPassiva(percorso: string): Promise<string> {
 
 /* ── Note sulla fattura ───────────────────────────────────────────────────── */
 
-/** Cosa ha detto il cliente, in ordine dal più recente. */
-export function useNoteFattura(invoiceId: string | null) {
+export interface NotaFattura {
+  id: string;
+  date: string;
+  text: string;
+  tipo: TipoNota;
+  created_at: string;
+  /** Riempito quando una correzione ha preso il posto di questa riga. */
+  sostituita_da: string | null;
+  /** La riga che questa correzione sostituisce. */
+  sostituisce_id: string | null;
+}
+
+/**
+ * Cosa ha detto il cliente, in ordine dal più recente.
+ *
+ * @param conStorico Anche le righe corrette. Di norma no: chi legge vuole il
+ *   diario com'è adesso, non ogni battitura sbagliata. Lo storico si apre
+ *   quando serve davvero — ed è l'unico modo di recuperare quello che c'era
+ *   scritto prima.
+ */
+export function useNoteFattura(invoiceId: string | null, conStorico = false) {
   return useQuery({
-    queryKey: ["payments", "note", invoiceId],
+    queryKey: ["payments", "note", invoiceId, conStorico],
     enabled: !!invoiceId,
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      let q = (supabase as any)
         .from("invoice_notes")
-        .select("id, date, text, created_at")
-        .eq("invoice_id", invoiceId)
+        .select("id, date, text, tipo, created_at, sostituita_da, sostituisce_id")
+        .eq("invoice_id", invoiceId);
+      if (!conStorico) q = q.is("sostituita_da", null);
+      const { data, error } = await q
         .order("date", { ascending: false })
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return (data ?? []) as Array<{
-        id: string;
-        date: string;
-        text: string;
-        created_at: string;
-      }>;
+      return (data ?? []) as NotaFattura[];
+    },
+  });
+}
+
+/**
+ * Registrare un esito: cosa ha detto il cliente, e quando pagherà.
+ *
+ * Un gesto solo, non due. Il database scrive la nota nel diario e, se l'esito
+ * è una promessa, la data di incasso attesa — che è quella che decide in quale
+ * mese la fattura cade nel previsionale.
+ *
+ * Gli esiti che *non* sono promesse rifiutano la data invece di ignorarla:
+ * ignorarla in silenzio vorrebbe dire lasciar credere di aver registrato
+ * qualcosa che non c'è.
+ */
+export function useRegistraEsito() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: {
+      invoice_id: string;
+      esito: TipoNota;
+      data?: string | null;
+      testo?: string | null;
+    }) => {
+      const { data, error } = await (supabase as any).rpc("fn_registra_esito", {
+        p_invoice_id: v.invoice_id,
+        p_esito: v.esito,
+        p_data: v.data ?? null,
+        p_testo: v.testo ?? null,
+      });
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ["payments", "note", v.invoice_id] });
+      qc.invalidateQueries({ queryKey: ["payments"] });
+    },
+  });
+}
+
+/** Correggere una nota. Non sovrascrive: la vecchia resta nello storico. */
+export function useCorreggiNota() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { invoice_id: string; nota_id: string; testo: string }) => {
+      const { data, error } = await (supabase as any).rpc("fn_correggi_nota", {
+        p_nota_id: v.nota_id,
+        p_testo: v.testo,
+      });
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ["payments", "note", v.invoice_id] });
+      qc.invalidateQueries({ queryKey: ["payments"] });
     },
   });
 }
