@@ -55,16 +55,16 @@ recall · 7 parziali · 14 clienti fatturati.
 
 | | Richiesta | Stato |
 |---|---|---|
-| R1 | Nota sulla fattura, col pallino | rivista due volte su tua indicazione |
-| R2 | Data di incasso attesa — il previsionale | rivista: un flag solo, non due gesti |
-| R3 | Follow-up del mese | riscritta sul tuo `prospetto 1 3.xlsx` |
-| R4 | Regole di sollecito | rivista due volte: cadenza lun/mer, si ferma al pagamento |
-| R5 | I parziali restano visibili | allineata a R4 |
-| R6 | Registrare l'incasso: un filtro | **approvata** |
+| R1 | Nota sulla fattura, col pallino | **fatta** |
+| R2 | Data di incasso attesa — il previsionale | **fatta** |
+| R3 | Follow-up del mese | **fatta** |
+| R4 | Regole di sollecito | **fatta** |
+| R5 | I parziali restano visibili | **fatta** |
+| R6 | Registrare l'incasso: un filtro | **fatta** |
 | R7 | Le note dal foglio di Francesca | **approvata** — si fa da qui, niente pagina |
-| R8 | Vista per cliente | riscritta sul tuo `Projects_Payment_Update.xlsx` |
+| R8 | Vista per cliente | **fatta** |
 | R9 | Credito del cliente da progetto cancellato | **approvata** |
-| R10 | Emettere una fattura: dalle tranche o da zero | **R10+R11 unite** su tua indicazione — tocca lo schema |
+| R10 | Emettere una fattura: dalle tranche o da zero | **fatta** — R10+R11 unite, 57 fatture travasate sulle righe |
 | R12 | Generare il documento — in Word | riscritta sul tuo template e sulle 166 fatture |
 | R13 | Dashboard quotazioni | **approvata** |
 | R14 | Quotazioni storiche di Marco | **approvata** — si fa da qui, niente pagina |
@@ -1058,6 +1058,57 @@ righe — e i tuoi documenti dicono di sì (Apple Lead + Apple Brian).
 
 *Nuovo schema*: una tabella (`invoice_righe`), una colonna eliminata
 (`tranche_id`), una colonna aggiunta (`po_riferimento`), 57 righe migrate.
+---
+
+### Cosa è stato fatto, e le tre cose che i dati hanno insegnato
+
+`invoice_righe` esiste, le 57 fatture con una tranche sono state travasate,
+`invoices.tranche_id` è stata eliminata e cinque viste ricostruite sulle righe.
+`fn_emetti_fattura_righe` ha sostituito `fn_emetti_fattura`, che è stata
+**rimossa** perché scriveva su una colonna che non c'era più.
+
+Mettendolo alla prova sul database vero sono venute fuori tre cose che la
+specifica non prevedeva.
+
+**Il progressivo non aveva mai funzionato.** `fn_nuovo_numero_fattura` faceva
+`on conflict (entity_code, year)` su una chiave che è `(entity_code, year,
+kind)`. Nessuno se ne era accorto perché le 69 fatture in archivio sono entrate
+da import, col numero che avevano già. Corretta, e ora **continua la serie vera**
+dell'emittente: dopo la 2.897 viene la 2.898, non «FT-UK-2026-0001». Con un
+secondo inciampo: `to_char(n, 'FM9G999G999')` usa il separatore della
+localizzazione del server — una virgola — e ha prodotto una fattura numerata
+«2,898», invisibile alla ricerca dell'ultimo numero, che la volta dopo avrebbe
+assegnato di nuovo 2.898.
+
+**Una tranche si poteva fatturare due volte.** La funzione controllava importi e
+cliente, non se la tranche fosse già su una fattura: lo stesso 50% chiesto due
+volte. Ora lo vieta un **indice unico su `invoice_righe.tranche_id`** — così vale
+per qualunque strada porti a una riga, non solo per questa funzione — e la
+funzione lo dice a voce, col nome della tranche e del progetto.
+
+**L'intestatario non si può dedurre.** **1.545 progetti su 1.548 non hanno un
+`billing_contact_id`**, e dei 77 che hanno tranche, 53 non hanno nemmeno il nome
+del cliente scritto da qualche parte; degli altri 24, nessun nome trova un
+contatto in anagrafica. Quindi si chiede, e senza di lui la fattura **non nasce**.
+In compenso la scelta fatta una volta **resta sul progetto**: il buco dei 1.545 si
+chiude fatturando, non con una campagna di inserimento dati.
+
+**Una cosa da sapere sui dati, che non è un difetto del codice**: 61 tranche
+risultano `invoiced` senza stare su nessuna riga di fattura. Sono quelle storiche
+— per la maggior parte già incassate — le cui fatture sono nei 166 Word non
+ancora importati (R14). Il «da emettere» non le mostra, ed è giusto per quelle
+pagate; per le poche senza incasso né documento la verità si saprà con l'import.
+
+**Due cose della specifica sono state fatte come le avevi descritte**, e vale
+dirlo perché toccano il comportamento: «30 giorni fine mese» si traduce in un
+numero di giorni — il database calcola la scadenza come emissione + giorni e non
+sa cosa sia un fine mese — e quindi resta scritto «46 giorni», non «30»; il
+dialogo lo dice in chiaro. E il **numero del commercialista** è sparito
+dall'emissione, sostituito dal **rif. ordine del cliente**: quel numero lo
+assegna lo studio dopo, mentre il PO arriva prima e senza di lui molte fatture
+tornano indietro. Resta sul dialogo di importazione, dove una fattura vecchia il
+suo numero esterno ce l'ha già.
+
 
 ---
 ## R12 · Generare il documento della fattura — in Word

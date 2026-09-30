@@ -6,6 +6,7 @@ import type {
   Currency,
   EntityCode,
   InvoicePayment,
+  InvoiceRiga,
   InvoiceRow,
   PassiveInvoice,
   Supplier,
@@ -108,7 +109,7 @@ export function useCommesseFatturabili() {
       const { data, error } = await (supabase as any)
         .from("certifications")
         .select(
-          `id, name, client, status, total_fees, currency, billing_contact_id,
+          `id, name, client, status, total_fees, currency, billing_contact_id, issuer_contact_id,
            sites ( id, name, brand_id )`,
         )
         .in("status", ["quotation_approved", "da_configurare", "in_corso", "certificato"])
@@ -122,6 +123,8 @@ export function useCommesseFatturabili() {
         total_fees: number | null;
         currency: string | null;
         billing_contact_id: string | null;
+        /** Quale delle tre società emette: deciso in offerta, non all'emissione. */
+        issuer_contact_id: string | null;
         sites: { id: string; name: string | null; brand_id: string | null } | null;
       }>;
     },
@@ -196,47 +199,132 @@ export function useClientiDelBrand(brandId: string | null | undefined) {
 }
 
 /**
+ * Tutte le società clienti in anagrafica.
+ *
+ * La tendina per brand non basta più: una fattura può portare righe di progetti
+ * diversi, e comunque **1.545 progetti su 1.548 non hanno un intestatario
+ * registrato** — filtrare per brand lascerebbe vuota la tendina proprio quando
+ * serve scegliere. Le società del brand restano in cima, che è dove chi
+ * fattura le cerca.
+ */
+export function useClientiTutti(brandId?: string | null) {
+  return useQuery({
+    queryKey: ["contacts", "clienti-tutti"],
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("contacts")
+        .select("id, company_name, vat_number, brand_id")
+        .eq("kind", "client")
+        .order("company_name");
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        id: string;
+        company_name: string;
+        vat_number: string | null;
+        brand_id: string | null;
+      }>;
+    },
+    select: (righe) =>
+      brandId
+        ? [...righe].sort((a, b) =>
+            (a.brand_id === brandId ? 0 : 1) - (b.brand_id === brandId ? 0 : 1),
+          )
+        : righe,
+  });
+}
+
+/**
  * Emettere.
  *
  * Il numero non si sceglie e non si passa: lo assegna il database nella stessa
- * transazione in cui nasce la riga. Due emissioni simultanee si mettono in
+ * transazione in cui nascono le righe. Due emissioni simultanee si mettono in
  * fila invece di prendere lo stesso progressivo.
+ *
+ * Il totale non si passa nemmeno: è la somma delle righe. Passarlo vorrebbe
+ * dire poter emettere una fattura da 10.000 composta da righe che fanno 8.000,
+ * e nessuno saprebbe quale dei due numeri credere.
+ *
+ * Il progetto lo decide il database: lo scrive solo se le righe parlano tutte
+ * dello stesso. Una fattura su due progetti non ha «un» progetto, e le sue
+ * righe lo dicono meglio di una colonna.
  */
 export function useEmettiFattura() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (v: {
       issuer_contact_id: string;
-      total: number;
+      righe: Array<{ tranche_id?: string | null; descrizione: string; importo: number }>;
       issue_date: string;
       payment_terms_days: number;
       client_contact_id?: string | null;
-      certification_id?: string | null;
-      tranche_id?: string | null;
       currency?: string;
       exch_rate?: number;
       vat_amount?: number;
       external_number?: string | null;
+      po_riferimento?: string | null;
       notes?: string | null;
     }) => {
-      const { data, error } = await (supabase as any).rpc("fn_emetti_fattura", {
+      const { data, error } = await (supabase as any).rpc("fn_emetti_fattura_righe", {
         p_issuer_contact_id: v.issuer_contact_id,
-        p_total: v.total,
+        p_righe: v.righe.map((r) => ({
+          tranche_id: r.tranche_id ?? null,
+          descrizione: r.descrizione,
+          importo: r.importo,
+        })),
         p_issue_date: v.issue_date,
         p_payment_terms_days: v.payment_terms_days,
         p_client_contact_id: v.client_contact_id ?? null,
-        p_certification_id: v.certification_id ?? null,
-        p_tranche_id: v.tranche_id ?? null,
         p_currency: v.currency ?? "EUR",
         p_exch_rate: v.exch_rate ?? 1,
         p_vat_amount: v.vat_amount ?? 0,
         p_external_number: v.external_number ?? null,
+        p_po_riferimento: v.po_riferimento ?? null,
         p_notes: v.notes ?? null,
       });
       if (error) throw error;
       return data as InvoiceRow;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["payments"] }),
+    // Le tranche passano a «invoiced» e la lista del «da emettere» cambia: va
+    // invalidato anche quello, non solo le fatture.
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["payments"] });
+      qc.invalidateQueries({ queryKey: ["contacts"] });
+    },
+  });
+}
+
+/**
+ * Le righe di una fattura, con il progetto di ciascuna.
+ *
+ * Il progetto non sta sulla riga: sta sulla tranche, che sta sul progetto. Si
+ * legge attraversando, perché copiarlo sulla riga vorrebbe dire avere due
+ * versioni di un dato che cambia quando un progetto viene rinominato.
+ */
+export function useRigheFattura(invoiceId: string | null) {
+  return useQuery({
+    queryKey: ["payments", "righe-fattura", invoiceId],
+    enabled: !!invoiceId,
+    queryFn: async (): Promise<InvoiceRiga[]> => {
+      const { data, error } = await (supabase as any)
+        .from("invoice_righe")
+        .select(
+          `id, invoice_id, tranche_id, descrizione, importo, ordine,
+           cert_payment_milestones ( certifications ( name ) )`,
+        )
+        .eq("invoice_id", invoiceId)
+        .order("ordine");
+      if (error) throw error;
+      return ((data ?? []) as any[]).map((r) => ({
+        id: r.id,
+        invoice_id: r.invoice_id,
+        tranche_id: r.tranche_id,
+        descrizione: r.descrizione,
+        importo: Number(r.importo),
+        ordine: r.ordine,
+        progetto: r.cert_payment_milestones?.certifications?.name ?? null,
+      }));
+    },
   });
 }
 
@@ -282,7 +370,10 @@ export function useTrancheAperte() {
       const [tr, ms] = await Promise.all([
         (supabase as any)
           .from("cert_payment_milestones")
-          .select("id, certification_id, name, amount, tranche_state, due_date, step_id")
+          .select(
+            `id, certification_id, name, amount, tranche_state, due_date, step_id,
+             certifications ( name, client, currency, billing_contact_id )`,
+          )
           .neq("tranche_state", "invoiced"),
         (supabase as any)
           .from("certification_milestones")
@@ -306,6 +397,10 @@ export function useTrancheAperte() {
         tranche_state: t.tranche_state,
         data_attesa:
           (t.step_id ? quando.get(`${t.certification_id}:${t.step_id}`) : null) ?? t.due_date ?? null,
+        progetto: t.certifications?.name ?? null,
+        cliente: t.certifications?.client ?? null,
+        intestatario_id: t.certifications?.billing_contact_id ?? null,
+        valuta: t.certifications?.currency ?? null,
       }));
     },
   });

@@ -40,6 +40,8 @@ function fattura(p: Partial<InvoiceRow>): InvoiceRow {
     certification_id: null,
     project_name: null,
     tranche_id: null,
+    quante_righe: 1,
+    po_riferimento: null,
     currency: "EUR",
     exch_rate: 1,
     total: 0,

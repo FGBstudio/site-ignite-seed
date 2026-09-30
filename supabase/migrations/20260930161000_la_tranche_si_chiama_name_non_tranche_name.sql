@@ -1,0 +1,13 @@
+-- ═══════════════════════════════════════════════════════════════════════════
+-- La tranche si chiama «name», non «tranche_name»
+--
+-- Il controllo «questa tranche è già fatturata?» appena aggiunto non girava
+-- mai: cercava `m.tranche_name` e moriva sull'errore di colonna prima di
+-- arrivare a controllare qualcosa. Un controllo che non parte non è un
+-- controllo, e in piu' rompeva ogni emissione.
+--
+-- Il corpo completo e definitivo della funzione sta in 20260930161120, che
+-- aggiunge anche l'obbligo dell'intestatario: si legge quello.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- (Nessun effetto residuo: sostituita per intero da 20260930161120.)

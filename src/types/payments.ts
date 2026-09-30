@@ -64,7 +64,18 @@ export interface InvoiceRow {
 
   certification_id: string | null;
   project_name: string | null;
+  /**
+   * La tranche, ma solo quando le righe ne indicano una sola.
+   *
+   * Non è più una colonna: è dedotta dalle righe. Una fattura che chiude due
+   * tranche non ne ha «una» — e prima, quando la colonna esisteva, sapeva
+   * contare fino a uno e poi mentiva.
+   */
   tranche_id: string | null;
+  /** Quante righe compongono la fattura: una fattura di una riga è un caso, non la regola. */
+  quante_righe: number;
+  /** Il riferimento d'ordine del cliente, quando ne ha dato uno da riportare in fattura. */
+  po_riferimento: string | null;
 
   currency: Currency;
   exch_rate: number;
@@ -144,6 +155,38 @@ export interface InvoicePayment {
   amount: number;
   method: string | null;
   bank_ref: string | null;
+}
+
+/**
+ * Una riga di fattura.
+ *
+ * È il pezzo che mancava: prima una fattura puntava a *una* tranche, e una
+ * fattura che chiudeva il 50% del LEED insieme al 50% della Tassonomia doveva
+ * scegliere a quale delle due appartenere. Le righe raccontano cosa si sta
+ * fatturando; il totale del documento è la loro somma, non un numero scritto a
+ * parte.
+ *
+ * `tranche_id` nullo è la riga libera: rimborsi di bolli e GBCI fees, extra
+ * concordati a voce, tutto quello che nessuna tranche aveva previsto.
+ */
+export interface InvoiceRiga {
+  id: string;
+  invoice_id: string;
+  tranche_id: string | null;
+  descrizione: string;
+  importo: number;
+  ordine: number;
+  /** Il progetto della tranche, quando la riga ne ha una. Non è sulla riga: si legge. */
+  progetto?: string | null;
+}
+
+/** Una riga in compilazione, prima che la fattura esista. */
+export interface RigaDaEmettere {
+  tranche_id: string | null;
+  descrizione: string;
+  importo: number | string;
+  /** Solo per mostrarlo a chi compila: non viene salvato sulla riga. */
+  progetto?: string | null;
 }
 
 export interface CreditNote {

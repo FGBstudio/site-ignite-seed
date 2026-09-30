@@ -3,7 +3,7 @@ import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import { ChevronDown, ChevronRight, Download, FileUp, Plus, Search } from "lucide-react";
 import { usePaymentsCtx } from "./PaymentsLayout";
-import { useIncassi, useNoteCredito } from "@/hooks/usePayments";
+import { useIncassi, useNoteCredito, useRigheFattura } from "@/hooks/usePayments";
 import { Money, PillCiclo, PillPagamento } from "@/components/payments/Comuni";
 import { DialogoEmissione } from "@/components/payments/DialogoEmissione";
 import { DialogoIncasso } from "@/components/payments/DialogoIncasso";
@@ -375,6 +375,7 @@ function RigaFattura({
 }) {
   const { data: incassi = [] } = useIncassi(aperta ? f.id : null);
   const { data: nc = [] } = useNoteCredito(aperta ? f.id : null);
+  const { data: righe = [] } = useRigheFattura(aperta ? f.id : null);
 
   /**
    * Il residuo è tutto un ammanco classificato: una trattenuta bancaria, non un
@@ -499,6 +500,44 @@ function RigaFattura({
         <tr>
           <td colSpan={14} className="dettaglio p-0">
             <div className="grid gap-4 p-4 sm:grid-cols-3">
+              {/* ── Cosa si è fatturato ────────────────────────────────────
+                  Sta in cima e per tutta la larghezza perché è la prima
+                  domanda che si fa a una fattura. Prima le righe non
+                  esistevano e la risposta era il nome del progetto: che dice
+                  di chi è la fattura, non cosa contiene. */}
+              <div className="sm:col-span-3">
+                <p className="label">
+                  Righe
+                  {f.po_riferimento && (
+                    <span className="ml-2 font-normal" style={{ color: "var(--muted)" }}>
+                      · rif. ordine {f.po_riferimento}
+                    </span>
+                  )}
+                </p>
+                {righe.length === 0 ? (
+                  <p className="mt-1.5 text-[12px]" style={{ color: "var(--muted)" }}>
+                    Nessuna riga registrata: la fattura è arrivata da un import, che portava il
+                    totale ma non il dettaglio.
+                  </p>
+                ) : (
+                  <ul className="mt-1.5 space-y-1">
+                    {righe.map((r) => (
+                      <li key={r.id} className="flex items-baseline justify-between gap-3 text-[12px]">
+                        <span>
+                          {r.descrizione}
+                          <span className="ml-2 text-[11px]" style={{ color: "var(--muted)" }}>
+                            {r.tranche_id
+                              ? (r.progetto ?? "tranche")
+                              : "extra · nessuna tranche"}
+                          </span>
+                        </span>
+                        <Money valore={r.importo} valuta={f.currency} className="font-semibold" />
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
               <div>
                 <p className="label">Incassi registrati</p>
                 {incassi.length === 0 ? (

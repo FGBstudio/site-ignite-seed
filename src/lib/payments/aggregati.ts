@@ -121,6 +121,19 @@ export interface Tranche {
   tranche_state: "pending" | "due" | "invoiced";
   /** La data attesa dell'evento che la rende esigibile, quando si sa. */
   data_attesa?: string | null;
+
+  /**
+   * Il progetto e il suo intestatario.
+   *
+   * Servono per raggruppare: una fattura si intesta a una società sola, quindi
+   * le tranche selezionabili insieme sono quelle dello stesso cliente. Senza
+   * questi campi chi fattura dovrebbe tenere a mente quale tranche è di chi, e
+   * scoprirebbe l'errore solo quando il database lo rifiuta.
+   */
+  progetto?: string | null;
+  cliente?: string | null;
+  intestatario_id?: string | null;
+  valuta?: string | null;
 }
 
 export interface Quotazione {
