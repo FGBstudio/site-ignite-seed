@@ -3,6 +3,7 @@ import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import { ChevronDown, ChevronRight, Download, Search } from "lucide-react";
 import { usePaymentsCtx } from "./PaymentsLayout";
+import { ProgettiFatturazione } from "@/components/payments/ProgettiFatturazione";
 import { useQuotazioniAperte } from "@/hooks/usePayments";
 import { KpiCard, Money, PillCiclo, PillPagamento } from "@/components/payments/Comuni";
 import { importo, registroClienti, type SchedaCliente } from "@/lib/payments/aggregati";
@@ -20,7 +21,9 @@ import { cn } from "@/lib/utils";
 const d = (iso: string | null) => (iso ? format(parseISO(iso), "d MMM yy", { locale: it }) : "—");
 
 export default function RegistroClienti() {
-  const { fatture, caricamento } = usePaymentsCtx();
+  const { fatture, caricamento, entita } = usePaymentsCtx();
+  /** Due letture: per chi paga, o per progetto. Rispondono a domande diverse. */
+  const [vista, setVista] = useState<"cliente" | "progetto">("cliente");
   const { data: quotazioni = [] } = useQuotazioniAperte();
 
   const [cerca, setCerca] = useState("");
@@ -87,19 +90,57 @@ export default function RegistroClienti() {
         <div>
           <h1 className="titolo text-lg">Registro Clienti</h1>
           <p className="mt-1 text-[12px]" style={{ color: "var(--muted)" }}>
-            Quanto gli abbiamo fatturato, quanto devono ancora, quanto potremmo fatturargli.
+            {vista === "cliente"
+              ? "Quanto gli abbiamo fatturato, quanto devono ancora, quanto potremmo fatturargli."
+              : "Progetto per progetto: quanto era stato quotato, quanto è stato fatturato, quanto resta."}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={esporta}
-          className="inline-flex items-center gap-1.5 rounded-[10px] px-3 py-2 text-[12px] font-semibold"
-          style={{ border: "1px solid var(--border)", background: "#fff", color: "var(--muted)" }}
-        >
-          <Download className="h-3.5 w-3.5" /> Esporta CSV
-        </button>
+        {vista === "cliente" && (
+          <button
+            type="button"
+            onClick={esporta}
+            className="inline-flex items-center gap-1.5 rounded-[10px] px-3 py-2 text-[12px] font-semibold"
+            style={{ border: "1px solid var(--border)", background: "#fff", color: "var(--muted)" }}
+          >
+            <Download className="h-3.5 w-3.5" /> Esporta CSV
+          </button>
+        )}
       </div>
 
+      {/* ── Le due letture ──
+          «Quanto mi deve Kering» e «a che punto è la fatturazione di Turati 28»
+          sono due domande diverse, e chiedono due raggruppamenti diversi degli
+          stessi fatti. */}
+      <div
+        className="inline-flex rounded-full p-0.5"
+        style={{ background: "#fff", border: "1px solid var(--border)" }}
+        role="group"
+        aria-label="Come raggruppare"
+      >
+        {([
+          { id: "cliente" as const, nome: "Per cliente" },
+          { id: "progetto" as const, nome: "Per progetto" },
+        ]).map((v) => (
+          <button
+            key={v.id}
+            type="button"
+            onClick={() => setVista(v.id)}
+            aria-pressed={vista === v.id}
+            className="rounded-full px-3 py-1 text-[11.5px] font-semibold transition-colors"
+            style={{
+              background: vista === v.id ? "var(--teal)" : "transparent",
+              color: vista === v.id ? "#fff" : "var(--muted)",
+            }}
+          >
+            {v.nome}
+          </button>
+        ))}
+      </div>
+
+      {vista === "progetto" && <ProgettiFatturazione entita={entita} />}
+
+      {vista === "cliente" && (
+      <>
       <div className="grid gap-3 sm:grid-cols-4">
         <KpiCard etichetta="Fatturato netto" valore={importo(tot.netto)} sotto={`${righe.length} clienti`} />
         <KpiCard etichetta="Da incassare" valore={importo(tot.aperto)} variante="ambra" sotto="crediti aperti" />
@@ -182,6 +223,8 @@ export default function RegistroClienti() {
           diversi, il suo potenziale può finire su una riga a parte.
         </p>
       </div>
+      </>
+      )}
     </div>
   );
 }
