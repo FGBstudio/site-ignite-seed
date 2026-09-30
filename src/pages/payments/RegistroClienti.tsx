@@ -4,6 +4,8 @@ import { it } from "date-fns/locale";
 import { ChevronDown, ChevronRight, Download, Search } from "lucide-react";
 import { usePaymentsCtx } from "./PaymentsLayout";
 import { ProgettiFatturazione } from "@/components/payments/ProgettiFatturazione";
+import { CreditiCliente } from "@/components/payments/CreditiCliente";
+import { useSaldiCredito } from "@/hooks/useCreditiCliente";
 import { useQuotazioniAperte } from "@/hooks/usePayments";
 import { KpiCard, Money, PillCiclo, PillPagamento } from "@/components/payments/Comuni";
 import { importo, registroClienti, type SchedaCliente } from "@/lib/payments/aggregati";
@@ -23,7 +25,7 @@ const d = (iso: string | null) => (iso ? format(parseISO(iso), "d MMM yy", { loc
 export default function RegistroClienti() {
   const { fatture, caricamento, entita } = usePaymentsCtx();
   /** Due letture: per chi paga, o per progetto. Rispondono a domande diverse. */
-  const [vista, setVista] = useState<"cliente" | "progetto">("cliente");
+  const [vista, setVista] = useState<"cliente" | "progetto" | "crediti">("cliente");
   const { data: quotazioni = [] } = useQuotazioniAperte();
 
   const [cerca, setCerca] = useState("");
@@ -34,6 +36,25 @@ export default function RegistroClienti() {
     () => registroClienti(fatture, quotazioni),
     [fatture, quotazioni],
   );
+
+  /**
+   * Il credito aperto per cliente, indicizzato per nome.
+   *
+   * Le righe del registro sono raggruppate per nome del cliente — viene dalle
+   * fatture — e i saldi arrivano da `contacts.company_name`: è la stessa
+   * colonna, letta da due strade, quindi i nomi coincidono. Minuscolo per non
+   * perdere l'abbinamento su una maiuscola di differenza.
+   */
+  const { data: saldi = [] } = useSaldiCredito();
+  const creditoPerCliente = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const s of saldi) {
+      if (!s.credito_aperto) continue;
+      const k = s.cliente.toLowerCase();
+      m.set(k, (m.get(k) ?? 0) + Number(s.credito_aperto));
+    }
+    return m;
+  }, [saldi]);
 
   const progetti = useMemo(
     () => [...new Set(fatture.map((f) => f.project_name).filter(Boolean) as string[])].sort(),
@@ -92,7 +113,9 @@ export default function RegistroClienti() {
           <p className="mt-1 text-[12px]" style={{ color: "var(--muted)" }}>
             {vista === "cliente"
               ? "Quanto gli abbiamo fatturato, quanto devono ancora, quanto potremmo fatturargli."
-              : "Progetto per progetto: quanto era stato quotato, quanto è stato fatturato, quanto resta."}
+              : vista === "progetto"
+                ? "Progetto per progetto: quanto era stato quotato, quanto è stato fatturato, quanto resta."
+                : "Quello che dobbiamo noi a loro: resta da un progetto chiuso prima del tempo, e va usato su uno nuovo."}
           </p>
         </div>
         {vista === "cliente" && (
@@ -120,6 +143,7 @@ export default function RegistroClienti() {
         {([
           { id: "cliente" as const, nome: "Per cliente" },
           { id: "progetto" as const, nome: "Per progetto" },
+          { id: "crediti" as const, nome: "Crediti" },
         ]).map((v) => (
           <button
             key={v.id}
@@ -138,6 +162,7 @@ export default function RegistroClienti() {
       </div>
 
       {vista === "progetto" && <ProgettiFatturazione entita={entita} />}
+      {vista === "crediti" && <CreditiCliente />}
 
       {vista === "cliente" && (
       <>
@@ -210,6 +235,7 @@ export default function RegistroClienti() {
                   c={c}
                   aperto={aperto === c.chiave}
                   onApri={() => setAperto(aperto === c.chiave ? null : c.chiave)}
+                  creditoAperto={creditoPerCliente.get(c.nome.toLowerCase()) ?? 0}
                 />
               ))}
             </tbody>
@@ -253,10 +279,13 @@ function RigaCliente({
   c,
   aperto,
   onApri,
+  creditoAperto,
 }: {
   c: SchedaCliente;
   aperto: boolean;
   onApri: () => void;
+  /** Quanto dobbiamo noi a lui: zero quando non c'è niente da ricordare. */
+  creditoAperto: number;
 }) {
   // La percentuale dice in un colpo quello che due importi affiancati
   // costringono a calcolare a mente.
@@ -270,7 +299,21 @@ function RigaCliente({
             ? <ChevronDown className="h-3.5 w-3.5" style={{ color: "var(--muted)" }} />
             : <ChevronRight className="h-3.5 w-3.5" style={{ color: "var(--faint)" }} />}
         </td>
-        <td className="font-semibold uppercase">{c.nome}</td>
+        <td className="font-semibold uppercase">
+          {c.nome}
+          {/* Il credito che gli dobbiamo sta accanto al suo nome, non in un'altra
+              schermata: chi guarda «quanto mi deve Kering» deve vedere subito
+              anche quello che Kering deve rivedersi. */}
+          {creditoAperto > 0 && (
+            <span
+              className="num ml-2 rounded-full px-1.5 py-0.5 text-[10px] font-bold normal-case"
+              style={{ background: "var(--amber-bg)", color: "var(--amber)" }}
+              title="Credito aperto verso questo cliente"
+            >
+              −{importo(creditoAperto)}
+            </span>
+          )}
+        </td>
         <td className="max-w-[220px] truncate text-[11.5px]" style={{ color: "var(--muted)" }} title={c.progetti.join(" · ")}>
           {c.progetti.length === 0 ? "—" : c.progetti.length === 1 ? c.progetti[0] : `${c.progetti.length} progetti`}
         </td>

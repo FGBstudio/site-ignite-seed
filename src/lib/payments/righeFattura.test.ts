@@ -3,6 +3,7 @@ import {
   giorniFineMese,
   imponibile,
   numero,
+  progettoFatturabile,
   righeEmettibili,
   righeIncomplete,
   trancheChiuse,
@@ -186,5 +187,32 @@ describe("giorniFineMese", () => {
   it("una data che non è una data vale 30: non si inventa una scadenza", () => {
     expect(giorniFineMese("")).toBe(30);
     expect(giorniFineMese("non una data")).toBe(30);
+  });
+});
+
+describe("progettoFatturabile", () => {
+  it("un progetto cancellato non ha niente da fatturare", () => {
+    expect(progettoFatturabile("canceled")).toBe(false);
+    expect(progettoFatturabile("cancelled")).toBe(false);
+  });
+
+  it("un'offerta non ancora approvata non si fattura: è una proposta", () => {
+    expect(progettoFatturabile("quotation")).toBe(false);
+    expect(progettoFatturabile("potential")).toBe(false);
+  });
+
+  it("dall'approvazione in poi sì, fino al certificato", () => {
+    for (const s of ["quotation_approved", "da_configurare", "in_corso", "completato", "certificato"]) {
+      expect(progettoFatturabile(s), s).toBe(true);
+    }
+  });
+
+  it("non guarda le maiuscole: i dati vecchi non sono coerenti", () => {
+    expect(progettoFatturabile("CANCELED")).toBe(false);
+  });
+
+  it("senza stato si mostra: nascondere qualcosa che non si sa è peggio", () => {
+    expect(progettoFatturabile(null)).toBe(true);
+    expect(progettoFatturabile(undefined)).toBe(true);
   });
 });

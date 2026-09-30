@@ -13,6 +13,7 @@ import type {
   TipoNota,
 } from "@/types/payments";
 import type { Quotazione, Tranche } from "@/lib/payments/aggregati";
+import { progettoFatturabile } from "@/lib/payments/righeFattura";
 
 /**
  * I dati della sezione Payments.
@@ -372,7 +373,7 @@ export function useTrancheAperte() {
           .from("cert_payment_milestones")
           .select(
             `id, certification_id, name, amount, tranche_state, due_date, step_id,
-             certifications ( name, client, currency, billing_contact_id )`,
+             certifications ( name, client, currency, billing_contact_id, status )`,
           )
           .neq("tranche_state", "invoiced"),
         (supabase as any)
@@ -389,7 +390,13 @@ export function useTrancheAperte() {
         if (d) quando.set(`${m.certification_id}:${m.step_id}`, d);
       }
 
-      return ((tr.data ?? []) as any[]).map((t) => ({
+      // Un progetto cancellato, o un'offerta non ancora approvata, non ha niente
+      // da fatturare: le sue tranche non stanno nel «da emettere» anche quando il
+      // loro stato dice «esigibile». Lo stato della tranche dice cosa è
+      // successo; se si possa fatturare lo dice il progetto.
+      return ((tr.data ?? []) as any[])
+        .filter((t) => progettoFatturabile(t.certifications?.status))
+        .map((t) => ({
         id: t.id,
         certification_id: t.certification_id,
         name: t.name,

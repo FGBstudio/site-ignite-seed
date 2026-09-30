@@ -63,7 +63,7 @@ recall · 7 parziali · 14 clienti fatturati.
 | R6 | Registrare l'incasso: un filtro | **fatta** |
 | R7 | Le note dal foglio di Francesca | **approvata** — si fa da qui, niente pagina |
 | R8 | Vista per cliente | **fatta** |
-| R9 | Credito del cliente da progetto cancellato | **approvata** |
+| R9 | Credito del cliente da progetto cancellato | **fatta** |
 | R10 | Emettere una fattura: dalle tranche o da zero | **fatta** — R10+R11 unite, 57 fatture travasate sulle righe |
 | R12 | Generare il documento — in Word | riscritta sul tuo template e sulle 166 fatture |
 | R13 | Dashboard quotazioni | **approvata** |
@@ -921,6 +921,42 @@ l'automatismo qui deciderebbe uno sconto al posto di una persona, e uno sconto �
 una trattativa. Questo risponde alla domanda aperta — confermi che va bene così?
 
 *Nuovo schema*: una tabella.
+
+---
+
+### Cosa è stato fatto
+
+`crediti_cliente` esiste, con tre stati di chiusura oltre ad «aperto» e **nessuna
+policy di DELETE**: un credito non si cancella, perché cancellarlo perderebbe la
+prova di una promessa fatta a un cliente. Il saldo è una vista.
+
+I tre momenti ci sono tutti. **Alla cancellazione**: scegliere «Cancelled» nello
+stato del progetto non cambia più un campo — apre il dialogo che mostra il conto
+(incassato − consegnato) e chiede se al cliente resta qualcosa. **Mentre vive**:
+una terza lettura del Registro Clienti, e un segnale in ambra accanto al nome del
+cliente nella lista per cliente. **Quando torna utile**: una fascia in cima al
+wizard delle offerte, che si spunta e segna il collegamento al salvataggio —
+l'importo dell'offerta resta quello che scrive Marco.
+
+Due cose sono cambiate rispetto alla proposta, e sono venute dal codice vero.
+
+**Cancellare agisce su tutte le certificazioni che il form ha in mano**, non su
+una: da Operations si cancella il sito con tutti i suoi schemi, ed è quello che il
+salvataggio avrebbe fatto. Ma **il credito è uno** — a pagare è una società, e a
+lei si riconosce una cifra sola.
+
+**Il filtro del «da emettere» era rotto, e non per R9.** Nei dati c'erano due
+tranche di progetti cancellati (3.360 €) e due di una **quotazione non ancora
+approvata** (15.400 €) in attesa di fatturazione: la seconda è una fattura pronta
+per un lavoro che nessuno ci ha commissionato. La prima versione del codice lo
+risolveva riportando quelle tranche a «pending» alla cancellazione — cioè
+riscrivendo un fatto per far sparire una riga da un elenco. Ora è l'elenco che
+guarda anche lo stato del progetto.
+
+**Da sapere**: la proposta di credito legge l'incassato da `v_invoices`, e per i
+progetti storici quel numero è zero anche quando i soldi sono arrivati — le loro
+fatture sono nei 166 Word non ancora importati. Il dialogo lo dice: se sai di un
+acconto che il sistema non vede, il credito si registra comunque.
 
 ---
 

@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import { PAYMENT_SCHEMES, generateTranches, validateCustomTranches, type PaymentSchemeId, type TriggerEvent } from "@/lib/paymentSchemes";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { FasciaCredito } from "@/components/payments/FasciaCredito";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -380,6 +381,14 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId, 
   const [services, setServices] = useState<ServicesState>(emptyServices());
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  /**
+   * I crediti aperti del cliente che si è scelto di tenere in conto.
+   *
+   * La scelta si fa mentre si compila, ma si registra solo al salvataggio:
+   * prima l'offerta non esiste, e un credito «usato su niente» è un credito
+   * sparito.
+   */
+  const [creditiDaUsare, setCreditiDaUsare] = useState<string[]>([]);
   /**
    * La valuta e' dell'OFFERTA, non della singola certificazione: un'offerta
    * unificata su piu' schemi e' un solo documento e un solo importo per il
@@ -928,6 +937,8 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId, 
 
   const handleSave = async () => {
     setSaving(true);
+    /** Le certificazioni nate da questo salvataggio: servono per i crediti. */
+    const certCreate: string[] = [];
     try {
       // 1. Create new site if needed
       let resolvedSiteId = site.siteId;
@@ -1129,6 +1140,8 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId, 
           if (trErr) throw trErr;
         }
 
+        if (insertedCert) certCreate.push(insertedCert.id);
+
         if (useBuilder && builderComputation && insertedCert) {
           await supabase.from("quotation_budget_history" as never).insert({
             certification_id: insertedCert.id,
@@ -1138,6 +1151,33 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId, 
             markup_pct: cert.builder.markup_pct,
             breakdown: { state: cert.builder, computation: builderComputation } as never,
           } as never);
+        }
+      }
+
+      /**
+       * I crediti che si è scelto di tenere in conto passano a «usato», e
+       * puntano a questa offerta.
+       *
+       * Si fa qui e non prima perché prima l'offerta non esisteva: un credito
+       * «usato su niente» è un credito sparito. E non scala l'importo — quello
+       * lo ha scritto chi ha compilato, ed è giusto così: uno sconto è una
+       * trattativa, non una sottrazione automatica.
+       */
+      if (creditiDaUsare.length > 0 && certCreate.length > 0) {
+        for (const creditoId of creditiDaUsare) {
+          const { error } = await (supabase as any).rpc("fn_usa_credito", {
+            p_credito_id: creditoId,
+            p_certification_id: certCreate[0],
+          });
+          // Se il credito non si segna, l'offerta resta salvata: era il gesto
+          // principale. Lo si dice, senza far fallire tutto il resto.
+          if (error) {
+            toast({
+              variant: "destructive",
+              title: "Offerta salvata, credito non segnato",
+              description: error.message,
+            });
+          }
         }
       }
 
@@ -2154,6 +2194,17 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId, 
               : "Create a site and define the certification services to quote. A PM will be assigned after confirmation."}
           </DialogDescription>
         </DialogHeader>
+
+        {/* ── Il credito che questo cliente ha già ────────────────────────────
+            Sta in cima, prima di qualsiasi campo, perché è un'informazione che
+            cambia l'offerta: se la si legge dopo aver scritto il totale, è tardi.
+            Compare solo quando c'è, e non fa niente da sola — tenerne conto è
+            una scelta, e quanto scontare lo scrive chi tratta. */}
+        <FasciaCredito
+          brandId={site.brandId}
+          scelti={creditiDaUsare}
+          onCambia={setCreditiDaUsare}
+        />
 
         <div className="mt-4">
           <StepIndicator />

@@ -102,6 +102,33 @@ export function trancheRipetute(righe: RigaInCorso[]): string[] {
 }
 
 /**
+ * Su quali progetti si può fatturare.
+ *
+ * Non basta che una tranche sia esigibile: deve esserlo il progetto. Due casi
+ * veri nei dati lo dicono — due tranche di progetti **cancellati** stavano in
+ * attesa di fatturazione (3.360 €), e due di una **quotazione non ancora
+ * approvata** (15.400 €). La seconda è la peggiore: una fattura pronta per un
+ * lavoro che nessuno ci ha commissionato.
+ *
+ * Il filtro sta qui e non nello stato della tranche, perché lo stato della
+ * tranche descrive un fatto — l'evento è arrivato o no — e i fatti non si
+ * riscrivono per far sparire una riga da un elenco.
+ */
+const STATI_NON_FATTURABILI = new Set([
+  // Prima dell'approvazione non c'è niente da fatturare: c'è un'offerta.
+  "potential",
+  "quotation",
+  // Dopo la cancellazione non ci sarà più niente da fatturare.
+  "canceled",
+  "cancelled",
+]);
+
+export function progettoFatturabile(status: string | null | undefined): boolean {
+  if (!status) return true; // Senza stato non si sa: meglio mostrarlo che nasconderlo.
+  return !STATI_NON_FATTURABILI.has(status.toLowerCase());
+}
+
+/**
  * «30 giorni fine mese», in giorni.
  *
  * Il database calcola la scadenza come emissione + giorni: non sa cosa sia un

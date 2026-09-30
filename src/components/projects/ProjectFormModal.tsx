@@ -28,6 +28,7 @@ import { useCertCatalog } from "@/hooks/useCertCatalog";
 import { getCertificationTemplate } from "@/data/certificationTemplates";
 import type { Product, Project, ProjectAllocation } from "@/types/custom-tables";
 import { QuotationBudgetBuilder, emptyBuilder } from "@/components/projects/QuotationBudgetBuilder";
+import { DialogoCancellazione } from "@/components/payments/DialogoCancellazione";
 import { CurrencySelect, EurHint } from "@/components/common/Money";
 import { useFxRates } from "@/hooks/useFxRates";
 import { currencySymbol, formatMoney } from "@/lib/currency";
@@ -186,6 +187,8 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
 
   const [selectedHoldingId, setSelectedHoldingId] = useState<string>("");
   const [selectedBrandId, setSelectedBrandId] = useState<string>("");
+  /** Il dialogo che chiede se al cliente resta un credito. */
+  const [cancellazione, setCancellazione] = useState(false);
   const [showNewSite, setShowNewSite] = useState(false);
   const [newSiteName, setNewSiteName] = useState("");
 
@@ -216,6 +219,23 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
 
   const { fields: allocFields, append: appendAlloc, remove: removeAlloc } = useFieldArray({ control: form.control, name: "allocations" });
   const { fields: certFields, append: appendCert, remove: removeCert } = useFieldArray({ control: form.control, name: "certifications" });
+
+  /**
+   * Le certificazioni che questo form ha in mano.
+   *
+   * Sono quelle su cui il salvataggio scriverebbe lo stato: la cancellazione deve
+   * agire esattamente su quelle, né meno — lasciandone una viva — né più. Quando
+   * l'elenco non è ancora caricato resta la certificazione da cui il form è stato
+   * aperto, che c'è sempre.
+   */
+  const certificazioniInModifica = (() => {
+    // `certFields[].id` è l'id che useFieldArray dà alla riga, non quello della
+    // certificazione: si leggono i valori.
+    const caricate = (form.getValues("certifications") ?? [])
+      .map((c) => c.id)
+      .filter((id): id is string => !!id);
+    return [...new Set([...caricate, ...(project?.id ? [project.id] : [])])];
+  })();
 
   const watchedCerts = form.watch("certifications") || [];
 
@@ -760,7 +780,26 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
                     <FormField control={form.control} name="status" render={({ field }) => (
                       <FormItem>
                         <FormLabel>Status</FormLabel>
-                        <Select value={field.value} onValueChange={field.onChange}>
+                        <Select
+                          value={field.value}
+                          onValueChange={(v) => {
+                            /**
+                             * Cancellare non è cambiare uno stato.
+                             *
+                             * Se il cliente ha pagato più di quello che gli è
+                             * stato consegnato, quella differenza è sua, e
+                             * questo è l'unico momento in cui qualcuno se la
+                             * ricorda. Il campo non si muove: la cancellazione
+                             * la esegue il dialogo, con il credito dentro la
+                             * stessa transazione.
+                             */
+                            if (v === "canceled" && mode === "edit" && project?.id) {
+                              setCancellazione(true);
+                              return;
+                            }
+                            field.onChange(v);
+                          }}
+                        >
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue />
@@ -1107,6 +1146,22 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
           </form>
         </Form>
       </DialogContent>
+
+      {/* ── Cancellare non è cambiare uno stato ──────────────────────────────
+          Cancella le certificazioni che questo form stava modificando — le
+          stesse su cui avrebbe scritto «canceled» al salvataggio — e registra,
+          se c'è, il credito che resta al cliente. Poi chiude il form: quello che
+          c'era da salvare è già stato deciso qui. */}
+      <DialogoCancellazione
+        aperto={cancellazione}
+        onChiudi={() => setCancellazione(false)}
+        certificationIds={certificazioniInModifica}
+        nomeProgetto={project?.name ?? null}
+        onCancellato={() => {
+          onOpenChange(false);
+          onSaved();
+        }}
+      />
     </Dialog>
   );
 }
