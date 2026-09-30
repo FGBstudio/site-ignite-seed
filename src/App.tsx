@@ -17,6 +17,7 @@ import NoteCredito from "./pages/payments/NoteCredito";
 import FatturePassive from "./pages/payments/FatturePassive";
 import DaEmettere from "./pages/payments/DaEmettere";
 import Insoluti from "./pages/payments/Insoluti";
+import Followup from "./pages/payments/Followup";
 import DashboardPayments from "./pages/payments/Dashboard";
 import IvaPrevisionale from "./pages/payments/IvaPrevisionale";
 import TasksAlerts from "./pages/payments/TasksAlerts";
@@ -134,6 +135,7 @@ function AppRoutes() {
         <Route path="wbs" element={<WbsCassa />} />
         <Route path="registro" element={<RegistroFatture />} />
         <Route path="da-emettere" element={<DaEmettere />} />
+        <Route path="followup" element={<Followup />} />
         <Route path="recall" element={<Recall />} />
         <Route path="insoluti" element={<Insoluti />} />
         <Route path="clienti" element={<RegistroClienti />} />

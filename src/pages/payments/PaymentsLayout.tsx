@@ -44,6 +44,7 @@ const SCHEDE = [
   { a: "/payments/wbs", nome: "WBS di Cassa" },
   { a: "/payments/registro", nome: "Registro Fatture" },
   { a: "/payments/da-emettere", nome: "Da Emettere", badge: "neutro" as const },
+  { a: "/payments/followup", nome: "Follow-up" },
   { a: "/payments/recall", nome: "Recall", badge: "rosso" as const },
   { a: "/payments/insoluti", nome: "Insoluti", badge: "rosso" as const },
   { a: "/payments/clienti", nome: "Clienti" },
