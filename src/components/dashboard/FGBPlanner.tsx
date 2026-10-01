@@ -1,6 +1,10 @@
 import { useMemo, useState, useRef, useEffect, useCallback } from "react";
 import { format, differenceInDays, addDays, startOfWeek, endOfWeek } from "date-fns";
 import { cn } from "@/lib/utils";
+import { useAppunti } from "@/hooks/useAppunti";
+import { GrigliaSettimane } from "@/components/dashboard/GrigliaSettimane";
+import { altezzaRiga } from "@/lib/appuntiSettimana";
+import { etichettaSettimana, settimaneFra } from "@/lib/settimane";
 import { useNavigate } from "react-router-dom";
 import { Calendar, Clock, Info, Rows3, Table2, GanttChartSquare, ZoomIn, ZoomOut, CalendarDays } from "lucide-react";
 import {
@@ -151,19 +155,35 @@ export function FGBPlanner({ data, dayWidth, defaultView = "split" }: FGBPlanner
     return "day";
   });
 
-  const px = ZOOMS[zoom].dayWidth;
+  /**
+   * In tabella il diagramma non spariva per scelta: non c'era.
+   *
+   * La tabella era un elenco di date scritte in colonna, e il tempo — che è la
+   * cosa di cui parla — si doveva ricostruire a mente leggendo undici celle.
+   * Adesso le barre continuano a destra, graduate a **settimane**: è l'unità in
+   * cui si concordano le consegne, e ogni casella settimanale si clicca per
+   * scriverci quello che va fatto.
+   *
+   * Il giorno resta solo nel diagramma puro, dove un righello di giorni serve
+   * davvero; accanto a undici colonne di date sarebbe un terzo modo di leggere
+   * la stessa cosa.
+   */
+  const soloDiagramma = view === "timeline";
+  const zoomEffettivo: ZoomKey = soloDiagramma ? zoom : zoom === "day" ? "week" : zoom;
+
+  const px = ZOOMS[zoomEffettivo].dayWidth;
   const leftW = LEFT_W[view];
-  const showTimeline = view !== "table";
   const showFullTable = view === "table";
 
   /**
-   * Nella vista tabella la colonna di sinistra E' la pagina, quindi occupa
-   * tutta la larghezza invece di fermarsi alla sua misura e lasciare mezzo
-   * schermo vuoto; sotto la larghezza minima si scorre in orizzontale.
+   * La colonna di sinistra ha una misura sua in tutte le viste.
+   *
+   * Prima in tabella occupava il 100%: era giusto finché a destra non c'era
+   * niente, ed è diventato sbagliato quando il diagramma ha cominciato a seguire
+   * anche lì — una colonna larga quanto il contenitore spingeva le barre fuori
+   * schermo e non lasciava mai vedere le due cose insieme.
    */
-  const leftStyle: React.CSSProperties = showTimeline
-    ? { width: leftW }
-    : { width: "100%", minWidth: LEFT_W.table };
+  const leftStyle: React.CSSProperties = { width: leftW };
 
   const { minDate, totalDays } = useMemo(() => {
     let min = new Date("2099-01-01");
@@ -232,9 +252,61 @@ export function FGBPlanner({ data, dayWidth, defaultView = "split" }: FGBPlanner
     return { monthBands: months, yearBands: years, weekTicks: weeks };
   }, [days]);
 
+  /**
+   * Le settimane dell'asse, con il loro numero ISO.
+   *
+   * «La W40» è l'unità in cui si parla di consegne: una scala in giorni
+   * costringeva a scorrere trecentosessantacinque colonne per attraversare un
+   * progetto, e nessuno ragiona per giorni su quella distanza.
+   */
+  const settimane = useMemo(
+    () =>
+      settimaneFra(
+        minDate.toISOString().slice(0, 10),
+        addDays(minDate, totalDays).toISOString().slice(0, 10),
+        minDate.toISOString().slice(0, 10),
+      ),
+    [minDate, totalDays],
+  );
+
   const today = new Date();
   const todayOffset = differenceInDays(today, minDate);
   const timelineW = totalDays * px;
+
+  /**
+   * Gli appunti dei progetti che si stanno guardando, e l'altezza che danno alla
+   * loro riga.
+   *
+   * La riga di riepilogo non è un progetto e non ha appunti: il suo id non è una
+   * certificazione, e chiederli per lei vorrebbe dire chiedere per un uuid che
+   * non esiste.
+   */
+  const certIds = useMemo(
+    () => data.map((r) => r.id).filter((id) => id && id !== "summary"),
+    [data],
+  );
+  const { data: appunti = [] } = useAppunti(certIds);
+
+  const appuntiPerProgetto = useMemo(() => {
+    const m = new Map<string, typeof appunti>();
+    for (const a of appunti) {
+      if (!m.has(a.certification_id)) m.set(a.certification_id, []);
+      m.get(a.certification_id)!.push(a);
+    }
+    return m;
+  }, [appunti]);
+
+  /**
+   * Quanto è alta ciascuna riga.
+   *
+   * Solo dove la griglia è accesa: nelle altre viste gli appunti non si vedono, e
+   * una riga alta tre volte tanto senza niente dentro sarebbe spazio sprecato.
+   */
+  const grigliaAccesa = zoomEffettivo === "week";
+  const altezzaDi = (row: GanttRowData) =>
+    grigliaAccesa && row.id !== "summary"
+      ? altezzaRiga(appuntiPerProgetto.get(row.id) ?? [])
+      : ROW_H;
 
   /** Porta la vista su oggi, lasciandolo a un terzo dello schermo. */
   const scrollToToday = useCallback(() => {
@@ -253,7 +325,7 @@ export function FGBPlanner({ data, dayWidth, defaultView = "split" }: FGBPlanner
     const target = leftW + todayOffset * px - (el.clientWidth - leftW) / 3;
     el.scrollTo({ left: Math.max(0, target), behavior: "auto" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [zoom, view]);
+  }, [zoomEffettivo, view]);
 
   const fmt = (d: Date | string | null | undefined) => {
     if (!d) return "—";
@@ -324,20 +396,22 @@ export function FGBPlanner({ data, dayWidth, defaultView = "split" }: FGBPlanner
           ))}
         </div>
 
-        {showTimeline && (
+        {(
           <>
             <div className="inline-flex items-center gap-1">
               <ZoomOut className="h-3.5 w-3.5 text-muted-foreground" />
               <div className="inline-flex rounded-lg border bg-background p-0.5">
-                {(Object.keys(ZOOMS) as ZoomKey[]).map((k) => (
+                {(Object.keys(ZOOMS) as ZoomKey[])
+                  .filter((k) => k !== "day" || soloDiagramma)
+                  .map((k) => (
                   <button
                     key={k}
                     type="button"
                     onClick={() => setZoom(k)}
-                    aria-pressed={zoom === k}
+                    aria-pressed={zoomEffettivo === k}
                     className={cn(
                       "px-2.5 h-7 rounded-md text-xs font-medium transition-colors",
-                      zoom === k
+                      zoomEffettivo === k
                         ? "bg-primary/10 text-primary"
                         : "text-muted-foreground hover:text-foreground hover:bg-muted",
                     )}
@@ -376,7 +450,7 @@ export function FGBPlanner({ data, dayWidth, defaultView = "split" }: FGBPlanner
           </>
         )}
 
-        <span className={cn("text-[11px] text-muted-foreground tabular-nums", showTimeline ? "" : "ml-auto")}>
+        <span className="text-[11px] text-muted-foreground tabular-nums">
           {data.length} {data.length === 1 ? "riga" : "righe"}
         </span>
       </div>
@@ -387,7 +461,7 @@ export function FGBPlanner({ data, dayWidth, defaultView = "split" }: FGBPlanner
           separati con lo scorrimento verticale sincronizzato a mano, e bastava
           un attimo perche' le righe si disallineassero dalle barre. */}
       <div ref={scrollRef} className="flex-1 overflow-auto custom-scrollbar relative">
-        <div style={{ width: showTimeline ? leftW + timelineW : "100%", minWidth: showTimeline ? undefined : LEFT_W.table }}>
+        <div style={{ width: leftW + timelineW }}>
 
           {/* Intestazione */}
           <div className="sticky top-0 z-30 flex h-11 bg-background border-b shadow-sm">
@@ -418,11 +492,11 @@ export function FGBPlanner({ data, dayWidth, defaultView = "split" }: FGBPlanner
               </div>
             )}
 
-            {showTimeline && (
+            {(
               <div className="relative shrink-0" style={{ width: timelineW }}>
                 {/* Fascia alta: mesi, oppure anni quando si guarda largo. */}
                 <div className="absolute top-0 left-0 h-5 flex">
-                  {(zoom === "month" ? yearBands : monthBands).map((b) => (
+                  {(zoomEffettivo === "month" ? yearBands : monthBands).map((b) => (
                     <div
                       key={b.key}
                       className="h-5 flex items-center border-l border-border/60 px-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground overflow-hidden whitespace-nowrap"
@@ -434,7 +508,29 @@ export function FGBPlanner({ data, dayWidth, defaultView = "split" }: FGBPlanner
                 </div>
                 {/* Fascia bassa: i giorni, oppure i mesi quando si guarda largo. */}
                 <div className="absolute bottom-0 left-0 h-6 flex">
-                  {zoom === "day"
+                  {zoomEffettivo === "week" ? (
+                    /* ── Le settimane, col loro numero ─────────────────────────
+                       Prima questa fascia mostrava i mesi anche a questo zoom, e
+                       il livello si chiamava «Settimana» senza che una settimana
+                       si vedesse da nessuna parte. */
+                    <>
+                      {settimane.map((w) => (
+                        <div
+                          key={w.chiave}
+                          className={cn(
+                            "absolute flex h-6 items-center justify-center border-l border-border/40 text-[9.5px] tabular-nums",
+                            todayOffset >= w.offset && todayOffset < w.offset + 7
+                              ? "bg-primary/15 font-bold text-primary"
+                              : "text-muted-foreground",
+                          )}
+                          style={{ left: w.offset * px, width: px * 7 }}
+                          title={`${w.inizio} → ${w.fine}`}
+                        >
+                          {px * 7 > 26 ? etichettaSettimana(w, minDate.getFullYear()) : ""}
+                        </div>
+                      ))}
+                    </>
+                  ) : zoomEffettivo === "day"
                     ? days.map((d, i) => {
                         const weekend = d.getDay() === 0 || d.getDay() === 6;
                         return (
@@ -469,15 +565,15 @@ export function FGBPlanner({ data, dayWidth, defaultView = "split" }: FGBPlanner
           <div className="relative">
             {/* Sfondo del calendario: fine settimana e stacchi di mese. Al
                 livello "giorno" una riga per giorno; sopra sarebbe rumore. */}
-            {showTimeline && (
+            {(
               <div className="absolute inset-y-0 pointer-events-none" style={{ left: leftW, width: timelineW }}>
-                {zoom === "day" &&
+                {zoomEffettivo === "day" &&
                   days.map((d, i) =>
                     d.getDay() === 0 || d.getDay() === 6 ? (
                       <div key={i} className="absolute inset-y-0 bg-muted/40" style={{ left: i * px, width: px }} />
                     ) : null,
                   )}
-                {(zoom === "week" ? weekTicks.map((o) => ({ offset: o })) : monthBands).map((b, i) => (
+                {(zoomEffettivo === "week" ? weekTicks.map((o) => ({ offset: o })) : monthBands).map((b, i) => (
                   <div key={i} className="absolute inset-y-0 border-l border-border/40" style={{ left: b.offset * px }} />
                 ))}
               </div>
@@ -493,7 +589,7 @@ export function FGBPlanner({ data, dayWidth, defaultView = "split" }: FGBPlanner
                 <div
                   key={row.id}
                   className={cn("flex border-b group transition-colors hover:bg-muted/40", rowTint(row))}
-                  style={{ height: ROW_H }}
+                  style={{ height: altezzaDi(row) }}
                 >
                   {/* Colonna di sinistra, appiccicata */}
                   {/* Lo sfondo pieno serve: la colonna resta ferma mentre le
@@ -536,8 +632,22 @@ export function FGBPlanner({ data, dayWidth, defaultView = "split" }: FGBPlanner
                   )}
 
                   {/* Barre */}
-                  {showTimeline && (
+                  {(
                     <div className="relative shrink-0" style={{ width: timelineW }}>
+                      {/* ── Le caselle della settimana ───────────────────────
+                          Stanno sotto le barre nell'ordine di disegno ma sopra
+                          lo sfondo: cliccare sulla barra apre il progetto come
+                          prima, cliccare nella fascia sotto scrive un appunto. */}
+                      {grigliaAccesa && row.id !== "summary" && (
+                        <GrigliaSettimane
+                          certificationId={row.id}
+                          settimane={settimane}
+                          px={px}
+                          appunti={appuntiPerProgetto.get(row.id) ?? []}
+                          larghezza={timelineW}
+                          modificabile
+                        />
+                      )}
                       {row.segments && row.segments.length > 0
                         ? row.segments.map((seg, idx) => (
                             <SegmentBar
@@ -593,7 +703,7 @@ export function FGBPlanner({ data, dayWidth, defaultView = "split" }: FGBPlanner
             {/* La linea di oggi, sopra a tutto. Prima era una colonna colorata
                 al 30% di opacita' dentro un contenitore al 20%: praticamente
                 invisibile. */}
-            {showTimeline && todayOffset >= 0 && todayOffset <= totalDays && (
+            {todayOffset >= 0 && todayOffset <= totalDays && (
               <div
                 className="absolute top-0 bottom-0 z-10 pointer-events-none border-l-2"
                 style={{ left: leftW + todayOffset * px, borderColor: COLOR_ALARM }}
@@ -696,7 +806,10 @@ function RowCells({
   const identita = parte !== "resto";
   const resto = parte !== "identita";
   return (
-    <div className="relative z-10 flex items-center w-full">
+    /* L'altezza fissa tiene le etichette nella fascia della barra: una riga che
+       cresce per gli appunti non deve portarsi il nome del progetto al centro,
+       lontano dalla barra a cui appartiene. */
+    <div className="relative z-10 flex items-center w-full self-start" style={{ height: ROW_H }}>
       {identita && view !== "timeline" && (
         <>
           <div className={cn(COL, "w-[128px] min-w-0")}>
