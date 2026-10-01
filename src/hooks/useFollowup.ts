@@ -36,6 +36,15 @@ export interface FollowupFattura {
   data_incasso_attesa_fonte: string | null;
   /** `YYYY-MM`. Nullo quando nessuno ha promesso niente: è il filtro stesso. */
   mese_previsto: string | null;
+  /**
+   * Vero quando il mese viene da una promessa del cliente, falso quando viene
+   * dalla scadenza.
+   *
+   * Le due specie di riga cadono nello stesso mese e non valgono la stessa cosa:
+   * il totale del prospetto si legge in riunione, e un totale unico spaccerebbe
+   * per cassa promessa quella che nessuno ha promesso.
+   */
+  mese_da_promessa: boolean;
   in_recall: boolean;
   primo_sollecito: string | null;
   giorni_in_recall: number | null;

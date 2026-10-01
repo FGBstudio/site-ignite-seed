@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  dividiPerOrigine,
   meseDi, meseCorrente, meseVicino, meseEsteso, ultimoGiornoDelMese,
   previsionaleDelMese, definitivoDelMese, mesiDisponibili, somma,
 } from "./followup";
@@ -111,5 +112,35 @@ describe("i mesi su cui spostarsi", () => {
   it("sono quelli che esistono, dal più recente, senza doppioni", () => {
     expect(mesiDisponibili(["2026-09", null, "2026-10", "2026-09", undefined]))
       .toEqual(["2026-10", "2026-09"]);
+  });
+});
+
+describe("dividiPerOrigine", () => {
+  const r = (mese_da_promessa: boolean | undefined, residual: number) => ({
+    mese_previsto: "2026-10",
+    mese_da_promessa,
+    imponibile: residual,
+    vat_amount: 0,
+    residual,
+  });
+
+  it("separa quello che il cliente ha promesso da quello che solo scade", () => {
+    const { promesse, attese } = dividiPerOrigine([r(true, 100), r(false, 200), r(true, 50)]);
+    expect(promesse.map((x) => x.residual)).toEqual([100, 50]);
+    expect(attese.map((x) => x.residual)).toEqual([200]);
+  });
+
+  it("senza il campo la riga non è una promessa", () => {
+    // Le fatture vecchie non hanno l'informazione: trattarle come promesse
+    // gonfierebbe il totale di cui si risponde al titolare.
+    const { promesse, attese } = dividiPerOrigine([r(undefined, 300)]);
+    expect(promesse).toHaveLength(0);
+    expect(attese).toHaveLength(1);
+  });
+
+  it("nessuna riga: due elenchi vuoti, non un errore", () => {
+    const { promesse, attese } = dividiPerOrigine([]);
+    expect(promesse).toEqual([]);
+    expect(attese).toEqual([]);
   });
 });

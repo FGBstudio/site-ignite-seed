@@ -7,17 +7,19 @@ import { useFollowupPrevisionale, useFollowupDefinitivo } from "@/hooks/useFollo
 import { Money } from "@/components/payments/Comuni";
 import { decimaliUtili } from "@/lib/payments/aggregati";
 import {
-  definitivoDelMese, meseCorrente, meseEsteso, meseVicino, previsionaleDelMese, somma,
+  definitivoDelMese, dividiPerOrigine, meseCorrente, meseEsteso, meseVicino,
+  mesiDisponibili, previsionaleDelMese, somma,
 } from "@/lib/payments/followup";
 
 /**
  * Follow-up — il prospetto che si consegna ogni venerdì.
  *
- * Due letture dello stesso mese. Il **previsionale** guarda le fatture, e il
- * mese lo decide la promessa del cliente: una fattura di cui nessuno ha detto
- * niente non compare, perché metterla vorrebbe dire annunciare cassa che
- * nessuno ha promesso. Il **definitivo** guarda gli incassi, e il mese lo
- * decide il bonifico.
+ * Due letture dello stesso mese. Il **previsionale** guarda le fatture: il mese
+ * è quello della scadenza finché nessuno dice altro, e diventa quello della
+ * promessa quando il cliente dice quando pagherà. Le due specie restano
+ * distinte e hanno due totali separati — un totale unico spaccerebbe per cassa
+ * promessa quella che nessuno ha promesso. Il **definitivo** guarda gli
+ * incassi, e il mese lo decide il bonifico.
  *
  * Nel foglio a mano il totale di settembre era `=SUM(...)−7500`: una fattura
  * slittata a ottobre, sottratta di qua e riscritta di là. Qui la riga si sposta
@@ -48,6 +50,34 @@ export default function Followup() {
   const totale = previsionale
     ? somma(righeP, (r) => r.imponibile)
     : somma(righeD, (r) => r.incassato);
+
+  /**
+   * Le due specie di riga del previsionale, e i loro totali.
+   *
+   * Una promessa del cliente e una semplice scadenza finiscono nello stesso mese
+   * e non valgono la stessa cosa: il totale si legge in riunione, e deve dire
+   * quale parte è stata promessa da qualcuno.
+   */
+  const { promesse, attese } = useMemo(() => dividiPerOrigine(righeP), [righeP]);
+  const totalePromesso = somma(promesse, (r) => r.imponibile);
+  const totaleAtteso = somma(attese, (r) => r.imponibile);
+
+  /**
+   * I mesi che hanno righe, per non lasciare la pagina in un vicolo chiuso.
+   *
+   * Il prospetto si apre sul mese corrente, e se quel mese è vuoto non c'è
+   * niente che dica dove guardare: si cambia mese a tentoni e dopo due tentativi
+   * si torna all'Excel.
+   */
+  const mesiPieni = useMemo(
+    () =>
+      mesiDisponibili(
+        previsionale
+          ? fatture.filter((r) => !entita || r.entity_code === entita).map((r) => r.mese_previsto)
+          : incassi.filter((r) => !entita || r.entity_code === entita).map((r) => r.mese_incasso),
+      ).filter((m) => m !== mese),
+    [previsionale, fatture, incassi, entita, mese],
+  );
 
   /** Lo stesso foglio, nello stesso ordine: si consegna senza ricopiare niente. */
   const esporta = () => {
@@ -87,7 +117,7 @@ export default function Followup() {
           <h1 className="titolo text-lg">Follow-up</h1>
           <p className="mt-1 text-[12px]" style={{ color: "var(--muted)" }}>
             {previsionale
-              ? "Quello che mi aspetto di incassare: ci sono solo le fatture per cui il cliente ha detto quando"
+              ? "Quello che mi aspetto di incassare: nel mese della scadenza, o in quello che il cliente ha promesso"
               : "Quello che è entrato davvero: una riga per incasso, nel mese in cui è arrivato il bonifico"}
           </p>
         </div>
@@ -190,9 +220,41 @@ export default function Followup() {
             {!carica && vuoto && (
               <tr>
                 <td colSpan={10} className="p-10 text-center" style={{ color: "var(--muted)" }}>
-                  {previsionale
-                    ? "Nessuna fattura attesa in questo mese. Compaiono qui quando registri cosa ti ha detto il cliente — nel Registro, sulla riga della fattura."
-                    : "Nessun incasso registrato in questo mese."}
+                  <p className="text-[12.5px]">
+                    {previsionale
+                      ? "Nessuna fattura attesa in questo mese."
+                      : "Nessun incasso registrato in questo mese."}
+                  </p>
+                  {/* ── Dove sono i dati ─────────────────────────────────────
+                      Un prospetto che si apre vuoto e non dice dove guardare è
+                      un vicolo chiuso: si prova a cambiare mese a tentoni, e
+                      dopo due tentativi si torna all'Excel. I mesi che hanno
+                      righe li sappiamo — tanto vale dirli. */}
+                  {mesiPieni.length > 0 && (
+                    <p className="mt-3 text-[11.5px]">
+                      Righe ci sono in{" "}
+                      {mesiPieni.slice(0, 6).map((m, i) => (
+                        <span key={m}>
+                          {i > 0 && " · "}
+                          <button
+                            type="button"
+                            onClick={() => setMese(m)}
+                            className="underline"
+                            style={{ color: "var(--teal)" }}
+                          >
+                            {meseEsteso(m)}
+                          </button>
+                        </span>
+                      ))}
+                      {mesiPieni.length > 6 && ` e altri ${mesiPieni.length - 6} mesi`}.
+                    </p>
+                  )}
+                  {previsionale && mesiPieni.length === 0 && (
+                    <p className="mt-3 text-[11.5px]">
+                      Nessuna fattura aperta, in nessun mese: o è tutto incassato, o le fatture
+                      non sono ancora state caricate.
+                    </p>
+                  )}
                 </td>
               </tr>
             )}
@@ -219,11 +281,25 @@ export default function Followup() {
                   <td className="num text-right" style={{ color: "var(--muted)" }}>
                     {r.giorni_in_recall ?? "—"}
                   </td>
+                  {/* La data, e di che specie è. Senza promessa resta la
+                      scadenza, scritta in ambra: è un'attesa nostra, non una
+                      parola del cliente. */}
                   <td className="num">
-                    {d(r.data_incasso_attesa)}
-                    {r.data_incasso_attesa_fonte === "bonifico_disposto" && (
-                      <span className="ml-1 text-[10px]" style={{ color: "var(--faint)" }}>
-                        bonifico
+                    {r.mese_da_promessa ? (
+                      <>
+                        {d(r.data_incasso_attesa)}
+                        {r.data_incasso_attesa_fonte === "bonifico_disposto" && (
+                          <span className="ml-1 text-[10px]" style={{ color: "var(--faint)" }}>
+                            bonifico
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      <span style={{ color: "var(--amber)" }}>
+                        {d(r.due_date)}
+                        <span className="ml-1 text-[10px]" style={{ color: "var(--faint)" }}>
+                          scadenza
+                        </span>
                       </span>
                     )}
                   </td>
@@ -281,9 +357,32 @@ export default function Followup() {
               {previsionale ? righeP.length : righeD.length}{" "}
               {previsionale ? "fatture attese" : "incassi"} · {meseEsteso(mese)}
             </span>
-            <span className="num text-[13px] font-semibold" style={{ color: "var(--ink)" }}>
-              {previsionale ? "Atteso" : "Entrato"}{" "}
-              <Money valore={totale} valuta={valuta} decimali={decimaliUtili(totale)} />
+            {/* ── Due totali, non uno ───────────────────────────────────────
+                «Il cliente ha detto che paga il 30» e «scade il 30» cadono nello
+                stesso mese e non valgono la stessa cosa. Un totale unico
+                spaccerebbe per cassa promessa quella che nessuno ha promesso —
+                ed è il numero che poi si porta in riunione. */}
+            <span className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+              {previsionale && promesse.length > 0 && (
+                <span className="num text-[12px]">
+                  Promesso{" "}
+                  <b style={{ color: "var(--green)" }}>
+                    <Money valore={totalePromesso} valuta={valuta} decimali={decimaliUtili(totalePromesso)} />
+                  </b>
+                </span>
+              )}
+              {previsionale && attese.length > 0 && (
+                <span className="num text-[12px]">
+                  Solo in scadenza{" "}
+                  <b style={{ color: "var(--amber)" }}>
+                    <Money valore={totaleAtteso} valuta={valuta} decimali={decimaliUtili(totaleAtteso)} />
+                  </b>
+                </span>
+              )}
+              <span className="num text-[13px] font-semibold" style={{ color: "var(--ink)" }}>
+                {previsionale ? "In tutto" : "Entrato"}{" "}
+                <Money valore={totale} valuta={valuta} decimali={decimaliUtili(totale)} />
+              </span>
             </span>
           </div>
         )}
@@ -291,9 +390,9 @@ export default function Followup() {
 
       {previsionale && (
         <p className="text-[11px]" style={{ color: "var(--muted)" }}>
-          Una fattura entra in questo prospetto quando il cliente dice <b>quando</b> pagherà: si
-          registra nel Registro, aprendo la riga della fattura. Se la promessa cambia mese, la riga
-          si sposta da sola.
+          Le fatture cadono nel mese della loro <b>scadenza</b> finché nessuno dice altro. Quando il
+          cliente dice <b>quando</b> pagherà — si registra nel Registro, aprendo la riga della
+          fattura — la riga si sposta da sola nel mese giusto e passa fra il «promesso».
         </p>
       )}
     </div>

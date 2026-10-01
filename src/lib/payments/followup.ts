@@ -51,6 +51,8 @@ export function ultimoGiornoDelMese(mese: string): string {
 
 export interface RigaPrevisionale {
   mese_previsto: string | null;
+  /** Vero quando il mese viene da una promessa del cliente, non dalla scadenza. */
+  mese_da_promessa?: boolean;
   entity_code?: string | null;
   imponibile: number;
   vat_amount: number;
@@ -60,9 +62,19 @@ export interface RigaPrevisionale {
 /**
  * Le righe del previsionale per un mese.
  *
- * Solo quelle con una promessa: una fattura di cui il cliente non ha detto
- * niente non compare, perche' metterla vorrebbe dire annunciare una cassa che
- * nessuno ha promesso. E' la regola che Francesca ha posto, ed e' qui che vive.
+ * Il mese arriva già deciso dalla vista: dalla promessa del cliente quando c'è,
+ * dalla scadenza quando no.
+ *
+ * La prima versione teneva **solo** le righe con una promessa — era la regola
+ * che Francesca aveva posto, e il ragionamento era giusto: annunciare una cassa
+ * che nessuno ha promesso è peggio che non annunciarla. Ma di promesse
+ * registrate ce n'erano zero, e il prospetto restava bianco in ogni mese: un
+ * foglio del venerdì che non si può consegnare.
+ *
+ * Quindi compaiono tutte, e `mese_da_promessa` dice di che specie sono: la
+ * pagina separa i due totali invece di nascondere metà delle righe. Il rischio
+ * che la regola voleva evitare si evita dicendo che tipo di riga è, non
+ * togliendola.
  */
 export function previsionaleDelMese<T extends RigaPrevisionale>(
   righe: T[],
@@ -101,4 +113,19 @@ export function mesiDisponibili(mesi: Array<string | null | undefined>): string[
 /** Somma una colonna. Separata perche' i totali del foglio sono il suo scopo. */
 export function somma<T>(righe: T[], quale: (r: T) => number): number {
   return righe.reduce((s, r) => s + (Number(quale(r)) || 0), 0);
+}
+
+/**
+ * Le due specie di riga del previsionale.
+ *
+ * «Il cliente ha detto che paga il 30» e «scade il 30» finiscono nello stesso
+ * mese e non valgono la stessa cosa. Sommarle in un totale unico farebbe
+ * passare per cassa promessa quella che nessuno ha promesso — che è esattamente
+ * l'errore che il prospetto serve a non fare.
+ */
+export function dividiPerOrigine<T extends RigaPrevisionale>(righe: T[]) {
+  return {
+    promesse: righe.filter((r) => r.mese_da_promessa === true),
+    attese: righe.filter((r) => r.mese_da_promessa !== true),
+  };
 }
