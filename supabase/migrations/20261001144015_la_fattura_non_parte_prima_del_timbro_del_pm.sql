@@ -1,0 +1,26 @@
+-- ═══════════════════════════════════════════════════════════════════════════
+-- La fattura non parte prima del timbro del PM
+--
+-- Oggi la catena è tutta automatica: si chiude una milestone con un `step_id`,
+-- la tranche agganciata passa a «esigibile» e **nello stesso istante** parte
+-- l'avviso a Payments, che emette.
+--
+-- Funziona finché la milestone si chiude perché il lavoro è fatto davvero. Ma la
+-- milestone si chiude anche per scorrimento del tempo e per come è compilata la
+-- timeline — e se la data era stata spostata in avanti e il PM non l'ha
+-- aggiornata, la fattura arriva al cliente prima del lavoro. È il caso che fa
+-- arrabbiare il cliente, ed è un caso in cui nessuno ha sbagliato a mano:
+-- l'automatismo ha fatto esattamente quello che gli era stato detto.
+--
+-- Fra «il sistema pensa che sia fatta» e «Payments emette» entra una persona. La
+-- tranche **non** passa a esigibile: resta `pending`, che è la verità — l'evento
+-- non è confermato. Si apre invece un avviso per il PM, e solo la sua conferma
+-- porta la tranche a esigibile e apre l'avviso a Payments.
+--
+-- Il concetto nuovo è una **conferma in attesa**, e il suo posto sono gli avvisi,
+-- non lo stato del denaro: `tranche_state` continua a dire solo «previsto»,
+-- «esigibile», «fatturata», e nessuna delle viste costruite su di lui cambia
+-- significato.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+alter type public.task_alert_type add value if not exists 'milestone_da_confermare';

@@ -13,6 +13,7 @@ import { AlertTriangle, ArrowRight, Bell, Building2, CalendarIcon, CheckCircle2,
 import { PMCalendar } from "@/components/dashboard/PMCalendar";
 import { useFinancialAlerts } from "@/hooks/useFinancialAlerts";
 import { SettimanaPM } from "@/components/dashboard/SettimanaPM";
+import { ConfermeMilestone } from "@/components/dashboard/ConfermeMilestone";
 
 
 type PMProjectView = PMProject & { project_subtype?: string | null };
@@ -122,6 +123,10 @@ export default function PMPortal() {
               sotto dicono quanti progetti ci sono e in che stato — vero, ma non
               cambia da un giorno all'altro.
           ========================================= */}
+          {/* Il timbro viene prima di tutto: è la cosa che, se non si fa,
+              manda al cliente una fattura per un lavoro non finito. */}
+          <ConfermeMilestone pmId={user?.id} />
+
           <SettimanaPM pmId={user?.id} />
 
           {/* =========================================
