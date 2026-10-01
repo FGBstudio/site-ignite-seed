@@ -82,6 +82,20 @@ const ROW_H = 40;
 const BAR_H = 16;
 const BAR_TOP = (ROW_H - BAR_H) / 2;
 
+/**
+ * Quanto è larga la parte **ferma** della riga: chi è questo progetto.
+ *
+ * In modalità tabella la colonna di sinistra occupava tutta la pagina, e
+ * `sticky left-0` su un elemento larga quanto il contenitore non blocca niente:
+ * si scorreva in orizzontale per raggiungere le colonne delle date e il nome del
+ * progetto se ne andava con loro. Dopo tre colonne non si sapeva più di chi
+ * fosse la riga che si stava leggendo.
+ *
+ * Cliente, città e progetto sono le tre cose che insieme identificano una
+ * commessa: restano ferme, e scorre tutto il resto.
+ */
+const IDENT_W = 372;
+
 /** Quanto e' larga la colonna di sinistra in ciascuna vista. */
 const LEFT_W: Record<PlannerView, number> = {
   // Nel diagramma resta solo il nome: un Gantt senza etichette di riga non si
@@ -377,12 +391,32 @@ export function FGBPlanner({ data, dayWidth, defaultView = "split" }: FGBPlanner
 
           {/* Intestazione */}
           <div className="sticky top-0 z-30 flex h-11 bg-background border-b shadow-sm">
-            <div
-              className="sticky left-0 z-40 flex items-center bg-background border-r shrink-0"
-              style={leftStyle}
-            >
-              <HeaderCells full={showFullTable} view={view} />
-            </div>
+            {/* ── In tabella l'identità si stacca dal resto ──────────────────
+                Cliente, città e progetto restano fermi a sinistra; stato,
+                consegna e le otto colonne di date scorrono. Prima era un unico
+                blocco larga quanto la pagina, e `sticky left-0` su quello non
+                blocca niente: si scorreva per arrivare alle date e il nome del
+                progetto se ne andava con loro. */}
+            {showFullTable ? (
+              <>
+                <div
+                  className="sticky left-0 z-40 flex items-center bg-background border-r shrink-0"
+                  style={{ width: IDENT_W }}
+                >
+                  <HeaderCells full={showFullTable} view={view} parte="identita" />
+                </div>
+                <div className="flex items-center shrink-0" style={{ width: LEFT_W.table - IDENT_W }}>
+                  <HeaderCells full={showFullTable} view={view} parte="resto" />
+                </div>
+              </>
+            ) : (
+              <div
+                className="sticky left-0 z-40 flex items-center bg-background border-r shrink-0"
+                style={leftStyle}
+              >
+                <HeaderCells full={showFullTable} view={view} />
+              </div>
+            )}
 
             {showTimeline && (
               <div className="relative shrink-0" style={{ width: timelineW }}>
@@ -466,17 +500,40 @@ export function FGBPlanner({ data, dayWidth, defaultView = "split" }: FGBPlanner
                       barre le scorrono sotto, e una tinta trasparente le
                       lascerebbe passare attraverso il testo. La tinta della
                       riga si sovrappone come strato separato. */}
-                  <div
-                    className={cn(
-                      "sticky left-0 z-20 flex items-center border-r shrink-0 bg-background relative",
-                      isClickable && "cursor-pointer",
-                    )}
-                    style={{ ...leftStyle, borderLeft: `3px solid ${rowAccent(row)}` }}
-                    onClick={isClickable ? go : undefined}
-                  >
-                    <div className={cn("absolute inset-0 pointer-events-none group-hover:bg-muted/40", rowTint(row))} />
-                    <RowCells row={row} full={showFullTable} view={view} fmt={fmt} />
-                  </div>
+                  {showFullTable ? (
+                    <>
+                      <div
+                        className={cn(
+                          "sticky left-0 z-20 flex items-center border-r shrink-0 bg-background relative",
+                          isClickable && "cursor-pointer",
+                        )}
+                        style={{ width: IDENT_W, borderLeft: `3px solid ${rowAccent(row)}` }}
+                        onClick={isClickable ? go : undefined}
+                      >
+                        <div className={cn("absolute inset-0 pointer-events-none group-hover:bg-muted/40", rowTint(row))} />
+                        <RowCells row={row} full={showFullTable} view={view} fmt={fmt} parte="identita" />
+                      </div>
+                      <div
+                        className={cn("flex items-center shrink-0 relative", isClickable && "cursor-pointer")}
+                        style={{ width: LEFT_W.table - IDENT_W }}
+                        onClick={isClickable ? go : undefined}
+                      >
+                        <RowCells row={row} full={showFullTable} view={view} fmt={fmt} parte="resto" />
+                      </div>
+                    </>
+                  ) : (
+                    <div
+                      className={cn(
+                        "sticky left-0 z-20 flex items-center border-r shrink-0 bg-background relative",
+                        isClickable && "cursor-pointer",
+                      )}
+                      style={{ ...leftStyle, borderLeft: `3px solid ${rowAccent(row)}` }}
+                      onClick={isClickable ? go : undefined}
+                    >
+                      <div className={cn("absolute inset-0 pointer-events-none group-hover:bg-muted/40", rowTint(row))} />
+                      <RowCells row={row} full={showFullTable} view={view} fmt={fmt} />
+                    </div>
+                  )}
 
                   {/* Barre */}
                   {showTimeline && (
@@ -567,27 +624,47 @@ export function FGBPlanner({ data, dayWidth, defaultView = "split" }: FGBPlanner
 
 const COL = "shrink-0 px-2 text-[11px]";
 
-function HeaderCells({ full, view }: { full: boolean; view: PlannerView }) {
+/**
+ * Quale pezzo della riga si sta disegnando.
+ *
+ * `identita` sono cliente, città e progetto — la parte che resta ferma. `resto`
+ * sono stato, consegna, avanzamento e le date, che scorrono. `tutto` è il
+ * comportamento delle altre due viste, dove la colonna di sinistra ha una misura
+ * sua e non c'è niente da separare.
+ */
+type Parte = "identita" | "resto" | "tutto";
+
+function HeaderCells({
+  full,
+  view,
+  parte = "tutto",
+}: {
+  full: boolean;
+  view: PlannerView;
+  parte?: Parte;
+}) {
+  const identita = parte !== "resto";
+  const resto = parte !== "identita";
   return (
     <div className="flex items-center w-full font-semibold text-[10px] text-muted-foreground uppercase tracking-wide">
       {/* Cliente e città accanto al progetto, come nella vista admin: sono le
           tre cose che insieme identificano una commessa. Nel solo diagramma
           restano fuori — lì lo spazio serve alle barre. */}
-      {view !== "timeline" && (
+      {identita && view !== "timeline" && (
         <>
           <div className={cn(COL, "w-[128px]")}>Client</div>
           <div className={cn(COL, "w-[112px]")}>Città</div>
         </>
       )}
-      <div className={cn(COL, "flex-1 min-w-0")}>Progetto</div>
-      {view !== "timeline" && (
+      {identita && <div className={cn(COL, "flex-1 min-w-0")}>Progetto</div>}
+      {resto && view !== "timeline" && (
         <>
           <div className={cn(COL, "w-[104px]")}>Stato</div>
           <div className={cn(COL, "w-[74px]")}>Consegna</div>
           <div className={cn(COL, "w-[52px] text-right")}>%</div>
         </>
       )}
-      {full && (
+      {resto && full && (
         <>
           <div className={cn(COL, "w-[70px] border-l")}>Avvio</div>
           <div className={cn(COL, "w-[70px]")} style={{ color: PHASE_COLOR.Design }}>Des. in.</div>
@@ -608,15 +685,19 @@ function RowCells({
   full,
   view,
   fmt,
+  parte = "tutto",
 }: {
   row: GanttRowData;
   full: boolean;
   view: PlannerView;
   fmt: (d: Date | string | null | undefined) => string;
+  parte?: Parte;
 }) {
+  const identita = parte !== "resto";
+  const resto = parte !== "identita";
   return (
     <div className="relative z-10 flex items-center w-full">
-      {view !== "timeline" && (
+      {identita && view !== "timeline" && (
         <>
           <div className={cn(COL, "w-[128px] min-w-0")}>
             <span className="block truncate text-[11px] font-semibold uppercase" title={row.client ?? ""}>
@@ -630,6 +711,7 @@ function RowCells({
           </div>
         </>
       )}
+      {identita && (
       <div className={cn(COL, "flex-1 min-w-0 flex flex-col justify-center leading-tight")}>
         <span className="truncate text-xs font-medium text-foreground" title={row.label}>{row.label}</span>
         {/* Nel solo diagramma il sottotitolo resta: è l'unico posto dove si può
@@ -638,7 +720,8 @@ function RowCells({
           <span className="truncate text-[10px] text-muted-foreground">{row.subLabel}</span>
         )}
       </div>
-      {view !== "timeline" && (
+      )}
+      {resto && view !== "timeline" && (
         <>
           <div className={cn(COL, "w-[104px]")}>
             <span
@@ -665,7 +748,7 @@ function RowCells({
           </div>
         </>
       )}
-      {full && (
+      {resto && full && (
         <>
           <div className={cn(COL, "w-[70px] tabular-nums text-muted-foreground border-l")}>{fmt(row.launchDate)}</div>
           <div className={cn(COL, "w-[70px] tabular-nums")}>{fmt(row.designStart)}</div>
