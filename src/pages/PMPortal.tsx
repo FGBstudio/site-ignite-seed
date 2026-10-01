@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { AlertTriangle, ArrowRight, Bell, Building2, CalendarIcon, CheckCircle2, Clock3, DollarSign, FolderKanban, TrendingUp } from "lucide-react";
 import { PMCalendar } from "@/components/dashboard/PMCalendar";
 import { useFinancialAlerts } from "@/hooks/useFinancialAlerts";
+import { SettimanaPM } from "@/components/dashboard/SettimanaPM";
 
 
 type PMProjectView = PMProject & { project_subtype?: string | null };
@@ -113,7 +114,16 @@ export default function PMPortal() {
         </Card>
       ) : (
         <div className="space-y-6">
-          
+
+          {/* =========================================
+              0. QUESTA SETTIMANA
+              Sta in cima perché è la domanda con cui si apre la pagina il
+              lunedì mattina: cosa devo fare entro venerdì. I contatori qui
+              sotto dicono quanti progetti ci sono e in che stato — vero, ma non
+              cambia da un giorno all'altro.
+          ========================================= */}
+          <SettimanaPM pmId={user?.id} />
+
           {/* =========================================
               1. KPI COUNTERS (ORIGINALI)
           ========================================= */}
