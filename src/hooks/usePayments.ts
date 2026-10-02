@@ -158,28 +158,14 @@ export function useTerminiDiCommessa(certId: string | null) {
   });
 }
 
-export function useTrancheDue(certId: string | null) {
-  return useQuery({
-    queryKey: ["payments", "tranche-due", certId],
-    enabled: !!certId,
-    queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from("cert_payment_milestones")
-        .select("id, name, amount, tranche_pct, tranche_order, tranche_state")
-        .eq("certification_id", certId)
-        .eq("tranche_state", "due")
-        .order("tranche_order");
-      if (error) throw error;
-      return (data ?? []) as Array<{
-        id: string;
-        name: string | null;
-        amount: number | null;
-        tranche_pct: number | null;
-        tranche_order: number | null;
-      }>;
-    },
-  });
-}
+/*
+ * `useTrancheDue` stava qui: leggeva le tranche esigibili di un progetto per la
+ * vecchia emissione, quando la fattura era una tranche sola. Non lo usava più
+ * nessuno — `DialogoEmissione` passa da `useTrancheAperte`, che è l'unico punto
+ * che toglie le tranche dei progetti cancellati e delle offerte non approvate.
+ * Lasciarlo lì era una trappola: ricollegarlo avrebbe scavalcato quel filtro, e
+ * sarebbe tornata la fattura pronta per un lavoro mai commissionato.
+ */
 
 /** Le societa' clienti di un brand, per la tendina del destinatario. */
 export function useClientiDelBrand(brandId: string | null | undefined) {
@@ -373,6 +359,16 @@ export function useEmettiFattura() {
       external_number?: string | null;
       po_riferimento?: string | null;
       notes?: string | null;
+      /**
+       * Il progetto, quando le righe non lo dicono.
+       *
+       * Una riga che paga una tranche porta il suo progetto con sé; una riga
+       * libera no, perché `invoice_righe` non ha una colonna per il progetto.
+       * Senza questo campo la fattura di sole righe libere nasceva senza
+       * progetto — e il prospetto per progetto somma le fatture per quel campo,
+       * quindi il progetto risultava meno fatturato di quanto fosse.
+       */
+      certification_id?: string | null;
     }) => {
       const { data, error } = await (supabase as any).rpc("fn_emetti_fattura_righe", {
         p_issuer_contact_id: v.issuer_contact_id,
@@ -390,6 +386,7 @@ export function useEmettiFattura() {
         p_external_number: v.external_number ?? null,
         p_po_riferimento: v.po_riferimento ?? null,
         p_notes: v.notes ?? null,
+        p_certification_id: v.certification_id ?? null,
       });
       if (error) throw error;
       return data as InvoiceRow;

@@ -334,6 +334,9 @@ export function DialogoEmissione({
         exch_rate: numero(tasso) || 1,
         vat_amount: valoreIva,
         po_riferimento: po || null,
+        // Il progetto scelto nella tendina qui sotto. Quando le righe lo dicono
+        // da sole è lo stesso valore, e la funzione verifica che combacino.
+        certification_id: certId || null,
       });
       toast({
         title: `Fattura ${f?.number ?? ""} emessa`,

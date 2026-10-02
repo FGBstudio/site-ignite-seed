@@ -12,6 +12,7 @@ import { DialogoIncasso } from "@/components/payments/DialogoIncasso";
 import { DialogoImportaFattura } from "@/components/payments/DialogoImportaFattura";
 import { NoteFattura } from "@/components/payments/NoteFattura";
 import { decimaliUtili, importo } from "@/lib/payments/aggregati";
+import { cifra, oggiIso, scaricaCsv } from "@/lib/payments/csv";
 import type { InvoiceRow, LifecycleState, PaymentStatus } from "@/types/payments";
 import { cn } from "@/lib/utils";
 
@@ -118,20 +119,11 @@ export default function RegistroFatture() {
       f.number, f.external_number ?? "", f.client_name ?? "", f.commessa ?? "",
       f.project_name ?? "",
       f.entity_code ?? "", f.issue_date, f.due_date, f.currency,
-      f.total, f.paid_amount, f.credited_amount, f.residual, f.ammanco_da_recuperare,
+      cifra(f.total), cifra(f.paid_amount), cifra(f.credited_amount),
+      cifra(f.residual), cifra(f.ammanco_da_recuperare),
       f.payment_status, f.lifecycle_state,
     ]);
-    const csv = [testa, ...corpo]
-      .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(";"))
-      .join("\n");
-    // Il BOM serve a Excel per capire che è UTF-8: senza, «Società» diventa
-    // «SocietÃ ».
-    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `registro-fatture-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(a.href);
+    scaricaCsv(`registro-fatture-${oggiIso()}.csv`, [testa, ...corpo]);
   };
 
   return (

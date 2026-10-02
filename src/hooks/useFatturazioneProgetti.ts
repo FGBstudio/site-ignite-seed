@@ -45,6 +45,14 @@ export interface ProgettoFatturazione {
   pct_fatturazione: number | null;
   /** Fatturato senza che la quotazione sia stata caricata: un buco da colmare. */
   quotazione_mancante: boolean;
+  /**
+   * Tranche che si dicono fatturate senza che una riga di fattura le nomini.
+   *
+   * Sono le tranche dei progetti le cui fatture sono entrate con l'archivio
+   * storico: il denaro c'è, il collegamento no. Vanno contate a parte, perché
+   * metterle fra quelle da fatturare le farebbe emettere una seconda volta.
+   */
+  tranche_scollegate: number;
 }
 
 export interface TrancheFatturazione {
@@ -71,7 +79,10 @@ export interface TrancheFatturazione {
   days_late: number | null;
   data_incasso_attesa: string | null;
   ultima_nota: string | null;
+  /** Esiste una riga di fattura che nomina questa tranche. */
   fatturata: boolean;
+  /** Lo stato dice fatturata, ma nessuna riga la nomina: non è da emettere. */
+  fatturata_scollegata: boolean;
 }
 
 export function useProgettiFatturazione() {

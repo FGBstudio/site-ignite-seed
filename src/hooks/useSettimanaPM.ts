@@ -28,6 +28,24 @@ export function settimanaCorrente(oggi: Date = new Date()): { dal: string; al: s
   return { dal: iso(lun), al: iso(dom) };
 }
 
+/**
+ * La chiave con cui una tranche si lega alla milestone che la sblocca.
+ *
+ * **Progetto più passo**, mai il passo da solo. Lo `step_id` viene dal
+ * cronoprogramma, che è condiviso fra progetti: nei dati di oggi due passi sono
+ * gli stessi per 70 progetti, con tranche da 600 a 11.100 €. Con la chiave sul
+ * solo passo l'ultima tranche letta vinceva su tutte le altre, e il PM si vedeva
+ * proposto l'importo del progetto di qualcun altro — plausibile, e quindi
+ * impossibile da notare.
+ */
+export function chiaveTranche(
+  certificationId: string | null | undefined,
+  stepId: string | null | undefined,
+): string | null {
+  if (!certificationId || !stepId) return null;
+  return `${certificationId}:${stepId}`;
+}
+
 export interface MilestoneDellaSettimana {
   id: string;
   certification_id: string;
@@ -90,22 +108,33 @@ export function useMilestoneDellaSettimana(pmId: string | null | undefined, oggi
         return quando && quando >= dal && quando <= al;
       });
       const stepIds = [...new Set(righe.map((r) => r.step_id).filter(Boolean))];
+      const certIds = [...new Set(righe.map((r) => r.certification_id).filter(Boolean))];
 
       /**
        * Quali di questi passi hanno una tranche attaccata.
        *
        * Si chiede a parte e non con una join: una milestone senza tranche è la
        * maggioranza, e una `inner join` le farebbe sparire tutte.
+       *
+       * La chiave è **progetto più passo**, non il passo da solo. Lo `step_id`
+       * viene dal cronoprogramma, che è condiviso: nei dati di oggi due passi
+       * sono gli stessi per 70 progetti, con tranche da 600 a 11.100 €. Con la
+       * chiave sul solo passo, l'ultima tranche letta vinceva su tutte le altre e
+       * il PM si vedeva proposto l'importo del progetto di qualcun altro — un
+       * numero plausibile, e quindi impossibile da notare.
        */
       const tranche = new Map<string, { nome: string | null; importo: number | null }>();
       if (stepIds.length > 0) {
         const { data: t } = await (supabase as any)
           .from("cert_payment_milestones")
-          .select("step_id, name, amount, tranche_state")
+          .select("certification_id, step_id, name, amount, tranche_state")
           .in("step_id", stepIds)
+          .in("certification_id", certIds)
           .eq("tranche_state", "pending");
         for (const r of (t ?? []) as Record<string, any>[]) {
-          tranche.set(String(r.step_id), {
+          const k = chiaveTranche(r.certification_id, r.step_id);
+          if (!k) continue;
+          tranche.set(k, {
             nome: r.name ?? null,
             importo: r.amount != null ? Number(r.amount) : null,
           });
@@ -113,7 +142,8 @@ export function useMilestoneDellaSettimana(pmId: string | null | undefined, oggi
       }
 
       return righe.map((r) => {
-        const t = r.step_id ? tranche.get(String(r.step_id)) : undefined;
+        const k = chiaveTranche(r.certification_id, r.step_id);
+        const t = k ? tranche.get(k) : undefined;
         return {
           id: String(r.id),
           certification_id: String(r.certification_id),

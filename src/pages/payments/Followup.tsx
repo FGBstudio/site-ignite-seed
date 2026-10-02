@@ -6,6 +6,7 @@ import { usePaymentsCtx } from "./PaymentsLayout";
 import { useFollowupPrevisionale, useFollowupDefinitivo } from "@/hooks/useFollowup";
 import { Money } from "@/components/payments/Comuni";
 import { decimaliUtili } from "@/lib/payments/aggregati";
+import { cifra, scaricaCsv, type Cella } from "@/lib/payments/csv";
 import {
   definitivoDelMese, dividiPerOrigine, meseCorrente, meseEsteso, meseVicino,
   mesiDisponibili, previsionaleDelMese, somma,
@@ -79,31 +80,41 @@ export default function Followup() {
     [previsionale, fatture, incassi, entita, mese],
   );
 
-  /** Lo stesso foglio, nello stesso ordine: si consegna senza ricopiare niente. */
+  /**
+   * Lo stesso foglio, nello stesso ordine: si consegna senza ricopiare niente.
+   *
+   * Il previsionale porta via anche la distinzione che si vede in pagina. Un
+   * foglio con un totale solo rimetterebbe nella stessa riga la cassa che un
+   * cliente ha promesso e quella che nessuno ha promesso — ed è il motivo per cui
+   * in pagina i totali sono due. Qui la colonna ORIGINE lo dice riga per riga, e
+   * in fondo ci sono i tre numeri: promesso, atteso, totale.
+   */
   const esporta = () => {
     const testa = previsionale
-      ? ["DATA FATTURA", "CLIENTE", "N. FATTURA", "PROGETTO", "IMPORTO", "VAT", "RECALL", "GG IN RECALL", "INCASSO ATTESO", "NOTE"]
+      ? ["DATA FATTURA", "CLIENTE", "N. FATTURA", "PROGETTO", "IMPORTO", "VAT", "ORIGINE", "RECALL", "GG IN RECALL", "INCASSO ATTESO", "NOTE"]
       : ["DATA FATTURA", "CLIENTE", "N. FATTURA", "PROGETTO", "IMPORTO", "VAT", "OUTSTANDING", "DATA PAGAMENTO", "GG", "NOTE"];
     const corpo = previsionale
       ? righeP.map((r) => [
           r.issue_date, r.client_name ?? "", r.number, r.project_name ?? "",
-          r.imponibile, r.vat_amount, r.in_recall ? "SI" : "NO",
+          cifra(r.imponibile), cifra(r.vat_amount),
+          r.mese_da_promessa ? "promessa del cliente" : "scadenza della fattura",
+          r.in_recall ? "SI" : "NO",
           r.giorni_in_recall ?? "", r.data_incasso_attesa ?? "", r.ultima_nota ?? "",
         ])
       : righeD.map((r) => [
           r.issue_date, r.client_name ?? "", r.number, r.project_name ?? "",
-          r.imponibile, r.vat_amount, r.outstanding, r.incassato_il,
-          r.giorni_per_incassare, r.ultima_nota ?? "",
+          cifra(r.imponibile), cifra(r.vat_amount), cifra(r.outstanding), r.incassato_il,
+          cifra(r.giorni_per_incassare), r.ultima_nota ?? "",
         ]);
-    const csv = [testa, ...corpo, [], ["TOTALE", "", "", "", totale]]
-      .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(";"))
-      .join("\n");
-    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `prospetto-${vista}-${mese}.csv`;
-    a.click();
-    URL.revokeObjectURL(a.href);
+    const coda: Cella[][] = previsionale
+      ? [
+          [],
+          ["PROMESSO DAL CLIENTE", "", "", "", cifra(totalePromesso)],
+          ["ATTESO A SCADENZA", "", "", "", cifra(totaleAtteso)],
+          ["TOTALE", "", "", "", cifra(totale)],
+        ]
+      : [[], ["TOTALE INCASSATO", "", "", "", cifra(totale)]];
+    scaricaCsv(`prospetto-${vista}-${mese}.csv`, [testa, ...corpo, ...coda]);
   };
 
   const vuoto = previsionale ? righeP.length === 0 : righeD.length === 0;

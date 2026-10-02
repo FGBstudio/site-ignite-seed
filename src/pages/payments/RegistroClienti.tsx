@@ -9,6 +9,7 @@ import { useSaldiCredito } from "@/hooks/useCreditiCliente";
 import { useQuotazioniAperte } from "@/hooks/usePayments";
 import { KpiCard, Money, PillCiclo, PillPagamento } from "@/components/payments/Comuni";
 import { importo, registroClienti, type SchedaCliente } from "@/lib/payments/aggregati";
+import { oggiIso, scaricaCsv } from "@/lib/payments/csv";
 import { cn } from "@/lib/utils";
 
 /**
@@ -95,14 +96,7 @@ export default function RegistroClienti() {
     const corpo = righe.map((c) => [
       c.nome, c.netto, c.incassato, c.aperto, c.insoluto, c.potenziale, c.fatture.length, c.ultima ?? "",
     ]);
-    const csv = [testa, ...corpo]
-      .map((r) => r.map((x) => `"${String(x).replace(/"/g, '""')}"`).join(";"))
-      .join("\n");
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }));
-    a.download = `registro-clienti-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(a.href);
+    scaricaCsv(`registro-clienti-${oggiIso()}.csv`, [testa, ...corpo]);
   };
 
   return (

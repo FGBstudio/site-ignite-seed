@@ -8,6 +8,7 @@ import {
 } from "@/hooks/useFatturazioneProgetti";
 import { Money } from "@/components/payments/Comuni";
 import { decimaliUtili, importo } from "@/lib/payments/aggregati";
+import { cifra, oggiIso, scaricaCsv } from "@/lib/payments/csv";
 import type { EntityCode } from "@/types/payments";
 
 /**
@@ -56,27 +57,23 @@ export function ProgettiFatturazione({ entita }: { entita: EntityCode | null }) 
   const esporta = () => {
     const testa = [
       "Cliente", "Brand", "Progetto", "Città", "Protocollo", "Livello", "Emittente",
-      "Stato", "PM", "Quotato", "Fatturato", "% fatturazione", "Da fatturare",
+      "Stato", "PM", "Quotato", "Fatturato", "Fatturazione % (0-100)", "Da fatturare",
       "Incassato", "Da incassare", "Tranche", "di cui fatturate",
+      "di cui fatturate senza fattura collegata",
     ];
     const corpo = righe.map((p) => [
       p.intestatario ?? "", p.brand ?? "", p.progetto, p.city ?? "",
       [p.cert_type, p.cert_rating].filter(Boolean).join(" "), p.cert_level ?? "",
       p.emittente ?? "", p.status, p.pm ?? "",
-      p.quotato ?? "", p.fatturato,
-      p.pct_fatturazione != null ? Math.round(p.pct_fatturazione * 100) + "%" : "",
-      p.da_fatturare ?? "", p.incassato, p.da_incassare,
-      p.quante_tranche, p.tranche_fatturate,
+      cifra(p.quotato), cifra(p.fatturato),
+      // La percentuale come numero, non come «42%»: così la colonna si ordina e
+      // si filtra. Il nome della colonna dice che è una percentuale, quindi 42
+      // non è ambiguo.
+      p.pct_fatturazione != null ? Math.round(p.pct_fatturazione * 100) : "",
+      cifra(p.da_fatturare), cifra(p.incassato), cifra(p.da_incassare),
+      p.quante_tranche, p.tranche_fatturate, p.tranche_scollegate,
     ]);
-    const csv = [testa, ...corpo]
-      .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(";"))
-      .join("\n");
-    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `elenco-progetti-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(a.href);
+    scaricaCsv(`elenco-progetti-${oggiIso()}.csv`, [testa, ...corpo]);
   };
 
   return (
@@ -283,6 +280,26 @@ function RigaProgetto({
                 )}
               </div>
 
+              {/* Quando ci sono tranche fatturate senza collegamento, dirlo una
+                  volta in testa alla tabella evita di dover interpretare i segni
+                  riga per riga. */}
+              {p.tranche_scollegate > 0 && (
+                <p
+                  className="mb-2 rounded-[8px] px-2.5 py-1.5 text-[11.5px]"
+                  style={{ background: "color-mix(in srgb, var(--amber) 10%, transparent)", color: "var(--muted)" }}
+                >
+                  <b>
+                    {p.tranche_scollegate === 1
+                      ? "Una tranche risulta fatturata"
+                      : `${p.tranche_scollegate} tranche risultano fatturate`}
+                  </b>{" "}
+                  senza una fattura collegata: le fatture di questo progetto sono entrate
+                  dall'archivio storico, che portava il totale ma non diceva quale tranche
+                  pagasse. Il denaro è contato nel fatturato qui sopra — non vanno emesse di
+                  nuovo.
+                </p>
+              )}
+
               {tranche.length === 0 ? (
                 <p className="text-[12px]" style={{ color: "var(--muted)" }}>
                   Nessuna tranche registrata per questo progetto: la fatturazione non ha una
@@ -308,9 +325,28 @@ function RigaProgetto({
                     {tranche.map((t) => (
                       <tr key={t.tranche_id}>
                         {/* La spunta non è uno stato scritto da nessuno: è
-                            l'esistenza di una fattura per questa tranche. */}
-                        <td style={{ color: t.fatturata ? "var(--green)" : "var(--faint)" }}>
-                          {t.fatturata ? "✓" : "○"}
+                            l'esistenza di una fattura per questa tranche.
+                            Il terzo segno è il caso delle tranche dei progetti
+                            storici: lo stato dice fatturata e il denaro c'è, ma
+                            nessuna riga la nomina. Col cerchio vuoto sembrava da
+                            emettere — ed è così che si fattura due volte. */}
+                        <td
+                          title={
+                            t.fatturata
+                              ? "Fatturata"
+                              : t.fatturata_scollegata
+                                ? "Fatturata, ma la fattura non è collegata a questa tranche: è entrata con l'archivio storico. Non va emessa di nuovo."
+                                : "Da fatturare"
+                          }
+                          style={{
+                            color: t.fatturata
+                              ? "var(--green)"
+                              : t.fatturata_scollegata
+                                ? "var(--amber)"
+                                : "var(--faint)",
+                          }}
+                        >
+                          {t.fatturata ? "✓" : t.fatturata_scollegata ? "◍" : "○"}
                         </td>
                         <td>{t.tranche ?? `${t.tranche_order ?? "?"}ª`}</td>
                         <td className="num text-right" style={{ color: "var(--muted)" }}>
