@@ -290,6 +290,14 @@ export interface GiornataHr {
   minuti_pausa: number | null;
 }
 
+/**
+ * Le giornate nude, senza la previsione accanto.
+ *
+ * Il registro passa da `useGiornateEffettive`, che è questa più il confronto. Resta
+ * perché per chi gli serve solo l'orario — un conteggio di ore, un'esportazione —
+ * la giornata da sola è la domanda giusta, e portarsi dietro il `full join` con un
+ * anno di disponibilità sarebbe lavoro per niente.
+ */
 export function useGiornate(filters: { userId?: string; dal?: string; al?: string }) {
   return useQuery({
     queryKey: ["hr", "giornate", filters],
@@ -304,6 +312,53 @@ export function useGiornate(filters: { userId?: string; dal?: string; al?: strin
       const { data, error } = await q;
       if (error) throw error;
       return (data ?? []) as GiornataHr[];
+    },
+  });
+}
+
+/**
+ * La giornata con accanto quello che era previsto.
+ *
+ * `hr_availability` è una previsione, le letture sono fatti, e il confronto è
+ * l'unica cosa che serva davvero a chi chiude il mese. La regola sta nel database
+ * (`v_hr_giornata_effettiva`) e vale in un verso solo: **se ci sono letture, la
+ * persona era in ufficio e la previsione non conta più.**
+ *
+ * Nessuna previsione viene riscritta. Sovrascrivere la riga renderebbe impossibile
+ * dire «era previsto in ufficio e non è venuto» — che è esattamente il motivo per
+ * cui si guarda questa tabella.
+ */
+export interface GiornataEffettiva extends GiornataHr {
+  /** Dove pensava di essere. Nullo quando quel giorno non era stato dichiarato. */
+  previsione: AvailabilityStatus | null;
+  nota_previsione: string | null;
+  hours_planned: number | null;
+  /**
+   * Dove è stata davvero.
+   *
+   * Nullo nel solo caso che non si sappia: previsto in ufficio, giorno passato,
+   * nessuna lettura. Riempirlo lì vorrebbe dire inventare una giornata.
+   */
+  effettivo: AvailabilityStatus | null;
+  esito: "confermata" | "sovrascritta" | "smentita" | "prevista" | "senza previsione";
+  /** Previsto in ufficio, giorno passato, nessuno è passato al varco. */
+  da_chiarire: boolean;
+}
+
+export function useGiornateEffettive(filters: { userId?: string; dal?: string; al?: string }) {
+  return useQuery({
+    queryKey: ["hr", "giornate-effettive", filters],
+    queryFn: async () => {
+      let q = (supabase as any)
+        .from("v_hr_giornata_effettiva")
+        .select("*")
+        .order("giorno", { ascending: false });
+      if (filters.userId) q = q.eq("user_id", filters.userId);
+      if (filters.dal) q = q.gte("giorno", filters.dal);
+      if (filters.al) q = q.lte("giorno", filters.al);
+      const { data, error } = await q;
+      if (error) throw error;
+      return (data ?? []) as GiornataEffettiva[];
     },
   });
 }

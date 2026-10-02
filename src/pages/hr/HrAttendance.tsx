@@ -11,8 +11,9 @@ import { Badge } from "@/components/ui/badge";
 import { ScanLine, QrCode, PenLine } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import {
-  useGiornate, useHrProfiles, useHrQrTokens, useRotateQrToken,
-  useAggiungiLetture, useLettureDelGiorno, type HrProfile,
+  useGiornateEffettive, useHrProfiles, useHrQrTokens, useRotateQrToken,
+  useAggiungiLetture, useLettureDelGiorno,
+  type GiornataEffettiva, type HrProfile,
 } from "@/hooks/useHr";
 import { format } from "date-fns";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -29,6 +30,53 @@ function durata(minuti: number | null) {
   const m = Number(minuti);
   return m >= 60 ? `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m` : `${m}m`;
 }
+
+/** Le causali come si dicono, non come sono scritte nell'enum. */
+const CAUSALE: Record<string, string> = {
+  office: "ufficio",
+  smart_working: "smart working",
+  unavailable: "non disponibile",
+  travel: "trasferta",
+  vacation: "ferie",
+  permit: "permesso",
+  sick: "malattia",
+};
+
+/**
+ * L'esito del confronto fra previsione e presenza.
+ *
+ * Solo «smentita» è un problema: previsto in ufficio, giorno passato, nessuno è
+ * passato al varco — e nessuno sa dove fosse quella persona. «Sovrascritta» non lo
+ * è: vuol dire che la previsione diceva una cosa e la giornata è andata
+ * diversamente, che succede e va solo visto.
+ */
+const ESITO: Record<GiornataEffettiva["esito"], { testo: string; classe: string; spiega: string }> = {
+  confermata: {
+    testo: "confermata",
+    classe: "text-emerald-700 bg-emerald-50 border-emerald-200",
+    spiega: "La giornata è andata come previsto.",
+  },
+  sovrascritta: {
+    testo: "diversa dal previsto",
+    classe: "text-sky-700 bg-sky-50 border-sky-200",
+    spiega: "Era prevista fuori dall'ufficio, ma ha timbrato: vale la timbratura.",
+  },
+  smentita: {
+    testo: "da chiarire",
+    classe: "text-amber-700 bg-amber-50 border-amber-200",
+    spiega: "Era prevista in ufficio e non c'è nessuna timbratura: la giornata non si sa.",
+  },
+  prevista: {
+    testo: "prevista",
+    classe: "text-muted-foreground bg-muted/40 border-transparent",
+    spiega: "Il giorno non è ancora passato: per ora c'è solo la previsione.",
+  },
+  "senza previsione": {
+    testo: "senza previsione",
+    classe: "text-muted-foreground bg-muted/40 border-transparent",
+    spiega: "Nessuna disponibilità dichiarata per quel giorno: vale la timbratura.",
+  },
+};
 
 export default function HrAttendance() {
   const { user, isAdmin } = useAuth();
@@ -61,7 +109,23 @@ export default function HrAttendance() {
     return { userId: effectiveUser, dal: from || undefined, al: to || undefined };
   }, [isAdmin, userFilter, user, from, to]);
 
-  const { data: giornate = [] } = useGiornate(filters);
+  /**
+   * Le giornate con accanto quello che era previsto.
+   *
+   * Non è un secondo elenco: è lo stesso, letto da `v_hr_giornata_effettiva`, che
+   * mette la previsione sulla stessa riga del fatto. Prima le due cose stavano su
+   * schermate diverse e nessuno le confrontava — ed è così che il calendario
+   * poteva dare una persona in ufficio nel giorno in cui il foglio firmato la dava
+   * assente.
+   */
+  const { data: giornate = [] } = useGiornateEffettive(filters);
+  /** Solo le giornate che nessuno sa spiegare: previsto ufficio, nessuna lettura. */
+  const [soloDaChiarire, setSoloDaChiarire] = useState(false);
+  const righe = useMemo(
+    () => (soloDaChiarire ? giornate.filter((g) => g.da_chiarire) : giornate),
+    [giornate, soloDaChiarire],
+  );
+  const quanteDaChiarire = useMemo(() => giornate.filter((g) => g.da_chiarire).length, [giornate]);
   /** La giornata di cui si stanno guardando le letture grezze. */
   const [lettureAperte, setLettureAperte] = useState<{ userId: string; giorno: string } | null>(null);
   const nameOf = (uid: string) => {
@@ -70,7 +134,10 @@ export default function HrAttendance() {
   };
 
   return (
-    <MainLayout title="Attendance Log" subtitle="Days worked out from the badge readings. What the kiosk missed can be added by hand.">
+    <MainLayout
+      title="Attendance Log"
+      subtitle="Le giornate come escono dalle timbrature, con accanto quello che era previsto. Se c'è una timbratura vince lei; quello che il varco non ha visto si aggiunge a mano."
+    >
       <FiltroUfficio
         scelto={ufficio}
         onScegli={(id) => {
@@ -106,6 +173,23 @@ export default function HrAttendance() {
           <label className="text-xs text-muted-foreground">To</label>
           <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
         </div>
+        {/* Il conto delle giornate che nessuno sa spiegare. Non compare quando
+            sono zero: un filtro che non filtra niente è solo un bottone in più. */}
+        {quanteDaChiarire > 0 && (
+          <button
+            type="button"
+            onClick={() => setSoloDaChiarire((v) => !v)}
+            className={`self-end rounded-md border px-2.5 py-1.5 text-[12px] ${
+              soloDaChiarire
+                ? "border-amber-300 bg-amber-100 text-amber-900"
+                : "border-amber-200 bg-amber-50 text-amber-700"
+            }`}
+            title="Giornate previste in ufficio, già passate, senza nessuna timbratura."
+          >
+            {quanteDaChiarire} da chiarire
+            {soloDaChiarire && " · mostra tutte"}
+          </button>
+        )}
         <div className="ml-auto flex gap-2">
           {isAdmin && (
             <>
@@ -131,16 +215,22 @@ export default function HrAttendance() {
               <th className="px-4 py-2 text-left">Out</th>
               <th className="px-4 py-2 text-right">Worked</th>
               <th className="px-4 py-2 text-right">Break</th>
+              <th className="px-4 py-2 text-left">Previsto</th>
+              <th className="px-4 py-2 text-left">Esito</th>
               <th className="px-4 py-2 text-left">Readings</th>
             </tr>
           </thead>
           <tbody>
-            {giornate.length === 0 && (
+            {righe.length === 0 && (
               <tr>
-                <td colSpan={9} className="p-8 text-center text-muted-foreground">No days recorded yet.</td>
+                <td colSpan={11} className="p-8 text-center text-muted-foreground">
+                  {soloDaChiarire && giornate.length > 0
+                    ? "Nessuna giornata da chiarire in questo periodo."
+                    : "No days recorded yet."}
+                </td>
               </tr>
             )}
-            {giornate.map((g) => (
+            {righe.map((g) => (
               <tr key={`${g.user_id}-${g.giorno}`} className="border-t hover:bg-muted/20">
                 <td className="px-4 py-2">{nameOf(g.user_id)}</td>
                 <td className="px-4 py-2 whitespace-nowrap">{format(new Date(g.giorno + "T12:00:00"), "dd MMM yyyy")}</td>
@@ -154,6 +244,17 @@ export default function HrAttendance() {
                 </td>
                 <td className="px-4 py-2 text-right tabular-nums">{durata(g.minuti_lavorati)}</td>
                 <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">{durata(g.minuti_pausa)}</td>
+                <td className="px-4 py-2 text-muted-foreground whitespace-nowrap">
+                  {g.previsione ? CAUSALE[g.previsione] ?? g.previsione : "—"}
+                </td>
+                <td className="px-4 py-2 whitespace-nowrap">
+                  <span
+                    title={ESITO[g.esito].spiega}
+                    className={`rounded-md border px-1.5 py-0.5 text-[10.5px] ${ESITO[g.esito].classe}`}
+                  >
+                    {ESITO[g.esito].testo}
+                  </span>
+                </td>
                 <td className="px-4 py-2">
                   {/* Le ore qui sopra sono dedotte: chi deve correggerle deve
                       poter vedere da cosa. */}
