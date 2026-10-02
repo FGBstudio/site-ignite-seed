@@ -89,7 +89,18 @@ function AppRoutes() {
 
   return (
     <Routes>
-      <Route path="/login" element={user ? <Navigate to={getDefaultRoute(role)} replace /> : <Login />} />
+      {/* Chi ha già una sessione non resta sulla pagina di accesso — a meno che
+          per il suo ruolo non ci sia nessuna pagina: allora `getDefaultRoute`
+          torna `null` e si lascia il login, che è l'unico posto da cui può
+          uscire. Prima tornava `/login` e il rimando puntava a sé stesso. */}
+      <Route
+        path="/login"
+        element={
+          user && getDefaultRoute(role)
+            ? <Navigate to={getDefaultRoute(role)!} replace />
+            : <Login />
+        }
+      />
       <Route path="/unsubscribe" element={<Unsubscribe />} />
 
       {/* ── Home Hub (ADMIN + PM) ── */}
