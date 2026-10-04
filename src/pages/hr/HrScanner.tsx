@@ -28,6 +28,19 @@ interface Passata {
   esito: EsitoQr;
 }
 
+/**
+ * Un'attesa breve, in parole da leggere di sfuggita.
+ *
+ * Al varco si guarda lo schermo per un attimo, in piedi: «4 min» si legge,
+ * «240 secondi» va contato. Sotto il minuto i secondi restano, perché lì sono
+ * l'informazione — dicono che hai appena timbrato.
+ */
+function attimo(secondi: number) {
+  if (secondi < 60) return `${Math.max(1, Math.round(secondi))}s`;
+  const m = Math.round(secondi / 60);
+  return `${m} min`;
+}
+
 function oraDi(iso: string) {
   return new Date(iso).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
 }
@@ -329,8 +342,19 @@ function Esito({ passata }: { passata: Passata | null }) {
         <div className="text-xl mt-4 flex items-center gap-2 tabular-nums">
           <Clock className="w-5 h-5" />
           Last reading at {oraDi(e.quando)}
+          {e.secondi_fa != null && (
+            <span className="opacity-70">· {attimo(e.secondi_fa)} ago</span>
+          )}
         </div>
-        <p className="text-sm mt-3 opacity-80">Nothing was recorded twice. You can go.</p>
+        {/* Quanto manca, non solo «già registrato». Chi sta al varco deve poter
+            distinguere fra «hai appena timbrato» e «il lettore è rotto», e sono
+            due cose che senza questo numero si somigliano. */}
+        <p className="text-sm mt-3 opacity-80">
+          Nothing was recorded twice. You can go.
+          {e.riprova_fra > 0 && (
+            <> A new reading counts in {attimo(e.riprova_fra)}.</>
+          )}
+        </p>
       </Card>
     );
   }

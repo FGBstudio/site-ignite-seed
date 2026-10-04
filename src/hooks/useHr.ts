@@ -495,8 +495,26 @@ export type EsitoQr =
    * si entra, pari si esce.
    */
   | { esito: "ok"; nome: string; quando: string; ordinale: number; verso: "in" | "out" }
-  /** Lo stesso badge ripassato entro un minuto e mezzo: non si legge due volte. */
-  | { esito: "ripetuto"; nome: string; quando: string; ordinale: number }
+  /**
+   * Badge ripassato entro cinque minuti: non si legge due volte.
+   *
+   * La finestra non difende dalla telecamera che legge due volte — quello
+   * durerebbe un secondo — ma dalla persona che ripassa dal varco poco dopo:
+   * uscita a spostare l'auto, tornata indietro per una cosa dimenticata. Il verso
+   * è solo la parità, quindi quella seconda lettura verrebbe presa per l'uscita e
+   * chiuderebbe la giornata a metà pomeriggio con un orario plausibile.
+   *
+   * `riprova_fra` sono i secondi che restano: al varco serve sapere se aspettare o
+   * se il lettore è rotto.
+   */
+  | {
+      esito: "ripetuto";
+      nome: string;
+      quando: string;
+      ordinale: number;
+      secondi_fa: number;
+      riprova_fra: number;
+    }
   /** Un QR qualunque: non e' un badge di questo sistema. */
   | { esito: "non_badge" }
   /** Ha la forma giusta ma nessun badge attivo corrisponde. */

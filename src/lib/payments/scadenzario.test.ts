@@ -216,7 +216,16 @@ describe("csvScadenzario", () => {
 });
 
 describe("bufferScadenzarioExcel", () => {
-  it("scrive i quattro fogli, con i totali in formula e le date come date", async () => {
+  /**
+   * Trenta secondi, non cinque.
+   *
+   * Questo test carica ExcelJS — quasi un megabyte — e scrive un foglio vero: da
+   * solo gira in quattro secondi e mezzo, che col limite di cinque significa
+   * rosso ogni volta che la macchina è occupata a fare altro. È già successo
+   * lanciando i test insieme a un build. Un test che diventa rosso per lentezza
+   * non segnala niente e insegna a non guardare il rosso, che è il danno vero.
+   */
+  it("scrive i quattro fogli, con i totali in formula e le date come date", { timeout: 30_000 }, async () => {
     const s = costruisciScadenzario(EVENTI, opzioni(), CONTESTO);
     const buf = await bufferScadenzarioExcel(s);
     expect(buf.byteLength).toBeGreaterThan(5000);
