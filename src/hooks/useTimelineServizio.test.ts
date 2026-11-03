@@ -26,6 +26,9 @@ const voce = (p: Partial<CatalogEntry> & { scheme: string }): CatalogEntry => ({
   version: null,
   delivery_context: null,
   display_label: "",
+  // Il nome leggibile dello schema: nei test non conta, ma il tipo lo vuole
+  // perche' a catalogo e' NOT NULL.
+  scheme_label: p.scheme,
   outcome_model: "none",
   score_unit: null,
   timeline_key: null,

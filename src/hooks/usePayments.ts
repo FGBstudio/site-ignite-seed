@@ -102,18 +102,29 @@ export function useEntita() {
  * Emettere una fattura partendo dalla commessa evita di ridigitare cliente,
  * importo e termini: sono dati che il sistema ha gia' e che riscritti a mano
  * diventerebbero una seconda verita'.
+ *
+ * La regola di **chi** sia fatturabile non sta piu' qui. Stava scritta come una
+ * lista di quattro stati, e ne dimenticava uno: 111 progetti «completato» non si
+ * potevano scegliere, 16 con un totale quotato e 23 che hanno gia' fatture. Il
+ * pannello delle quotazioni da fatturare invece li includeva — due schermate
+ * della stessa applicazione che non concordavano su cosa fosse fatturabile.
+ *
+ * Adesso la regola e' in `v_commesse_fatturabili`, espressa al contrario: tutto
+ * tranne cio' su cui non si puo' fatturare. Uno stato nuovo e' dentro per
+ * default, e dimenticarlo non e' piu' possibile.
+ *
+ * L'ordine e' per **residuo da fatturare**, non alfabetico: chi apre questa
+ * tendina cerca il progetto che ha qualcosa da fatturare, e su milleTrecento voci
+ * l'ordine alfabetico lo costringe a sapere gia' il nome.
  */
 export function useCommesseFatturabili() {
   return useQuery({
     queryKey: ["payments", "commesse-fatturabili"],
     queryFn: async () => {
       const { data, error } = await (supabase as any)
-        .from("certifications")
-        .select(
-          `id, name, client, status, total_fees, currency, billing_contact_id, issuer_contact_id,
-           sites ( id, name, brand_id )`,
-        )
-        .in("status", ["quotation_approved", "da_configurare", "in_corso", "certificato"])
+        .from("v_commesse_fatturabili")
+        .select("*")
+        .order("residuo_da_fatturare", { ascending: false, nullsFirst: false })
         .order("name");
       if (error) throw error;
       return (data ?? []) as Array<{
@@ -126,7 +137,22 @@ export function useCommesseFatturabili() {
         billing_contact_id: string | null;
         /** Quale delle tre società emette: deciso in offerta, non all'emissione. */
         issuer_contact_id: string | null;
-        sites: { id: string; name: string | null; brand_id: string | null } | null;
+        /** Quanto resta da fatturare: e' l'ordine in cui questa lista si legge. */
+        residuo_da_fatturare: number | null;
+        fatturato: number | null;
+        /**
+         * Vero quando il quotato non e' un prezzo pattuito ma la somma della
+         * scaletta di fatturazione — i progetti della flotta Energy, che non sono
+         * mai passati da un'offerta. Il numero e' buono, la provenienza va detta.
+         */
+        quotato_dalle_tranche: boolean;
+        quante_tranche: number;
+        brand: string | null;
+        city: string | null;
+        site_id: string | null;
+        brand_id: string | null;
+        /** Conservata per i chiamanti che leggevano `sites.brand_id`. */
+        sites?: { id: string; name: string | null; brand_id: string | null } | null;
       }>;
     },
   });
@@ -166,6 +192,37 @@ export function useTerminiDiCommessa(certId: string | null) {
  * Lasciarlo lì era una trappola: ricollegarlo avrebbe scavalcato quel filtro, e
  * sarebbe tornata la fattura pronta per un lavoro mai commissionato.
  */
+
+/**
+ * Rendere esigibile una tranche a mano.
+ *
+ * Una tranche diventa esigibile da se' in due modi: il trigger
+ * dell'approvazione promuove l'anticipo, e il timbro del PM su una milestone
+ * sblocca quelle agganciate a un passo. Dal 2026-11 c'e' anche la scadenza, per
+ * quelle che una data l'hanno e un passo no.
+ *
+ * Resta il caso non previsto: una tranche che non rientra in nessuno dei tre e
+ * che qualcuno ha deciso di fatturare comunque. Finora l'unica strada era aprire
+ * il database. Il motivo e' obbligatorio perche' finisce nella descrizione
+ * dell'avviso: chi apre «da emettere» e trova una riga deve poter sapere perche'
+ * e' li', e «l'ha deciso l'amministrazione» da solo non lo dice.
+ */
+export function useRendiEsigibile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { tranche_id: string; motivo: string }) => {
+      const { error } = await (supabase as any).rpc("fn_rendi_esigibile_tranche", {
+        p_tranche_id: v.tranche_id,
+        p_motivo: v.motivo,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["payments"] });
+      qc.invalidateQueries({ queryKey: ["task-alerts"] });
+    },
+  });
+}
 
 /** Le societa' clienti di un brand, per la tendina del destinatario. */
 export function useClientiDelBrand(brandId: string | null | undefined) {

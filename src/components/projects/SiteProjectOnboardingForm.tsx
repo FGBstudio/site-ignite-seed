@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { nomeSchema } from "@/lib/nomeSchema";
 import { useForm, useFieldArray, Controller } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -39,14 +40,8 @@ const PROJECT_STATUSES = [
 const ALLOCATION_STATUSES = ["Draft", "Allocated", "Requested", "Shipped", "Installed_Online"] as const;
 const AVAILABLE_CERTS = ["LEED", "WELL", "BREEAM", "ESG", "GRESB"] as const;
 
-const CERT_DISPLAY_LABELS: Record<string, string> = {
-  LEED: "LEED",
-  WELL: "WELL",
-  BREEAM: "BREEAM",
-  ESG: "ESG - Taxonomy",
-  GRESB: "GRESB",
-  Energy_Audit: "Energy Audit",
-};
+// Il nome di uno schema si chiede a `nomeSchema`, che legge il catalogo.
+// Qui c'era una delle quattro copie scritte a mano di questa mappa.
 
 const CERT_LEVELS: Record<string, string[]> = {
   LEED: ["Certified", "Silver", "Gold", "Platinum"],
@@ -465,7 +460,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
                               }
                             }}
                           />
-                          <Label htmlFor={`cert-${type}`} className="cursor-pointer font-medium">{CERT_DISPLAY_LABELS[type] ?? type}</Label>
+                          <Label htmlFor={`cert-${type}`} className="cursor-pointer font-medium">{nomeSchema(type)}</Label>
                         </div>
                       );
                     })}
@@ -490,7 +485,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
                               ACTIVE IN DATABASE
                             </div>
                           )}
-                          <h5 className="font-bold text-lg text-slate-800 mb-4 border-b pb-2">{CERT_DISPLAY_LABELS[certType] ?? certType} Configuration</h5>
+                          <h5 className="font-bold text-lg text-slate-800 mb-4 border-b pb-2">{nomeSchema(certType)} Configuration</h5>
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <FormField control={form.control} name={`certifications.${index}.cert_rating`} render={({ field: f }) => (
                               <FormItem><FormLabel>Rating System</FormLabel><Select onValueChange={(v) => { f.onChange(v); form.setValue(`certifications.${index}.project_subtype`, undefined); }} value={f.value || ""}><FormControl><SelectTrigger><SelectValue placeholder="Select Rating" /></SelectTrigger></FormControl><SelectContent>{availableRatings.map((v) => (<SelectItem key={v} value={v}>{v}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>

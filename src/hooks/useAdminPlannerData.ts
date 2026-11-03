@@ -114,7 +114,7 @@ export function useAdminPlannerData() {
     queryFn: async () => {
       // 1. Fetch ALL certifications (root entity) with site + allocations
       const { data: certs, error } = await (supabase as any)
-        .from("certifications")
+        .from("v_progetti_stato")
         .select("*, sites!certifications_site_id_fkey(name, city, country, brand_id, typology, region), project_allocations!project_allocations_certification_id_fkey(*)")
         .order("handover_date", { ascending: true });
       if (error) throw error;
@@ -277,15 +277,11 @@ export function useAdminPlannerData() {
           if (allocations.length === 0) missing.push("Hardware");
         }
 
-        let setup_status: SetupStatus;
-        if (isCertified) setup_status = "certificato";
-        // Prima di "in corso" e di "completato": per un Energy o un Air che
-        // trasmette il lavoro e' finito, e continuare a leggerlo "In Progress"
-        // solo perche' ha una timeline aperta racconterebbe il contrario.
-        else if (isOnline) setup_status = "online";
-        else if (isCompleted) setup_status = "completato";
-        else if (hasTimeline) setup_status = "in_corso";
-        else setup_status = "da_configurare";
+        // La scala di avanzamento non si calcola piu' qui: la da' `v_progetti_stato`,
+        // in un posto solo. Tre hook la calcolavano in tre modi che non concordavano —
+        // «in corso» con o senza la scorecard, `online` emesso o no — e 106 progetti si
+        // leggevano diversamente in due schermate della stessa applicazione.
+        const setup_status = c.setup_status as SetupStatus;
 
         const is_deadline_critical = !isCertified && !isOnline && checkDeadlineCritical(certMilestones, today);
         const launchDate = c.created_at.slice(0, 10);

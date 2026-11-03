@@ -231,7 +231,15 @@ export default function Quotations() {
         .in("id", ids).eq("status", "quotation")
         .select("id, name, client, status, quotation_approved_at");
       if (error) throw error;
-      if (!data || data.length === 0) throw new Error("The quotation was not updated.");
+      // Zero righe non vuol dire «e' andato storto»: vuol dire che le RLS, o il
+      // trigger che riserva l'approvazione all'amministrazione, hanno rifiutato la
+      // scrittura. Dirlo come un guasto manda a cercare un bug dove c'e' un
+      // permesso.
+      if (!data || data.length === 0) {
+        throw new Error(
+          "L'offerta non e' stata approvata: o non e' piu' in stato «offerta», o non hai i permessi per approvarla. Approvare e' un atto dell'amministrazione.",
+        );
+      }
       const approvedIds = new Set(data.map((r) => r.id));
       qc.setQueryData<QuotationRow[]>(["quotations-list"], (current = []) =>
         current.map((row) => approvedIds.has(row.id) ? { ...row, status: "quotation_approved", quotation_approved_at: approvedAt } : row)

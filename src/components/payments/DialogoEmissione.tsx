@@ -162,7 +162,9 @@ export function DialogoEmissione({
 
   const certId = certDelleRighe ?? certLibera ?? "";
   const commessa = useMemo(() => commesse.find((c) => c.id === certId) ?? null, [commesse, certId]);
-  const brandId = commessa?.sites?.brand_id ?? null;
+  // La vista porta il brand direttamente; il `sites.brand_id` resta come
+  // ripiego per non rompere chi legge ancora la forma annidata.
+  const brandId = (commessa as any)?.brand_id ?? commessa?.sites?.brand_id ?? null;
   const { data: clienti = [] } = useClientiTutti(brandId);
   const { data: termini } = useTerminiDiCommessa(certId || null);
 

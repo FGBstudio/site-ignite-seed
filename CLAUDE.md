@@ -42,7 +42,11 @@ The provider deliberately sets `loading` to `false` exactly once and ignores `on
 ### Domain model
 `certifications` is the root business entity, not `projects` — `Project` in `src/types/custom-tables.ts` is explicitly deprecated. A certification hangs off a `site`, which belongs to a `brand`, which belongs to a `holding`. Around a certification sit `cert_wbs_phases` → `cert_tasks` → `cert_task_checklists`, `cert_payment_milestones`, `cert_collaborations`, `certification_stakeholders`, and `quotation_budget_history`.
 
-Certification lifecycle status (`certifications.status` / `setup_status`) flows roughly: `potential` → `quotation` → `quotation_approved` → `da_configurare` → `in_corso` → `certificato`, with `canceled` as an exit. Quotation approval is server-side (`supabase/functions/approve-quotation-v2`), which is what promotes a quotation into a configurable project.
+`certifications.status` holds the lifecycle, and a CHECK constraint limits it to exactly eight values: `potential` → `quotation` → `quotation_approved` → `da_configurare` → `in_corso` → `completato` → `certificato`, with `canceled` as an exit. It used to also admit `in_progress`, `active` and `on_hold` (the last one forbidden by a second constraint at the same time); those were unified in Nov 2026 — don't write them, the constraint rejects them.
+
+**`setup_status` is not a column.** It is derived, and the one definition lives in the `v_progetti_stato` view, which also exposes the signals it is built from (`ha_timeline`, `ha_scorecard`, `ha_hardware`, `monitoraggio_online`). Read it from there — three hooks each used to compute their own ladder and they disagreed on 106 projects. It adds `online` to the eight stored values: the terminus of an Energy/Air project that is transmitting.
+
+Quotation approval is a direct update from `src/pages/Quotations.tsx` (the group of a unified quotation is approved together). The rule that only Admin may approve is enforced by the `trg_approvazione_solo_amministrazione` trigger, so it holds whatever the write comes from; the old `approve-quotation-v2` edge function was unused and has been removed. The handover date is **not** required to quote or to approve — it becomes mandatory on entering `da_configurare`, which is when a PM is assigned and the timeline starts counting from it.
 
 Monitoring data lives in three parallel tables — `site_energy_records`, `site_air_records`, `site_water_records` — with matching types in `src/types/site-{energy,air,water}.ts` and hooks `use{Monitor,Air,Water}Rows`.
 

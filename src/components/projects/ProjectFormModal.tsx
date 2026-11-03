@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { nomeSchema } from "@/lib/nomeSchema";
 import { useForm, useFieldArray, Controller } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -58,18 +59,8 @@ const ALLOCATION_STATUSES = ["Draft", "Allocated", "Requested", "Shipped", "Inst
  * progetti risultavano impossibili da salvare senza che si capisse perche'.
  */
 
-const CERT_DISPLAY_LABELS: Record<string, string> = {
-  LEED: "LEED",
-  WELL: "WELL",
-  BREEAM: "BREEAM",
-  ESG: "ESG - Taxonomy",
-  GRESB: "GRESB",
-  Air: "Air — ClAir IAQ",
-  Energy: "Energy — Greeny",
-  Energy_Audit: "Energy Audit",
-  TAXONOMY: "Taxonomy",
-  CSRD: "CSRD",
-};
+// Il nome di uno schema si chiede a `nomeSchema`, che legge il catalogo.
+// Qui c'era una delle quattro copie scritte a mano di questa mappa.
 
 /**
  * Le medaglie NON si scelgono piu' da qui — vengono dal catalogo, che le sa per
@@ -644,7 +635,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
                 <CardContent className="pt-4 space-y-2 text-sm">
                   <div className="flex justify-between"><span className="text-muted-foreground">Client</span><span className="font-medium">{project.client}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Region</span><span className="font-medium">{project.region}</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">Certification</span><span className="font-medium">{(project as any).cert_type ? (CERT_DISPLAY_LABELS[(project as any).cert_type] ?? (project as any).cert_type) : "—"}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Certification</span><span className="font-medium">{(project as any).cert_type ? (nomeSchema((project as any).cert_type)) : "—"}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Rating</span><span className="font-medium">{(project as any).cert_rating || "—"}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Level</span><span className="font-medium">{(project as any).cert_level || "—"}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Handover</span><span className="font-medium">{project.handover_date ? format(new Date(project.handover_date), "dd MMM yyyy") : "—"}</span></div>
@@ -1019,7 +1010,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
                               ACTIVE IN DATABASE
                             </div>
                           )}
-                          <h5 className="font-bold text-lg text-slate-800 mb-4 border-b pb-2">{CERT_DISPLAY_LABELS[certType] ?? certType} Configuration</h5>
+                          <h5 className="font-bold text-lg text-slate-800 mb-4 border-b pb-2">{nomeSchema(certType)} Configuration</h5>
                           <div className={cn("grid grid-cols-1 gap-6", isQuotationMode ? "md:grid-cols-3" : "md:grid-cols-4")}>
                             <FormField control={form.control} name={`certifications.${index}.cert_rating`} render={({ field: f }) => (
                               <FormItem>

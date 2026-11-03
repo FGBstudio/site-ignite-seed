@@ -50,11 +50,14 @@ function useApprovedCerts() {
   return useQuery({
     queryKey: ["payments-approved-certs"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("certifications")
-        .select("id, name, client, total_fees, currency, fx_rate_to_eur, status, region, sites ( city )")
-        .in("status", ["quotation_approved", "da_configurare", "in_corso", "completato", "certificato"])
-        .order("created_at", { ascending: false });
+      // La stessa vista del dialogo di emissione: la regola di chi sia
+      // fatturabile sta in un posto solo, e questo pannello e quella tendina non
+      // possono piu' rispondere in modo diverso. Prima qui la lista degli stati
+      // includeva «completato» e nella tendina no.
+      const { data, error } = await (supabase as any)
+        .from("v_commesse_fatturabili")
+        .select("id, name, client, total_fees, currency, status, city, residuo_da_fatturare")
+        .order("residuo_da_fatturare", { ascending: false, nullsFirst: false });
       if (error) throw error;
       return (data || []) as unknown as Cert[];
     },

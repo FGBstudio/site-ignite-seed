@@ -116,7 +116,7 @@ export function usePMDashboard() {
     queryFn: async () => {
       // 1. Fetch certifications (root entity) with site + allocations
       let query = (supabase as any)
-        .from("certifications")
+        .from("v_progetti_stato")
         .select("*, sites(name, city, country), project_allocations(*)")
         .order("handover_date", { ascending: true });
 
@@ -200,40 +200,16 @@ export function usePMDashboard() {
           if (allocations.length === 0) missing.push("Hardware");
         }
 
-        let setup_status: SetupStatus;
-        // Prima di tutto il resto: potenziali, quotazioni e annullati non sono
-        // lavoro operativo e non si configurano. Restano col proprio stato,
-        // come gia' fa il portale Operations, cosi' le schede possono lasciarli
-        // fuori invece di farli comparire fra i progetti da configurare — dove
-        // finivano tutti, non avendo una timeline.
-        if (
-          c.status === "potential" ||
-          c.status === "quotation" ||
-          c.status === "quotation_approved" ||
-          c.status === "canceled"
-        ) {
-          setup_status = c.status as SetupStatus;
-        } else if (isCertified) {
-          setup_status = "certificato";
-        } else if (isMonitoringOnline({ cert_type: c.cert_type, cert_level: (c as any).cert_level })) {
-          // Il capolinea di un Energy o di un Air: i sensori trasmettono.
-          setup_status = "online";
-        } else if (c.status === "completato") {
-          // Lavoro consegnato ma non ancora certificato dall'ente: e' finito per
-          // il PM, e leggerlo "In Progress" gli farebbe cercare qualcosa da
-          // fare che non c'e'. Stesso ordine del portale Operations.
-          setup_status = "completato";
-        } else if (hasTimeline) {
-          // Basta che la scaletta esista, come in Operations. Prima qui si
-          // pretendeva anche che avesse le date, e quattro progetti con la
-          // timeline generata ma non ancora pianificata risultavano "In
-          // Progress" all'admin e "To Configure" al PM che li segue: lo stesso
-          // progetto in due caselle diverse a seconda di chi guarda.
-          // Che le date manchino lo dice gia' `missing`, con "Pianifica Date".
-          setup_status = "in_corso";
-        } else {
-          setup_status = "da_configurare";
-        }
+        // La scala di avanzamento non si calcola piu' qui: la da'
+        // `v_progetti_stato`, in un posto solo. Tre hook la calcolavano in tre
+        // modi che non concordavano — «in corso» con o senza la scorecard,
+        // `online` emesso o no — e 106 progetti si leggevano diversamente in due
+        // schermate della stessa applicazione. L'ordine della scala e il perche'
+        // di ogni passo stanno nel commento della vista.
+        //
+        // Quello che resta qui e' `missing`: non e' uno stato, e' l'elenco di
+        // cosa manca per configurare, e vive accanto a chi lo mostra.
+        const setup_status = c.setup_status as SetupStatus;
 
         // Deadline critical flag
         const is_deadline_critical = !isCertified && checkDeadlineCritical(certMilestones, today);

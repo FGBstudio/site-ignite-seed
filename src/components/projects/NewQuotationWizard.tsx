@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { nomeSchema } from "@/lib/nomeSchema";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useHoldings, useBrands, useSites } from "@/hooks/useProjectDetails";
@@ -73,28 +74,20 @@ const REGIONS = ["Europe", "America", "APAC", "ME"] as const;
  */
 type CertType = string;
 
-const CERT_DISPLAY_LABELS: Record<string, string> = {
-  LEED: "LEED",
-  WELL: "WELL",
-  BREEAM: "BREEAM",
-  ESG: "Taxonomy ESG",
-  GRESB: "GRESB",
-  Energy_Audit: "Energy Audit",
-  Air: "Air — ClAir IAQ",
-  Energy: "Energy — Greeny",
-};
+/**
+ * Il nome di uno schema si chiede al catalogo.
+ *
+ * Qui c'erano due mappe scritte a mano. `CERT_DISPLAY_LABELS` nominava `ESG` e
+ * `GRESB`, che a catalogo non esistono, e dimenticava nove schemi che esistono —
+ * che si mostravano col codice. `CERT_LEVELS` elencava le medaglie per schema ed
+ * era dichiarata e mai usata: le medaglie dipendono dalla combinazione, non dallo
+ * schema, e le da' `cert_catalog_levels`.
+ *
+ * Ora il nome e' una colonna del catalogo, e un vincolo NOT NULL fa in modo che
+ * uno schema nuovo non possa arrivare senza.
+ */
 
-/** Le medaglie previste da ogni schema. Vuoto = lo schema non ne ha. */
-const CERT_LEVELS: Record<CertType, string[]> = {
-  LEED: ["Certified", "Silver", "Gold", "Platinum"],
-  WELL: ["Bronze", "Silver", "Gold", "Platinum"],
-  BREEAM: ["Pass", "Good", "Very Good", "Excellent", "Outstanding"],
-  ESG: [],
-  GRESB: [],
-  Energy_Audit: [],
-  Air: [],
-  Energy: [],
-};
+
 
 type QuotationStrategy = "single" | "split" | null;
 type StepNum = 1 | 2 | 3 | 4 | 5;
@@ -707,7 +700,7 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId, 
     }
     setErrors((e) => ({
       ...e,
-      tranches: `${CERT_DISPLAY_LABELS[rotta.cert_type] ?? rotta.cert_type}: the tranches must add up to 100%`,
+      tranches: `${nomeSchema(rotta.cert_type)}: the tranches must add up to 100%`,
     }));
     return false;
   };
@@ -1534,7 +1527,7 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId, 
               <Card key={cert.cert_type} className="border-primary/20">
                 <CardContent className="pt-4">
                   <div className="flex items-center gap-2 mb-3">
-                    <Badge variant="secondary" className="font-bold">{CERT_DISPLAY_LABELS[cert.cert_type] ?? cert.cert_type}</Badge>
+                    <Badge variant="secondary" className="font-bold">{nomeSchema(cert.cert_type)}</Badge>
                     <span className="text-xs text-muted-foreground">Configure this certification</span>
                   </div>
                   {/* L'ordine segue la dipendenza: il rating restringe le
@@ -1714,7 +1707,7 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId, 
 
                   {/* Per-cert Quotation Value */}
                   <div className="mt-4 pt-3 border-t border-border/50 space-y-3">
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Quotation value · {CERT_DISPLAY_LABELS[cert.cert_type] ?? cert.cert_type}</p>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Quotation value · {nomeSchema(cert.cert_type)}</p>
 
                     {/* Le fee di terzi esistono solo dove c'è un ente che le
                         incassa, e si chiamano col suo nome: «GBCI fees» è del
@@ -1881,7 +1874,7 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId, 
             <div className="flex flex-wrap gap-2">
               {certs.map((c) => (
                 <div key={c.cert_type} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border bg-primary/5 border-primary/20 text-sm">
-                  <span className="font-medium text-primary">{CERT_DISPLAY_LABELS[c.cert_type] ?? c.cert_type}</span>
+                  <span className="font-medium text-primary">{nomeSchema(c.cert_type)}</span>
                   {c.cert_rating && <span className="text-xs text-muted-foreground">· {c.cert_rating}</span>}
                   <button
                     type="button"
@@ -1992,7 +1985,7 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId, 
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div className="flex items-center gap-2">
                   <Badge variant="secondary">
-                    {CERT_DISPLAY_LABELS[cert.cert_type] ?? cert.cert_type}
+                    {nomeSchema(cert.cert_type)}
                   </Badge>
                   <span className="text-sm text-muted-foreground">
                     {totale > 0 ? formatMoney(totale, currency) : "no amount yet"}
@@ -2200,7 +2193,7 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId, 
                 ].filter(Boolean) as string[];
                 return (
                   <div key={c.cert_type} className="px-3 py-1.5 rounded-lg border bg-primary/5 border-primary/20 text-sm">
-                    <span className="font-semibold text-primary">{CERT_DISPLAY_LABELS[c.cert_type] ?? c.cert_type}</span>
+                    <span className="font-semibold text-primary">{nomeSchema(c.cert_type)}</span>
                     {c.cert_rating && <span className="text-muted-foreground ml-1">· {c.cert_rating}</span>}
                     {c.cert_level && <span className="text-muted-foreground ml-1">· {c.cert_level}</span>}
                     {c.project_subtype && <span className="text-muted-foreground ml-1">· {c.project_subtype}</span>}
@@ -2225,7 +2218,7 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId, 
               {services.certifications.map((c) => (
                 <div key={c.cert_type} className="rounded-md border bg-background/60 p-2.5">
                   <div className="flex items-center gap-2 mb-1">
-                    <Badge variant="secondary" className="font-bold">{CERT_DISPLAY_LABELS[c.cert_type] ?? c.cert_type}</Badge>
+                    <Badge variant="secondary" className="font-bold">{nomeSchema(c.cert_type)}</Badge>
                     <span className="text-[11px] text-muted-foreground">{c.quote_mode === "builder" ? "Builder" : "Direct"}</span>
                   </div>
                   <div className="grid grid-cols-3 gap-2 text-xs">

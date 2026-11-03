@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from "react";
+import { nomeSchema } from "@/lib/nomeSchema";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { RigaTotali } from "@/components/common/RigaTotali";
@@ -49,14 +50,8 @@ const SETUP_STATUS_META = {
   online: { label: "Online", icon: Radio, className: "border-primary/30 bg-primary/10 text-primary" },
 } as const;
 
-const CERT_DISPLAY_LABELS: Record<string, string> = {
-  LEED: "LEED",
-  WELL: "WELL",
-  BREEAM: "BREEAM",
-  ESG: "ESG - Taxonomy",
-  GRESB: "GRESB",
-  Energy_Audit: "Energy Audit",
-};
+// Il nome di uno schema si chiede a `nomeSchema`, che legge il catalogo.
+// Qui c'era una delle quattro copie scritte a mano di questa mappa.
 
 /* ─────────── Excel Header Cell Helper functions ─────────── */
 
@@ -75,7 +70,7 @@ const COLUMN_VALUE: Record<string, (r: any) => string> = {
   city: r => r.city || '',
   region: r => r.region || '',
   country: r => r.country || '',
-  cert_type: r => (r.cert_type ? (CERT_DISPLAY_LABELS[r.cert_type] ?? r.cert_type) : ''),
+  cert_type: r => (r.cert_type ? (nomeSchema(r.cert_type)) : ''),
   cert_rating: r => r.cert_rating || '',
   cert_level: r => r.cert_level || '',
   total_fees: r => (r.total_fees !== undefined && r.total_fees !== null ? formatMoney(r.total_fees, r.currency) : ''),
@@ -422,7 +417,7 @@ export default function Projects() {
       { header: "Project", get: (p) => p.name ?? "" },
       { header: "Country", get: (p) => p.country ?? "" },
       { header: "Region", get: (p) => p.region ?? "" },
-      { header: "Certification", get: (p) => (p.cert_type ? CERT_DISPLAY_LABELS[p.cert_type] ?? p.cert_type : "") },
+      { header: "Certification", get: (p) => (p.cert_type ? nomeSchema(p.cert_type) : "") },
       { header: "Rating", get: (p) => p.cert_rating ?? "" },
     ];
 
@@ -532,7 +527,7 @@ export default function Projects() {
           p.cert_type,
           p.country,
           p.cert_level,
-          p.cert_type ? CERT_DISPLAY_LABELS[p.cert_type] : null,
+          p.cert_type ? nomeSchema(p.cert_type) : null,
           p.cert_rating,
           p.cert_level,
           p.score ? `${p.score} pts` : null,
@@ -1000,7 +995,7 @@ export default function Projects() {
                               className="rounded-full border px-2.5 py-0.5 text-xs font-medium"
                               style={stilePill(`${project.cert_type} ${project.cert_rating ?? ""}`)}
                             >
-                              {CERT_DISPLAY_LABELS[project.cert_type] ?? project.cert_type}
+                              {nomeSchema(project.cert_type)}
                             </Badge>
                           ) : (
                             <span className="text-muted-foreground text-xs">—</span>

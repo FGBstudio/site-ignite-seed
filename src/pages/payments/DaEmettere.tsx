@@ -4,7 +4,8 @@ import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import { FileText, Send } from "lucide-react";
 import { usePaymentsCtx } from "./PaymentsLayout";
-import { useAlertPayments, useTrancheAperte } from "@/hooks/usePayments";
+import { useAlertPayments, useRendiEsigibile, useTrancheAperte } from "@/hooks/usePayments";
+import { useToast } from "@/hooks/use-toast";
 import { KpiCard, Pill } from "@/components/payments/Comuni";
 import { DialogoEmissione } from "@/components/payments/DialogoEmissione";
 import { importo } from "@/lib/payments/aggregati";
@@ -248,6 +249,7 @@ export default function DaEmettere() {
         vuoto="Nessuna tranche futura definita sulle quotazioni approvate."
         righe={previste}
         causa={causa}
+        conSblocco
       />
 
       {/* ── La barra della selezione ─────────────────────────────────────────
@@ -302,11 +304,14 @@ function Elenco({
   vuoto,
   righe,
   causa,
+  conSblocco,
 }: {
   titolo: string;
   vuoto: string;
   righe: Tranche[];
   causa: Map<string, string>;
+  /** Vero sulle tranche in attesa: la' si puo' forzare l'esigibilita'. */
+  conSblocco?: boolean;
 }) {
   return (
     <section className="card overflow-hidden">
@@ -347,10 +352,84 @@ function Elenco({
               </div>
 
               <p className="num text-[14px] font-bold">{importo(t.amount ?? 0)}</p>
+
+              {conSblocco && <Sblocca tranche={t} />}
             </li>
           ))}
         </ul>
       )}
     </section>
+  );
+}
+
+/**
+ * Rendere esigibile una tranche che nessun evento sbloccherebbe.
+ *
+ * Non e' una scorciatoia: e' l'uscita di sicurezza. Una tranche senza un passo a
+ * cui essere agganciata e senza una scadenza non ha nessun modo di diventare
+ * fatturabile, e finora l'unica strada era aprire il database. Il motivo e'
+ * obbligatorio e finisce nell'avviso, perche' una riga comparsa in «da emettere»
+ * senza una ragione scritta e' una riga che qualcuno rimettera' in discussione.
+ */
+function Sblocca({ tranche }: { tranche: Tranche }) {
+  const { toast } = useToast();
+  const rendi = useRendiEsigibile();
+  const [aperto, setAperto] = useState(false);
+  const [motivo, setMotivo] = useState("");
+
+  const conferma = async () => {
+    try {
+      await rendi.mutateAsync({ tranche_id: tranche.id, motivo });
+      toast({
+        title: "Ora e' esigibile",
+        description: `${tranche.name ?? "La tranche"} e' passata fra quelle da emettere.`,
+      });
+      setAperto(false);
+      setMotivo("");
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Non sbloccata", description: e.message });
+    }
+  };
+
+  if (!aperto) {
+    return (
+      <button
+        type="button"
+        onClick={() => setAperto(true)}
+        className="rounded-[8px] border px-2 py-1 text-[11px] font-semibold"
+        style={{ color: "var(--muted)" }}
+        title="Rendi esigibile questa tranche senza aspettare un evento"
+      >
+        Rendi esigibile
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex w-full flex-wrap items-center gap-2 rounded-[8px] border bg-muted/30 p-2">
+      <span className="text-[11px]" style={{ color: "var(--muted)" }}>Perche'?</span>
+      <input
+        value={motivo}
+        onChange={(e) => setMotivo(e.target.value)}
+        placeholder="es. fattura concordata col cliente a dicembre"
+        className="min-w-[240px] flex-1 rounded-[6px] border px-2 py-1 text-[11.5px]"
+      />
+      <button
+        type="button"
+        disabled={!motivo.trim() || rendi.isPending}
+        onClick={conferma}
+        className="rounded-[8px] px-2.5 py-1 text-[11px] font-semibold text-white disabled:opacity-50"
+        style={{ background: "var(--teal)" }}
+      >
+        {rendi.isPending ? "…" : "Conferma"}
+      </button>
+      <button
+        type="button"
+        onClick={() => setAperto(false)}
+        className="rounded-[8px] border px-2.5 py-1 text-[11px]"
+      >
+        Annulla
+      </button>
+    </div>
   );
 }

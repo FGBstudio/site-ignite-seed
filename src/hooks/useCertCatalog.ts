@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { registraEtichetteSchemi } from "@/lib/nomeSchema";
 
 /**
  * Il vocabolario delle certificazioni, letto dal database.
@@ -23,6 +24,16 @@ export interface CatalogEntry {
   version: string | null;
   delivery_context: string | null;
   display_label: string;
+  /**
+   * Il nome leggibile dello **schema**, non della voce.
+   *
+   * `display_label` descrive la combinazione — «LEED BD+C · Core & Shell» — e per
+   * il nome dello schema serviva un'altra cosa. Prima era una mappa scritta a mano
+   * nel wizard, che nominava due schemi inesistenti e ne dimenticava nove veri:
+   * quei nove comparivano col codice, e in una tendina commerciale si leggeva
+   * «WELL_GC_Support».
+   */
+  scheme_label: string;
   outcome_model: OutcomeModel;
   score_unit: "points" | "percent" | null;
   timeline_key: string | null;
@@ -150,7 +161,13 @@ export function useCertCatalog() {
         .order("scheme")
         .order("order_index");
       if (error) throw error;
-      return (data ?? []) as unknown as CatalogEntry[];
+      const righe = (data ?? []) as unknown as CatalogEntry[];
+      // I nomi degli schemi si ricordano fuori da React: servono anche nelle
+      // colonne delle esportazioni, che sono definite a livello di modulo.
+      registraEtichetteSchemi(
+        Object.fromEntries(righe.filter((r) => r.scheme_label).map((r) => [r.scheme, r.scheme_label])),
+      );
+      return righe;
     },
   });
 
@@ -182,7 +199,10 @@ export function useCertCatalog() {
     )
       .map(([scheme, first]) => ({
         scheme,
-        label: first.outcome_model === "none" ? first.display_label : scheme,
+        // Il nome viene dal catalogo. Prima: l'etichetta della voce per i servizi,
+        // il codice per tutto il resto — ed e' per quel codice che serviva una
+        // mappa a mano.
+        label: first.scheme_label || first.display_label || scheme,
         isService: first.outcome_model === "none",
         isSellable: rows.some((r) => r.scheme === scheme && r.is_sellable),
       }))
