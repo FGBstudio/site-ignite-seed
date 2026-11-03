@@ -203,6 +203,32 @@ export function useCertCatalog() {
     const versionsOf = (scheme: string, rating?: string | null, typology?: string | null) =>
       versioniDi(rows, scheme, rating, typology);
 
+    /**
+     * I contesti di consegna di una combinazione.
+     *
+     * Quasi nessuno schema ne ha: per LEED, WELL e BREEAM la lista è vuota e il
+     * campo non si mostra. WiredScore invece esiste **solo** per contesto — Dev
+     * per chi sviluppa l'immobile, Occ per chi lo occupa — e sono dieci voci
+     * distinte, nessuna col contesto nullo.
+     *
+     * Finché il wizard non lo chiedeva, un WiredScore si poteva quotare e non si
+     * poteva approvare: la riga nasceva col contesto vuoto, e il trigger che
+     * valida il catalogo all'approvazione cerca la combinazione esatta, contesto
+     * compreso. Non trovandola rifiutava, con un messaggio che nominava rating e
+     * tipologia giusti e lasciava indovinare cosa mancasse.
+     */
+    const contextsOf = (scheme: string, rating?: string | null, typology?: string | null) =>
+      dedupe(
+        rows
+          .filter(
+            (r) =>
+              r.scheme === scheme &&
+              (!rating || r.rating_system === rating) &&
+              (!typology || r.typology === typology),
+          )
+          .map((r) => r.delivery_context),
+      );
+
     const find = (
       scheme: string,
       rating?: string | null,
@@ -267,6 +293,7 @@ export function useCertCatalog() {
       ratingsOf,
       typologiesOf,
       versionsOf,
+      contextsOf,
       levelsOf,
       naturaDi,
       find,

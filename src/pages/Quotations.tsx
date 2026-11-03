@@ -91,10 +91,38 @@ function useQuotations() {
   });
 }
 
+/**
+ * Le offerte su cui è già partita la fatturazione.
+ *
+ * «Edit» cancella la riga e la riscrive: se una fattura ci è appesa, la fattura
+ * resta nel registro senza progetto, perché il legame è «on delete set null».
+ * Il database lo vieta con un messaggio che nomina la fattura, ma un bottone che
+ * porta sempre in un errore è un bottone che non dovrebbe esserci: qui si
+ * disattiva prima, dicendo perché.
+ */
+function useOfferteFatturate() {
+  return useQuery({
+    queryKey: ["quotations-fatturate"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("invoices")
+        .select("certification_id, number")
+        .not("certification_id", "is", null);
+      if (error) throw error;
+      const m = new Map<string, string[]>();
+      for (const r of (data ?? []) as Array<{ certification_id: string; number: string }>) {
+        m.set(r.certification_id, [...(m.get(r.certification_id) ?? []), r.number]);
+      }
+      return m;
+    },
+  });
+}
+
 export default function Quotations() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const { data: rows = [], isLoading } = useQuotations();
+  const { data: fatturate = new Map<string, string[]>() } = useOfferteFatturate();
 
   const [tab, setTab] = useState<"dashboard" | "potential" | "pending" | "approved" | "canceled">("dashboard");
   const [search, setSearch] = useState("");
@@ -184,27 +212,19 @@ export default function Quotations() {
       const ids = groupIds && groupIds.length > 0 ? groupIds : [id];
 
       /*
-        Qui la data di consegna diventa vincolante.
+        La data di consegna NON si pretende qui.
 
-        Mandare un'offerta senza sapere quando si consegna e' normale, e infatti
-        in fase di registrazione il campo e' libero. Approvarla e' un'altra
-        cosa: da quel momento il progetto entra in Operations, il PM ci
-        costruisce sopra la timeline e ogni scadenza si conta da li'. Senza
-        data non c'e' niente da cui contare.
+        Approvare e' un atto commerciale: il cliente ha firmato, e spesso in quel
+        momento la data di consegna non esiste ancora. Pretenderla qui
+        costringeva a inventarla per poter registrare una firma che c'era
+        davvero — e una data inventata e' peggio di una data mancante, perche'
+        poi qualcuno ci conta le scadenze sopra.
 
-        Si controllano tutte le righe del gruppo, non solo quella cliccata: su
-        un'offerta unificata basta che una non abbia la data perche' entri in
-        Operations monca.
-        */
-      const senzaData = rows.filter((r) => ids.includes(r.id) && !r.handover_date);
-      if (senzaData.length > 0) {
-        const elenco = senzaData.map((r) => r.name).join(", ");
-        throw new Error(
-          senzaData.length === 1
-            ? `Manca la data di consegna di "${elenco}". Aprila con Edit, inseriscila e riprova.`
-            : `Manca la data di consegna di ${senzaData.length} progetti dell'offerta: ${elenco}. Inseriscile con Edit e riprova.`,
-        );
-      }
+        Si pretende un passo piu' avanti, all'assegnazione del PM: e' lo stesso
+        momento in cui il progetto diventa lavoro, e il vincolo del database la
+        chiede proprio su quella transizione. Chi assegna il PM trova il campo
+        nel riquadro di conferma quando manca.
+      */
       const { data, error } = await supabase
         .from("certifications")
         .update({ status: "quotation_approved", quotation_approved_at: approvedAt, quotation_approved_by: userId })
@@ -348,19 +368,26 @@ export default function Quotations() {
     }
   };
 
-  const EditButton = ({ id }: { id: string }) => (
+  const EditButton = ({ id }: { id: string }) => {
+    const numeri = fatturate.get(id);
+    return (
     <Button
       size="sm"
       variant="outline"
       className="gap-1.5"
-      disabled={openingEditId === id}
+      disabled={openingEditId === id || !!numeri}
       onClick={() => openEdit(id)}
-      title="Edit this quotation"
+      title={
+        numeri
+          ? `Non modificabile: ${numeri.length === 1 ? "è già stata emessa la fattura" : "sono già state emesse le fatture"} ${numeri.join(", ")}. Riscrivere l'offerta staccherebbe la fattura dal progetto.`
+          : "Edit this quotation"
+      }
     >
       {openingEditId === id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Pencil className="h-3.5 w-3.5" />}
-      Edit
+      {numeri ? "Fatturata" : "Edit"}
     </Button>
-  );
+    );
+  };
 
   const renderPotential = () => {
     const filtered = potential.filter(filterFn);

@@ -169,6 +169,16 @@ interface CertConfig {
    * regolamento viene portata.
    */
   cert_version: string;
+  /**
+   * Il contesto di consegna, quando lo schema lo distingue.
+   *
+   * Quasi nessuno lo fa. WiredScore sì: esiste solo come Dev — chi sviluppa
+   * l'immobile — o Occ — chi lo occupa — e sono dieci voci di catalogo distinte,
+   * nessuna col contesto vuoto. Finché questo campo non c'era, un WiredScore si
+   * poteva quotare e non si poteva approvare: il catalogo, che all'approvazione
+   * cerca la combinazione esatta, non trovava mai una riga col contesto nullo.
+   */
+  delivery_context: string;
   flags: MonitoringFlags;
   quantities: MonitoringQuantities;
   // Quotation fields per certification
@@ -293,6 +303,7 @@ function emptyCertConfig(type: CertType): CertConfig {
     quotation_kind: "",
     project_subtype: "",
     cert_version: "",
+    delivery_context: "",
     flags: emptyFlags(),
     quantities: emptyQuantities(),
     services_fees: "",
@@ -602,14 +613,40 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId, 
   };
 
   const validateStep2 = (): boolean => {
-    // In Potential mode every field in Step 2 is optional.
-    if (isPotential) { setErrors({}); return true; }
+    /**
+     * Anche un potenziale è il potenziale **di qualcosa**.
+     *
+     * Gli importi restano opzionali — un potenziale non ha ancora un prezzo — ma
+     * il servizio no: senza, la riga non si può nemmeno scrivere, perché
+     * `certifications.cert_type` non ammette il vuoto. Il wizard aveva un ramo
+     * che provava a salvare una riga scheletro senza servizio, e quel ramo non
+     * ha mai prodotto una riga in vita sua: fallisce sul vincolo NOT NULL con un
+     * messaggio del database. Meglio chiederlo qui.
+     */
+    if (isPotential) {
+      const soloServizio =
+        services.certifications.length === 0
+          ? { certs: "Scegli almeno un servizio: anche un potenziale è il potenziale di qualcosa." }
+          : {};
+      setErrors(soloServizio);
+      return Object.keys(soloServizio).length === 0;
+    }
     const errs: Record<string, string> = {};
     if (services.certifications.length === 0) errs.certs = "Select at least one certification service";
     services.certifications.forEach((c) => {
       const total = Number(c.total_fees);
       const ok = c.quote_mode === "builder" ? c.builder_applied && total > 0 : total > 0;
       if (!ok) errs[`total_${c.cert_type}`] = `Set a Total Quotation for ${c.cert_type}`;
+      // Il contesto di consegna, dove il catalogo lo distingue. Dirlo qui vale
+      // più che scoprirlo all'approvazione, quando il trigger del catalogo
+      // rifiuta la combinazione e il messaggio nomina tutto tranne il contesto.
+      if (
+        catalog.contextsOf(c.cert_type, c.cert_rating || null, c.project_subtype || null).length > 0 &&
+        !c.delivery_context
+      ) {
+        errs[`context_${c.cert_type}`] =
+          `Scegli il contesto di consegna per ${c.cert_type}: senza, l'offerta non si potrà approvare.`;
+      }
     });
     setErrors(errs);
     return Object.keys(errs).length === 0;
@@ -881,6 +918,7 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId, 
           quotation_kind: c.quotation_kind || "",
           project_subtype: c.project_subtype || "",
           cert_version: c.cert_version || "",
+          delivery_context: c.delivery_context || "",
           flags: {
             ...base.flags,
             iaq: !!c.has_iaq_monitoring,
@@ -979,27 +1017,17 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId, 
 
       const targetStatus = isPotential ? "potential" : "quotation";
 
-      // If Potential mode AND no certifications selected: insert a single skeletal row and exit.
-      if (isPotential && services.certifications.length === 0) {
-        const { error: pErr } = await supabase.from("certifications").insert({
-          name: services.projectName,
-          client: services.client,
-          region: services.region,
-          handover_date: services.handoverDate ? format(services.handoverDate, "yyyy-MM-dd") : null,
-          status: "potential",
-          pm_id: null,
-          site_id: resolvedSiteId,
-          cert_type: null,
-          score: 0,
-          sqm: services.sqm ? Number(services.sqm) : null,
-          quotation_notes: services.notes || null,
-        } as any);
-        if (pErr) throw pErr;
-        toast({ title: "Potential saved", description: `${services.projectName} added to Potential Quotations.` });
-        handleClose();
-        onSaved();
-        return;
-      }
+      /*
+        Qui c'era il ramo «potenziale senza servizi»: inseriva una riga scheletro
+        con `cert_type: null` ed è sempre fallito, perché quella colonna non
+        ammette il vuoto. Nei dati non esiste un solo potenziale senza servizio:
+        su 129, zero. Non era un caso raro, era un ramo morto che restituiva un
+        messaggio del database all'ultimo click.
+
+        Ora il servizio si chiede a step 2, anche per i potenziali — un
+        potenziale è il potenziale di qualcosa — e da qui in giù il salvataggio
+        ha una strada sola.
+      */
 
 
       const handoverStr = services.handoverDate ? format(services.handoverDate, "yyyy-MM-dd") : null;
@@ -1070,6 +1098,10 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId, 
             // versioni; finora la certificazione nasceva senza dirlo, e a
             // dirlo restavano solo quelle importate da fuori.
             cert_version: cert.cert_version || null,
+            // Senza questo, un WiredScore nasceva fuori catalogo e l'approvazione
+            // lo rifiutava: il trigger cerca la combinazione esatta, contesto
+            // compreso, e nessuna voce WiredScore ha il contesto vuoto.
+            delivery_context: cert.delivery_context || null,
             level: cert.cert_rating || null,
             score: 0,
             sqm: services.sqm ? Number(services.sqm) : null,
@@ -1479,6 +1511,13 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId, 
               cert.cert_rating || null,
               cert.project_subtype || null,
             );
+            // I contesti di consegna: vuoto per quasi tutti gli schemi, e allora
+            // il campo non si mostra affatto.
+            const contexts = catalog.contextsOf(
+              cert.cert_type,
+              cert.cert_rating || null,
+              cert.project_subtype || null,
+            );
             // Le medaglie dipendono anche dalla versione: il Bronze di WELL
             // esiste solo sul v2 Pilot. Passarla evita che la tendina offra una
             // medaglia che quella versione non prevede — e che il database, che
@@ -1487,7 +1526,7 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId, 
               cert.cert_type,
               cert.cert_rating || null,
               cert.project_subtype || null,
-              null,
+              cert.delivery_context || null,
               cert.cert_version || null,
             );
             const natura = catalog.naturaDi(cert.cert_type);
@@ -1549,6 +1588,45 @@ export function NewQuotationWizard({ open, onOpenChange, onSaved, resumeCertId, 
                         <SelectContent>{versions.map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent>
                       </Select>
                     </div>
+                    {/* Il contesto di consegna, solo per gli schemi che lo
+                        distinguono — in pratica WiredScore. Per tutti gli altri
+                        il catalogo non ne ha, e un campo vuoto che chiede una
+                        cosa inesistente è peggio di un campo assente. */}
+                    {contexts.length > 0 && (
+                      <div className="space-y-1">
+                        <Label className="text-xs">Delivery context *</Label>
+                        <Select
+                          value={cert.delivery_context}
+                          onValueChange={(v) => {
+                            const ammesse = catalog.levelsOf(
+                              cert.cert_type,
+                              cert.cert_rating || null,
+                              cert.project_subtype || null,
+                              v,
+                              cert.cert_version || null,
+                            );
+                            patchCert(cert.cert_type, {
+                              delivery_context: v,
+                              ...(cert.cert_level && !ammesse.some((l) => l.level === cert.cert_level)
+                                ? { cert_level: "" }
+                                : {}),
+                            });
+                          }}
+                        >
+                          <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Select" /></SelectTrigger>
+                          <SelectContent>
+                            {contexts.map((v) => (
+                              <SelectItem key={v} value={v}>
+                                {v === "Dev" ? "Dev — chi sviluppa" : v === "Occ" ? "Occ — chi occupa" : v}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {errors[`context_${cert.cert_type}`] && (
+                          <p className="text-xs text-destructive">{errors[`context_${cert.cert_type}`]}</p>
+                        )}
+                      </div>
+                    )}
                     {/* Un servizio senza esito da raggiungere non ha un Target
                         Level, e quello che compariva a Greeny — «Pending»,
                         «Online» — erano stati di trasmissione travestiti da

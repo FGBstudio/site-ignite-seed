@@ -212,7 +212,7 @@ export function DataImporter() {
                   region: firstRow.region as any,
                   pm_id: pmId,
                   handover_date: firstRow.handoverDate,
-                  status: "in_progress",
+                  status: "in_corso",
                   cert_type: "imported",
                   site_id: null as any,
                 },

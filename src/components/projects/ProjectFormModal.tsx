@@ -200,6 +200,17 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
   const isQuotationMode = mode === "create_quotation";
   const isConfirmMode = mode === "confirm_project";
 
+  /**
+   * La data di consegna chiesta in assegnazione, quando l offerta non ce l aveva.
+   *
+   * Mandare un offerta senza sapere quando si consegna e normale, e fino alla
+   * firma il campo resta libero. Qui non piu: da questo riquadro il progetto
+   * esce con un PM sopra, e il PM ci costruisce la timeline. Dargli il progetto
+   * senza dirgli entro quando e il modo piu sicuro di farlo arrivare tardi —
+   * e il vincolo del database la pretende proprio su questa transizione.
+   */
+  const [scadenzaDaChiedere, setScadenzaDaChiedere] = useState("");
+
   // Il cambio mostrato e' quello di oggi. Quello che finira' sulla riga lo
   // decide il database al salvataggio, e sara' lo stesso: qui e' un'anteprima,
   // non la fonte.
@@ -411,9 +422,26 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
           return;
         }
         const wasQuotationApproved = (project as any).status === "quotation_approved";
+
+        // La scadenza: se l offerta non la portava, si chiede qui. Dirlo prima
+        // vale piu che lasciare che il vincolo del database rifiuti l update
+        // con un messaggio che nomina un constraint.
+        const serveLaData = !project.handover_date;
+        if (serveLaData && !scadenzaDaChiedere) {
+          toast({
+            title: "Serve la data di consegna",
+            description:
+              "Il progetto passa a un PM, che ci costruisce la timeline: senza una data non c e niente da cui contare le scadenze.",
+            variant: "destructive",
+          });
+          setSaving(false);
+          return;
+        }
+
         const updatePayload: any = {
           pm_id: data.confirm_pm_id,
-          status: wasQuotationApproved ? "da_configurare" : "in_progress",
+          status: wasQuotationApproved ? "da_configurare" : "in_corso",
+          ...(serveLaData ? { handover_date: scadenzaDaChiedere } : {}),
         };
         const { data: updatedCerts, error } = await supabase
           .from("certifications")
@@ -474,7 +502,7 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
           client: data.client, 
           region: data.region, 
           handover_date: handoverStr,
-          status: isQuotationMode ? "quotation" : (data.status || "in_progress"), 
+          status: isQuotationMode ? "quotation" : (data.status || "in_corso"),
           pm_id: pmId || null, 
           site_id: siteId, 
           cert_type: certConf.cert_type,
@@ -673,6 +701,28 @@ export function ProjectFormModal({ open, onOpenChange, project, existingAllocati
                 decise il preventivo. In assegnazione si sceglie il PM, il
                 resto arriva.
               */}
+
+              {/*
+                La scadenza del progetto, chiesta solo se l'offerta non la
+                portava. Quando c'e' sta nel riquadro di sola lettura qui
+                sopra, insieme al resto di quello che il cliente ha firmato: qui
+                si compila, non si corregge.
+              */}
+              {!project.handover_date && (
+                <div className="space-y-1.5 rounded-lg border border-amber-300 bg-amber-50 p-3">
+                  <Label className="text-sm font-medium">Handover date *</Label>
+                  <p className="text-xs text-muted-foreground">
+                    L'offerta e' stata firmata senza una data di consegna. Il PM ci
+                    costruisce la timeline sopra, quindi serve adesso.
+                  </p>
+                  <Input
+                    type="date"
+                    value={scadenzaDaChiedere}
+                    onChange={(e) => setScadenzaDaChiedere(e.target.value)}
+                    className="h-9 w-[180px] bg-white"
+                  />
+                </div>
+              )}
 
               {/* Site coordinates */}
               <div className="space-y-2">
