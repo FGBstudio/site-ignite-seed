@@ -516,10 +516,12 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
               site_id: selectedSiteId,
               country: selectedCert?.sites?.country || null,
               region: selectedCert?.sites?.region || null,
-              type: "site"
+              type: "client"
             }])
             .select("id");
-          if (!locErr && newLoc && newLoc[0]) {
+          if (locErr) {
+            console.error("Failed creating ops_locations:", locErr);
+          } else if (newLoc && newLoc[0]) {
             destinationLocationId = newLoc[0].id;
           }
         }
