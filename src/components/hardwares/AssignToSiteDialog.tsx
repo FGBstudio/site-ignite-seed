@@ -65,7 +65,12 @@ interface Certification {
   id: string;
   pm_id: string | null;
   site_id: string | null;
-  sites?: { name: string | null; country: string | null; region: string | null } | null;
+  sites?: {
+    name: string | null;
+    country: string | null;
+    region: string | null;
+    brands?: { name: string | null } | null;
+  } | null;
 }
 
 /** Contatori di site_energy_records, letti solo per mostrare la stima. */
@@ -242,7 +247,7 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
     queryFn: async () => {
       const { data, error } = await supabase
         .from("certifications")
-        .select("id, pm_id, site_id, sites(name, country, region)")
+        .select("id, pm_id, site_id, sites(name, country, region, brands(name))")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as unknown as Certification[];
@@ -703,7 +708,12 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
                     className="h-9 w-full justify-between text-xs bg-slate-50 border-slate-200 font-normal px-3 hover:bg-slate-100/80"
                   >
                     {selectedCert ? (
-                      <div className="flex items-center gap-2 truncate">
+                      <div className="flex items-center gap-1.5 truncate">
+                        {selectedCert.sites?.brands?.name && (
+                          <span className="font-semibold text-[#009193] shrink-0">
+                            {selectedCert.sites.brands.name} ·
+                          </span>
+                        )}
                         <span className="font-semibold text-slate-800 truncate">
                           {selectedCert.sites?.name || "Unnamed Site"}
                         </span>
@@ -721,7 +731,7 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
                 </PopoverTrigger>
                 <PopoverContent className="w-[340px] p-0" align="start">
                   <Command>
-                    <CommandInput placeholder="Search site, country, PM..." className="h-9 text-xs" />
+                    <CommandInput placeholder="Search brand, site, country, PM..." className="h-9 text-xs" />
                     <CommandList className="max-h-[280px]">
                       <CommandEmpty className="py-4 text-center text-xs text-slate-400">
                         {showOnlyPendingRequests
@@ -732,7 +742,8 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
                         {sortedAndFilteredCerts.map((c) => {
                           const stat = certAllocationStats.get(c.id);
                           const pm = pms.find((p) => p.id === c.pm_id);
-                          const searchStr = `${c.sites?.name || ""} ${c.sites?.country || ""} ${c.sites?.region || ""} ${pm?.full_name || ""}`.toLowerCase();
+                          const brandName = c.sites?.brands?.name || "";
+                          const searchStr = `${brandName} ${c.sites?.name || ""} ${c.sites?.country || ""} ${c.sites?.region || ""} ${pm?.full_name || ""}`.toLowerCase();
 
                           return (
                             <CommandItem
@@ -748,7 +759,11 @@ export function AssignToSiteDialog({ open, onOpenChange, hardwares, onSaved }: P
                                 <span className={cn("font-medium text-slate-900 truncate", c.id === certificationId && "text-[#009193] font-bold")}>
                                   {c.sites?.name || "Unnamed Site"}
                                 </span>
-                                <div className="flex items-center gap-1.5 text-[10px] text-slate-400 mt-0.5">
+                                <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] text-slate-400 mt-0.5">
+                                  {brandName && (
+                                    <span className="font-semibold text-slate-600">{brandName}</span>
+                                  )}
+                                  {brandName && (c.sites?.country || c.sites?.region || pm) && <span>·</span>}
                                   {c.sites?.country && <span>{c.sites.country}</span>}
                                   {c.sites?.region && <span>· {c.sites.region}</span>}
                                   {pm && <span>· PM: {pm.full_name}</span>}
